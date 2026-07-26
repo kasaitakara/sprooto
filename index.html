@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sprooto</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="theme-sprooto">
+  <main class="app">
+    <header class="app-header">
+      <h1>sprooto</h1>
+      <label class="theme-control">
+    <select id="theme-selector" aria-label="theme">
+        <option value="theme-sprooto">sprooto</option>
+        <option value="theme-kasai">kasai</option>
+        <option value="theme-aya">aya</option>
+    </select>
+</label>
+      <button
+    id="play-button"
+    class="icon-button play-button"
+    aria-label="再生・停止"
+>
+    <svg
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+    >
+        <path d="M8 5L19 12L8 19Z"/>
+    </svg>
+</button>
+      <label class="master-control" aria-label="master volume">
+  <span class="master-volume-icon" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="M11 5 6 9H2v6h4l5 4V5Z"></path>
+      <path d="M15 9a5 5 0 0 1 0 6"></path>
+      <path d="M18 6a9 9 0 0 1 0 12"></path>
+    </svg>
+  </span>
+
+  <input
+    id="master-volume"
+    type="range"
+    min="0"
+    max="100"
+    value="70"
+  >
+
+  <output id="master-volume-value">70</output>
+</label>
+      <input id="bpm-input" class="bpm-input" type="number" min="40" max="300" value="120" aria-label="BPM">
+    </header>
+
+    <section class="sequence-section" aria-label="sequence">
+      <div class="sequence-toolbar">
+        <button
+          id="sequence-page-button"
+          class="sequence-page-button"
+          type="button"
+          aria-label="ステップ1～32を表示中。33～64へ切り替え"
+        >◧</button>
+        <input
+          id="pattern-length-input"
+          class="pattern-length-input"
+          type="number"
+          min="1"
+          max="64"
+          step="1"
+          value="32"
+          aria-label="パターンのステップ数"
+        >
+      </div>
+      <div id="sequence-grid" class="sequence-grid"></div>
+    </section>
+
+    <section class="editor-section" aria-label="editor">
+      <div id="editor"></div>
+    </section>
+
+    <section class="pattern-section" aria-label="pattern manager">
+      <div class="pattern-section-header">
+        <span class="pattern-section-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="6" height="6" rx="1"></rect>
+            <rect x="14" y="4" width="6" height="6" rx="1"></rect>
+            <rect x="4" y="14" width="6" height="6" rx="1"></rect>
+            <rect x="14" y="14" width="6" height="6" rx="1"></rect>
+          </svg>
+        </span>
+        <span class="pattern-section-label">pattern</span>
+        <span class="fill-column-label" aria-label="fill">F</span>
+      </div>
+
+      <div id="pattern-grid" class="pattern-grid"></div>
+
+      <div class="section-manager">
+        <div class="section-manager-header">
+          <span>section</span>
+          <button id="add-section-button" class="section-add-button" type="button" aria-label="セクションを追加">＋</button>
+        </div>
+        <div id="section-list" class="section-list"></div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

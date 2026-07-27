@@ -834,6 +834,25 @@ function editValueControl(parameter, id) {
   value.textContent = track.base[id];
 
   /*
+   * 最後に触った入力機器を記録する。
+   *
+   * touch / pen：
+   * 数値入力欄を開かず、スイープ専用。
+   *
+   * mouse / keyboard：
+   * 従来の直接入力も使用可能。
+   */
+  let lastPointerType = null;
+
+  value.addEventListener(
+    "pointerdown",
+    event => {
+      lastPointerType =
+        event.pointerType;
+    }
+  );
+
+  /*
    * 上下スイープによる値変更
    */
   let sweepHistorySaved = false;
@@ -848,7 +867,7 @@ function editValueControl(parameter, id) {
     setValue: nextValue => {
       /*
        * 1回のスイープにつき、
-       * Undo履歴は最初の変更時だけ保存する。
+       * Undo履歴は最初の変更時だけ保存。
        */
       if (!sweepHistorySaved) {
         saveHistory();
@@ -870,10 +889,6 @@ function editValueControl(parameter, id) {
     ) => {
       sweepHistorySaved = false;
 
-      /*
-       * 値が変わった場合だけ
-       * Editorを再描画する。
-       */
       if (changed) {
         renderEditorAndRestore(
           valueKey
@@ -883,84 +898,104 @@ function editValueControl(parameter, id) {
   });
 
   /*
-   * タップ時の直接数値入力
+   * PCのマウスクリック、
+   * またはキーボード操作時の直接入力。
+   *
+   * 指やペンでタップした場合は
+   * 入力欄へ切り替えない。
    */
-  value.addEventListener("click", () => {
-    const input =
-      document.createElement("input");
+  value.addEventListener(
+    "click",
+    event => {
+      const isTouchInput =
+        event.detail > 0 &&
+        (
+          lastPointerType === "touch" ||
+          lastPointerType === "pen"
+        );
 
-    input.type = "number";
-    input.value = track.base[id];
-    input.min = definition.min;
-    input.max = definition.max;
-    input.step = definition.step;
-    input.className = "base-input";
-    input.dataset.focusKey = valueKey;
-    input.dataset.keyboardEditing = "true";
-
-    value.replaceWith(input);
-    input.focus();
-    input.select();
-
-    let finished = false;
-
-    const finish = shouldCommit => {
-      if (finished) {
+      if (isTouchInput) {
+        event.preventDefault();
         return;
       }
 
-      finished = true;
+      const input =
+        document.createElement("input");
 
-      if (shouldCommit) {
-        const previousValue =
-          track.base[id];
+      input.type = "number";
+      input.value = track.base[id];
+      input.min = definition.min;
+      input.max = definition.max;
+      input.step = definition.step;
+      input.className = "base-input";
+      input.dataset.focusKey = valueKey;
+      input.dataset.keyboardEditing = "true";
 
-        let nextValue = clamp(
-          Number(input.value) || 0,
-          definition.min,
-          definition.max
+      value.replaceWith(input);
+      input.focus();
+      input.select();
+
+      let finished = false;
+
+      const finish = shouldCommit => {
+        if (finished) {
+          return;
+        }
+
+        finished = true;
+
+        if (shouldCommit) {
+          const previousValue =
+            track.base[id];
+
+          let nextValue = clamp(
+            Number(input.value) || 0,
+            definition.min,
+            definition.max
+          );
+
+          nextValue =
+            Math.round(
+              nextValue * 100
+            ) / 100;
+
+          if (
+            nextValue !== previousValue
+          ) {
+            saveHistory();
+
+            track.base[id] =
+              nextValue;
+          }
+        }
+
+        renderEditorAndRestore(
+          valueKey
         );
+      };
 
-        nextValue =
-          Math.round(nextValue * 100) /
-          100;
+      input.addEventListener(
+        "keydown",
+        event => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            finish(true);
+          }
 
-        if (
-          nextValue !== previousValue
-        ) {
-          saveHistory();
-
-          track.base[id] =
-            nextValue;
+          if (event.key === "Escape") {
+            event.preventDefault();
+            finish(false);
+          }
         }
-      }
-
-      renderEditorAndRestore(
-        valueKey
       );
-    };
 
-    input.addEventListener(
-      "keydown",
-      event => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          finish(true);
-        }
-
-        if (event.key === "Escape") {
-          event.preventDefault();
-          finish(false);
-        }
-      }
-    );
-
-    input.addEventListener(
-      "blur",
-      () => finish(true),
-      { once: true }
-    );
-  });
+      input.addEventListener(
+        "blur",
+        () => finish(true),
+        { once: true }
+      );
+    }
+  );
 
   wrap.appendChild(value);
 

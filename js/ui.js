@@ -236,7 +236,7 @@ function renderEditorAndRestore(focusKey) {
 const SWEEP_START_DISTANCE = 8;
 const SWEEP_PIXELS_PER_STEP = 12;
 const SWEEP_ACCELERATION_START = 8;
-const SWEEP_ACCELERATION_RATE = 0.15;
+const SWEEP_ACCELERATION_RATE = 0.2;
 
 function decimalPlaces(value) {
   const text = String(value);

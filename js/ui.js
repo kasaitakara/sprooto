@@ -235,6 +235,8 @@ function renderEditorAndRestore(focusKey) {
 
 const SWEEP_START_DISTANCE = 8;
 const SWEEP_PIXELS_PER_STEP = 12;
+const SWEEP_ACCELERATION_START = 10;
+const SWEEP_ACCELERATION_RATE = 0.08;
 
 function decimalPlaces(value) {
   const text = String(value);
@@ -271,10 +273,6 @@ function enableVerticalSweep({
   let changed = false;
   let suppressClick = false;
 
-  /*
-   * 数値上での上下スイープ中に
-   * ブラウザのスクロールを発生させない。
-   */
   element.style.touchAction = "none";
 
   element.addEventListener(
@@ -326,42 +324,47 @@ function enableVerticalSweep({
       event.preventDefault();
 
       /*
-       * 上方向はプラス、
-       * 下方向はマイナス。
+       * まずは従来どおり、
+       * 12pxにつき1ステップ。
        */
-      let stepCount =
-  Math.round(
-    -distance /
-      SWEEP_PIXELS_PER_STEP
-  );
+      const rawStepCount =
+        -distance /
+        SWEEP_PIXELS_PER_STEP;
 
-/*
- * 約±10までは現在と同じ感度。
- * そこから徐々に加速。
- */
-const direction =
-  Math.sign(stepCount);
+      const direction =
+        Math.sign(rawStepCount);
 
-const absStep =
-  Math.abs(stepCount);
+      const absoluteStepCount =
+        Math.abs(rawStepCount);
 
-if (
-  absStep >
-  SWEEP_ACCELERATION_START
-) {
-  const extra =
-    absStep -
-    SWEEP_ACCELERATION_START;
+      let acceleratedStepCount =
+        absoluteStepCount;
 
-  stepCount =
-    direction *
-    Math.round(
-      SWEEP_ACCELERATION_START +
-      extra +
-      extra * extra *
-        SWEEP_ACCELERATION_RATE
-    );
-}
+      /*
+       * 10ステップを超えた分だけ
+       * 徐々に加速する。
+       */
+      if (
+        absoluteStepCount >
+        SWEEP_ACCELERATION_START
+      ) {
+        const extra =
+          absoluteStepCount -
+          SWEEP_ACCELERATION_START;
+
+        acceleratedStepCount =
+          SWEEP_ACCELERATION_START +
+          extra +
+          extra *
+            extra *
+            SWEEP_ACCELERATION_RATE;
+      }
+
+      const stepCount =
+        Math.round(
+          direction *
+          acceleratedStepCount
+        );
 
       const nextValue =
         roundToStep(
@@ -404,7 +407,7 @@ if (
 
     pointerId = null;
 
-       if (sweeping) {
+    if (sweeping) {
       onCommit?.(
         startValue,
         currentValue,

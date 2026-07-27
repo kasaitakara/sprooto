@@ -698,58 +698,212 @@ renderEditorAndRestore(
 }
 
 function createTrackLengthInput(focusKey) {
-  const input =
-    document.createElement("input");
+  const track = selectedTrack();
 
-  input.type = "number";
-  input.className =
+  const button =
+    document.createElement("button");
+
+  button.type = "button";
+  button.className =
     "track-length-input";
 
-  input.min = "1";
-  input.max = String(STEP_COUNT);
-  input.step = "1";
+  button.textContent =
+    track.stepLength;
 
-  input.value =
-    selectedTrack().stepLength;
-
-  input.dataset.focusKey =
+  button.dataset.focusKey =
     focusKey;
 
-  input.setAttribute(
+  button.setAttribute(
     "aria-label",
-    `トラック${selectedTrack().id}のステップ数`
+    `トラック${track.id}のステップ数`
   );
 
-  function applyTrackLength() {
-    const nextLength = Math.round(
-      clamp(
-        Number(input.value) || 1,
-        1,
-        STEP_COUNT
-      )
-    );
+  /*
+   * touch / penではスイープ専用。
+   * mouse / keyboardでは直接入力可能。
+   */
+  let lastPointerType = null;
 
-    saveHistory();
-    selectedTrack().stepLength =
-      nextLength;
-
-    input.value = nextLength;
-
-    syncPatternLength();
-    renderSequence();
-  }
-
-  input.addEventListener(
-    "input",
-    applyTrackLength
+  button.addEventListener(
+    "pointerdown",
+    event => {
+      lastPointerType =
+        event.pointerType;
+    }
   );
 
-  input.addEventListener(
-    "change",
-    applyTrackLength
+  /*
+   * 上下スイープによる
+   * Track Length変更。
+   */
+  let sweepHistorySaved = false;
+
+  enableVerticalSweep({
+    element: button,
+
+    getValue: () => {
+      return track.stepLength;
+    },
+
+    setValue: nextLength => {
+      if (!sweepHistorySaved) {
+        saveHistory();
+        sweepHistorySaved = true;
+      }
+
+      track.stepLength =
+        Math.round(nextLength);
+
+      button.textContent =
+        track.stepLength;
+
+      syncPatternLength();
+      renderSequence();
+    },
+
+    min: 1,
+    max: STEP_COUNT,
+    step: 1,
+
+    onCommit: (
+      startValue,
+      currentValue,
+      changed
+    ) => {
+      sweepHistorySaved = false;
+
+      if (changed) {
+        renderEditorAndRestore(
+          focusKey
+        );
+      }
+    }
+  });
+
+  /*
+   * PCクリックまたは
+   * キーボード操作時の直接入力。
+   */
+  button.addEventListener(
+    "click",
+    event => {
+      const isTouchInput =
+        event.detail > 0 &&
+        (
+          lastPointerType === "touch" ||
+          lastPointerType === "pen"
+        );
+
+      if (isTouchInput) {
+        event.preventDefault();
+        return;
+      }
+
+      const input =
+        document.createElement("input");
+
+      input.type = "number";
+      input.className =
+        "track-length-input";
+
+      input.value =
+        track.stepLength;
+
+      input.min = "1";
+      input.max =
+        String(STEP_COUNT);
+      input.step = "1";
+
+      input.dataset.focusKey =
+        focusKey;
+
+      input.dataset.keyboardEditing =
+        "true";
+
+      input.setAttribute(
+        "aria-label",
+        `トラック${track.id}のステップ数`
+      );
+
+      button.replaceWith(input);
+
+      input.focus();
+      input.select();
+
+      let finished = false;
+
+      const finish =
+        shouldCommit => {
+          if (finished) {
+            return;
+          }
+
+          finished = true;
+
+          if (shouldCommit) {
+            const previousLength =
+              track.stepLength;
+
+            const nextLength =
+              Math.round(
+                clamp(
+                  Number(input.value) || 1,
+                  1,
+                  STEP_COUNT
+                )
+              );
+
+            if (
+              nextLength !==
+              previousLength
+            ) {
+              saveHistory();
+
+              track.stepLength =
+                nextLength;
+
+              syncPatternLength();
+              renderSequence();
+            }
+          }
+
+          renderEditorAndRestore(
+            focusKey
+          );
+        };
+
+      input.addEventListener(
+        "keydown",
+        event => {
+          if (
+            event.key === "Enter"
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            finish(true);
+          }
+
+          if (
+            event.key === "Escape"
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            finish(false);
+          }
+        }
+      );
+
+      input.addEventListener(
+        "blur",
+        () => finish(true),
+        { once: true }
+      );
+    }
   );
 
-  return input;
+  return button;
 }
 
 function renderMenu() {

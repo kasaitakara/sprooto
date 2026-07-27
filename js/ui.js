@@ -263,6 +263,9 @@ function enableVerticalSweep({
   min,
   max,
   step = 1,
+  pixelsPerStep =
+    SWEEP_PIXELS_PER_STEP,
+  acceleration = true,
   onCommit
 }) {
   let pointerId = null;

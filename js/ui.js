@@ -1047,22 +1047,28 @@ function displayStepValue(parameter, stepIndex) {
 }
 
 function renderOffsetGrid(parameter) {
-  const grid = document.createElement("div");
+  const grid =
+    document.createElement("div");
+
   grid.className = "offset-grid";
 
   const firstStepIndex =
-    state.sequencePage * PAGE_STEP_COUNT;
+    state.sequencePage *
+    PAGE_STEP_COUNT;
 
   const lastStepIndex = Math.min(
-  firstStepIndex + PAGE_STEP_COUNT,
-  selectedTrack().stepLength
-);
+    firstStepIndex +
+      PAGE_STEP_COUNT,
+    selectedTrack().stepLength
+  );
 
   for (
     let stepIndex = firstStepIndex;
     stepIndex < lastStepIndex;
     stepIndex++
   ) {
+    const track = selectedTrack();
+
     const focusKey =
       `offset-${parameter.id}-${stepIndex}`;
 
@@ -1071,107 +1077,288 @@ function renderOffsetGrid(parameter) {
 
     button.type = "button";
     button.className = "offset-step";
-    button.dataset.stepIndex = stepIndex;
-    button.dataset.focusKey = focusKey;
-    button.textContent =
-      displayStepValue(parameter, stepIndex);
+    button.dataset.stepIndex =
+      stepIndex;
+    button.dataset.focusKey =
+      focusKey;
 
-    if (selectedTrack().steps[stepIndex]) {
-      button.classList.add("note-on");
+    button.textContent =
+      displayStepValue(
+        parameter,
+        stepIndex
+      );
+
+    if (track.steps[stepIndex]) {
+      button.classList.add(
+        "note-on"
+      );
     }
 
     if (
-  state.playingStepIndex !== null &&
-  stepIndex ===
-    state.playingStepIndex %
-      selectedTrack().stepLength
-) {
-  button.classList.add("playing");
-}
+      state.playingStepIndex !== null &&
+      stepIndex ===
+        state.playingStepIndex %
+          track.stepLength
+    ) {
+      button.classList.add(
+        "playing"
+      );
+    }
 
-    button.addEventListener("click", () => {
-  const track = selectedTrack();
+    /*
+     * 最後に使用した入力機器を記録。
+     *
+     * touch / pen：
+     * タップでは数値入力を開かない。
+     *
+     * mouse / keyboard：
+     * 従来どおり直接入力できる。
+     */
+    let lastPointerType = null;
 
-  const currentOffset =
-    track.offsets[parameter.id][stepIndex] ?? 0;
-
-  const input =
-    document.createElement("input");
-
-      input.type = "number";
-      input.className = "offset-step offset-input";
-      input.value = currentOffset;
-      input.step = parameter.step ?? 1;
-
-      input.min =
-        parameter.min -
-        Number(track.base[parameter.id]);
-
-      input.max =
-        parameter.max -
-        Number(track.base[parameter.id]);
-
-      input.dataset.stepIndex = stepIndex;
-      input.dataset.focusKey = focusKey;
-      input.dataset.keyboardEditing = "true";
-
-      button.replaceWith(input);
-      input.focus();
-      input.select();
-
-      let finished = false;
-
-      const finish = shouldCommit => {
-  if (finished) {
-    return;
-  }
-
-  finished = true;
-
-  if (shouldCommit) {
-    const previousOffset =
-      track.offsets[parameter.id][stepIndex] ?? 0;
-
-    let nextOffset = clamp(
-      Number(input.value) || 0,
-      Number(input.min),
-      Number(input.max)
+    button.addEventListener(
+      "pointerdown",
+      event => {
+        lastPointerType =
+          event.pointerType;
+      }
     );
 
-    nextOffset =
-      Math.round(nextOffset * 100) / 100;
+    /*
+     * 上下スイープによる
+     * Offset値の変更。
+     */
+    let sweepHistorySaved = false;
 
-    if (nextOffset !== previousOffset) {
-      saveHistory();
+    enableVerticalSweep({
+      element: button,
 
-      track.offsets[parameter.id][stepIndex] =
-        nextOffset;
-    }
-  }
+      getValue: () => {
+        return (
+          track.offsets[
+            parameter.id
+          ]?.[stepIndex] ?? 0
+        );
+      },
 
-  renderEditorAndRestore(focusKey);
-};
-
-      input.addEventListener("keydown", event => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          event.stopPropagation();
-          finish(true);
+      setValue: nextOffset => {
+        /*
+         * Undo履歴は
+         * 1回のスイープにつき1回だけ保存。
+         */
+        if (!sweepHistorySaved) {
+          saveHistory();
+          sweepHistorySaved = true;
         }
 
-        if (event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          finish(false);
-        }
-      });
+        track.offsets[
+          parameter.id
+        ][stepIndex] =
+          nextOffset;
 
-      input.addEventListener(
-        "blur",
-        () => finish(true),
-        { once: true }
-      );
+        button.textContent =
+          displayStepValue(
+            parameter,
+            stepIndex
+          );
+      },
+
+      min:
+        parameter.min -
+        Number(
+          track.base[
+            parameter.id
+          ]
+        ),
+
+      max:
+        parameter.max -
+        Number(
+          track.base[
+            parameter.id
+          ]
+        ),
+
+      step:
+        parameter.step ?? 1,
+
+      onCommit: (
+        startValue,
+        currentValue,
+        changed
+      ) => {
+        sweepHistorySaved = false;
+
+        if (changed) {
+          renderEditorAndRestore(
+            focusKey
+          );
+        }
+      }
     });
+
+    /*
+     * PCのマウスクリック、
+     * またはキーボード操作時は
+     * 数値入力へ切り替える。
+     *
+     * スマホのタップでは開かない。
+     */
+    button.addEventListener(
+      "click",
+      event => {
+        const isTouchInput =
+          event.detail > 0 &&
+          (
+            lastPointerType ===
+              "touch" ||
+            lastPointerType ===
+              "pen"
+          );
+
+        if (isTouchInput) {
+          event.preventDefault();
+          return;
+        }
+
+        const currentOffset =
+          track.offsets[
+            parameter.id
+          ]?.[stepIndex] ?? 0;
+
+        const minimumOffset =
+          parameter.min -
+          Number(
+            track.base[
+              parameter.id
+            ]
+          );
+
+        const maximumOffset =
+          parameter.max -
+          Number(
+            track.base[
+              parameter.id
+            ]
+          );
+
+        const offsetStep =
+          parameter.step ?? 1;
+
+        const input =
+          document.createElement(
+            "input"
+          );
+
+        input.type = "number";
+        input.className =
+          "offset-step offset-input";
+
+        input.value =
+          currentOffset;
+
+        input.step =
+          String(offsetStep);
+
+        input.min =
+          String(minimumOffset);
+
+        input.max =
+          String(maximumOffset);
+
+        input.dataset.stepIndex =
+          stepIndex;
+
+        input.dataset.focusKey =
+          focusKey;
+
+        input.dataset.keyboardEditing =
+          "true";
+
+        button.replaceWith(input);
+
+        input.focus();
+        input.select();
+
+        let finished = false;
+
+        const finish =
+          shouldCommit => {
+            if (finished) {
+              return;
+            }
+
+            finished = true;
+
+            if (shouldCommit) {
+              const previousOffset =
+                track.offsets[
+                  parameter.id
+                ]?.[stepIndex] ?? 0;
+
+              let nextOffset =
+                clamp(
+                  Number(
+                    input.value
+                  ) || 0,
+                  minimumOffset,
+                  maximumOffset
+                );
+
+              nextOffset =
+                roundToStep(
+                  nextOffset,
+                  offsetStep
+                );
+
+              if (
+                nextOffset !==
+                previousOffset
+              ) {
+                saveHistory();
+
+                track.offsets[
+                  parameter.id
+                ][stepIndex] =
+                  nextOffset;
+              }
+            }
+
+            renderEditorAndRestore(
+              focusKey
+            );
+          };
+
+        input.addEventListener(
+          "keydown",
+          event => {
+            if (
+              event.key === "Enter"
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+
+              finish(true);
+            }
+
+            if (
+              event.key === "Escape"
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+
+              finish(false);
+            }
+          }
+        );
+
+        input.addEventListener(
+          "blur",
+          () => finish(true),
+          { once: true }
+        );
+      }
+    );
 
     grid.appendChild(button);
   }

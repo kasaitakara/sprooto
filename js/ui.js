@@ -16,16 +16,46 @@ const sequenceGrid = document.getElementById("sequence-grid");
 const sequencePageButton = document.getElementById("sequence-page-button");
 const patternLengthInput = document.getElementById("pattern-length-input");
 const editor = document.getElementById("editor");
-const patternGrid = document.getElementById("pattern-grid");
-const sectionList = document.getElementById("section-list");
+const patternGrid =
+  document.getElementById(
+    "pattern-grid"
+  );
+
+const sectionList =
+  document.getElementById(
+    "section-list"
+  );
+
+const patternPageButton =
+  document.getElementById(
+    "pattern-page-button"
+  );
 
 const PATTERN_SLOT_COUNT = 24;
-const FILL_SLOT_COUNT = 6;
+const FILL_SLOT_COUNT = 8;
+const SECTION_SLOT_COUNT = 16;
+
+const PATTERNS_PER_PAGE = 12;
+const FILLS_PER_PAGE = 4;
+const SECTIONS_PER_PAGE = 8;
+
+let patternManagerPage = 0;
+
 const sections = Array.from(
-  { length: 10 },
+  {
+    length:
+      SECTION_SLOT_COUNT
+  },
   (_, index) => ({
-    id: String.fromCharCode(65 + index),
-    patternIndexes: index === 0 ? [0] : []
+    id:
+      String.fromCharCode(
+        65 + index
+      ),
+
+    patternIndexes:
+      index === 0
+        ? [0]
+        : []
   })
 );
 
@@ -1903,81 +1933,120 @@ function renderPatternManager() {
    * 09 10 11 12 13 14 15 16 F3 F4
    * 17 18 19 20 21 22 23 24 F5 F6
    */
-  for (let row = 0; row < 3; row++) {
-    for (let column = 0; column < 10; column++) {
-      const isFill =
-        column >= 8;
+  const firstPatternIndex =
+  patternManagerPage *
+  PATTERNS_PER_PAGE;
 
-      const slotIndex = isFill
-        ? row * 2 + (column - 8)
-        : row * 8 + column;
+const firstFillIndex =
+  patternManagerPage *
+  FILLS_PER_PAGE;
 
-      const button =
-        document.createElement("button");
+/*
+ * 1ページ目
+ *
+ * 01 02 03 04 05 06 F1 F2
+ * 07 08 09 10 11 12 F3 F4
+ *
+ * 2ページ目
+ *
+ * 13 14 15 16 17 18 F5 F6
+ * 19 20 21 22 23 24 F7 F8
+ */
+for (
+  let row = 0;
+  row < 2;
+  row++
+) {
+  for (
+    let column = 0;
+    column < 8;
+    column++
+  ) {
+    const isFill =
+      column >= 6;
 
-      button.type = "button";
+    const slotIndex =
+      isFill
+        ? firstFillIndex +
+          row * 2 +
+          (column - 6)
+        : firstPatternIndex +
+          row * 6 +
+          column;
 
-      button.className = isFill
+    const button =
+      document.createElement(
+        "button"
+      );
+
+    button.type = "button";
+
+    button.className =
+      isFill
         ? "pattern-cell fill-cell"
         : "pattern-cell";
 
-      if (isFill) {
-        button.textContent =
-          `F${slotIndex + 1}`;
+    if (isFill) {
+      button.textContent =
+        `F${slotIndex + 1}`;
 
-        button.dataset.focusKey =
-          `fill-${slotIndex}`;
+      button.dataset.focusKey =
+        `fill-${slotIndex}`;
 
-        button.setAttribute(
-          "aria-label",
-          `fill ${slotIndex + 1}`
-        );
-      } else {
-        button.textContent =
-          String(slotIndex + 1)
-            .padStart(2, "0");
+      button.setAttribute(
+        "aria-label",
+        `fill ${slotIndex + 1}`
+      );
+    } else {
+      button.textContent =
+        String(slotIndex + 1)
+          .padStart(2, "0");
 
-        button.dataset.focusKey =
-          `pattern-${slotIndex}`;
+      button.dataset.focusKey =
+        `pattern-${slotIndex}`;
 
-        button.setAttribute(
-          "aria-label",
-          `pattern ${slotIndex + 1}`
-        );
-
-        if (
-          state.selectedPatternIndex ===
-          slotIndex
-        ) {
-          button.classList.add("active");
-        }
-      }
-
-      button.addEventListener(
-        "click",
-        () => {
-          if (!isFill) {
-            state.selectedPatternIndex =
-              slotIndex;
-
-            renderPatternManager();
-
-            restorePatternFocus(
-              `pattern-${slotIndex}`
-            );
-
-            return;
-          }
-
-          restorePatternFocus(
-            `fill-${slotIndex}`
-          );
-        }
+      button.setAttribute(
+        "aria-label",
+        `pattern ${slotIndex + 1}`
       );
 
-      patternGrid.appendChild(button);
+      if (
+        state.selectedPatternIndex ===
+        slotIndex
+      ) {
+        button.classList.add(
+          "active"
+        );
+      }
     }
+
+    button.addEventListener(
+      "click",
+      () => {
+        if (!isFill) {
+          state.selectedPatternIndex =
+            slotIndex;
+
+          renderPatternManager();
+
+          restorePatternFocus(
+            `pattern-${slotIndex}`
+          );
+
+          return;
+        }
+
+        restorePatternFocus(
+          `fill-${slotIndex}`
+        );
+      }
+    );
+
+    patternGrid.appendChild(
+      button
+    );
   }
+}
 
   /*
    * Section選択ブロック
@@ -1989,50 +2058,74 @@ function renderPatternManager() {
   sectionSelector.className =
     "section-selector";
 
-  sections.forEach(
-    (section, sectionIndex) => {
-      const button =
-        document.createElement("button");
+  const firstSectionIndex =
+  patternManagerPage *
+  SECTIONS_PER_PAGE;
 
-      button.type = "button";
-      button.className =
-        "section-selector-cell";
-
-      button.textContent =
-        section.id;
-
-      button.dataset.focusKey =
-        `section-${sectionIndex}`;
-
-      button.setAttribute(
-        "aria-label",
-        `section ${section.id}`
-      );
-
-      if (
-        state.selectedSectionIndex ===
-        sectionIndex
-      ) {
-        button.classList.add("active");
-      }
-
-      button.addEventListener(
-        "click",
-        () => {
-          state.selectedSectionIndex =
-            sectionIndex;
-
-          renderPatternManager();
-
-          restorePatternFocus(
-            `section-${sectionIndex}`
-          );
-        }
-      );
-
-      sectionSelector.appendChild(button);
-    }
+const visibleSections =
+  sections.slice(
+    firstSectionIndex,
+    firstSectionIndex +
+      SECTIONS_PER_PAGE
   );
+
+visibleSections.forEach(
+  (
+    section,
+    visibleIndex
+  ) => {
+    const sectionIndex =
+      firstSectionIndex +
+      visibleIndex;
+
+    const button =
+      document.createElement(
+        "button"
+      );
+
+    button.type = "button";
+    button.className =
+      "section-selector-cell";
+
+    button.textContent =
+      section.id;
+
+    button.dataset.focusKey =
+      `section-${sectionIndex}`;
+
+    button.setAttribute(
+      "aria-label",
+      `section ${section.id}`
+    );
+
+    if (
+      state.selectedSectionIndex ===
+      sectionIndex
+    ) {
+      button.classList.add(
+        "active"
+      );
+    }
+
+    button.addEventListener(
+      "click",
+      () => {
+        state.selectedSectionIndex =
+          sectionIndex;
+
+        renderPatternManager();
+
+        restorePatternFocus(
+          `section-${sectionIndex}`
+        );
+      }
+    );
+
+    sectionSelector.appendChild(
+      button
+    );
+  }
+);
 
   /*
    * 選択中Sectionの中身
@@ -2116,6 +2209,34 @@ function renderPatternManager() {
     sectionContents
   );
 }
+
+patternPageButton.addEventListener(
+  "click",
+  () => {
+    patternManagerPage =
+      patternManagerPage === 0
+        ? 1
+        : 0;
+
+    patternPageButton.textContent =
+      patternManagerPage === 0
+        ? "◧"
+        : "◨";
+
+    patternPageButton.setAttribute(
+      "aria-label",
+      patternManagerPage === 0
+        ? "1ページ目を表示中。2ページ目へ切り替え"
+        : "2ページ目を表示中。1ページ目へ切り替え"
+    );
+
+    renderPatternManager();
+
+    restorePatternFocus(
+      "pattern-page"
+    );
+  }
+);
 
 export function renderEditor() {
   editor.innerHTML = "";

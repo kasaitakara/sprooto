@@ -162,8 +162,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 
     border-top: 1px solid var(--line);
 
-    /* パラメータ選択2段分で高さを固定 */
-    height: 126px;
+    height: 150px;
     overflow: hidden;
 }
 .editor-header,.edit-toolbar { display:flex; align-items:center; gap:8px; min-height:34px; }
@@ -217,17 +216,18 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 .offset-grid {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
-    grid-template-rows: repeat(4, 16px);
+    grid-template-rows: repeat(4, 22px);
 
     column-gap: 5px;
     row-gap: 3px;
 
     margin-top: 3px;
 }
+
 .offset-step {
     width: 100%;
-    height: 16px;
-    min-height: 16px;
+    height: 22px;
+    min-height: 22px;
 
     border: 2px solid transparent;
     background: var(--cell);
@@ -267,6 +267,11 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     height: 100dvh;
 
     margin: 0 auto;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
     overflow: hidden;
 }
 
@@ -738,15 +743,15 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 
 .pattern-grid {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   gap: 5px;
 }
 
 .pattern-cell {
     width: 100%;
-    aspect-ratio: 1 / 1;
 
-    height: auto;
+    height: 28px;
+    aspect-ratio: auto;
 
     padding: 0;
     border: 0;
@@ -785,21 +790,24 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 /* A～J */
 .section-selector {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   gap: 5px;
   margin-top: 5px;
 }
 
+.pattern-cell,
 .section-selector-cell {
-  width: 100%;
-  aspect-ratio: 1 / 1;
+    width: 100%;
+    height: 22px;
 
-  padding: 0;
-  border: 0;
-  background: var(--cell);
+    aspect-ratio: auto;
 
-  font-size: 10px;
-  line-height: 1;
+    padding: 0;
+    border: 0;
+    background: var(--cell);
+
+    font-size: 10px;
+    line-height: 1;
 }
 
 .section-selector-cell.active {
@@ -813,14 +821,15 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .section-contents {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
   gap: 5px;
 
   width: 100%;
-  min-height: 34px;
+  height: 22px;
+  min-height: 22px;
 
-  padding: 4px 5px;
+  padding: 0;
   background: var(--cell);
 
   overflow-x: auto;
@@ -828,16 +837,21 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .section-pattern-cell {
-  flex: 0 0 28px;
+  width: 100%;
+  height: 22px;
 
-  width: 28px;
-  height: 28px;
+  min-width: 0;
 
   padding: 0;
   border: 0;
   background: var(--bg);
 
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 1;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .section-contents-empty {
@@ -938,4 +952,30 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 .history-button:disabled {
     color: var(--muted);
     opacity: 0.45;
+}
+
+.pattern-page-button {
+    width: 24px;
+    height: 22px;
+
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+
+    background: transparent;
+    color: var(--text);
+
+    font: inherit;
+    font-size: 20px;
+    line-height: 1;
+
+    appearance: none;
+    -webkit-appearance: none;
+
+    cursor: pointer;
+}
+
+.pattern-page-button:hover,
+.pattern-page-button:focus-visible {
+    color: var(--accent);
 }

@@ -184,6 +184,95 @@ export const state = {
   selectedSectionIndex: 0
 };
 
+const HISTORY_LIMIT = 100;
+
+const undoStack = [];
+const redoStack = [];
+
+function createSnapshot() {
+  return structuredClone({
+    tracks,
+    state
+  });
+}
+
+function restoreSnapshot(snapshot) {
+  tracks.splice(
+    0,
+    tracks.length,
+    ...structuredClone(snapshot.tracks)
+  );
+
+  Object.assign(
+    state,
+    structuredClone(snapshot.state)
+  );
+}
+
+export function saveHistory() {
+  undoStack.push(
+    createSnapshot()
+  );
+
+  if (undoStack.length > HISTORY_LIMIT) {
+    undoStack.shift();
+  }
+
+  redoStack.length = 0;
+  window.dispatchEvent(
+    new Event("historychange")
+  );
+}
+
+export function undo() {
+  if (undoStack.length === 0) {
+    return false;
+  }
+
+  redoStack.push(
+    createSnapshot()
+  );
+
+  const snapshot =
+    undoStack.pop();
+
+  restoreSnapshot(snapshot);
+
+  window.dispatchEvent(
+    new Event("historychange")
+  );
+  
+  return true;
+}
+
+export function redo() {
+  if (redoStack.length === 0) {
+    return false;
+  }
+
+  undoStack.push(
+    createSnapshot()
+  );
+
+  const snapshot =
+    redoStack.pop();
+
+  restoreSnapshot(snapshot);
+
+  window.dispatchEvent(
+    new Event("historychange")
+  );
+  return true;
+}
+
+export function canUndo() {
+  return undoStack.length > 0;
+}
+
+export function canRedo() {
+  return redoStack.length > 0;
+}
+
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }

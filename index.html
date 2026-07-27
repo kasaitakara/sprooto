@@ -2,7 +2,13 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta
+    name="viewport"
+    content="width=device-width,
+             initial-scale=1,
+             maximum-scale=1,
+             user-scalable=no,
+             viewport-fit=cover">
   <title>sprooto</title>
   <link rel="stylesheet" href="./css/style.css">
 </head>
@@ -10,13 +16,94 @@
   <main class="app">
     <header class="app-header">
       <h1>sprooto</h1>
-      <label class="theme-control">
-    <select id="theme-selector" aria-label="theme">
-        <option value="theme-sprooto">sprooto</option>
-        <option value="theme-kasai">kasai</option>
-        <option value="theme-aya">aya</option>
-    </select>
-</label>
+      <button
+  id="theme-button"
+  class="theme-button"
+  type="button"
+  aria-label="テーマを切り替え"
+  title="theme"
+>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M12 3
+             C7 3 3 6.8 3 11.5
+             C3 16 6.7 20 11.5 20
+             H13
+             C14.2 20 15 19.2 15 18
+             C15 17.2 14.5 16.6 14.5 16
+             C14.5 15.2 15.2 14.5 16 14.5
+             H17
+             C20.3 14.5 21 12.5 21 10.5
+             C21 6.3 17.2 3 12 3Z">
+    </path>
+
+    <circle cx="8" cy="10" r="1"></circle>
+    <circle cx="11" cy="7" r="1"></circle>
+    <circle cx="15" cy="8" r="1"></circle>
+    <circle cx="16" cy="12" r="1"></circle>
+  </svg>
+</button>
+
+<select
+  id="theme-selector"
+  class="theme-selector-hidden"
+  aria-label="theme"
+  tabindex="-1"
+>
+  <option value="theme-sprooto">sprooto</option>
+  <option value="theme-kasai">kasai</option>
+  <option value="theme-aya">aya</option>
+</select>
+
+<button
+  id="undo-button"
+  class="icon-button history-button"
+  type="button"
+  aria-label="元に戻す"
+  title="Undo"
+>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M9 8H4V3"></path>
+<path d="M4 8c2-3 5-5 9-5 5 0 8 3 8 8s-3 8-8 8h-2"></path>
+  </svg>
+</button>
+
+<button
+  id="redo-button"
+  class="icon-button history-button"
+  type="button"
+  aria-label="やり直す"
+  title="Redo"
+>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M15 8h5V3"></path>
+<path d="M20 8c-2-3-5-5-9-5-5 0-8 3-8 8s3 8 8 8h2"></path>
+  </svg>
+</button>
+
       <button
     id="play-button"
     class="icon-button play-button"

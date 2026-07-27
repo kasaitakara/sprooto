@@ -8,7 +8,8 @@ import {
   parameterById,
   clamp,
   getMaxTrackLength,
-  syncPatternLength
+  syncPatternLength,
+  saveHistory
 } from "./sequencer.js";
 
 const sequenceGrid = document.getElementById("sequence-grid");
@@ -232,6 +233,184 @@ function renderEditorAndRestore(focusKey) {
   restoreFocusKey(focusKey);
 }
 
+const SWEEP_START_DISTANCE = 8;
+const SWEEP_PIXELS_PER_STEP = 12;
+
+function decimalPlaces(value) {
+  const text = String(value);
+
+  if (!text.includes(".")) {
+    return 0;
+  }
+
+  return text.split(".")[1].length;
+}
+
+function roundToStep(value, step) {
+  const digits = decimalPlaces(step);
+
+  return Number(
+    value.toFixed(digits)
+  );
+}
+
+function enableVerticalSweep({
+  element,
+  getValue,
+  setValue,
+  min,
+  max,
+  step = 1,
+  onCommit
+}) {
+  let pointerId = null;
+  let startY = 0;
+  let startValue = 0;
+  let currentValue = 0;
+  let sweeping = false;
+  let changed = false;
+  let suppressClick = false;
+
+  /*
+   * 数値上での上下スイープ中に
+   * ブラウザのスクロールを発生させない。
+   */
+  element.style.touchAction = "none";
+
+  element.addEventListener(
+    "pointerdown",
+    event => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      pointerId = event.pointerId;
+      startY = event.clientY;
+      startValue = Number(getValue());
+      currentValue = startValue;
+      sweeping = false;
+      changed = false;
+      suppressClick = false;
+
+      element.setPointerCapture(
+        event.pointerId
+      );
+    }
+  );
+
+  element.addEventListener(
+    "pointermove",
+    event => {
+      if (
+        pointerId !== event.pointerId
+      ) {
+        return;
+      }
+
+      const distance =
+        event.clientY - startY;
+
+      if (
+        !sweeping &&
+        Math.abs(distance) <
+          SWEEP_START_DISTANCE
+      ) {
+        return;
+      }
+
+      if (!sweeping) {
+        sweeping = true;
+        suppressClick = true;
+      }
+
+      event.preventDefault();
+
+      /*
+       * 上方向はプラス、
+       * 下方向はマイナス。
+       */
+      const stepCount =
+        Math.round(
+          -distance /
+            SWEEP_PIXELS_PER_STEP
+        );
+
+      const nextValue =
+        roundToStep(
+          clamp(
+            startValue +
+              stepCount * step,
+            min,
+            max
+          ),
+          step
+        );
+
+      if (nextValue === currentValue) {
+        return;
+      }
+
+      currentValue = nextValue;
+      changed = true;
+
+      setValue(nextValue);
+    }
+  );
+
+  function finishSweep(event) {
+    if (
+      pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    if (
+      element.hasPointerCapture(
+        event.pointerId
+      )
+    ) {
+      element.releasePointerCapture(
+        event.pointerId
+      );
+    }
+
+    pointerId = null;
+
+       if (sweeping) {
+      onCommit?.(
+        startValue,
+        currentValue,
+        changed
+      );
+    }
+  }
+
+  element.addEventListener(
+    "pointerup",
+    finishSweep
+  );
+
+  element.addEventListener(
+    "pointercancel",
+    finishSweep
+  );
+
+  element.addEventListener(
+    "click",
+    event => {
+      if (!suppressClick) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      suppressClick = false;
+    },
+    true
+  );
+}
+
 function stepCell(stepIndex) {
   const button = document.createElement("button");
 
@@ -281,21 +460,23 @@ function stepCell(stepIndex) {
   });
 
   button.addEventListener("click", () => {
-    const track = selectedTrack();
+  const track = selectedTrack();
 
-    if (stepIndex >= track.stepLength) {
-      return;
-    }
+  if (stepIndex >= track.stepLength) {
+    return;
+  }
 
-    track.steps[stepIndex] =
-      !track.steps[stepIndex];
+  saveHistory();
 
-    renderSequence();
+  track.steps[stepIndex] =
+    !track.steps[stepIndex];
 
-    restoreFocus(
-      `.sequence-step[data-step-index="${stepIndex}"]`
-    );
-  });
+  renderSequence();
+
+  restoreFocus(
+    `.sequence-step[data-step-index="${stepIndex}"]`
+  );
+});
 
   return button;
 }
@@ -369,6 +550,7 @@ function applyPatternLength() {
     )
   );
 
+  saveHistory();
   tracks.forEach(track => {
     track.stepLength = nextLength;
   });
@@ -516,6 +698,7 @@ function createTrackLengthInput(focusKey) {
       )
     );
 
+    saveHistory();
     selectedTrack().stepLength =
       nextLength;
 
@@ -633,20 +816,78 @@ function editValueControl(parameter, id) {
         }
       : parameter;
 
-  const wrap = document.createElement("div");
+  const wrap =
+    document.createElement("div");
+
   wrap.className = "value-control";
 
-  const valueKey = `base-value-${id}`;
+  const valueKey =
+    `base-value-${id}`;
 
-  const value = document.createElement("button");
+  const value =
+    document.createElement("button");
+
   value.type = "button";
   value.className = "base-value";
   value.dataset.focusKey = valueKey;
   value.dataset.valueControl = "true";
   value.textContent = track.base[id];
 
+  /*
+   * 上下スイープによる値変更
+   */
+  let sweepHistorySaved = false;
+
+  enableVerticalSweep({
+    element: value,
+
+    getValue: () => {
+      return track.base[id];
+    },
+
+    setValue: nextValue => {
+      /*
+       * 1回のスイープにつき、
+       * Undo履歴は最初の変更時だけ保存する。
+       */
+      if (!sweepHistorySaved) {
+        saveHistory();
+        sweepHistorySaved = true;
+      }
+
+      track.base[id] = nextValue;
+      value.textContent = nextValue;
+    },
+
+    min: definition.min,
+    max: definition.max,
+    step: definition.step ?? 1,
+
+    onCommit: (
+      startValue,
+      currentValue,
+      changed
+    ) => {
+      sweepHistorySaved = false;
+
+      /*
+       * 値が変わった場合だけ
+       * Editorを再描画する。
+       */
+      if (changed) {
+        renderEditorAndRestore(
+          valueKey
+        );
+      }
+    }
+  });
+
+  /*
+   * タップ時の直接数値入力
+   */
   value.addEventListener("click", () => {
-    const input = document.createElement("input");
+    const input =
+      document.createElement("input");
 
     input.type = "number";
     input.value = track.base[id];
@@ -671,30 +912,48 @@ function editValueControl(parameter, id) {
       finished = true;
 
       if (shouldCommit) {
-        track.base[id] = clamp(
+        const previousValue =
+          track.base[id];
+
+        let nextValue = clamp(
           Number(input.value) || 0,
           definition.min,
           definition.max
         );
 
-        track.base[id] =
-          Math.round(track.base[id] * 100) / 100;
+        nextValue =
+          Math.round(nextValue * 100) /
+          100;
+
+        if (
+          nextValue !== previousValue
+        ) {
+          saveHistory();
+
+          track.base[id] =
+            nextValue;
+        }
       }
 
-      renderEditorAndRestore(valueKey);
+      renderEditorAndRestore(
+        valueKey
+      );
     };
 
-    input.addEventListener("keydown", event => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        finish(true);
-      }
+    input.addEventListener(
+      "keydown",
+      event => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          finish(true);
+        }
 
-      if (event.key === "Escape") {
-        event.preventDefault();
-        finish(false);
+        if (event.key === "Escape") {
+          event.preventDefault();
+          finish(false);
+        }
       }
-    });
+    );
 
     input.addEventListener(
       "blur",
@@ -765,13 +1024,13 @@ function renderOffsetGrid(parameter) {
 }
 
     button.addEventListener("click", () => {
-      const track = selectedTrack();
+  const track = selectedTrack();
 
-      const currentOffset =
-        track.offsets[parameter.id][stepIndex] ?? 0;
+  const currentOffset =
+    track.offsets[parameter.id][stepIndex] ?? 0;
 
-      const input =
-        document.createElement("input");
+  const input =
+    document.createElement("input");
 
       input.type = "number";
       input.className = "offset-step offset-input";
@@ -797,25 +1056,35 @@ function renderOffsetGrid(parameter) {
       let finished = false;
 
       const finish = shouldCommit => {
-        if (finished) {
-          return;
-        }
+  if (finished) {
+    return;
+  }
 
-        finished = true;
+  finished = true;
 
-        if (shouldCommit) {
-          const nextOffset = clamp(
-            Number(input.value) || 0,
-            Number(input.min),
-            Number(input.max)
-          );
+  if (shouldCommit) {
+    const previousOffset =
+      track.offsets[parameter.id][stepIndex] ?? 0;
 
-          track.offsets[parameter.id][stepIndex] =
-            Math.round(nextOffset * 100) / 100;
-        }
+    let nextOffset = clamp(
+      Number(input.value) || 0,
+      Number(input.min),
+      Number(input.max)
+    );
 
-        renderEditorAndRestore(focusKey);
-      };
+    nextOffset =
+      Math.round(nextOffset * 100) / 100;
+
+    if (nextOffset !== previousOffset) {
+      saveHistory();
+
+      track.offsets[parameter.id][stepIndex] =
+        nextOffset;
+    }
+  }
+
+  renderEditorAndRestore(focusKey);
+};
 
       input.addEventListener("keydown", event => {
         if (event.key === "Enter") {

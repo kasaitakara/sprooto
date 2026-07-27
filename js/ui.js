@@ -576,39 +576,286 @@ sequencePageButton.addEventListener("click", () => {
   restoreFocus("#sequence-page-button");
 });
 
-function applyPatternLength() {
-  const nextLength = Math.round(
-    clamp(
-      Number(patternLengthInput.value) || 1,
-      1,
-      STEP_COUNT
-    )
-  );
+/*
+ * Pattern Length
+ *
+ * touch / pen：
+ * 上下スイープ専用。
+ * タップでは数値キーボードを開かない。
+ *
+ * mouse / keyboard：
+ * 直接入力可能。
+ */
 
-  saveHistory();
-  tracks.forEach(track => {
-    track.stepLength = nextLength;
-  });
+patternLengthInput.readOnly = true;
 
-  syncPatternLength();
+let patternLengthPointerType = null;
+let patternLengthDirectEditing = false;
+let patternLengthEditStartValue =
+  getMaxTrackLength();
+
+let patternLengthSweepHistorySaved =
+  false;
+
+patternLengthInput.addEventListener(
+  "pointerdown",
+  event => {
+    patternLengthPointerType =
+      event.pointerType;
+
+    if (
+      event.pointerType === "touch" ||
+      event.pointerType === "pen"
+    ) {
+      patternLengthInput.readOnly =
+        true;
+
+      patternLengthDirectEditing =
+        false;
+
+      return;
+    }
+
+    /*
+     * PCのマウス操作では
+     * 直接入力を許可する。
+     */
+    patternLengthEditStartValue =
+      getMaxTrackLength();
+
+    patternLengthDirectEditing =
+      true;
+
+    patternLengthInput.readOnly =
+      false;
+
+    patternLengthInput.dataset
+      .keyboardEditing = "true";
+  }
+);
+
+enableVerticalSweep({
+  element: patternLengthInput,
+
+  getValue: () => {
+    return getMaxTrackLength();
+  },
+
+  setValue: nextLength => {
+    if (
+      !patternLengthSweepHistorySaved
+    ) {
+      saveHistory();
+
+      patternLengthSweepHistorySaved =
+        true;
+    }
+
+    const roundedLength =
+      Math.round(nextLength);
+
+    tracks.forEach(track => {
+      track.stepLength =
+        roundedLength;
+    });
+
+    syncPatternLength();
+
+    patternLengthInput.value =
+      state.patternLength;
+
+    renderSequence();
+    renderEditor();
+  },
+
+  min: 1,
+  max: STEP_COUNT,
+  step: 1,
+
+  /*
+   * Track Lengthと同じく、
+   * 長さ変更はゆっくり動かす。
+   */
+  pixelsPerStep: 20,
+  acceleration: false,
+
+  onCommit: (
+    startValue,
+    currentValue,
+    changed
+  ) => {
+    patternLengthSweepHistorySaved =
+      false;
+
+    patternLengthDirectEditing =
+      false;
+
+    patternLengthInput.readOnly =
+      true;
+
+    delete patternLengthInput.dataset
+      .keyboardEditing;
+
+    patternLengthInput.value =
+      getMaxTrackLength();
+  }
+});
+
+/*
+ * マウスクリック時は
+ * 入力内容を全選択する。
+ */
+patternLengthInput.addEventListener(
+  "click",
+  event => {
+    const isTouchInput =
+      event.detail > 0 &&
+      (
+        patternLengthPointerType ===
+          "touch" ||
+        patternLengthPointerType ===
+          "pen"
+      );
+
+    if (isTouchInput) {
+      event.preventDefault();
+
+      patternLengthInput.blur();
+
+      return;
+    }
+
+    patternLengthInput.select();
+  }
+);
+
+function commitPatternLengthInput() {
+  if (!patternLengthDirectEditing) {
+    return;
+  }
+
+  const previousLength =
+    getMaxTrackLength();
+
+  const nextLength =
+    Math.round(
+      clamp(
+        Number(
+          patternLengthInput.value
+        ) || 1,
+        1,
+        STEP_COUNT
+      )
+    );
+
+  patternLengthDirectEditing =
+    false;
+
+  patternLengthInput.readOnly =
+    true;
+
+  delete patternLengthInput.dataset
+    .keyboardEditing;
+
+  if (
+    nextLength !== previousLength
+  ) {
+    saveHistory();
+
+    tracks.forEach(track => {
+      track.stepLength =
+        nextLength;
+    });
+
+    syncPatternLength();
+
+    renderSequence();
+    renderEditor();
+
+    return;
+  }
 
   patternLengthInput.value =
-    state.patternLength;
-
-  renderSequence();
-  renderEditor();
+    previousLength;
 }
 
-patternLengthInput.addEventListener("input", applyPatternLength);
-patternLengthInput.addEventListener("change", applyPatternLength);
+function cancelPatternLengthInput() {
+  patternLengthDirectEditing =
+    false;
 
-patternLengthInput.addEventListener("pointerdown", () => {
-  patternLengthInput.dataset.keyboardEditing = "true";
-});
+  patternLengthInput.readOnly =
+    true;
 
-patternLengthInput.addEventListener("blur", () => {
-  delete patternLengthInput.dataset.keyboardEditing;
-});
+  delete patternLengthInput.dataset
+    .keyboardEditing;
+
+  patternLengthInput.value =
+    getMaxTrackLength();
+}
+
+patternLengthInput.addEventListener(
+  "keydown",
+  event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+
+      /*
+       * キーボードでフォーカスした状態から
+       * Enterで編集開始。
+       */
+      if (
+        patternLengthInput.readOnly
+      ) {
+        patternLengthEditStartValue =
+          getMaxTrackLength();
+
+        patternLengthDirectEditing =
+          true;
+
+        patternLengthInput.readOnly =
+          false;
+
+        patternLengthInput.dataset
+          .keyboardEditing = "true";
+
+        patternLengthInput.select();
+
+        return;
+      }
+
+      commitPatternLengthInput();
+
+      patternLengthInput.focus();
+
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+
+      cancelPatternLengthInput();
+
+      patternLengthInput.focus();
+    }
+  }
+);
+
+patternLengthInput.addEventListener(
+  "blur",
+  () => {
+    if (patternLengthDirectEditing) {
+      commitPatternLengthInput();
+    }
+
+    patternLengthInput.readOnly =
+      true;
+
+    delete patternLengthInput.dataset
+      .keyboardEditing;
+  }
+);
 
 function changeTrack(amount) {
   state.selectedTrackIndex = (state.selectedTrackIndex + amount + tracks.length) % tracks.length;

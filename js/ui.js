@@ -329,11 +329,39 @@ function enableVerticalSweep({
        * 上方向はプラス、
        * 下方向はマイナス。
        */
-      const stepCount =
-        Math.round(
-          -distance /
-            SWEEP_PIXELS_PER_STEP
-        );
+      let stepCount =
+  Math.round(
+    -distance /
+      SWEEP_PIXELS_PER_STEP
+  );
+
+/*
+ * 約±10までは現在と同じ感度。
+ * そこから徐々に加速。
+ */
+const direction =
+  Math.sign(stepCount);
+
+const absStep =
+  Math.abs(stepCount);
+
+if (
+  absStep >
+  SWEEP_ACCELERATION_START
+) {
+  const extra =
+    absStep -
+    SWEEP_ACCELERATION_START;
+
+  stepCount =
+    direction *
+    Math.round(
+      SWEEP_ACCELERATION_START +
+      extra +
+      extra * extra *
+        SWEEP_ACCELERATION_RATE
+    );
+}
 
       const nextValue =
         roundToStep(

@@ -328,8 +328,8 @@ function enableVerticalSweep({
        * 12pxにつき1ステップ。
        */
       const rawStepCount =
-        -distance /
-        SWEEP_PIXELS_PER_STEP;
+  -distance /
+  pixelsPerStep;
 
       const direction =
         Math.sign(rawStepCount);
@@ -345,9 +345,10 @@ function enableVerticalSweep({
        * 徐々に加速する。
        */
       if (
-        absoluteStepCount >
-        SWEEP_ACCELERATION_START
-      ) {
+  acceleration &&
+  absoluteStepCount >
+    SWEEP_ACCELERATION_START
+) {
         const extra =
           absoluteStepCount -
           SWEEP_ACCELERATION_START;
@@ -765,6 +766,8 @@ function createTrackLengthInput(focusKey) {
     max: STEP_COUNT,
     step: 1,
 
+    pixelsPerStep: 20,
+acceleration: false,
     onCommit: (
       startValue,
       currentValue,

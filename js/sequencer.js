@@ -456,36 +456,29 @@ export function addCurrentSourceToSection(
     return false;
   }
 
-  /*
-   * Sectionバー内は
-   * 最大7ブロック。
-   */
   if (
     section.sequence.length >= 7
   ) {
     return false;
   }
 
-  const sourceIndex =
+  const source =
     state.selectedSourceType ===
-    "fill"
-      ? state.selectedFillIndex
-      : state.selectedPatternIndex;
+      "fill"
+      ? {
+          type: "fill",
+          index:
+            state.selectedFillIndex ?? 0
+        }
+      : {
+          type: "pattern",
+          index:
+            state.selectedPatternIndex ?? 0
+        };
 
-  if (
-    sourceIndex === null ||
-    sourceIndex === undefined
-  ) {
-    return false;
-  }
-
-  section.sequence.push({
-    type:
-      state.selectedSourceType,
-
-    index:
-      sourceIndex
-  });
+  section.sequence.push(
+    source
+  );
 
   return true;
 }

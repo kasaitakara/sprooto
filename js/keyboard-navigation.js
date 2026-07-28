@@ -537,7 +537,18 @@ document.addEventListener("keydown", event => {
   }
 
   const direction = ARROW_DIRECTIONS[event.key];
-  if (!direction) return;
+if (!direction) return;
+
+/*
+ * キーボード編集中は
+ * グローバルカーソル移動を止める。
+ */
+if (
+  activeElement.dataset.keyboardEditing ===
+  "true"
+) {
+  return;
+}
 
   if (isEditing(activeElement)) return;
 

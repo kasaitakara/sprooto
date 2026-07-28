@@ -29,6 +29,17 @@ body {
 
     font-family: Arial, Helvetica, sans-serif;
 }
+
+/* フォーム部品もテーマ色を継承 */
+button,
+input,
+select,
+textarea,
+output {
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+    font: inherit;
+}
 h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 .theme-control { display:flex; align-items:center; gap:6px; font-size:10px; }
 .theme-control select { border:0; background:transparent; font-size:11px; }
@@ -85,11 +96,51 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 }
 .sequence-section { margin-top:8px; }
 .sequence-toolbar {
-  display:flex;
-  justify-content:flex-end;
-  align-items:center;
-  gap:6px;
-  min-height:22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    gap: 6px;
+    min-height: 22px;
+}
+.sequence-toolbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.current-source-display {
+    height: 22px;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+
+    color: var(--text);
+
+    font-size: 11px;
+    line-height: 1;
+}
+
+.current-source-icon {
+    width: 17px;
+    height: 17px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.current-source-icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.current-source-label {
+    min-width: 18px;
+    text-align: left;
+    font-size: 11px;
 }
 .pattern-length-input {
     width: 24px;
@@ -815,48 +866,141 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
   color: var(--text);
 }
 
-/* 選択中Sectionの中身 */
+/* 選択中Sectionの帯全体 */
+/* =========================
+   Section編集バー
+========================= */
+
 .section-list {
-  margin-top: 5px;
+    --section-gap: 5px;
+
+    display: grid;
+    grid-template-columns:
+        repeat(8, minmax(0, 1fr));
+
+    column-gap: var(--section-gap);
+    align-items: center;
+
+    width: 100%;
+
+    height: 28px;
+
+    margin-top: 5px;
+
+    padding: 0;
+
+    background: var(--cell);
+
+    overflow: hidden;
 }
 
+/*
+ * 1列目：編集対象Section記号
+ *
+ * 列位置は上のA〜Hと一致。
+ * □自体は列幅より小さくして中央配置。
+ */
+.section-editor-button {
+    grid-column: 1;
+
+    width: 34px;
+    height: 22px;
+
+    justify-self: center;
+    align-self: center;
+
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+
+    background: var(--on);
+    color: var(--bg);
+
+    font-size: 10px;
+    line-height: 1;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/*
+ * 2〜8列目：Pattern / Fill格納領域
+ */
 .section-contents {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 5px;
+    grid-column: 2 / 9;
 
-  width: 100%;
-  height: 22px;
-  min-height: 22px;
+    display: grid;
+    grid-template-columns:
+        repeat(7, minmax(0, 1fr));
+    column-gap: var(--section-gap);
+    align-items: center;
 
-  padding: 0;
-  background: var(--cell);
+    width: 100%;
+    height: 28px;
+    min-width: 0;
 
-  overflow-x: auto;
-  overflow-y: hidden;
+    padding: 0;
+    background: transparent;
+
+    overflow: hidden;
 }
 
+/*
+ * 帯内のPattern / Fillブロック。
+ *
+ * 各列の中央に置きつつ、
+ * 列幅より左右5pxずつ小さくする。
+ */
 .section-pattern-cell {
-  width: 100%;
-  height: 22px;
+    width: calc(100% - 10px);
+    height: 28px;
 
-  min-width: 0;
+    justify-self: center;
+    align-self: center;
 
-  padding: 0;
-  border: 0;
-  background: var(--bg);
+    min-width: 0;
 
-  font-size: 11px;
-  line-height: 1;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+
+    font-size: 10px;
+    line-height: 1;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
+/* 空Sectionの「—」 */
 .section-contents-empty {
-  color: var(--muted);
-  font-size: 11px;
+    grid-column: 1 / -1;
+
+    width: 100%;
+
+    color: var(--muted);
+
+    font-size: 11px;
+    line-height: 1;
+    text-align: center;
+}
+
+/* カーソル表示 */
+.section-editor-button:hover,
+.section-editor-button:focus-visible,
+.section-editor-button[data-keyboard-editing="true"] {
+    background: var(--text);
+    color: var(--bg);
+}
+
+.section-pattern-cell:hover,
+.section-pattern-cell:focus-visible {
+    background: var(--text);
+    color: var(--bg);
 }
 
 .pattern-section-label,
@@ -887,8 +1031,16 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     height: 18px;
 }
 
-.theme-button:hover,
-.theme-button:focus-visible {
+/* PCだけホバー時に点灯 */
+@media (hover: hover) {
+    .theme-button:hover,
+    .theme-button:focus-visible {
+        color: var(--accent);
+    }
+}
+
+/* スマホはJSで付けるactiveだけ点灯 */
+.theme-button.active {
     color: var(--accent);
 }
 

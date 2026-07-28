@@ -148,23 +148,32 @@
 
     <section class="sequence-section" aria-label="sequence">
       <div class="sequence-toolbar">
-        <button
-          id="sequence-page-button"
-          class="sequence-page-button"
-          type="button"
-          aria-label="ステップ1～32を表示中。33～64へ切り替え"
-        >◧</button>
-        <input
-          id="pattern-length-input"
-          class="pattern-length-input"
-          type="number"
-          min="1"
-          max="64"
-          step="1"
-          value="32"
-          aria-label="パターンのステップ数"
-        >
-      </div>
+  <div
+    id="current-source-display"
+    class="current-source-display"
+    aria-label="Pattern 01"
+  ></div>
+
+  <div class="sequence-toolbar-controls">
+    <button
+      id="sequence-page-button"
+      class="sequence-page-button"
+      type="button"
+      aria-label="ステップ1～32を表示中。33～64へ切り替え"
+    >◧</button>
+
+    <input
+      id="pattern-length-input"
+      class="pattern-length-input"
+      type="number"
+      min="1"
+      max="64"
+      step="1"
+      value="32"
+      aria-label="パターンのステップ数"
+    >
+  </div>
+</div>
       <div id="sequence-grid" class="sequence-grid"></div>
     </section>
 

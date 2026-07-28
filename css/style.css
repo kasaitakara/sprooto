@@ -1,7 +1,7 @@
 body.theme-sprooto {
 
     /* 土・紙 */
-    --bg: #f5f0e9;
+    --bg: #faf4e7;
 
     /* 植物 */
     --text: #4b6648;
@@ -11,17 +11,17 @@ body.theme-sprooto {
     /* セル */
     --cell: #efe5d7;
     --off: #efe5d7;
-    --on: #b9d3af;
+    --on: #b2caa8;
 
     /* 水 */
-    --selected-bg: #b7ece6;
+    --selected-bg: #97d6d0;
     --selected-text: #4b6648;
 
     /* 芽 */
-    --fill-bg: #b9d3af;
+    --fill-bg: #b2caa8;
     --fill-text: #4b6648;
 
-    --edit-bg: #b9d3af;
+    --edit-bg: #b2caa8;
     --edit-text: #4b6648;
 
     /* 紙 */
@@ -29,45 +29,97 @@ body.theme-sprooto {
     --chip-text: #dbb682;
 
     /* 太陽 */
-    --play: #f7d202;
-    --play-control: #f7d202;
+    --play: #ffe100;
+    --play-control: #ffe100;
 
     /* Hover */
     --hover-bg: #fff6c7;
     --hover-text: #4b6648;
 
     /* 水（予約） */
-    --queued: #9edfd8;
+    --queued: #97d6d0;
 }
 
 body.theme-kasai {
-    --bg: #171717;
-    --text: #ededed;
+    --bg: #fbf8ec;
+    --text: #858585;
     --muted: #aaa;
-    --line: #555;
+    --line: #525252;
 
-    --cell: #242424;
-    --off: #3a3a3a;
-    --on: #ededed;
-    --play-control: #9ff8fa;
-    --play: #ffb400;
+    --cell: #efefef;
+    --off: #efefef;
+    --on: #aaa;
+    --play-control: #d9cc9c;
+    --play: #525252;
 
-    --selected-bg: #9ff8fa;
+    --selected-bg: #525252;
     --selected-text: #171717;
 
-    --fill-bg: #555;
+    --fill-bg: #aaa;
     --fill-text: #ededed;
 
-    --edit-bg: #555;
+    --edit-bg: #efefef;
     --edit-text: #ededed;
 
-    --chip-bg: #171717;
+    --chip-bg: #efefef;
     --chip-text: #ededed;
 
     --hover-bg: #ededed;
     --hover-text: #171717;
 
     --queued: #9ff8fa;
+}
+
+body.theme-ryuichi {
+    /* 漆黒ではなく静かな黒 */
+    --bg: #1c1c1c;
+
+    /* 白い紙 */
+    --text: #ababab;
+
+    /* 補助文字 */
+    --muted: #b3b3b3;
+
+    /* 線 */
+    --line: #ababab;
+
+    /* セル */
+    --cell: #303030;
+
+    /* OFF */
+    --off: #303030;
+
+    /* ON */
+    --on: #6a6a6a;
+
+    /* 再生ボタン */
+    --play-control: #ffffff;
+
+    /* 再生位置 */
+    --play: #ffffff;
+
+    /* 選択 */
+    --selected-bg: #f0f0f0;
+    --selected-text: #1c1c1c;
+
+    /* Fill */
+    --fill-bg: #575757;
+    --fill-text: #cacaca;
+
+    /* 編集 */
+    --edit-bg: #575757;
+    --edit-text: #cacaca;
+
+    /* Sectionチップ */
+    --chip-bg: #575757;
+    --chip-text: #cacaca;
+
+    /* Hover */
+    --hover-bg: #ffffff;
+    --hover-text: #1c1c1c;
+
+    /* 次回予約 */
+    --queued: #bcbcbc;
 }
 
 body.theme-aya {
@@ -94,7 +146,7 @@ body.theme-aya {
     --chip-bg: #ededed;
     --chip-text: #417d90;
 
-    --hover-bg: #417d90;
+    --hover-bg: #ff73ce;
     --hover-text: #ededed;
 
     --queued: #be9cd7;

@@ -6,10 +6,24 @@ import {
   undo,
   redo,
   canUndo,
-  canRedo
+  canRedo,
+  beginSelectedPlayback,
+advancePlaybackSource,
+clearQueuedSource
 } from "./sequencer.js";
-import { initializeAudio, playTrackStep, setMasterVolume } from "./audio.js";
-import { render, updatePlayingStep } from "./ui.js";
+
+import {
+  initializeAudio,
+  playTrackStep,
+  setMasterVolume
+} from "./audio.js";
+
+import {
+  render,
+  updatePlayingStep,
+  renderPatternManager
+} from "./ui.js";
+
 import "./keyboard-navigation.js";
 
 let timer = null;
@@ -25,6 +39,34 @@ const redoButton = document.getElementById("redo-button");
 function updateHistoryButtons() {
   undoButton.disabled = !canUndo();
   redoButton.disabled = !canRedo();
+}
+
+function preserveFocusDuringRender() {
+  const activeElement =
+    document.activeElement;
+
+  const focusKey =
+    activeElement?.dataset
+      ?.focusKey;
+
+  render();
+
+  if (!focusKey) {
+    return;
+  }
+
+  const nextElement =
+    document.querySelector(
+      `[data-focus-key="${focusKey}"]`
+    );
+
+  if (!nextElement) {
+    return;
+  }
+
+  nextElement.focus({
+    preventScroll: true
+  });
 }
 
 window.addEventListener(
@@ -76,10 +118,52 @@ function playCurrentStep() {
 }
 
 function tick() {
-  if (!state.isPlaying) return;
+  if (!state.isPlaying) {
+    return;
+  }
+
+  const nextStepIndex =
+    state.playingStepIndex + 1;
+
+  /*
+   * 現在Patternの終端へ到達。
+   */
+  if (
+    nextStepIndex >=
+    state.patternLength
+  ) {
+    /*
+ * Pattern／Fill終端で、
+ * 予約切替またはSection進行を行う。
+ */
+const sourceChanged =
+  advancePlaybackSource();
+
+    state.playingStepIndex =
+      0;
+
+    /*
+     * Pattern切替時は
+     * Sequence／Editor／Pattern表示も更新。
+     */
+    if (sourceChanged) {
+  preserveFocusDuringRender();
+} else {
+  updatePlayingStep();
+}
+
+    playCurrentStep();
+
+    timer = setTimeout(
+      tick,
+      duration()
+    );
+
+    return;
+  }
 
   state.playingStepIndex =
-    state.playingStepIndex + 1;
+    nextStepIndex;
 
   updatePlayingStep();
   playCurrentStep();
@@ -94,12 +178,29 @@ async function togglePlayback() {
   if (state.isPlaying) {
     state.isPlaying = false;
     state.playingStepIndex = null;
+    state.playingSourceType =
+  null;
+
+state.playingPatternIndex =
+  null;
+
+state.playingFillIndex =
+  null;
+
+state.playingSectionIndex =
+  null;
+
+state.playingSectionItemIndex =
+  null;
+
+clearQueuedSource();
 
     clearTimeout(timer);
 
     playButton.classList.remove("playing");
 
     updatePlayingStep();
+    renderPatternManager();
 
     return;
   }
@@ -107,7 +208,11 @@ async function togglePlayback() {
   await initializeAudio();
 
   state.isPlaying = true;
-  state.playingStepIndex = 0;
+state.playingStepIndex = 0;
+
+beginSelectedPlayback();
+
+clearQueuedSource();
 
   playButton.classList.add("playing");
 

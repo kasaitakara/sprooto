@@ -13,9 +13,12 @@ import {
   saveHistory,
   selectPattern,
   selectFill,
+  queuePattern,
+  queueFill,
   addCurrentSourceToSection,
   currentSourceLabel,
   selectSection,
+  queueSection,
   selectEditingSection,
   changeEditingSection,
   currentEditingSection,
@@ -551,6 +554,48 @@ function stepCell(stepIndex) {
     button.appendChild(lane);
   });
 
+      button.addEventListener(
+    "click",
+    () => {
+      const trackIndex =
+        state.selectedTrackIndex;
+
+      const track =
+        tracks[trackIndex];
+
+      if (
+        !track ||
+        stepIndex >= track.stepLength
+      ) {
+        return;
+      }
+
+      saveHistory();
+
+      track.steps[stepIndex] =
+        !track.steps[stepIndex];
+
+      /*
+       * 選択中トラックのレーンだけ
+       * ON/OFF表示を更新する。
+       */
+      const lane =
+        button.querySelector(
+          `.track-lane[data-track-index="${trackIndex}"]`
+        );
+
+      lane?.classList.toggle(
+        "on",
+        track.steps[stepIndex]
+      );
+
+      /*
+       * Offset画面の
+       * note-on強調も更新する。
+       */
+      renderEditor();
+    }
+  );
   return button;
 }
 
@@ -1996,7 +2041,7 @@ function restorePatternFocus(focusKey) {
   restoreFocusKey(focusKey);
 }
 
-function renderPatternManager() {
+export function renderPatternManager() {
   if (!patternGrid || !sectionList) {
     return;
   }
@@ -2064,27 +2109,45 @@ for (
         : "pattern-cell";
 
     if (isFill) {
-      button.textContent =
-        `F${slotIndex + 1}`;
+  button.textContent =
+    `F${slotIndex + 1}`;
 
-      button.dataset.focusKey =
-        `fill-${slotIndex}`;
+  button.dataset.focusKey =
+    `fill-${slotIndex}`;
 
-      button.setAttribute(
-        "aria-label",
-        `fill ${slotIndex + 1}`
-      );
+  button.setAttribute(
+    "aria-label",
+    `fill ${slotIndex + 1}`
+  );
 
-    if (
-      state.selectedSourceType ===
+  /*
+   * 現在選択中のFill。
+   */
+  if (
+    state.selectedSourceType ===
       "fill" &&
-      state.selectedFillIndex ===
+    state.selectedFillIndex ===
       slotIndex
-      ) {
+  ) {
     button.classList.add(
       "active"
     );
   }
+
+  /*
+   * 次回再生予約中のFill。
+   */
+  if (
+    state.queuedSourceType ===
+      "fill" &&
+    state.queuedFillIndex ===
+      slotIndex
+  ) {
+    button.classList.add(
+      "queued"
+    );
+  }
+
     } else {
       button.textContent =
         String(slotIndex + 1)
@@ -2108,12 +2171,38 @@ for (
     "active"
   );
 }
+if (
+  state.queuedSourceType ===
+    "pattern" &&
+  state.queuedPatternIndex ===
+    slotIndex
+) {
+  button.classList.add(
+    "queued"
+  );
+}
     }
 
     button.addEventListener(
   "click",
   () => {
     if (isFill) {
+      /*
+       * Fill予約は次段階で実装。
+       * 現時点では停止中のみ即切替。
+       */
+      if (state.isPlaying) {
+    queueFill(slotIndex);
+
+    renderPatternManager();
+
+    restorePatternFocus(
+        `fill-${slotIndex}`
+    );
+
+    return;
+}
+
       selectFill(
         slotIndex
       );
@@ -2127,6 +2216,28 @@ for (
       return;
     }
 
+    /*
+     * 再生中は即時切替せず、
+     * 次回Pattern予約にする。
+     */
+    if (state.isPlaying) {
+      queuePattern(
+        slotIndex
+      );
+
+      renderPatternManager();
+
+      restorePatternFocus(
+        `pattern-${slotIndex}`
+      );
+
+      return;
+    }
+
+    /*
+     * 停止中は従来どおり
+     * 即時に編集対象を切り替える。
+     */
     selectPattern(
       slotIndex
     );
@@ -2200,29 +2311,68 @@ visibleSections.forEach(
       `section ${sectionLabel}`
     );
 
-    if (
-      state.selectedSectionIndex ===
-      sectionIndex
-    ) {
-      button.classList.add(
-        "active"
-      );
-    }
+    /*
+ * 現在再生中のSection。
+ */
+if (
+  state.playingSectionIndex ===
+    sectionIndex
+) {
+  button.classList.add(
+    "active"
+  );
+}
+
+/*
+ * 次回予約中のSection。
+ */
+if (
+  state.queuedSectionIndex ===
+    sectionIndex
+) {
+  button.classList.add(
+    "queued"
+  );
+}
 
     button.addEventListener(
-      "click",
-      () => {
-        selectSection(
+  "click",
+  () => {
+    /*
+     * 再生中は、
+     * 次回Section予約にする。
+     */
+    if (state.isPlaying) {
+      queueSection(
         sectionIndex
-       );
+      );
 
-       renderPatternManager();
+      renderPatternManager();
 
-       restorePatternFocus(
-       `section-${sectionIndex}`
-       );
-      }
+      restorePatternFocus(
+        `section-${sectionIndex}`
+      );
+
+      return;
+    }
+
+    /*
+     * 停止中は、
+     * 次回再生するSectionを選択する。
+     *
+     * 編集対象Sectionは変更しない。
+     */
+    selectSection(
+      sectionIndex
     );
+
+    renderPatternManager();
+
+    restorePatternFocus(
+      `section-${sectionIndex}`
+    );
+  }
+);
 
     sectionSelector.appendChild(
       button

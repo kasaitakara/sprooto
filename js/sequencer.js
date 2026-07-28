@@ -370,7 +370,50 @@ export const state = {
    * Sectionバー左端に表示する
    * 編集対象Section。
    */
-  editingSectionIndex: 0
+    editingSectionIndex: 0,
+
+  /*
+   * 実際に再生しているPattern／Fill。
+   *
+   * selected～は画面編集対象、
+   * playing～は再生対象として分離する。
+   */
+  playingSourceType: null,
+  playingPatternIndex: null,
+  playingFillIndex: null,
+
+  /*
+   * 次回切替予約。
+   */
+  queuedSourceType: null,
+  queuedPatternIndex: null,
+  queuedFillIndex: null,
+
+/*
+ * Pattern／Fill単体再生か、
+ * Section再生かを示す。
+ */
+selectedPlaybackType:
+  "source",
+
+/*
+ * 現在再生中のSection。
+ * nullならPattern／Fill単体再生。
+ */
+playingSectionIndex:
+  null,
+
+/*
+ * Section内で現在再生中の位置。
+ */
+playingSectionItemIndex:
+  null,
+
+/*
+ * 次回再生予約中のSection。
+ */
+queuedSectionIndex:
+  null
 };
 
 function sourceData(
@@ -428,6 +471,9 @@ export function selectPattern(
     return false;
   }
 
+  state.selectedPlaybackType =
+  "source";
+
   state.selectedSourceType =
     "pattern";
 
@@ -441,6 +487,548 @@ export function selectPattern(
     "pattern",
     patternIndex
   );
+
+  return true;
+}
+
+export function clearQueuedSource() {
+  state.queuedSourceType =
+    null;
+
+  state.queuedPatternIndex =
+    null;
+
+  state.queuedFillIndex =
+    null;
+
+  state.queuedSectionIndex =
+    null;
+}
+
+export function queuePattern(
+  patternIndex
+) {
+  if (
+    patternIndex < 0 ||
+    patternIndex >=
+      patterns.length
+  ) {
+    return false;
+  }
+
+  /*
+   * 同じPatternがすでに予約中なら
+   * 再選択で予約解除。
+   */
+  if (
+    state.queuedSourceType ===
+      "pattern" &&
+    state.queuedPatternIndex ===
+      patternIndex
+  ) {
+    clearQueuedSource();
+
+    return true;
+  }
+
+  /*
+   * 現在再生中のPatternを押した場合は
+   * 切替予約を作らない。
+   */
+  if (
+    state.playingSourceType ===
+      "pattern" &&
+    state.playingPatternIndex ===
+      patternIndex
+  ) {
+    clearQueuedSource();
+
+    return true;
+  }
+
+  state.queuedSourceType =
+    "pattern";
+
+  state.queuedPatternIndex =
+    patternIndex;
+
+  state.queuedFillIndex =
+    null;
+
+  return true;
+}
+
+export function queueFill(
+  fillIndex
+) {
+  if (
+    fillIndex < 0 ||
+    fillIndex >=
+      fills.length
+  ) {
+    return false;
+  }
+
+  /*
+   * 同じFillがすでに予約中なら
+   * 再選択で予約解除。
+   */
+  if (
+    state.queuedSourceType ===
+      "fill" &&
+    state.queuedFillIndex ===
+      fillIndex
+  ) {
+    clearQueuedSource();
+
+    return true;
+  }
+
+  /*
+   * 現在再生中のFillを押した場合は
+   * 切替予約を作らない。
+   */
+  if (
+    state.playingSourceType ===
+      "fill" &&
+    state.playingFillIndex ===
+      fillIndex
+  ) {
+    clearQueuedSource();
+
+    return true;
+  }
+
+  state.queuedSourceType =
+    "fill";
+
+  state.queuedPatternIndex =
+    null;
+
+  state.queuedFillIndex =
+    fillIndex;
+
+  return true;
+}
+
+export function queueSection(
+  sectionIndex
+) {
+  if (
+    sectionIndex < 0 ||
+    sectionIndex >=
+      sections.length
+  ) {
+    return false;
+  }
+
+  const section =
+    sections[sectionIndex];
+
+  /*
+   * 空のSectionは予約しない。
+   */
+  if (
+    !section ||
+    section.sequence.length === 0
+  ) {
+    return false;
+  }
+
+  /*
+   * 同じSectionを再選択したら
+   * 予約解除。
+   */
+  if (
+    state.queuedSectionIndex ===
+      sectionIndex
+  ) {
+    clearQueuedSource();
+
+    return true;
+  }
+
+  /*
+   * 現在再生中のSectionを押した場合も
+   * 予約を作らない。
+   */
+  if (
+    state.playingSectionIndex ===
+      sectionIndex
+  ) {
+    clearQueuedSource();
+
+    return true;
+  }
+
+  clearQueuedSource();
+
+  state.queuedSectionIndex =
+    sectionIndex;
+
+  return true;
+}
+
+function activatePlayingSource(
+  type,
+  index
+) {
+  const loaded =
+    loadSourceTracks(
+      type,
+      index
+    );
+
+  if (!loaded) {
+    return false;
+  }
+
+  state.selectedSourceType =
+    type;
+
+  if (type === "fill") {
+    state.selectedFillIndex =
+      index;
+
+    state.playingSourceType =
+      "fill";
+
+    state.playingPatternIndex =
+      null;
+
+    state.playingFillIndex =
+      index;
+  } else {
+    state.selectedPatternIndex =
+      index;
+
+    state.selectedFillIndex =
+      null;
+
+    state.playingSourceType =
+      "pattern";
+
+    state.playingPatternIndex =
+      index;
+
+    state.playingFillIndex =
+      null;
+  }
+
+  return true;
+}
+
+export function startSectionPlayback(
+  sectionIndex
+) {
+  const section =
+    sections[sectionIndex];
+
+  if (
+    !section ||
+    section.sequence.length === 0
+  ) {
+    return false;
+  }
+
+  const firstSource =
+    section.sequence[0];
+
+  if (
+    !firstSource ||
+    !activatePlayingSource(
+      firstSource.type,
+      firstSource.index
+    )
+  ) {
+    return false;
+  }
+
+  state.selectedPlaybackType =
+    "section";
+
+  state.selectedSectionIndex =
+    sectionIndex;
+
+  state.playingSectionIndex =
+    sectionIndex;
+
+  state.playingSectionItemIndex =
+    0;
+
+  return true;
+}
+
+export function beginSelectedPlayback() {
+  /*
+   * Sectionが選択されている場合。
+   */
+  if (
+    state.selectedPlaybackType ===
+      "section"
+  ) {
+    const started =
+      startSectionPlayback(
+        state.selectedSectionIndex
+      );
+
+    if (started) {
+      return true;
+    }
+  }
+
+  /*
+   * 空Sectionなどの場合は、
+   * 現在表示中のPattern／Fillを再生する。
+   */
+  state.selectedPlaybackType =
+    "source";
+
+  state.playingSectionIndex =
+    null;
+
+  state.playingSectionItemIndex =
+    null;
+
+  return activatePlayingSource(
+    state.selectedSourceType,
+    state.selectedSourceType ===
+      "fill"
+      ? state.selectedFillIndex ?? 0
+      : state.selectedPatternIndex
+  );
+}
+
+export function applyQueuedSource() {
+  const queuedType =
+    state.queuedSourceType;
+
+  /*
+   * Pattern予約
+   */
+  if (
+    queuedType === "pattern" &&
+    state.queuedPatternIndex !==
+      null
+  ) {
+    const patternIndex =
+      state.queuedPatternIndex;
+
+    const selected =
+      selectPattern(
+        patternIndex
+      );
+
+    if (!selected) {
+      clearQueuedSource();
+
+      return false;
+    }
+
+    state.selectedPlaybackType =
+  "source";
+
+state.playingSectionIndex =
+  null;
+
+state.playingSectionItemIndex =
+  null;
+
+    state.playingSourceType =
+      "pattern";
+
+    state.playingPatternIndex =
+      patternIndex;
+
+    state.playingFillIndex =
+      null;
+
+    clearQueuedSource();
+
+    return true;
+  }
+
+  /*
+   * Fill予約
+   */
+  if (
+    queuedType === "fill" &&
+    state.queuedFillIndex !==
+      null
+  ) {
+    const fillIndex =
+      state.queuedFillIndex;
+
+    const selected =
+      selectFill(
+        fillIndex
+      );
+
+    if (!selected) {
+      clearQueuedSource();
+
+      return false;
+    }
+
+    state.selectedPlaybackType =
+  "source";
+
+state.playingSectionIndex =
+  null;
+
+state.playingSectionItemIndex =
+  null;
+
+    state.playingSourceType =
+      "fill";
+
+    state.playingPatternIndex =
+      null;
+
+    state.playingFillIndex =
+      fillIndex;
+
+    clearQueuedSource();
+
+    return true;
+  }
+
+  return false;
+}
+
+export function advancePlaybackSource() {
+  /*
+   * Section再生中ではない場合。
+   */
+  if (
+    state.playingSectionIndex ===
+      null
+  ) {
+    /*
+     * Section予約がある場合は
+     * Pattern終端でSectionを開始。
+     */
+    if (
+      state.queuedSectionIndex !==
+        null
+    ) {
+      const sectionIndex =
+        state.queuedSectionIndex;
+
+      clearQueuedSource();
+
+      return startSectionPlayback(
+        sectionIndex
+      );
+    }
+
+    return applyQueuedSource();
+  }
+
+  /*
+   * Section再生中にPattern／Fillが
+   * 直接予約された場合は、
+   * 次の終端でSection再生を終了する。
+   */
+  if (
+    state.queuedSourceType ===
+      "pattern" ||
+    state.queuedSourceType ===
+      "fill"
+  ) {
+    return applyQueuedSource();
+  }
+
+  const section =
+    sections[
+      state.playingSectionIndex
+    ];
+
+  if (
+    !section ||
+    section.sequence.length === 0
+  ) {
+    state.playingSectionIndex =
+      null;
+
+    state.playingSectionItemIndex =
+      null;
+
+    return false;
+  }
+
+  const currentItemIndex =
+    state.playingSectionItemIndex ??
+    0;
+
+  const nextItemIndex =
+    currentItemIndex + 1;
+
+  /*
+   * Section内に次のSourceがある。
+   */
+  if (
+    nextItemIndex <
+    section.sequence.length
+  ) {
+    const nextSource =
+      section.sequence[
+        nextItemIndex
+      ];
+
+    const changed =
+      activatePlayingSource(
+        nextSource.type,
+        nextSource.index
+      );
+
+    if (!changed) {
+      return false;
+    }
+
+    state.playingSectionItemIndex =
+      nextItemIndex;
+
+    return true;
+  }
+
+  /*
+   * Section末尾。
+   * Section予約があれば切り替える。
+   */
+  if (
+    state.queuedSectionIndex !==
+      null
+  ) {
+    const sectionIndex =
+      state.queuedSectionIndex;
+
+    clearQueuedSource();
+
+    return startSectionPlayback(
+      sectionIndex
+    );
+  }
+
+  /*
+   * 予約がなければ、
+   * 現在のSection先頭へ戻る。
+   */
+  const firstSource =
+    section.sequence[0];
+
+  const changed =
+    activatePlayingSource(
+      firstSource.type,
+      firstSource.index
+    );
+
+  if (!changed) {
+    return false;
+  }
+
+  state.playingSectionItemIndex =
+    0;
 
   return true;
 }
@@ -494,6 +1082,9 @@ export function selectFill(
     return false;
   }
 
+  state.selectedPlaybackType =
+  "source";
+
   state.selectedSourceType =
     "fill";
 
@@ -521,6 +1112,9 @@ export function selectSection(
 
   state.selectedSectionIndex =
     sectionIndex;
+
+  state.selectedPlaybackType =
+    "section";
 
   return true;
 }

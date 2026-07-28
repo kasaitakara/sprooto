@@ -49,7 +49,7 @@ body.theme-kasai {
     --cell: #efefef;
     --off: #efefef;
     --on: #aaa;
-    --play-control: #d9cc9c;
+    --play-control: #54805c;
     --play: #525252;
 
     --selected-bg: #525252;
@@ -315,6 +315,30 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
   margin:0;
   appearance:none;
   -webkit-appearance:none;
+}
+
+.pattern-cell.queued {
+    background: color-mix(
+        in srgb,
+        var(--queued) 22%,
+        var(--cell)
+    );
+
+    color: var(--text);
+}
+
+/*
+ * 選択中と予約中が重なった場合も、
+ * 予約表示を優先してぼんやり見せる。
+ */
+.pattern-cell.active.queued {
+    background: color-mix(
+        in srgb,
+        var(--queued) 30%,
+        var(--selected-bg)
+    );
+
+    color: var(--selected-text);
 }
 .sequence-page-button[hidden] {
   display:none;
@@ -984,6 +1008,43 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
   color: var(--hover-text);
 }
 
+/*
+ * Fill選択中
+ * Pattern選択中と同じ強調表示。
+ */
+.pattern-cell.fill-cell.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+}
+
+/*
+ * Fill予約中
+ * Pattern予約中と同じ表示。
+ */
+.pattern-cell.fill-cell.queued {
+    background: color-mix(
+        in srgb,
+        var(--queued) 22%,
+        var(--cell)
+    );
+
+    color: var(--text);
+}
+
+/*
+ * 選択中のFillを予約した場合も
+ * Patternと同じ予約表示を優先。
+ */
+.pattern-cell.fill-cell.active.queued {
+    background: color-mix(
+        in srgb,
+        var(--queued) 30%,
+        var(--selected-bg)
+    );
+
+    color: var(--selected-text);
+}
+
 .section-manager {
   margin-top: 5px;
 }
@@ -1014,11 +1075,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 
     font-size: 10px;
     line-height: 1;
-}
-
-.section-selector-cell.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
 }
 
 /* 選択中Sectionの帯全体 */
@@ -1213,6 +1269,41 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 .pattern-section-label,
 .fill-column-label {
   display: none;
+}
+
+/*
+ * 再生中Section
+ */
+.section-selector-cell.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+}
+
+/*
+ * 次回予約中Section
+ */
+.section-selector-cell.queued {
+    background: color-mix(
+        in srgb,
+        var(--queued) 22%,
+        var(--cell)
+    );
+
+    color: var(--text);
+}
+
+/*
+ * 再生中Sectionを再予約表示する場合は
+ * 予約表示を優先。
+ */
+.section-selector-cell.active.queued {
+    background: color-mix(
+        in srgb,
+        var(--queued) 30%,
+        var(--selected-bg)
+    );
+
+    color: var(--selected-text);
 }
 
 .theme-button {

@@ -990,11 +990,54 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 /* カーソル表示 */
-.section-editor-button:hover,
-.section-editor-button:focus,
-.section-editor-button[data-keyboard-editing="true"] {
+/*
+ * Section編集記号
+ * 通常時
+ */
+.section-editor-button {
+    -webkit-tap-highlight-color:
+        transparent;
+
+    appearance: none;
+    -webkit-appearance: none;
+
+    outline: none;
+}
+
+/*
+ * PCキーボード編集モード
+ */
+.section-editor-button[
+    data-keyboard-editing="true"
+] {
     background: var(--text);
     color: var(--bg);
+}
+
+/*
+ * PCのみHover／フォーカスを強調
+ *
+ * スマホでは:hoverを使わない。
+ */
+@media (hover: hover) and (pointer: fine) {
+    .section-editor-button:hover,
+    .section-editor-button:focus-visible {
+        background: var(--text);
+        color: var(--bg);
+    }
+}
+
+/*
+ * スマホのタップフォーカスは
+ * 通常配色のままにする。
+ */
+@media (hover: none) {
+    .section-editor-button:focus,
+    .section-editor-button:focus-visible {
+        background: var(--on);
+        color: var(--bg);
+        outline: none;
+    }
 }
 
 /*

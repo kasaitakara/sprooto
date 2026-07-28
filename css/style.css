@@ -1,6 +1,104 @@
-body.theme-sprooto { --bg:#fff; --text:#080808; --muted:#777; --line:#aaa; --cell:#f0f0f0; --off:#d9d9d9; --on:#858585; --accent:#49f0e8; --play:#ffbd00; }
-body.theme-kasai { --bg:#171717; --text:#ededed; --muted:#aaa; --line:#555; --cell:#242424; --off:#3a3a3a; --on:#ededed; --accent:#9ff8fa; --play:#ffb400; }
-body.theme-aya { --bg:#ededed; --text:#417d90; --muted:#888; --line:#be9cd7; --cell:#d4d4d4; --off:#c5c5c5; --on:#ffc1b0; --accent:#51ff2a; --play:#ff73ce; }
+body.theme-sprooto {
+
+    /* 土・紙 */
+    --bg: #f5f0e9;
+
+    /* 植物 */
+    --text: #4b6648;
+    --muted: #8d9586;
+    --line: #4b6648;
+
+    /* セル */
+    --cell: #efe5d7;
+    --off: #efe5d7;
+    --on: #b9d3af;
+
+    /* 水 */
+    --selected-bg: #b7ece6;
+    --selected-text: #4b6648;
+
+    /* 芽 */
+    --fill-bg: #b9d3af;
+    --fill-text: #4b6648;
+
+    --edit-bg: #b9d3af;
+    --edit-text: #4b6648;
+
+    /* 紙 */
+    --chip-bg: #efe5d7;
+    --chip-text: #dbb682;
+
+    /* 太陽 */
+    --play: #f7d202;
+    --play-control: #f7d202;
+
+    /* Hover */
+    --hover-bg: #fff6c7;
+    --hover-text: #4b6648;
+
+    /* 水（予約） */
+    --queued: #9edfd8;
+}
+
+body.theme-kasai {
+    --bg: #171717;
+    --text: #ededed;
+    --muted: #aaa;
+    --line: #555;
+
+    --cell: #242424;
+    --off: #3a3a3a;
+    --on: #ededed;
+    --play-control: #9ff8fa;
+    --play: #ffb400;
+
+    --selected-bg: #9ff8fa;
+    --selected-text: #171717;
+
+    --fill-bg: #555;
+    --fill-text: #ededed;
+
+    --edit-bg: #555;
+    --edit-text: #ededed;
+
+    --chip-bg: #171717;
+    --chip-text: #ededed;
+
+    --hover-bg: #ededed;
+    --hover-text: #171717;
+
+    --queued: #9ff8fa;
+}
+
+body.theme-aya {
+    --bg: #ededed;
+    --text: #417d90;
+    --muted: #888;
+    --line: #be9cd7;
+
+    --cell: #d4d4d4;
+    --off: #c5c5c5;
+    --on: #ffc1b0;
+    --play-control: #51ff2a;
+    --play: #ff73ce;
+
+    --selected-bg: #51ff2a;
+    --selected-text: #417d90;
+
+    --fill-bg: #ffc1b0;
+    --fill-text: #417d90;
+
+    --edit-bg: #417d90;
+    --edit-text: #ededed;
+
+    --chip-bg: #ededed;
+    --chip-text: #417d90;
+
+    --hover-bg: #417d90;
+    --hover-text: #ededed;
+
+    --queued: #be9cd7;
+}
 * { box-sizing:border-box; }
 html {
     width: 100%;
@@ -44,7 +142,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 .theme-control { display:flex; align-items:center; gap:6px; font-size:10px; }
 .theme-control select { border:0; background:transparent; font-size:11px; }
 .icon-button { border:0; background:transparent; padding:2px 4px; }
-.play-button.playing { color:var(--accent); }
+.play-button.playing { color: var(--play-control);}
 .master-control { display:flex; align-items:center; gap:7px; font-size:11px; }
 
 .master-control input[type="range"]::-webkit-slider-runnable-track {
@@ -183,7 +281,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 }
 .sequence-page-button:hover,
 .sequence-page-button:focus-visible {
-  color:var(--accent);
+  color: var(--selected-bg);
 }
 .track-title,.track-cycle { border:0; background:transparent; padding:4px; font-size:13px; }
 .sequence-grid {
@@ -206,7 +304,9 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 }
 .track-lane { display:block; background:var(--off); }
 .track-lane.on { background:var(--on); }
-.track-lane.on.selected-track { background:var(--accent); }
+.track-lane.on.selected-track {
+    background: var(--selected-bg);
+}
 .editor-section {
     margin-top: 8px;
     padding-top: 6px;
@@ -260,10 +360,13 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 .edit-icon { min-width:28px; text-align:center; }
 .child-tabs { display:flex; gap:4px; }
 .child-tabs button { height:28px; border:0; background:var(--cell); padding:0 9px; font-size:11px; }
-.child-tabs button.active { background:var(--on); color:var(--bg); }
+.child-tabs button.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+}
 .value-control { margin-left:auto; display:flex; align-items:center; }
 .value-control button { height:28px; min-width:26px; border:0; background:transparent; }
-.base-input { width:52px; height:28px; text-align:center; border:1px solid var(--accent); background:var(--cell); font-size: 11px; }
+.base-input { width:52px; height:28px; text-align:center; border:1px solid var(--selected-bg); background:var(--cell); font-size: 11px; }
 .offset-grid {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
@@ -297,7 +400,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 .offset-step.note-on {
     background: color-mix(
         in srgb,
-        var(--accent) 15%,
+        var(--selected-bg) 15%,
         var(--cell)
     );
 }
@@ -543,7 +646,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .play-button.playing {
-    color: var(--accent);
+    color: var(--play-control);
 }
 
 .track-title {
@@ -732,7 +835,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     background: color-mix(
         in srgb,
         var(--play) 15%,
-        var(--accent)
+        var(--selected-bg)
     );
 }
 
@@ -813,20 +916,20 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .pattern-cell.active {
-  background: var(--accent);
-  color: var(--text);
+    background: var(--selected-bg);
+    color: var(--selected-text);
 }
 
 .pattern-cell.fill-cell {
-  background: var(--on);
-  color: var(--bg);
+  background: var(--fill-bg);
+  color: var(--fill-text);
   font-weight: 600;
 }
 
 .pattern-cell.fill-cell:hover,
 .pattern-cell.fill-cell:focus-visible {
-  background: var(--text);
-  color: var(--bg);
+  background: var(--hover-bg);
+  color: var(--hover-text);
 }
 
 .section-manager {
@@ -862,8 +965,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .section-selector-cell.active {
-  background: var(--accent);
-  color: var(--text);
+    background: var(--selected-bg);
+    color: var(--selected-text);
 }
 
 /* 選択中Sectionの帯全体 */
@@ -965,8 +1068,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     border: 0;
     border-radius: 0;
 
-    background: var(--bg);
-    color: var(--text);
+    background: var(--chip-bg);
+    color: var(--chip-text);
 
     font-size: 10px;
     line-height: 1;
@@ -1010,8 +1113,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 .section-editor-button[
     data-keyboard-editing="true"
 ] {
-    background: var(--text);
-    color: var(--bg);
+    background: var(--hover-bg);
+    color: var(--hover-text);
 }
 
 /*
@@ -1021,10 +1124,10 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
  */
 @media (hover: hover) and (pointer: fine) {
     .section-editor-button:hover,
-    .section-editor-button:focus-visible {
-        background: var(--text);
-        color: var(--bg);
-    }
+.section-editor-button:focus-visible {
+    background: var(--hover-bg);
+    color: var(--hover-text);
+}
 }
 
 /*
@@ -1045,14 +1148,14 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
  * フォーカス色を通常色へ戻す。
  */
 .section-editor-button:focus:not([data-keyboard-editing="true"]) {
-    background: var(--on);
-    color: var(--bg);
+    background: var(--edit-bg);
+    color: var(--edit-text);
 }
 
 .section-pattern-cell:hover,
 .section-pattern-cell:focus-visible {
-    background: var(--text);
-    color: var(--bg);
+    background: var(--hover-bg);
+    color: var(--hover-text);
 }
 
 .pattern-section-label,
@@ -1087,13 +1190,13 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 @media (hover: hover) {
     .theme-button:hover,
     .theme-button:focus-visible {
-        color: var(--accent);
+        color: var(--selected-bg);
     }
 }
 
 /* スマホはJSで付けるactiveだけ点灯 */
 .theme-button.active {
-    color: var(--accent);
+    color: var(--selected-bg);
 }
 
 .theme-selector-hidden {
@@ -1181,5 +1284,5 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 
 .pattern-page-button:hover,
 .pattern-page-button:focus-visible {
-    color: var(--accent);
+    color: var(--selected-bg);
 }

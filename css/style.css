@@ -195,7 +195,10 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 .theme-control select { border:0; background:transparent; font-size:11px; }
 .icon-button { border:0; background:transparent; padding:2px 4px; }
 .play-button.playing { color: var(--play-control);}
-.master-control { display:flex; align-items:center; gap:7px; font-size:11px; }
+.master-control output {
+    width: 24px;
+    font-size: 14px;
+}
 
 .master-control input[type="range"]::-webkit-slider-runnable-track {
     height: 0.1px;
@@ -231,7 +234,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
     border-radius: 50%;
     background: var(--text);
 }
-.master-control output { width:20px; }
+.master-control output { width:24px; }
 .bpm-input {
     width: 42px;
 

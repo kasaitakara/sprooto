@@ -1029,12 +1029,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
   font-weight: 600;
 }
 
-.pattern-cell.fill-cell:hover,
-.pattern-cell.fill-cell:focus-visible {
-  background: var(--hover-bg);
-  color: var(--hover-text);
-}
-
 /*
  * Fill選択中
  * Pattern選択中と同じ強調表示。
@@ -1237,19 +1231,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 ] {
     background: var(--hover-bg);
     color: var(--hover-text);
-}
-
-/*
- * PCのみHover／フォーカスを強調
- *
- * スマホでは:hoverを使わない。
- */
-@media (hover: hover) and (pointer: fine) {
-    .section-editor-button:hover,
-.section-editor-button:focus-visible {
-    background: var(--hover-bg);
-    color: var(--hover-text);
-}
 }
 
 /*
@@ -1582,15 +1563,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     color: var(--selected-text);
 }
 
-@media (hover: hover) and (pointer: fine) {
-    .erase-button:hover,
-    .erase-button:focus-visible {
-        background: var(--hover-bg);
-        color: var(--hover-text);
-    }
-}
-
-
 /* =========================
    Swing / two-row editor header
 ========================= */
@@ -1698,39 +1670,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     min-width: 22px;
 }
 
-.track-swing-control:hover,
-.track-swing-control:focus-within,
-.track-step-control:hover,
-.track-step-control:focus-within,
-.sequence-step-value:hover,
-.sequence-step-value:focus-within {
-    color: var(--play-control);
-}
-
-.track-swing-control:hover .compact-value-label,
-.track-swing-control:focus-within .compact-value-label,
-.track-step-control:hover .compact-value-label,
-.track-step-control:focus-within .compact-value-label,
-.sequence-step-value:hover .compact-value-label,
-.sequence-step-value:focus-within .compact-value-label {
-    color: var(--play-control);
-}
-
-.track-swing-control:hover .compact-value-number,
-.track-swing-control:focus-within .compact-value-number,
-.track-step-control:hover .compact-value-number,
-.track-step-control:focus-within .compact-value-number,
-.sequence-step-value:hover .compact-value-number,
-.sequence-step-value:focus-within .compact-value-number {
-    color: var(--play-control);
-    -webkit-text-fill-color: var(--play-control);
-}
-
-.editor-header-two-row .mini-button:hover,
-.editor-header-two-row .mini-button:focus-visible {
-    color: var(--play-control);
-}
-
 .editor-header-two-row .erase-button.delete-armed {
     background: var(--selected-bg);
     color: var(--selected-text);
@@ -1742,31 +1681,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 
 .sequence-step-value {
     height: 28px;
-}
-
-/*
- * スマホでは疑似hoverを残さず、
- * 実際のフォーカス／編集中だけ強調する。
- */
-@media (hover: none) {
-    .track-swing-control:hover,
-    .track-step-control:hover,
-    .sequence-step-value:hover {
-        color: inherit;
-    }
-
-    .track-swing-control:hover .compact-value-label,
-    .track-step-control:hover .compact-value-label,
-    .sequence-step-value:hover .compact-value-label {
-        color: var(--muted);
-    }
-
-    .track-swing-control:hover .compact-value-number,
-    .track-step-control:hover .compact-value-number,
-    .sequence-step-value:hover .compact-value-number {
-        color: var(--text);
-        -webkit-text-fill-color: var(--text);
-    }
 }
 
 /* =========================

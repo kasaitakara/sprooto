@@ -398,6 +398,13 @@ function roundToStep(value, step) {
   );
 }
 
+function isTouchOrPen(pointerType) {
+  return (
+    pointerType === "touch" ||
+    pointerType === "pen"
+  );
+}
+
 function enableVerticalSweep({
   element,
   getValue,
@@ -837,9 +844,10 @@ patternLengthInput.addEventListener(
       event.pointerType;
 
     if (
-      event.pointerType === "touch" ||
-      event.pointerType === "pen"
-    ) {
+  isTouchOrPen(
+    event.pointerType
+  )
+) {
       patternLengthInput.readOnly =
         true;
 
@@ -942,13 +950,9 @@ patternLengthInput.addEventListener(
   "click",
   event => {
     const isTouchInput =
-      event.detail > 0 &&
-      (
-        patternLengthPointerType ===
-          "touch" ||
-        patternLengthPointerType ===
-          "pen"
-      );
+  isTouchOrPen(
+    patternLengthPointerType
+  );
 
     if (isTouchInput) {
       event.preventDefault();
@@ -1274,11 +1278,9 @@ acceleration: false,
     "click",
     event => {
       const isTouchInput =
-        event.detail > 0 &&
-        (
-          lastPointerType === "touch" ||
-          lastPointerType === "pen"
-        );
+  isTouchOrPen(
+    lastPointerType
+  );
 
       if (isTouchInput) {
         event.preventDefault();
@@ -1524,11 +1526,9 @@ function createSwingControl(focusKey) {
     "click",
     event => {
       const isTouchInput =
-        event.detail > 0 &&
-        (
-          lastPointerType === "touch" ||
-          lastPointerType === "pen"
-        );
+  isTouchOrPen(
+    lastPointerType
+  );
 
       if (isTouchInput) {
         event.preventDefault();
@@ -1970,11 +1970,9 @@ function editValueControl(parameter, id) {
     "click",
     event => {
       const isTouchInput =
-        event.detail > 0 &&
-        (
-          lastPointerType === "touch" ||
-          lastPointerType === "pen"
-        );
+  isTouchOrPen(
+    lastPointerType
+  );
 
       if (isTouchInput) {
         event.preventDefault();
@@ -2239,13 +2237,9 @@ function renderOffsetGrid(parameter) {
       "click",
       event => {
         const isTouchInput =
-          event.detail > 0 &&
-          (
-            lastPointerType ===
-              "touch" ||
-            lastPointerType ===
-              "pen"
-          );
+  isTouchOrPen(
+    lastPointerType
+  );
 
         if (isTouchInput) {
           event.preventDefault();

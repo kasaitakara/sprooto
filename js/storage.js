@@ -1,0 +1,218 @@
+import {
+  createSnapshot,
+  restoreSnapshot,
+  state
+} from "./sequencer.js";
+
+const STORAGE_KEY =
+  "sprooto-autosave-v1";
+
+const AUTOSAVE_DELAY = 500;
+
+let autosaveTimer = null;
+
+function makeStoredSnapshot() {
+  const snapshot =
+    createSnapshot();
+
+  /*
+   * 再生中の状態は保存しない。
+   * 復元時は必ず停止状態にする。
+   */
+  snapshot.state.isPlaying =
+    false;
+
+  snapshot.state.playingStepIndex =
+    null;
+
+  snapshot.state.playingSourceType =
+    null;
+
+  snapshot.state.playingPatternIndex =
+    null;
+
+  snapshot.state.playingFillIndex =
+    null;
+
+  snapshot.state.playingSectionIndex =
+    null;
+
+  snapshot.state.playingSectionItemIndex =
+    null;
+
+  snapshot.state.queuedSourceType =
+    null;
+
+  snapshot.state.queuedPatternIndex =
+    null;
+
+  snapshot.state.queuedFillIndex =
+    null;
+
+  snapshot.state.queuedSectionIndex =
+    null;
+
+  return snapshot;
+}
+
+export function saveAutosave() {
+  try {
+    const snapshot =
+      makeStoredSnapshot();
+
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(snapshot)
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "sprooto autosave failed:",
+      error
+    );
+
+    return false;
+  }
+}
+
+export function scheduleAutosave() {
+  clearTimeout(
+    autosaveTimer
+  );
+
+  autosaveTimer =
+    setTimeout(
+      saveAutosave,
+      AUTOSAVE_DELAY
+    );
+}
+
+export function restoreAutosave() {
+  try {
+    const storedText =
+      localStorage.getItem(
+        STORAGE_KEY
+      );
+
+    if (!storedText) {
+      return false;
+    }
+
+    const snapshot =
+      JSON.parse(
+        storedText
+      );
+
+    if (
+      !snapshot ||
+      !Array.isArray(
+        snapshot.patterns
+      ) ||
+      !Array.isArray(
+        snapshot.fills
+      ) ||
+      !Array.isArray(
+        snapshot.sections
+      ) ||
+      !snapshot.state
+    ) {
+      return false;
+    }
+
+    restoreSnapshot(
+      snapshot
+    );
+
+    /*
+     * 古い保存データなどに再生状態が
+     * 残っていても必ず停止する。
+     */
+    state.isPlaying =
+      false;
+
+    state.playingStepIndex =
+      null;
+
+    state.playingSourceType =
+      null;
+
+    state.playingPatternIndex =
+      null;
+
+    state.playingFillIndex =
+      null;
+
+    state.playingSectionIndex =
+      null;
+
+    state.playingSectionItemIndex =
+      null;
+
+    state.queuedSourceType =
+      null;
+
+    state.queuedPatternIndex =
+      null;
+
+    state.queuedFillIndex =
+      null;
+
+    state.queuedSectionIndex =
+      null;
+
+    return true;
+  } catch (error) {
+    console.error(
+      "sprooto restore failed:",
+      error
+    );
+
+    return false;
+  }
+}
+
+export function initializeAutosave() {
+  /*
+   * 操作終了後に保存予約する。
+   * setTimeoutを挟むことで、
+   * 実際のデータ変更後に保存される。
+   */
+  [
+    "pointerup",
+    "change",
+    "input",
+    "keyup"
+  ].forEach(
+    eventName => {
+      document.addEventListener(
+        eventName,
+        scheduleAutosave
+      );
+    }
+  );
+
+  /*
+   * 他アプリへ移る直前にも即時保存する。
+   */
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (
+        document.visibilityState ===
+        "hidden"
+      ) {
+        clearTimeout(
+          autosaveTimer
+        );
+
+        saveAutosave();
+      }
+    }
+  );
+
+  window.addEventListener(
+    "pagehide",
+    saveAutosave
+  );
+}

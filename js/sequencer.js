@@ -1321,7 +1321,7 @@ const HISTORY_LIMIT = 100;
 const undoStack = [];
 const redoStack = [];
 
-function createSnapshot() {
+export function createSnapshot() {
   return structuredClone({
     patterns,
     fills,
@@ -1330,7 +1330,7 @@ function createSnapshot() {
   });
 }
 
-function restoreSnapshot(
+export function restoreSnapshot(
   snapshot
 ) {
   patterns.splice(

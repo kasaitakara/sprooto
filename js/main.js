@@ -25,6 +25,12 @@ import {
   renderPatternManager
 } from "./ui.js";
 
+import {
+  initializeAutosave,
+  restoreAutosave,
+  scheduleAutosave
+} from "./storage.js";
+
 import "./keyboard-navigation.js";
 
 let timer = null;
@@ -452,8 +458,17 @@ redoButton.addEventListener("click", () => {
   updateHistoryButtons();
 });
 
+restoreAutosave();
+
 render();
 updateHistoryButtons();
+
+initializeAutosave();
+
+window.addEventListener(
+  "historychange",
+  scheduleAutosave
+);
 
 document.addEventListener(
   "visibilitychange",

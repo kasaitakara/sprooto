@@ -1726,8 +1726,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     -webkit-text-fill-color: var(--play-control);
 }
 
-.editor-header-two-row .track-cycle:hover,
-.editor-header-two-row .track-cycle:focus-visible,
 .editor-header-two-row .mini-button:hover,
 .editor-header-two-row .mini-button:focus-visible {
     color: var(--play-control);
@@ -1811,37 +1809,9 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     text-transform: lowercase;
 }
 
-/* Track選択時はアイコンと番号をまとめて強調 */
-.editor-header-two-row .track-cycle:hover,
-.editor-header-two-row .track-cycle:focus-visible {
-    color: var(--play-control);
-}
-
-.editor-header-two-row .track-cycle:hover .track-number,
-.editor-header-two-row .track-cycle:focus-visible .track-number,
-.editor-header-two-row .track-cycle:hover .track-icon,
-.editor-header-two-row .track-cycle:focus-visible .track-icon {
-    color: var(--play-control);
-}
-
 /* SWとSTEPのラベル・数値間隔を統一 */
 .compact-value {
     gap: 4px;
-}
-
-/* =========================
-   Editor 最終修正
-========================= */
-
-/* Track：カセットアイコンと番号を同時に強調 */
-.track-cycle:hover,
-.track-cycle:focus-visible,
-.track-cycle:hover .track-icon,
-.track-cycle:focus-visible .track-icon,
-.track-cycle:hover .track-number,
-.track-cycle:focus-visible .track-number {
-    color: var(--play-control);
-    -webkit-text-fill-color: var(--play-control);
 }
 
 /* パラセレクト下のベース値を小さくする */

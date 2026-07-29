@@ -230,7 +230,7 @@ clearQueuedSource();
   playCurrentStep();
 
   nextTickTime = performance.now();
-　scheduleNextTick();
+scheduleNextTick();
 }
 
 const BPM_MIN = 40;
@@ -257,6 +257,16 @@ function isTouchLikePointer(event) {
   );
 }
 
+function isTouchDevice() {
+  return window.matchMedia(
+    "(pointer: coarse)"
+  ).matches;
+}
+
+if (isTouchDevice()) {
+  bpmInput.readOnly = true;
+}
+
 bpmInput.addEventListener(
   "pointerdown",
   event => {
@@ -265,6 +275,8 @@ bpmInput.addEventListener(
     }
 
     event.preventDefault();
+
+    bpmInput.blur();
 
     bpmSwipeActive = true;
     bpmSwipePointerId =

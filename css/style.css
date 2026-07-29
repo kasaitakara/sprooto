@@ -151,7 +151,7 @@ body.theme-aya {
     --chip-bg: #ffc1b0;
     --chip-text: #417d90;
 
-    --hover-bg: #ff73ce;
+    --hover-bg: #be9cd7;
     --hover-text: #ededed;
 
     --queued: #be9cd7;
@@ -1536,4 +1536,37 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
  */
 .section-contents.dragging {
   cursor: grabbing;
+}
+/* =========================
+   Erase buttons
+========================= */
+.erase-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 4px;
+
+    color: var(--text);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.erase-button svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+/* 1回目のタップ後、1秒間だけ待機状態を表示 */
+.erase-button.delete-armed {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .erase-button:hover,
+    .erase-button:focus-visible {
+        background: var(--hover-bg);
+        color: var(--hover-text);
+    }
 }

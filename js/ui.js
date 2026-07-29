@@ -26,6 +26,8 @@ import {
   changeEditingSection,
   currentEditingSection,
   currentEditingSectionLabel,
+  clearSelectedTrackSequence,
+  clearSelectedParameterOffsets,
 } from "./sequencer.js";
 
 const sequenceGrid = document.getElementById("sequence-grid");
@@ -248,6 +250,22 @@ function getParameterIcon(iconId) {
       </svg>
     `,
 
+    erase: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M3 17l8.5-10.5a2 2 0 0 1 3-.2l3.2 3.2a2 2 0 0 1 .1 2.7L10 21H5z"></path>
+        <path d="M8.5 20.5l-4-4"></path>
+        <path d="M13 18h8"></path>
+      </svg>
+    `,
+
     probability: `
       <svg
         viewBox="0 0 24 24"
@@ -294,6 +312,67 @@ function restoreFocusKey(focusKey) {
 function renderEditorAndRestore(focusKey) {
   renderEditor();
   restoreFocusKey(focusKey);
+}
+
+const DELETE_DOUBLE_TAP_INTERVAL = 1000;
+
+function enableDoubleTapAction({
+  element,
+  onDoubleTap,
+  interval = DELETE_DOUBLE_TAP_INTERVAL
+}) {
+  let firstTapTime = 0;
+  let resetTimer = null;
+
+  function reset() {
+    firstTapTime = 0;
+
+    if (resetTimer !== null) {
+      clearTimeout(resetTimer);
+      resetTimer = null;
+    }
+
+    element.classList.remove(
+      "delete-armed"
+    );
+  }
+
+  element.addEventListener(
+    "click",
+    event => {
+      const now = performance.now();
+
+      if (
+        firstTapTime !== 0 &&
+        now - firstTapTime <= interval
+      ) {
+        event.preventDefault();
+        reset();
+        onDoubleTap();
+        return;
+      }
+
+      firstTapTime = now;
+
+      element.classList.add(
+        "delete-armed"
+      );
+
+      if (resetTimer !== null) {
+        clearTimeout(resetTimer);
+      }
+
+      resetTimer = window.setTimeout(
+        reset,
+        interval
+      );
+    }
+  );
+
+  element.addEventListener(
+    "blur",
+    reset
+  );
 }
 
 const SWEEP_START_DISTANCE = 8;
@@ -1346,6 +1425,15 @@ function renderMenu() {
   >
     S
   </button>
+
+  <button
+    class="mini-button erase-button"
+    type="button"
+    data-focus-key="menu-sequence-erase"
+    aria-label="現在のトラックのシーケンスをダブルタップで全消去"
+  >
+    ${getParameterIcon("erase")}
+  </button>
 `;
   header.querySelector(".track-cycle").addEventListener("click", () => {
 
@@ -1374,6 +1462,29 @@ header.querySelector(".solo").addEventListener("click", () => {
 
     renderEditorAndRestore("menu-solo");
 
+});
+
+const sequenceEraseButton =
+  header.querySelector(
+    ".erase-button"
+  );
+
+enableDoubleTapAction({
+  element: sequenceEraseButton,
+
+  onDoubleTap: () => {
+    const cleared =
+      clearSelectedTrackSequence();
+
+    if (!cleared) {
+      return;
+    }
+
+    renderSequence();
+    renderEditorAndRestore(
+      "menu-sequence-erase"
+    );
+  }
 });
 
 header.appendChild(
@@ -2011,6 +2122,63 @@ function renderEdit(parameter) {
     activeId =
       state.selectedChildId ||
       parameter.children[0].id;
+  }
+
+  const offsetEraseButton =
+    document.createElement("button");
+
+  offsetEraseButton.type = "button";
+  offsetEraseButton.className =
+    "mini-button erase-button";
+
+  offsetEraseButton.dataset.focusKey =
+    "edit-offset-erase";
+
+  offsetEraseButton.setAttribute(
+    "aria-label",
+    `${parameter.label}のOffsetをダブルタップで全消去`
+  );
+
+  offsetEraseButton.innerHTML =
+    getParameterIcon("erase");
+
+  const activeChild =
+    parameter.children?.find(
+      item => item.id === activeId
+    );
+
+  const hasOffsets =
+    !parameter.baseOnly &&
+    !activeChild?.baseOnly &&
+    Boolean(
+      selectedTrack().offsets[
+        parameter.id
+      ]
+    );
+
+  if (hasOffsets) {
+    enableDoubleTapAction({
+      element: offsetEraseButton,
+
+      onDoubleTap: () => {
+        const cleared =
+          clearSelectedParameterOffsets(
+            parameter.id
+          );
+
+        if (!cleared) {
+          return;
+        }
+
+        renderEditorAndRestore(
+          "edit-offset-erase"
+        );
+      }
+    });
+
+    header.appendChild(
+      offsetEraseButton
+    );
   }
 
   header.appendChild(

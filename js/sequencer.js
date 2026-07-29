@@ -1508,3 +1508,50 @@ export function parameterById(
       parameter.id === id
   );
 }
+
+export function clearSelectedTrackSequence() {
+  const track = selectedTrack();
+
+  if (!track) {
+    return false;
+  }
+
+  const hasActiveStep =
+    track.steps.some(Boolean);
+
+  if (!hasActiveStep) {
+    return false;
+  }
+
+  saveHistory();
+  track.steps.fill(false);
+
+  return true;
+}
+
+export function clearSelectedParameterOffsets(
+  parameterId
+) {
+  const track = selectedTrack();
+  const offsets =
+    track?.offsets?.[parameterId];
+
+  if (!offsets) {
+    return false;
+  }
+
+  const hasOffset =
+    offsets.some(
+      value => value !== 0
+    );
+
+  if (!hasOffset) {
+    return false;
+  }
+
+  saveHistory();
+  offsets.fill(0);
+
+  return true;
+}
+

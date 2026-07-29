@@ -3,6 +3,15 @@ import { clamp } from "./sequencer.js";
 let context;
 let master;
 
+function resumeAudioContext() {
+  if (
+    context &&
+    context.state === "suspended"
+  ) {
+    context.resume().catch(() => {});
+  }
+}
+
 export async function initializeAudio() {
   if (!context) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -10,6 +19,20 @@ export async function initializeAudio() {
     master = context.createGain();
     master.gain.value = 0.7;
     master.connect(context.destination);
+    document.addEventListener(
+  "visibilitychange",
+  resumeAudioContext
+);
+
+window.addEventListener(
+  "pageshow",
+  resumeAudioContext
+);
+
+window.addEventListener(
+  "focus",
+  resumeAudioContext
+);
   }
   if (context.state === "suspended") await context.resume();
 }
@@ -92,4 +115,8 @@ export async function playTrackStep(track, stepIndex, delaySeconds = 0) {
     noise.start(now);
     noise.stop(stopAt);
   }
+}
+
+export function resumeAudio() {
+  resumeAudioContext();
 }

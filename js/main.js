@@ -15,7 +15,8 @@ clearQueuedSource
 import {
   initializeAudio,
   playTrackStep,
-  setMasterVolume
+  setMasterVolume,
+  resumeAudio
 } from "./audio.js";
 
 import {
@@ -453,3 +454,18 @@ redoButton.addEventListener("click", () => {
 
 render();
 updateHistoryButtons();
+
+document.addEventListener(
+  "visibilitychange",
+  resumeAudio
+);
+
+window.addEventListener(
+  "pageshow",
+  resumeAudio
+);
+
+window.addEventListener(
+  "focus",
+  resumeAudio
+);

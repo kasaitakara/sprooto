@@ -570,13 +570,13 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     margin: 0;
 
     grid-template-columns:
-        minmax(0, 1fr)
-        28px
-        28px
-        28px
-        28px
-        minmax(88px, auto)
-        42px;
+    minmax(0, 1fr)
+    28px
+    28px
+    28px
+    28px
+    minmax(80px, auto)
+    58px;
 
     gap: 3px;
 
@@ -1433,7 +1433,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     display: flex;
     align-items: center;
     gap: 3px;
-    min-width: 88px;
+    min-width: 80px;
     white-space: nowrap;
 }
 
@@ -1756,4 +1756,17 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 .sequence-step:focus-visible {
     outline: 1px solid var(--text);
     outline-offset: -1px;
+}
+
+.bpm-control {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    white-space: nowrap;
+}
+
+.bpm-control .bpm-input {
+    width: 32px;
+    min-width: 32px;
+    margin: 0;
 }

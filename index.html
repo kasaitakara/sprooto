@@ -144,7 +144,24 @@
 
   <output id="master-volume-value">70</output>
 </label>
-      <input id="bpm-input" class="bpm-input" type="number" min="40" max="300" value="120" aria-label="BPM">
+      <label
+  class="compact-value bpm-control"
+  aria-label="BPM"
+>
+  <span class="compact-value-label">
+    bpm
+  </span>
+
+  <input
+    id="bpm-input"
+    class="bpm-input compact-value-number"
+    type="number"
+    min="40"
+    max="300"
+    value="120"
+    aria-label="bpm"
+  >
+</label>
     </header>
 
     <section class="sequence-section" aria-label="sequence">

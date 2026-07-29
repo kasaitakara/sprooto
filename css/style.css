@@ -1616,8 +1616,9 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .editor-header-two-row .mini-button.active {
-    background: var(--text);
-    color: var(--bg);
+    background: var(--cell);
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
 }
 
 .track-sound-name {
@@ -1812,4 +1813,39 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 /* SWとSTEPのラベル・数値間隔を統一 */
 .compact-value {
     gap: 4px;
+}
+
+/* =========================
+   Editor 最終修正
+========================= */
+
+/* Track：カセットアイコンと番号を同時に強調 */
+.track-cycle:hover,
+.track-cycle:focus-visible,
+.track-cycle:hover .track-icon,
+.track-cycle:focus-visible .track-icon,
+.track-cycle:hover .track-number,
+.track-cycle:focus-visible .track-number {
+    color: var(--play-control);
+    -webkit-text-fill-color: var(--play-control);
+}
+
+/* パラセレクト下のベース値を小さくする */
+.parameter-button .parameter-value {
+    font-size: var(--font-small);
+    line-height: 1;
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
+}
+
+/* Offset編集画面の消しゴム：通常時は背景なし */
+.edit-toolbar .erase-button {
+    background: transparent;
+}
+
+/* 1回目のタップ後だけ背景を表示 */
+.edit-toolbar .erase-button.delete-armed {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color: var(--selected-text);
 }

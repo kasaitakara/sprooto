@@ -27,6 +27,7 @@ import {
 import "./keyboard-navigation.js";
 
 let timer = null;
+let nextTickTime = 0;
 const playButton = document.getElementById("play-button");
 const bpmInput = document.getElementById("bpm-input");
 const volumeInput = document.getElementById("master-volume");
@@ -76,6 +77,20 @@ window.addEventListener(
 
 function duration() {
   return 60000 / clamp(Number(bpmInput.value) || 120, 40, 300) / 4;
+}
+
+function scheduleNextTick() {
+  nextTickTime += duration();
+
+  const delay = Math.max(
+    0,
+    nextTickTime - performance.now()
+  );
+
+  timer = setTimeout(
+    tick,
+    delay
+  );
 }
 
 function audible(track) {
@@ -154,10 +169,7 @@ const sourceChanged =
 
     playCurrentStep();
 
-    timer = setTimeout(
-      tick,
-      duration()
-    );
+    scheduleNextTick();
 
     return;
   }
@@ -168,10 +180,7 @@ const sourceChanged =
   updatePlayingStep();
   playCurrentStep();
 
-  timer = setTimeout(
-    tick,
-    duration()
-  );
+  scheduleNextTick();
 }
 
 async function togglePlayback() {
@@ -196,6 +205,7 @@ state.playingSectionItemIndex =
 clearQueuedSource();
 
     clearTimeout(timer);
+    nextTickTime = 0;
 
     playButton.classList.remove("playing");
 
@@ -219,8 +229,122 @@ clearQueuedSource();
   updatePlayingStep();
   playCurrentStep();
 
-  timer = setTimeout(tick, duration());
+  nextTickTime = performance.now();
+　scheduleNextTick();
 }
+
+const BPM_MIN = 40;
+const BPM_MAX = 300;
+const BPM_SWIPE_PIXELS = 2;
+
+let bpmSwipeActive = false;
+let bpmSwipeStartY = 0;
+let bpmSwipeStartValue = 120;
+let bpmSwipePointerId = null;
+
+function setBpmValue(value) {
+  bpmInput.value = clamp(
+    Math.round(value),
+    BPM_MIN,
+    BPM_MAX
+  );
+}
+
+function isTouchLikePointer(event) {
+  return (
+    event.pointerType === "touch" ||
+    event.pointerType === "pen"
+  );
+}
+
+bpmInput.addEventListener(
+  "pointerdown",
+  event => {
+    if (!isTouchLikePointer(event)) {
+      return;
+    }
+
+    event.preventDefault();
+
+    bpmSwipeActive = true;
+    bpmSwipePointerId =
+      event.pointerId;
+
+    bpmSwipeStartY =
+      event.clientY;
+
+    bpmSwipeStartValue =
+      clamp(
+        Number(bpmInput.value) || 120,
+        BPM_MIN,
+        BPM_MAX
+      );
+
+    bpmInput.setPointerCapture(
+      event.pointerId
+    );
+  }
+);
+
+bpmInput.addEventListener(
+  "pointermove",
+  event => {
+    if (
+      !bpmSwipeActive ||
+      event.pointerId !==
+        bpmSwipePointerId
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const movement =
+      bpmSwipeStartY -
+      event.clientY;
+
+    const bpmChange =
+      movement /
+      BPM_SWIPE_PIXELS;
+
+    setBpmValue(
+      bpmSwipeStartValue +
+      bpmChange
+    );
+  }
+);
+
+function endBpmSwipe(event) {
+  if (
+    event.pointerId !==
+      bpmSwipePointerId
+  ) {
+    return;
+  }
+
+  bpmSwipeActive = false;
+  bpmSwipePointerId = null;
+
+  if (
+    bpmInput.hasPointerCapture(
+      event.pointerId
+    )
+  ) {
+    bpmInput.releasePointerCapture(
+      event.pointerId
+    );
+  }
+}
+
+bpmInput.addEventListener(
+  "pointerup",
+  endBpmSwipe
+);
+
+bpmInput.addEventListener(
+  "pointercancel",
+  endBpmSwipe
+);
 
 playButton.addEventListener("click", togglePlayback);
 volumeInput.addEventListener("input", () => {

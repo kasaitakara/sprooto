@@ -1482,3 +1482,23 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     line-height: 28px;
     text-align: center;
 }
+
+.bpm-input {
+    height: 28px;
+    margin: 0;
+
+    line-height: 28px;
+
+    appearance: textfield;
+    -webkit-appearance: none;
+
+    touch-action: none;
+}
+
+/* iPhoneではキーボードを開かず、
+   スイープ操作専用にする */
+@media (hover: none) and (pointer: coarse) {
+    .bpm-input {
+        caret-color: transparent;
+    }
+}

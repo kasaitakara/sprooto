@@ -1,3 +1,8 @@
+:root {
+    --font-main: 16px;
+    --font-sub: 12px;
+}
+
 body.theme-sprooto {
 
     /* 土・紙 */
@@ -190,14 +195,14 @@ output {
     -webkit-text-fill-color: var(--text);
     font: inherit;
 }
-h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
-.theme-control { display:flex; align-items:center; gap:6px; font-size:10px; }
-.theme-control select { border:0; background:transparent; font-size:11px; }
+h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02em; }
+.theme-control { display:flex; align-items:center; gap:6px; font-size: var(--font-main); }
+.theme-control select { border:0; background:transparent; font-size: var(--font-main); }
 .icon-button { border:0; background:transparent; padding:2px 4px; }
 .play-button.playing { color: var(--play-control);}
 .master-control output {
     width: 24px;
-    font-size: 14px;
+    font-size: var(--font-main);
 }
 
 .master-control input[type="range"]::-webkit-slider-runnable-track {
@@ -241,7 +246,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
     border: 0;
     background: transparent;
 
-    font-size: 12px;
+    font-size: var(--font-main);
     text-align: center;
 
     outline: none;
@@ -271,7 +276,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 
     color: var(--text);
 
-    font-size: 11px;
+    font-size: var(--font-main);
     line-height: 1;
 }
 
@@ -293,7 +298,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 .current-source-label {
     min-width: 18px;
     text-align: left;
-    font-size: 11px;
+    font-size: var(--font-main);
 }
 .pattern-length-input {
     width: 24px;
@@ -307,7 +312,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
     color: var(--text);
 
     text-align: center;
-    font-size: 11px;
+    font-size: var(--font-main);
     line-height: 24px;
 
     appearance: textfield;
@@ -362,7 +367,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 .sequence-page-button:focus-visible {
   color: var(--selected-bg);
 }
-.track-title,.track-cycle { border:0; background:transparent; padding:4px; font-size:13px; }
+.track-title,.track-cycle { border:0; background:transparent; padding:4px; font-size: var(--font-main); }
 .sequence-grid {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
@@ -401,7 +406,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
     height: 26px;
     border: 0;
     background: var(--cell);
-    font-size: 12px;
+    font-size: var(--font-main);
 }
 .mini-button.active { background:var(--text); color:var(--bg); }
 .parameter-menu {
@@ -435,10 +440,10 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
 
     padding: 0;
 }
-.parameter-icon { font-size:13px; }
+.parameter-icon { font-size: var(--font-main); }
 .edit-icon { min-width:28px; text-align:center; }
 .child-tabs { display:flex; gap:4px; }
-.child-tabs button { height:28px; border:0; background:var(--cell); padding:0 9px; font-size:11px; }
+.child-tabs button { height:28px; border:0; background:var(--cell); padding:0 9px; font-size: var(--font-main); }
 .child-tabs button.active {
     background: var(--selected-bg);
     color: var(--selected-text);
@@ -465,7 +470,7 @@ h1 { margin:0; font-size:16px; font-weight:400; letter-spacing:.02em; }
     border: 2px solid transparent;
     background: var(--cell);
 
-    font-size: 9px;
+    font-size: var(--font-main);
     line-height: 1;
     padding: 0;
 }
@@ -686,7 +691,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .parameter-value {
-    font-size: 9px;
+    font-size: var(--font-main);
     line-height: 1;
     color: var(--muted);
 }
@@ -748,7 +753,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .track-number {
-    font-size: 13px;
+    font-size: var(--font-main);
 }
 
 .track-title,
@@ -771,7 +776,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .track-number {
-    font-size: 13px;
+    font-size: var(--font-main);
     line-height: 1;
 }
 
@@ -838,14 +843,14 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     box-shadow: none;
 
     color: inherit;
-    font-size: 12px;
+    font-size: var(--font-main);
     text-decoration: none;
 
     cursor: pointer;
 }
 
 .base-input {
-    font-size: 12px;
+    font-size: var(--font-main);
 }
 
 .base-value:focus,
@@ -876,7 +881,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 
     color: inherit;
 
-    font-size: 12px;
+    font-size: var(--font-main);
     line-height: 1;
 
     text-align: center;
@@ -947,7 +952,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 .fill-column-label {
     width: 64px;
     text-align: center;
-    font-size: 11px;
+    font-size: var(--font-main);
     font-weight: 600;
 }
 
@@ -970,7 +975,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
   justify-self: end;
   width: calc((360px - 14px - 35px) / 8);
   text-align: center;
-  font-size: 11px;
+  font-size: var(--font-main);
   font-weight: 600;
 }
 
@@ -990,7 +995,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     border: 0;
     background: var(--cell);
 
-    font-size: 10px;
+    font-size: var(--font-main);
     line-height: 1;
 }
 
@@ -1076,7 +1081,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     border: 0;
     background: var(--cell);
 
-    font-size: 10px;
+    font-size: var(--font-main);
     line-height: 1;
 }
 
@@ -1130,7 +1135,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     background: var(--on);
     color: var(--bg);
 
-    font-size: 10px;
+    font-size: var(--font-main);
     line-height: 1;
 
     display: flex;
@@ -1182,7 +1187,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     background: var(--chip-bg);
     color: var(--chip-text);
 
-    font-size: 10px;
+    font-size: var(--font-main);
     line-height: 1;
 
     display: flex;
@@ -1198,7 +1203,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 
     color: var(--muted);
 
-    font-size: 11px;
+    font-size: var(--font-main);
     line-height: 1;
     text-align: center;
 }
@@ -1419,7 +1424,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     color: var(--text);
 
     font: inherit;
-    font-size: 20px;
+    font-size: var(--font-main);
     line-height: 1;
 
     appearance: none;
@@ -1431,4 +1436,49 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 .pattern-page-button:hover,
 .pattern-page-button:focus-visible {
     color: var(--selected-bg);
+}
+
+/* =========================
+   14px化に伴うレイアウト修正
+========================= */
+
+/* ヘッダー：音量部分の横並びを復元 */
+.master-control {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 88px;
+    white-space: nowrap;
+}
+
+.master-control output {
+    width: 24px;
+    font-size: var(--font-main);
+    line-height: 1;
+    text-align: center;
+}
+
+.bpm-input {
+    font-size: var(--font-main);
+    line-height: 1;
+}
+
+/* ヘッダー内の縦位置を統一 */
+.app-header > * {
+    align-self: center;
+}
+
+/* M・Sと各ステップ数の背景□を統一 */
+.mini-button,
+.pattern-length-input,
+.track-length-input {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+
+    padding: 0;
+
+    font-size: var(--font-main);
+    line-height: 28px;
+    text-align: center;
 }

@@ -661,8 +661,7 @@ function renderCurrentSourceDisplay() {
 
   currentSourceDisplay.setAttribute(
     "aria-label",
-    state.selectedSourceType ===
-      "fill"
+    state.selectedSourceType === "fill"
       ? `Fill ${label}`
       : `Pattern ${label}`
   );

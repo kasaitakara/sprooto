@@ -1392,111 +1392,470 @@ acceleration: false,
   return button;
 }
 
-function renderMenu() {
-  const header = document.createElement("div");
-  header.className = "editor-header";
-  header.innerHTML = `
-  <button
-    class="track-cycle"
-    type="button"
-    data-focus-key="menu-track"
->
-    <span class="track-icon">
-      ${getParameterIcon("track")}
-    </span>
 
-    <span class="track-number">
-      ${selectedTrack().id}
-    </span>
-  </button>
+function signedSwingValue(value) {
+  const number =
+    clamp(
+      Math.round(Number(value) || 0),
+      -8,
+      8
+    );
 
-  <button
-    class="mini-button mute ${selectedTrack().muted ? "active" : ""}"
-    type="button"
-    data-focus-key="menu-mute"
-  >
-    M
-  </button>
+  return number > 0
+    ? `+${number}`
+    : String(number);
+}
 
-  <button
-    class="mini-button solo ${selectedTrack().solo ? "active" : ""}"
-    type="button"
-    data-focus-key="menu-solo"
-  >
-    S
-  </button>
+function createCompactValue({
+  label,
+  control,
+  className = ""
+}) {
+  const wrapper =
+    document.createElement("div");
 
-  <button
-    class="mini-button erase-button"
-    type="button"
-    data-focus-key="menu-sequence-erase"
-    aria-label="現在のトラックのシーケンスをダブルタップで全消去"
-  >
-    ${getParameterIcon("erase")}
-  </button>
-`;
-  header.querySelector(".track-cycle").addEventListener("click", () => {
+  wrapper.className =
+    `compact-value ${className}`.trim();
 
-    state.selectedTrackIndex =
-        (state.selectedTrackIndex + 1) %
-        tracks.length;
-
-    renderSequence();
-    renderEditorAndRestore("menu-track");
-
-});
-
-header.querySelector(".mute").addEventListener("click", () => {
-
-    selectedTrack().muted =
-        !selectedTrack().muted;
-
-    renderEditorAndRestore("menu-mute");
-
-});
-
-header.querySelector(".solo").addEventListener("click", () => {
-
-    selectedTrack().solo =
-        !selectedTrack().solo;
-
-    renderEditorAndRestore("menu-solo");
-
-});
-
-const sequenceEraseButton =
-  header.querySelector(
-    ".erase-button"
+  control.classList.add(
+    "compact-value-number"
   );
 
-enableDoubleTapAction({
-  element: sequenceEraseButton,
+  const labelElement =
+    document.createElement("span");
 
-  onDoubleTap: () => {
-    const cleared =
-      clearSelectedTrackSequence();
+  labelElement.className =
+    "compact-value-label";
 
-    if (!cleared) {
-      return;
-    }
+  labelElement.textContent =
+    label;
 
-    renderSequence();
-    renderEditorAndRestore(
-      "menu-sequence-erase"
+  wrapper.append(
+    labelElement,
+    control
+  );
+
+  return wrapper;
+}
+
+function createSwingControl(focusKey) {
+  const track = selectedTrack();
+
+  const button =
+    document.createElement("button");
+
+  button.type = "button";
+  button.className =
+    "swing-value compact-value-number";
+
+  button.dataset.focusKey =
+    focusKey;
+
+  button.textContent =
+    signedSwingValue(
+      track.swing
     );
-  }
-});
 
-header.appendChild(
-  createTrackLengthInput(
-    "menu-track-length"
-  )
-);
+  button.setAttribute(
+    "aria-label",
+    `トラック${track.id}のSwing ${signedSwingValue(track.swing)}`
+  );
 
-  const grid = document.createElement("div");
-  grid.className = "parameter-menu";
-  parameters.forEach(parameter => grid.appendChild(parameterButton(parameter)));
-  editor.append(header, grid);
+  let lastPointerType = null;
+  let sweepHistorySaved = false;
+
+  button.addEventListener(
+    "pointerdown",
+    event => {
+      lastPointerType =
+        event.pointerType;
+    }
+  );
+
+  enableVerticalSweep({
+    element: button,
+
+    getValue: () =>
+      track.swing,
+
+    setValue: nextValue => {
+      if (!sweepHistorySaved) {
+        saveHistory();
+        sweepHistorySaved = true;
+      }
+
+      track.swing =
+        Math.round(nextValue);
+
+      button.textContent =
+        signedSwingValue(
+          track.swing
+        );
+
+      button.setAttribute(
+        "aria-label",
+        `トラック${track.id}のSwing ${signedSwingValue(track.swing)}`
+      );
+    },
+
+    min: -8,
+    max: 8,
+    step: 1,
+
+    pixelsPerStep: 12,
+    acceleration: false,
+
+    onCommit: (
+      startValue,
+      currentValue,
+      changed
+    ) => {
+      sweepHistorySaved = false;
+
+      if (changed) {
+        renderEditorAndRestore(
+          focusKey
+        );
+      }
+    }
+  });
+
+  button.addEventListener(
+    "click",
+    event => {
+      const isTouchInput =
+        event.detail > 0 &&
+        (
+          lastPointerType === "touch" ||
+          lastPointerType === "pen"
+        );
+
+      if (isTouchInput) {
+        event.preventDefault();
+        return;
+      }
+
+      const input =
+        document.createElement(
+          "input"
+        );
+
+      input.type = "number";
+      input.className =
+        "swing-value compact-value-number";
+
+      input.value =
+        track.swing;
+
+      input.min = "-8";
+      input.max = "8";
+      input.step = "1";
+
+      input.dataset.focusKey =
+        focusKey;
+
+      input.dataset.keyboardEditing =
+        "true";
+
+      input.setAttribute(
+        "aria-label",
+        `トラック${track.id}のSwing`
+      );
+
+      button.replaceWith(input);
+
+      input.focus();
+      input.select();
+
+      let finished = false;
+
+      const finish =
+        shouldCommit => {
+          if (finished) {
+            return;
+          }
+
+          finished = true;
+
+          if (shouldCommit) {
+            const previousValue =
+              track.swing;
+
+            const nextValue =
+              clamp(
+                Math.round(
+                  Number(input.value) ||
+                  0
+                ),
+                -8,
+                8
+              );
+
+            if (
+              nextValue !==
+              previousValue
+            ) {
+              saveHistory();
+
+              track.swing =
+                nextValue;
+            }
+          }
+
+          renderEditorAndRestore(
+            focusKey
+          );
+        };
+
+      input.addEventListener(
+        "keydown",
+        event => {
+          if (
+            event.key === "Enter"
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            finish(true);
+          }
+
+          if (
+            event.key === "Escape"
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            finish(false);
+          }
+        }
+      );
+
+      input.addEventListener(
+        "blur",
+        () => finish(true),
+        { once: true }
+      );
+    }
+  );
+
+  return button;
+}
+
+function renderMenu() {
+  const header =
+    document.createElement("div");
+
+  header.className =
+    "editor-header editor-header-two-row";
+
+  const topRow =
+    document.createElement("div");
+
+  topRow.className =
+    "editor-header-row editor-header-primary";
+
+  topRow.innerHTML = `
+    <button
+      class="track-cycle"
+      type="button"
+      data-focus-key="menu-track"
+    >
+      <span class="track-icon">
+        ${getParameterIcon("track")}
+      </span>
+
+      <span class="track-number">
+        ${selectedTrack().id}
+      </span>
+    </button>
+
+    <div class="editor-header-spacer"></div>
+
+    <button
+      class="mini-button mute ${selectedTrack().muted ? "active" : ""}"
+      type="button"
+      data-focus-key="menu-mute"
+    >
+      M
+    </button>
+
+    <button
+      class="mini-button solo ${selectedTrack().solo ? "active" : ""}"
+      type="button"
+      data-focus-key="menu-solo"
+    >
+      S
+    </button>
+  `;
+
+  const bottomRow =
+    document.createElement("div");
+
+  bottomRow.className =
+    "editor-header-row editor-header-secondary";
+
+  const soundName =
+    document.createElement("span");
+
+  soundName.className =
+    "track-sound-name";
+
+  soundName.textContent =
+    selectedTrack().soundName ||
+    `sound ${String(selectedTrack().id).padStart(2, "0")}`;
+
+  soundName.setAttribute(
+    "aria-label",
+    `サウンド名 ${soundName.textContent}`
+  );
+
+  const sequenceEraseButton =
+    document.createElement("button");
+
+  sequenceEraseButton.type =
+    "button";
+
+  sequenceEraseButton.className =
+    "mini-button erase-button";
+
+  sequenceEraseButton.dataset.focusKey =
+    "menu-sequence-erase";
+
+  sequenceEraseButton.setAttribute(
+    "aria-label",
+    "現在のトラックのシーケンスをダブルタップで全消去"
+  );
+
+  sequenceEraseButton.innerHTML =
+    getParameterIcon("erase");
+
+  enableDoubleTapAction({
+    element:
+      sequenceEraseButton,
+
+    onDoubleTap: () => {
+      const cleared =
+        clearSelectedTrackSequence();
+
+      if (!cleared) {
+        return;
+      }
+
+      renderSequence();
+
+      renderEditorAndRestore(
+        "menu-sequence-erase"
+      );
+    }
+  });
+
+  const swingControl =
+    createCompactValue({
+      label: "sw",
+      control:
+        createSwingControl(
+          "menu-track-swing"
+        ),
+      className:
+        "track-swing-control"
+    });
+
+  const trackLengthControl =
+    createCompactValue({
+      label: "step",
+      control:
+        createTrackLengthInput(
+          "menu-track-length"
+        ),
+      className:
+        "track-step-control"
+    });
+
+  bottomRow.append(
+    soundName,
+    sequenceEraseButton,
+    swingControl,
+    trackLengthControl
+  );
+
+  header.append(
+    topRow,
+    bottomRow
+  );
+
+  topRow
+    .querySelector(
+      ".track-cycle"
+    )
+    .addEventListener(
+      "click",
+      () => {
+        state.selectedTrackIndex =
+          (
+            state.selectedTrackIndex +
+            1
+          ) %
+          tracks.length;
+
+        renderSequence();
+
+        renderEditorAndRestore(
+          "menu-track"
+        );
+      }
+    );
+
+  topRow
+    .querySelector(
+      ".mute"
+    )
+    .addEventListener(
+      "click",
+      () => {
+        selectedTrack().muted =
+          !selectedTrack().muted;
+
+        renderEditorAndRestore(
+          "menu-mute"
+        );
+      }
+    );
+
+  topRow
+    .querySelector(
+      ".solo"
+    )
+    .addEventListener(
+      "click",
+      () => {
+        selectedTrack().solo =
+          !selectedTrack().solo;
+
+        renderEditorAndRestore(
+          "menu-solo"
+        );
+      }
+    );
+
+  const grid =
+    document.createElement("div");
+
+  grid.className =
+    "parameter-menu";
+
+  parameters.forEach(
+    parameter =>
+      grid.appendChild(
+        parameterButton(
+          parameter
+        )
+      )
+  );
+
+  editor.append(
+    header,
+    grid
+  );
 }
 
 function makeAdjustButton(text, action) {

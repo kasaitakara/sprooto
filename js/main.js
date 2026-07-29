@@ -98,6 +98,51 @@ function audible(track) {
   return !track.muted && (!hasSolo || track.solo);
 }
 
+function swingDelaySeconds(track, stepIndex) {
+  /*
+   * 1表示単位 = 0.25 T64。
+   * 16分音符の裏側（2, 4, 6...番目）のみ前後へ動かす。
+   *
+   * マイナス値も安全に予約できるよう、
+   * 全トラックへ最大前倒し量ぶんの共通待ち時間を置く。
+   */
+  const bpm =
+    clamp(
+      Number(bpmInput.value) || 120,
+      40,
+      300
+    );
+
+  const quarterSeconds =
+    60 / bpm;
+
+  const swingUnitSeconds =
+    quarterSeconds / 64;
+
+  const maximumAdvanceSeconds =
+    swingUnitSeconds * 8;
+
+  const swingValue =
+    clamp(
+      Number(track.swing) || 0,
+      -8,
+      8
+    );
+
+  const isOffbeat =
+    stepIndex % 2 === 1;
+
+  return (
+    maximumAdvanceSeconds +
+    (
+      isOffbeat
+        ? swingValue *
+          swingUnitSeconds
+        : 0
+    )
+  );
+}
+
 function playCurrentStep() {
   tracks.forEach(track => {
     const trackStepIndex =
@@ -126,7 +171,11 @@ function playCurrentStep() {
     ) {
       playTrackStep(
         track,
-        trackStepIndex
+        trackStepIndex,
+        swingDelaySeconds(
+          track,
+          trackStepIndex
+        )
       );
     }
   });

@@ -31,9 +31,9 @@ function makeNoiseBuffer(duration) {
   return buffer;
 }
 
-export async function playTrackStep(track, stepIndex) {
+export async function playTrackStep(track, stepIndex, delaySeconds = 0) {
   await initializeAudio();
-  const now = context.currentTime;
+  const now = context.currentTime + Math.max(0, Number(delaySeconds) || 0);
   const offset = id => track.offsets[id]?.[stepIndex] ?? 0;
   const note = 60 + track.base.note + offset("note");
   const velocity = clamp(track.base.velocity + offset("velocity"), 0, 100) / 100;

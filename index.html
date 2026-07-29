@@ -163,16 +163,23 @@
       aria-label="ステップ1～32を表示中。33～64へ切り替え"
     >◧</button>
 
-    <input
-      id="pattern-length-input"
-      class="pattern-length-input"
-      type="number"
-      min="1"
-      max="64"
-      step="1"
-      value="32"
+    <label
+      class="compact-value sequence-step-value"
       aria-label="パターンのステップ数"
     >
+      <span class="compact-value-label">step</span>
+
+      <input
+        id="pattern-length-input"
+        class="pattern-length-input compact-value-number"
+        type="number"
+        min="1"
+        max="64"
+        step="1"
+        value="32"
+        aria-label="パターンのステップ数"
+      >
+    </label>
   </div>
 </div>
       <div id="sequence-grid" class="sequence-grid"></div>

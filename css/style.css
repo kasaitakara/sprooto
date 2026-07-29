@@ -1,6 +1,11 @@
 :root {
-    --font-main: 16px;
-    --font-sub: 12px;
+    --font-main: 14px;
+
+    /* 本文より1px小さい */
+    --font-small: calc(var(--font-main) - 1px);
+
+    /* ラベル用 */
+    --font-label: calc(var(--font-main) - 3px);
 }
 
 body.theme-sprooto {
@@ -54,7 +59,7 @@ body.theme-kasai {
     --cell: #efefef;
     --off: #efefef;
     --on: #aaa;
-    --play-control: #54805c;
+    --play-control: #8bdc9a;
     --play: #525252;
 
     --selected-bg: #525252;
@@ -69,7 +74,7 @@ body.theme-kasai {
     --chip-bg: #aaa;
     --chip-text: #ededed;
 
-    --hover-bg: #ededed;
+    --hover-bg: #8bdc9a;
     --hover-text: #171717;
 
     --queued: #9ff8fa;
@@ -691,7 +696,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .parameter-value {
-    font-size: var(--font-main);
+    font-size: var(--font-small);
     line-height: 1;
     color: var(--muted);
 }
@@ -1569,4 +1574,242 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
         background: var(--hover-bg);
         color: var(--hover-text);
     }
+}
+
+
+/* =========================
+   Swing / two-row editor header
+========================= */
+
+.editor-header-two-row {
+    display: grid;
+    grid-template-rows: 28px 28px;
+    row-gap: 2px;
+
+    width: 100%;
+    min-height: 58px;
+}
+
+.editor-header-row {
+    display: flex;
+    align-items: center;
+
+    width: 100%;
+    min-width: 0;
+}
+
+.editor-header-primary {
+    gap: 8px;
+}
+
+.editor-header-secondary {
+    gap: 8px;
+}
+
+.editor-header-spacer {
+    flex: 1 1 auto;
+}
+
+.editor-header-two-row .track-cycle,
+.editor-header-two-row .mini-button {
+    background: transparent;
+}
+
+.editor-header-two-row .mini-button.active {
+    background: var(--text);
+    color: var(--bg);
+}
+
+.track-sound-name {
+    min-width: 0;
+    flex: 1 1 auto;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: var(--font-main);
+    line-height: 1;
+    color: var(--text);
+}
+
+.compact-value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.compact-value-label {
+    font-size: var(--font-sub);
+    line-height: 1;
+    color: var(--muted);
+    text-transform: lowercase;
+}
+
+.compact-value-number,
+.track-length-input.compact-value-number,
+.pattern-length-input.compact-value-number {
+    width: auto;
+    min-width: 20px;
+    height: 28px;
+
+    margin: 0;
+    padding: 0;
+
+    border: 0;
+    outline: 0;
+    background: transparent;
+
+    color: var(--text);
+    -webkit-text-fill-color: currentColor;
+
+    font-size: var(--font-main);
+    line-height: 28px;
+    text-align: center;
+}
+
+.swing-value {
+    min-width: 24px;
+}
+
+.track-step-control .track-length-input {
+    min-width: 22px;
+}
+
+.sequence-step-value .pattern-length-input {
+    min-width: 22px;
+}
+
+.track-swing-control:hover,
+.track-swing-control:focus-within,
+.track-step-control:hover,
+.track-step-control:focus-within,
+.sequence-step-value:hover,
+.sequence-step-value:focus-within {
+    color: var(--play-control);
+}
+
+.track-swing-control:hover .compact-value-label,
+.track-swing-control:focus-within .compact-value-label,
+.track-step-control:hover .compact-value-label,
+.track-step-control:focus-within .compact-value-label,
+.sequence-step-value:hover .compact-value-label,
+.sequence-step-value:focus-within .compact-value-label {
+    color: var(--play-control);
+}
+
+.track-swing-control:hover .compact-value-number,
+.track-swing-control:focus-within .compact-value-number,
+.track-step-control:hover .compact-value-number,
+.track-step-control:focus-within .compact-value-number,
+.sequence-step-value:hover .compact-value-number,
+.sequence-step-value:focus-within .compact-value-number {
+    color: var(--play-control);
+    -webkit-text-fill-color: var(--play-control);
+}
+
+.editor-header-two-row .track-cycle:hover,
+.editor-header-two-row .track-cycle:focus-visible,
+.editor-header-two-row .mini-button:hover,
+.editor-header-two-row .mini-button:focus-visible {
+    color: var(--play-control);
+}
+
+.editor-header-two-row .erase-button.delete-armed {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+}
+
+.sequence-toolbar-controls {
+    min-width: 0;
+}
+
+.sequence-step-value {
+    height: 28px;
+}
+
+/*
+ * スマホでは疑似hoverを残さず、
+ * 実際のフォーカス／編集中だけ強調する。
+ */
+@media (hover: none) {
+    .track-swing-control:hover,
+    .track-step-control:hover,
+    .sequence-step-value:hover {
+        color: inherit;
+    }
+
+    .track-swing-control:hover .compact-value-label,
+    .track-step-control:hover .compact-value-label,
+    .sequence-step-value:hover .compact-value-label {
+        color: var(--muted);
+    }
+
+    .track-swing-control:hover .compact-value-number,
+    .track-step-control:hover .compact-value-number,
+    .sequence-step-value:hover .compact-value-number {
+        color: var(--text);
+        -webkit-text-fill-color: var(--text);
+    }
+}
+
+/* =========================
+   Editor header 微調整
+========================= */
+
+/* 1行目：Track No側へM / Sを寄せる */
+.editor-header-primary {
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+/* 既存の右寄せ用スペーサーを無効化 */
+.editor-header-spacer {
+    display: none;
+}
+
+/* 2行目：基本間隔 */
+.editor-header-secondary {
+    gap: 8px;
+}
+
+/* 消しゴムとSWの間だけ少し広げる */
+.editor-header-secondary .erase-button {
+    margin-right: 6px;
+}
+
+.track-sound-name {
+    font-size: var(--font-small);
+    line-height: 1;
+    color: var(--muted);
+
+    transform: translateX(6px);
+}
+
+.compact-value-label {
+    font-size: var(--font-label);
+    line-height: 1;
+    color: var(--muted);
+    text-transform: lowercase;
+}
+
+/* Track選択時はアイコンと番号をまとめて強調 */
+.editor-header-two-row .track-cycle:hover,
+.editor-header-two-row .track-cycle:focus-visible {
+    color: var(--play-control);
+}
+
+.editor-header-two-row .track-cycle:hover .track-number,
+.editor-header-two-row .track-cycle:focus-visible .track-number,
+.editor-header-two-row .track-cycle:hover .track-icon,
+.editor-header-two-row .track-cycle:focus-visible .track-icon {
+    color: var(--play-control);
+}
+
+/* SWとSTEPのラベル・数値間隔を統一 */
+.compact-value {
+    gap: 4px;
 }

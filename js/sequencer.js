@@ -15,6 +15,17 @@ function makeTrack(id) {
 
     stepLength: 32,
 
+    /*
+     * Trackごとの最終Swing値。
+     * -8〜+8、0がストレート。
+     */
+    swing: 0,
+
+    /*
+     * 将来のサウンドプリセット表示用。
+     */
+    soundName: `sound ${String(id).padStart(2, "0")}`,
+
     steps:
       filled(false),
 
@@ -69,9 +80,7 @@ function makePatternData() {
         },
         (_, index) =>
           makeTrack(index + 1)
-      ),
-
-    patternSwing: 0
+      )
   };
 }
 

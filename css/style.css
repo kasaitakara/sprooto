@@ -1026,7 +1026,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 .pattern-cell.fill-cell {
   background: var(--fill-bg);
   color: var(--fill-text);
-  font-weight: 600;
 }
 
 /*
@@ -1411,7 +1410,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     color: var(--text);
 
     font: inherit;
-    font-size: var(--font-main);
+    font-size: 20px;
     line-height: 1;
 
     appearance: none;
@@ -1746,4 +1745,15 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     background: var(--selected-bg);
     color: var(--selected-text);
     -webkit-text-fill-color: var(--selected-text);
+}
+
+.track-step-control
+.track-length-input:focus-visible,
+.track-swing-control
+.swing-value:focus-visible,
+.sequence-step-value
+.pattern-length-input:focus-visible,
+.sequence-step:focus-visible {
+    outline: 1px solid var(--text);
+    outline-offset: -1px;
 }

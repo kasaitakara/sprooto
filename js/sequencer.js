@@ -1033,7 +1033,9 @@ export function advancePlaybackSource() {
   return true;
 }
 
-export function addCurrentSourceToSection(
+export function addSourceToSection(
+  type,
+  sourceIndex,
   sectionIndex =
     state.editingSectionIndex
 ) {
@@ -1050,22 +1052,120 @@ export function addCurrentSourceToSection(
     return false;
   }
 
-  const source =
+  /*
+   * Pattern／Fillの種類と番号を検証。
+   */
+  if (
+    type === "pattern"
+  ) {
+    if (
+      sourceIndex < 0 ||
+      sourceIndex >=
+        patterns.length
+    ) {
+      return false;
+    }
+  } else if (
+    type === "fill"
+  ) {
+    if (
+      sourceIndex < 0 ||
+      sourceIndex >=
+        fills.length
+    ) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+
+  section.sequence.push({
+    type,
+    index: sourceIndex
+  });
+
+  return true;
+}
+
+export function addCurrentSourceToSection(
+  sectionIndex =
+    state.editingSectionIndex
+) {
+  const type =
     state.selectedSourceType ===
       "fill"
-      ? {
-          type: "fill",
-          index:
-            state.selectedFillIndex ?? 0
-        }
-      : {
-          type: "pattern",
-          index:
-            state.selectedPatternIndex ?? 0
-        };
+      ? "fill"
+      : "pattern";
 
-  section.sequence.push(
+  const sourceIndex =
+    type === "fill"
+      ? state.selectedFillIndex ?? 0
+      : state.selectedPatternIndex ?? 0;
+
+  return addSourceToSection(
+    type,
+    sourceIndex,
+    sectionIndex
+  );
+}
+
+export function moveSectionSource(
+  fromIndex,
+  toIndex,
+  sectionIndex =
+    state.editingSectionIndex
+) {
+  const section =
+    sections[sectionIndex];
+
+  if (
+    !section ||
+    fromIndex < 0 ||
+    fromIndex >=
+      section.sequence.length ||
+    toIndex < 0 ||
+    toIndex >=
+      section.sequence.length ||
+    fromIndex === toIndex
+  ) {
+    return false;
+  }
+
+  const [source] =
+    section.sequence.splice(
+      fromIndex,
+      1
+    );
+
+  section.sequence.splice(
+    toIndex,
+    0,
     source
+  );
+
+  return true;
+}
+
+export function removeSectionSource(
+  itemIndex,
+  sectionIndex =
+    state.editingSectionIndex
+) {
+  const section =
+    sections[sectionIndex];
+
+  if (
+    !section ||
+    itemIndex < 0 ||
+    itemIndex >=
+      section.sequence.length
+  ) {
+    return false;
+  }
+
+  section.sequence.splice(
+    itemIndex,
+    1
   );
 
   return true;

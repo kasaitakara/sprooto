@@ -16,6 +16,9 @@ import {
   queuePattern,
   queueFill,
   addCurrentSourceToSection,
+  addSourceToSection,
+  moveSectionSource,
+  removeSectionSource,
   currentSourceLabel,
   selectSection,
   queueSection,
@@ -2046,6 +2049,334 @@ export function renderPatternManager() {
   }
 
   patternGrid.innerHTML = "";
+    function enablePatternSourceDrag(
+    button,
+    sourceType,
+    sourceIndex
+  ) {
+    const DRAG_START_DISTANCE = 6;
+
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+
+    let grabOffsetX = 0;
+    let grabOffsetY = 0;
+
+    let dragging = false;
+    let suppressClick = false;
+    let dragGhost = null;
+
+    button.style.touchAction = "none";
+
+    function updateDragGhost(event) {
+      if (!dragGhost) {
+        return;
+      }
+
+      dragGhost.style.left =
+        `${
+          event.clientX -
+          grabOffsetX
+        }px`;
+
+      dragGhost.style.top =
+        `${
+          event.clientY -
+          grabOffsetY
+        }px`;
+    }
+
+    function createDragGhost(event) {
+      document
+        .querySelectorAll(
+          ".pattern-source-drag-ghost"
+        )
+        .forEach(
+          ghost => ghost.remove()
+        );
+
+      const rect =
+        button.getBoundingClientRect();
+
+      dragGhost =
+        button.cloneNode(true);
+
+      dragGhost.classList.add(
+        "section-drag-ghost",
+        "pattern-source-drag-ghost"
+      );
+
+      dragGhost.removeAttribute(
+        "data-focus-key"
+      );
+
+      dragGhost.tabIndex = -1;
+
+      dragGhost.style.width =
+        `${rect.width}px`;
+
+      dragGhost.style.height =
+        `${rect.height}px`;
+
+      grabOffsetX =
+        event.clientX - rect.left;
+
+      grabOffsetY =
+        event.clientY - rect.top;
+
+      document.body.appendChild(
+        dragGhost
+      );
+
+      updateDragGhost(event);
+    }
+
+    function removeDragGhost() {
+      dragGhost?.remove();
+      dragGhost = null;
+    }
+
+    function isPointerInsideSection(
+      event
+    ) {
+      const rect =
+        sectionContents
+          .getBoundingClientRect();
+
+      return (
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
+      );
+    }
+
+    function handlePointerMove(event) {
+      if (
+        pointerId !==
+        event.pointerId
+      ) {
+        return;
+      }
+
+      const distanceX =
+        event.clientX - startX;
+
+      const distanceY =
+        event.clientY - startY;
+
+      if (
+        !dragging &&
+        Math.hypot(
+          distanceX,
+          distanceY
+        ) <
+          DRAG_START_DISTANCE
+      ) {
+        return;
+      }
+
+      if (!dragging) {
+        dragging = true;
+        suppressClick = true;
+
+        button.classList.add(
+          "section-drag-origin"
+        );
+
+        createDragGhost(event);
+      }
+
+      event.preventDefault();
+
+      updateDragGhost(event);
+
+      const overSection =
+        isPointerInsideSection(
+          event
+        );
+
+      sectionContents.classList.toggle(
+        "dragging",
+        overSection
+      );
+    }
+
+    function removeWindowListeners() {
+      window.removeEventListener(
+        "pointermove",
+        handlePointerMove,
+        true
+      );
+
+      window.removeEventListener(
+        "pointerup",
+        handlePointerUp,
+        true
+      );
+
+      window.removeEventListener(
+        "pointercancel",
+        handlePointerCancel,
+        true
+      );
+    }
+
+    function finishDrag(
+      event,
+      cancelled
+    ) {
+      if (
+        pointerId !==
+        event.pointerId
+      ) {
+        return;
+      }
+
+      removeWindowListeners();
+
+      if (
+        button.hasPointerCapture(
+          event.pointerId
+        )
+      ) {
+        button.releasePointerCapture(
+          event.pointerId
+        );
+      }
+
+      pointerId = null;
+
+      const droppedOnSection =
+        dragging &&
+        !cancelled &&
+        isPointerInsideSection(
+          event
+        );
+
+      button.classList.remove(
+        "section-drag-origin"
+      );
+
+      sectionContents.classList.remove(
+        "dragging"
+      );
+
+      removeDragGhost();
+
+      if (!droppedOnSection) {
+        dragging = false;
+        return;
+      }
+
+      const editingSection =
+        currentEditingSection();
+
+      if (
+        !editingSection ||
+        editingSection.sequence.length >=
+          7
+      ) {
+        dragging = false;
+        return;
+      }
+
+      saveHistory();
+
+      const added =
+        addSourceToSection(
+          sourceType,
+          sourceIndex
+        );
+
+      dragging = false;
+
+      if (!added) {
+        return;
+      }
+
+      renderPatternManager();
+
+      restorePatternFocus(
+        "section-contents"
+      );
+    }
+
+    function handlePointerUp(event) {
+      finishDrag(
+        event,
+        false
+      );
+    }
+
+    function handlePointerCancel(event) {
+      finishDrag(
+        event,
+        true
+      );
+    }
+
+    button.addEventListener(
+      "pointerdown",
+      event => {
+        if (event.button !== 0) {
+          return;
+        }
+
+        pointerId =
+          event.pointerId;
+
+        startX =
+          event.clientX;
+
+        startY =
+          event.clientY;
+
+        dragging = false;
+        suppressClick = false;
+
+        button.setPointerCapture(
+          event.pointerId
+        );
+
+        removeWindowListeners();
+
+        window.addEventListener(
+          "pointermove",
+          handlePointerMove,
+          true
+        );
+
+        window.addEventListener(
+          "pointerup",
+          handlePointerUp,
+          true
+        );
+
+        window.addEventListener(
+          "pointercancel",
+          handlePointerCancel,
+          true
+        );
+      }
+    );
+
+    button.addEventListener(
+      "click",
+      event => {
+        if (!suppressClick) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        suppressClick = false;
+      },
+      true
+    );
+  }
 
   /*
    * Pattern 24個 + Fill 6個
@@ -2247,6 +2578,14 @@ if (
       `pattern-${slotIndex}`
     );
   }
+);
+
+enablePatternSourceDrag(
+  button,
+  isFill
+    ? "fill"
+    : "pattern",
+  slotIndex
 );
 
     patternGrid.appendChild(
@@ -2660,6 +2999,503 @@ sectionContents.addEventListener(
     addSelectedSourceToSection();
   }
 );
+const SECTION_DELETE_DISTANCE = 24;
+const SECTION_DRAG_START_DISTANCE = 6;
+
+function refreshSectionItemIndexes() {
+  sectionContents
+    .querySelectorAll(
+      ".section-pattern-cell"
+    )
+    .forEach(
+      (
+        sectionItem,
+        itemIndex
+      ) => {
+        sectionItem.dataset.itemIndex =
+          String(itemIndex);
+
+        sectionItem.dataset.focusKey =
+          `section-source-${itemIndex}`;
+      }
+    );
+}
+
+function enableSectionItemDrag(
+  item,
+  initialItemIndex
+) {
+  let pointerId = null;
+
+  let startX = 0;
+  let startY = 0;
+
+  let grabOffsetX = 0;
+  let grabOffsetY = 0;
+
+  let currentItemIndex =
+    initialItemIndex;
+
+  let dragging = false;
+  let historySaved = false;
+  let suppressClick = false;
+
+  let dragGhost = null;
+    function handleWindowPointerUp(
+    event
+  ) {
+    finishDrag(
+      event,
+      false
+    );
+  }
+
+  function handleWindowPointerCancel(
+    event
+  ) {
+    finishDrag(
+      event,
+      true
+    );
+  }
+
+  function removeWindowDragListeners() {
+  window.removeEventListener(
+    "pointermove",
+    handlePointerMove,
+    true
+  );
+
+  window.removeEventListener(
+    "pointerup",
+    handleWindowPointerUp,
+    true
+  );
+
+  window.removeEventListener(
+    "pointercancel",
+    handleWindowPointerCancel,
+    true
+  );
+}
+
+  item.style.touchAction = "none";
+
+  item.dataset.itemIndex =
+    String(initialItemIndex);
+
+  function createDragGhost(event) {
+        /*
+     * 万一前回のゴーストが
+     * 残っていても先に除去する。
+     */
+    document
+      .querySelectorAll(
+        ".section-drag-ghost"
+      )
+      .forEach(
+        ghost => ghost.remove()
+      );
+    const rect =
+      item.getBoundingClientRect();
+
+    dragGhost =
+      item.cloneNode(true);
+
+    dragGhost.classList.add(
+      "section-drag-ghost"
+    );
+
+    dragGhost.removeAttribute(
+      "data-focus-key"
+    );
+
+    dragGhost.tabIndex = -1;
+
+    dragGhost.style.width =
+      `${rect.width}px`;
+
+    dragGhost.style.height =
+      `${rect.height}px`;
+
+    grabOffsetX =
+      event.clientX - rect.left;
+
+    grabOffsetY =
+      event.clientY - rect.top;
+
+    document.body.appendChild(
+      dragGhost
+    );
+
+    updateDragGhost(event);
+  }
+
+  function updateDragGhost(event) {
+    if (!dragGhost) {
+      return;
+    }
+
+    dragGhost.style.left =
+      `${
+        event.clientX -
+        grabOffsetX
+      }px`;
+
+    dragGhost.style.top =
+      `${
+        event.clientY -
+        grabOffsetY
+      }px`;
+  }
+
+  function removeDragGhost() {
+    dragGhost?.remove();
+    dragGhost = null;
+  }
+
+  function moveItemToPointer(
+    pointerX
+  ) {
+    /*
+     * ドラッグ中のセルを除いた
+     * 残りのセル。
+     */
+    const otherItems =
+      Array.from(
+        sectionContents.querySelectorAll(
+          ".section-pattern-cell"
+        )
+      ).filter(
+        sectionItem =>
+          sectionItem !== item
+      );
+
+    /*
+     * ポインターが何個のセル中心を
+     * 通過しているかで挿入位置を決める。
+     *
+     * これにより1回のpointermoveで
+     * 複数セル先まで移動できる。
+     */
+    let targetIndex = 0;
+
+    otherItems.forEach(
+      otherItem => {
+        const rect =
+          otherItem
+            .getBoundingClientRect();
+
+        const centerX =
+          rect.left +
+          rect.width / 2;
+
+        if (
+          pointerX >
+          centerX
+        ) {
+          targetIndex += 1;
+        }
+      }
+    );
+
+    targetIndex =
+      Math.max(
+        0,
+        Math.min(
+          targetIndex,
+          otherItems.length
+        )
+      );
+
+    if (
+      targetIndex ===
+      currentItemIndex
+    ) {
+      return;
+    }
+
+    if (!historySaved) {
+      saveHistory();
+      historySaved = true;
+    }
+
+    const moved =
+      moveSectionSource(
+        currentItemIndex,
+        targetIndex
+      );
+
+    if (!moved) {
+      return;
+    }
+
+    /*
+     * 配列と同じ位置へ
+     * DOM上のセルも移動する。
+     */
+    const referenceItem =
+      otherItems[targetIndex];
+
+    if (referenceItem) {
+      sectionContents.insertBefore(
+        item,
+        referenceItem
+      );
+    } else {
+      sectionContents.appendChild(
+        item
+      );
+    }
+
+    currentItemIndex =
+      targetIndex;
+
+    refreshSectionItemIndexes();
+  }
+
+  item.addEventListener(
+    "pointerdown",
+    event => {
+      if (
+        event.pointerType ===
+          "mouse" &&
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      pointerId =
+        event.pointerId;
+
+      startX =
+        event.clientX;
+
+      startY =
+        event.clientY;
+
+      currentItemIndex =
+        Number(
+          item.dataset.itemIndex
+        );
+
+      dragging = false;
+      historySaved = false;
+      suppressClick = false;
+
+      item.setPointerCapture(
+        event.pointerId
+      );
+            /*
+       * DOM並び替えでPointer Captureが
+       * 外れても終了処理できるようにする。
+       */
+      removeWindowDragListeners();
+
+      window.addEventListener(
+        "pointermove",
+        handlePointerMove,
+        true
+      );
+
+      window.addEventListener(
+        "pointerup",
+        handleWindowPointerUp,
+        true
+      );
+
+      window.addEventListener(
+        "pointercancel",
+        handleWindowPointerCancel,
+        true
+      );
+    }
+  );
+
+   function handlePointerMove(
+    event
+  ) {
+    if (
+      pointerId !==
+      event.pointerId
+    ) {
+      return;
+    }
+
+    const distanceX =
+      event.clientX - startX;
+
+    const distanceY =
+      event.clientY - startY;
+
+    if (
+      !dragging &&
+      Math.hypot(
+        distanceX,
+        distanceY
+      ) <
+        SECTION_DRAG_START_DISTANCE
+    ) {
+      return;
+    }
+
+    if (!dragging) {
+      dragging = true;
+      suppressClick = true;
+
+      item.classList.add(
+        "section-drag-origin"
+      );
+
+      sectionContents.classList.add(
+        "dragging"
+      );
+
+      createDragGhost(event);
+    }
+
+    event.preventDefault();
+
+    updateDragGhost(event);
+
+    moveItemToPointer(
+      event.clientX
+    );
+
+    const sectionRect =
+      sectionContents
+        .getBoundingClientRect();
+
+    const outsideVertically =
+      event.clientY <
+        sectionRect.top -
+          SECTION_DELETE_DISTANCE ||
+      event.clientY >
+        sectionRect.bottom +
+          SECTION_DELETE_DISTANCE;
+
+    sectionContents.classList.toggle(
+      "delete-ready",
+      outsideVertically
+    );
+
+    dragGhost?.classList.toggle(
+      "delete-ready",
+      outsideVertically
+    );
+  }
+
+    function finishDrag(
+    event,
+    cancelled = false
+  ) {
+    if (
+      pointerId !==
+      event.pointerId
+    ) {
+      return;
+    }
+
+    removeWindowDragListeners();
+
+    if (
+      item.hasPointerCapture(
+        event.pointerId
+      )
+    ) {
+      item.releasePointerCapture(
+        event.pointerId
+      );
+    }
+
+       pointerId = null;
+
+    if (!dragging) {
+      removeDragGhost();
+      return;
+    }
+
+    const sectionRect =
+      sectionContents
+        .getBoundingClientRect();
+
+    const outsideVertically =
+      !cancelled &&
+      (
+        event.clientY <
+          sectionRect.top -
+            SECTION_DELETE_DISTANCE ||
+        event.clientY >
+          sectionRect.bottom +
+            SECTION_DELETE_DISTANCE
+      );
+
+    if (outsideVertically) {
+      if (!historySaved) {
+        saveHistory();
+        historySaved = true;
+      }
+
+      removeSectionSource(
+        currentItemIndex
+      );
+    }
+
+    item.classList.remove(
+      "section-drag-origin"
+    );
+
+    sectionContents.classList.remove(
+      "dragging",
+      "delete-ready"
+    );
+
+    removeDragGhost();
+
+    renderPatternManager();
+
+    restorePatternFocus(
+      outsideVertically
+        ? "section-contents"
+        : `section-source-${currentItemIndex}`
+    );
+  }
+
+  item.addEventListener(
+    "pointerup",
+    event => {
+      finishDrag(
+        event,
+        false
+      );
+    }
+  );
+
+  item.addEventListener(
+    "pointercancel",
+    event => {
+      finishDrag(
+        event,
+        true
+      );
+    }
+  );
+
+  item.addEventListener(
+    "click",
+    event => {
+      if (!suppressClick) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      suppressClick = false;
+    },
+    true
+  );
+}
 
 if (
   selectedSection.sequence.length ===
@@ -2710,6 +3546,11 @@ if (
         source.type === "fill"
           ? `section fill ${source.index + 1}`
           : `section pattern ${source.index + 1}`
+      );
+
+      enableSectionItemDrag(
+        item,
+        itemIndex
       );
 
       sectionContents.appendChild(

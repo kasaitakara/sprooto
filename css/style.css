@@ -30,7 +30,7 @@ body.theme-sprooto {
     --edit-text: #4b6648;
 
     /* 紙 */
-    --chip-bg: #efe5d7;
+    --chip-bg: #b2caa8;
     --chip-text: #dbb682;
 
     /* 太陽 */
@@ -38,7 +38,7 @@ body.theme-sprooto {
     --play-control: #ffe100;
 
     /* Hover */
-    --hover-bg: #fff6c7;
+    --hover-bg: #97d6d0;
     --hover-text: #4b6648;
 
     /* 水（予約） */
@@ -63,10 +63,10 @@ body.theme-kasai {
     --fill-bg: #aaa;
     --fill-text: #ededed;
 
-    --edit-bg: #efefef;
+    --edit-bg: #aaa;
     --edit-text: #ededed;
 
-    --chip-bg: #efefef;
+    --chip-bg: #aaa;
     --chip-text: #ededed;
 
     --hover-bg: #ededed;
@@ -145,10 +145,10 @@ body.theme-aya {
     --fill-bg: #ffc1b0;
     --fill-text: #417d90;
 
-    --edit-bg: #417d90;
+    --edit-bg: #ffc1b0;
     --edit-text: #ededed;
 
-    --chip-bg: #ededed;
+    --chip-bg: #ffc1b0;
     --chip-text: #417d90;
 
     --hover-bg: #ff73ce;
@@ -1098,14 +1098,12 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
         repeat(8, minmax(0, 1fr));
 
     column-gap: var(--section-gap);
-    align-items: center;
+    align-items: stretch;
 
     width: 100%;
-
     height: 28px;
 
     margin-top: 5px;
-
     padding: 0;
 
     background: var(--cell);
@@ -1117,23 +1115,22 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
  * 1列目：編集対象Section記号
  *
  * 列位置は上のA〜Hと一致。
- * □自体は列幅より小さくして中央配置。
  */
 .section-editor-button {
     grid-column: 1;
 
-    width: 34px;
-    height: 22px;
+    width: 100%;
+    height: 28px;
 
-    justify-self: center;
-    align-self: center;
+    justify-self: stretch;
+    align-self: stretch;
 
     padding: 0;
     border: 0;
     border-radius: 0;
 
-    background: var(--on);
-    color: var(--bg);
+    background: var(--edit-bg);
+    color: var(--edit-text);
 
     font-size: var(--font-main);
     line-height: 1;
@@ -1152,17 +1149,14 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     display: grid;
     grid-template-columns:
         repeat(7, minmax(0, 1fr));
-    column-gap: var(--section-gap);
-    align-items: center;
+
+    column-gap: 0;
 
     width: 100%;
     height: 28px;
-    min-width: 0;
 
     padding: 0;
     background: transparent;
-
-    overflow: hidden;
 }
 
 /*
@@ -1172,23 +1166,16 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
  * 列幅より左右5pxずつ小さくする。
  */
 .section-pattern-cell {
-    width: calc(100% - 10px);
+    width: calc(100% - 5px);
     height: 28px;
 
-    justify-self: center;
-    align-self: center;
-
-    min-width: 0;
+    justify-self: start;
 
     padding: 0;
     border: 0;
-    border-radius: 0;
 
     background: var(--chip-bg);
     color: var(--chip-text);
-
-    font-size: var(--font-main);
-    line-height: 1;
 
     display: flex;
     align-items: center;
@@ -1501,4 +1488,52 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     .bpm-input {
         caret-color: transparent;
     }
+}
+
+/*
+ * Section並び替え中の元セル。
+ * 場所を示す薄いプレースホルダーとして残す。
+ */
+.section-pattern-cell.section-drag-origin {
+  opacity: 0.22;
+}
+
+/*
+ * ポインターへ追従するドラッグ表示。
+ */
+.section-drag-ghost {
+  position: fixed;
+  z-index: 9999;
+
+  margin: 0;
+
+  pointer-events: none;
+  touch-action: none;
+
+  opacity: 0.72;
+
+  transform: scale(1.05);
+
+  box-shadow:
+    0 2px 8px
+    rgb(0 0 0 / 24%);
+}
+
+/*
+ * バー外へ移動して、
+ * 指を離すと削除される状態。
+ */
+.section-drag-ghost.delete-ready {
+  opacity: 0.35;
+
+  transform:
+    scale(0.92);
+}
+
+/*
+ * ドラッグ中はSectionバー自体への
+ * タップ追加を発生させない。
+ */
+.section-contents.dragging {
+  cursor: grabbing;
 }

@@ -405,7 +405,21 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
     height: 150px;
     overflow: hidden;
 }
-.editor-header,.edit-toolbar { display:flex; align-items:center; gap:8px; min-height:34px; }
+.editor-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+}
+
+.edit-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    height: 28px;
+    min-height: 28px;
+}
 .mini-button {
     width: 28px;
     height: 26px;

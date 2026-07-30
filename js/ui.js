@@ -857,18 +857,26 @@ patternLengthInput.addEventListener(
       event.pointerType;
 
     if (
+  isTouchDevice() ||
   isTouchOrPen(
     event.pointerType
   )
 ) {
-      patternLengthInput.readOnly =
-        true;
+  event.preventDefault();
 
-      patternLengthDirectEditing =
-        false;
+  patternLengthInput.readOnly =
+    true;
 
-      return;
-    }
+  patternLengthDirectEditing =
+    false;
+
+  delete patternLengthInput.dataset
+    .keyboardEditing;
+
+  patternLengthInput.blur();
+
+  return;
+}
 
     /*
      * PCのマウス操作では
@@ -963,6 +971,7 @@ patternLengthInput.addEventListener(
   "click",
   event => {
     const isTouchInput =
+  isTouchDevice() ||
   isTouchOrPen(
     patternLengthPointerType
   );

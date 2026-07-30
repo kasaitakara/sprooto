@@ -2182,9 +2182,11 @@ function editValueControl(parameter, id) {
           min:
             childDefinition?.min ??
             parameter.min,
+
           max:
             childDefinition?.max ??
             parameter.max,
+
           step:
             childDefinition?.step ??
             parameter.step ??
@@ -2194,7 +2196,8 @@ function editValueControl(parameter, id) {
   const wrap =
     document.createElement("div");
 
-  wrap.className = "value-control";
+  wrap.className =
+    "value-control";
 
   const valueKey =
     `base-value-${id}`;
@@ -2204,75 +2207,158 @@ function editValueControl(parameter, id) {
 
   value.type = "button";
   value.className = "base-value";
-  value.dataset.focusKey = valueKey;
-  value.dataset.valueControl = "true";
+
+  value.dataset.focusKey =
+    valueKey;
+
+  value.dataset.valueControl =
+    "true";
+
+  const delayNames = [
+    "1/64",
+    "1/32T",
+    "1/32",
+    "1/16T",
+    "1/16",
+    "1/8T",
+    "1/8",
+    "1/4T",
+    "1/4",
+    "1/2T",
+    "1/2"
+  ];
+
+  function displayValue() {
+    if (id === "delayTime") {
+      return (
+        delayNames[
+          Math.round(
+            track.base[id]
+          )
+        ] ?? "1/16"
+      );
+    }
+
+    return String(
+      track.base[id]
+    );
+  }
+
   value.textContent =
-  id === "delayTime"
-    ? [
-        "1/64",
-        "1/32T",
-        "1/32",
-        "1/16T",
-        "1/16",
-        "1/8T",
-        "1/8",
-        "1/4T",
-        "1/4",
-        "1/2T",
-        "1/2"
-      ][track.base[id]] ?? "1/16"
-    : track.base[id];
+    displayValue();
 
   /*
-   * 最後に触った入力機器を記録する。
+   * 最後に使用した入力機器を記録。
    *
    * touch / pen：
-   * 数値入力欄を開かず、スイープ専用。
+   * 上下スイープ専用。
    *
    * mouse / keyboard：
-   * 従来の直接入力も使用可能。
+   * クリックまたはEnterで
+   * 直接編集できる。
    */
   let lastPointerType = null;
-  value.addEventListener(
-  "pointerdown",
-  event => {
-    lastPointerType =
-      event.pointerType;
-  }
-);
 
-    value.addEventListener(
+  value.addEventListener(
+    "pointerdown",
+    event => {
+      lastPointerType =
+        event.pointerType;
+    }
+  );
+
+  /*
+   * スマホ・タブレット用の
+   * ベース値上下スイープ。
+   */
+  let sweepHistorySaved = false;
+
+  enableVerticalSweep({
+    element: value,
+
+    getValue: () => {
+      return Number(
+        track.base[id]
+      );
+    },
+
+    setValue: nextValue => {
+      if (!sweepHistorySaved) {
+        saveHistory();
+
+        sweepHistorySaved =
+          true;
+      }
+
+      const correctedValue =
+        id === "delayTime"
+          ? Math.round(nextValue)
+          : roundToStep(
+              nextValue,
+              definition.step
+            );
+
+      track.base[id] =
+        correctedValue;
+
+      value.textContent =
+        displayValue();
+    },
+
+    min: definition.min,
+    max: definition.max,
+    step: definition.step,
+
+    /*
+     * Delay Timeは選択肢が
+     * 11段階だけなので加速しない。
+     */
+    acceleration:
+      id !== "delayTime",
+
+    onCommit: (
+      startValue,
+      currentValue,
+      changed
+    ) => {
+      sweepHistorySaved =
+        false;
+
+      if (changed) {
+        renderEditorAndRestore(
+          valueKey
+        );
+      }
+    }
+  });
+
+  /*
+   * PCでの直接編集。
+   *
+   * スマホのタップでは
+   * 入力欄も選択欄も開かない。
+   */
+  value.addEventListener(
     "click",
     event => {
       const isTouchInput =
+        isTouchDevice() ||
         isTouchOrPen(
           lastPointerType
         );
 
       if (isTouchInput) {
         event.preventDefault();
+        event.stopPropagation();
+
         return;
       }
 
       /*
-       * Delay Timeだけは
-       * 音価表示の選択欄にする。
+       * Delay Timeは
+       * 数値入力ではなく音価選択。
        */
       if (id === "delayTime") {
-        const delayNames = [
-          "1/64",
-          "1/32T",
-          "1/32",
-          "1/16T",
-          "1/16",
-          "1/8T",
-          "1/8",
-          "1/4T",
-          "1/4",
-          "1/2T",
-          "1/2"
-        ];
-
         const select =
           document.createElement(
             "select"
@@ -2312,9 +2398,11 @@ function editValueControl(parameter, id) {
         select.value =
           String(
             clamp(
-              track.base[id] ?? 4,
-              0,
-              10
+              Math.round(
+                track.base[id] ?? 4
+              ),
+              definition.min,
+              definition.max
             )
           );
 
@@ -2340,11 +2428,13 @@ function editValueControl(parameter, id) {
 
               const nextValue =
                 clamp(
-                  Number(
-                    select.value
+                  Math.round(
+                    Number(
+                      select.value
+                    )
                   ),
-                  0,
-                  10
+                  definition.min,
+                  definition.max
                 );
 
               if (
@@ -2373,6 +2463,8 @@ function editValueControl(parameter, id) {
               event.stopPropagation();
 
               finish(true);
+
+              return;
             }
 
             if (
@@ -2387,6 +2479,12 @@ function editValueControl(parameter, id) {
         );
 
         select.addEventListener(
+          "change",
+          () => finish(true),
+          { once: true }
+        );
+
+        select.addEventListener(
           "blur",
           () => finish(true),
           { once: true }
@@ -2396,7 +2494,8 @@ function editValueControl(parameter, id) {
       }
 
       /*
-       * その他は従来どおり数値入力。
+       * Delay Time以外は
+       * 従来どおり数値入力。
        */
       const input =
         document.createElement(
@@ -2404,17 +2503,18 @@ function editValueControl(parameter, id) {
         );
 
       input.type = "number";
+
       input.value =
         track.base[id];
 
       input.min =
-        definition.min;
+        String(definition.min);
 
       input.max =
-        definition.max;
+        String(definition.max);
 
       input.step =
-        definition.step;
+        String(definition.step);
 
       input.className =
         "base-input";
@@ -2456,9 +2556,10 @@ function editValueControl(parameter, id) {
               );
 
             nextValue =
-              Math.round(
-                nextValue * 100
-              ) / 100;
+              roundToStep(
+                nextValue,
+                definition.step
+              );
 
             if (
               nextValue !==
@@ -2486,6 +2587,8 @@ function editValueControl(parameter, id) {
             event.stopPropagation();
 
             finish(true);
+
+            return;
           }
 
           if (
@@ -2505,8 +2608,8 @@ function editValueControl(parameter, id) {
         { once: true }
       );
     }
-);
-
+  );
+  
   wrap.appendChild(value);
 
   return wrap;

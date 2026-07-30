@@ -153,8 +153,8 @@ function swingDelaySeconds(track, stepIndex) {
 function playCurrentStep() {
   tracks.forEach(track => {
     const trackStepIndex =
-      state.playingStepIndex %
-      track.stepLength;
+  state.playbackTickIndex %
+  track.stepLength;
 
     if (
       !audible(track) ||
@@ -211,7 +211,22 @@ const sourceChanged =
   advancePlaybackSource();
 
     state.playingStepIndex =
-      0;
+  0;
+
+/*
+ * Sourceが切り替わった場合は、
+ * 全Trackを新しいSourceの先頭から開始。
+ *
+ * 同じPatternがループするだけなら、
+ * Track独自のステップ位置は継続する。
+ */
+if (sourceChanged) {
+  state.playbackTickIndex =
+    0;
+} else {
+  state.playbackTickIndex +=
+    1;
+}
 
     /*
      * Pattern切替時は
@@ -231,10 +246,12 @@ const sourceChanged =
   }
 
   state.playingStepIndex =
-    nextStepIndex;
+  nextStepIndex;
 
-  updatePlayingStep();
-  playCurrentStep();
+state.playbackTickIndex += 1;
+
+updatePlayingStep();
+playCurrentStep();
 
   scheduleNextTick();
 }
@@ -242,7 +259,8 @@ const sourceChanged =
 async function togglePlayback() {
   if (state.isPlaying) {
     state.isPlaying = false;
-    state.playingStepIndex = null;
+    state.playbackTickIndex =
+  null;
     state.playingSourceType =
   null;
 
@@ -274,7 +292,12 @@ clearQueuedSource();
   await initializeAudio();
 
   state.isPlaying = true;
-state.playingStepIndex = 0;
+
+state.playingStepIndex =
+  0;
+
+state.playbackTickIndex =
+  0;
 
 beginSelectedPlayback();
 

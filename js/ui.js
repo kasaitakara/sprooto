@@ -405,6 +405,12 @@ function isTouchOrPen(pointerType) {
   );
 }
 
+function isTouchDevice() {
+  return window.matchMedia(
+    "(pointer: coarse)"
+  ).matches;
+}
+
 function enableVerticalSweep({
   element,
   getValue,
@@ -633,12 +639,19 @@ function stepCell(stepIndex) {
       lane.classList.add("selected-track");
     }
 
-    if (
-      state.playingStepIndex !== null &&
-      stepIndex === state.playingStepIndex
-    ) {
-      lane.classList.add("playing");
-    }
+    const playingStep =
+  state.playbackTickIndex === null
+    ? -1
+    : state.playbackTickIndex %
+      track.stepLength;
+
+if (
+  stepIndex === playingStep
+) {
+  lane.classList.add(
+    "playing"
+  );
+}
 
     button.appendChild(lane);
   });
@@ -1278,14 +1291,16 @@ acceleration: false,
     "click",
     event => {
       const isTouchInput =
+  isTouchDevice() ||
   isTouchOrPen(
     lastPointerType
   );
 
-      if (isTouchInput) {
-        event.preventDefault();
-        return;
-      }
+if (isTouchInput) {
+  event.preventDefault();
+  event.stopPropagation();
+  return;
+}
 
       const input =
         document.createElement("input");
@@ -1526,14 +1541,16 @@ function createSwingControl(focusKey) {
     "click",
     event => {
       const isTouchInput =
+  isTouchDevice() ||
   isTouchOrPen(
     lastPointerType
   );
 
-      if (isTouchInput) {
-        event.preventDefault();
-        return;
-      }
+if (isTouchInput) {
+  event.preventDefault();
+  event.stopPropagation();
+  return;
+}
 
       const input =
         document.createElement(
@@ -2124,15 +2141,15 @@ function renderOffsetGrid(parameter) {
     }
 
     if (
-      state.playingStepIndex !== null &&
-      stepIndex ===
-        state.playingStepIndex %
-          track.stepLength
-    ) {
-      button.classList.add(
-        "playing"
-      );
-    }
+  state.playbackTickIndex !== null &&
+  stepIndex ===
+    state.playbackTickIndex %
+      track.stepLength
+) {
+  button.classList.add(
+    "playing"
+  );
+}
 
     /*
      * 最後に使用した入力機器を記録。
@@ -4152,10 +4169,10 @@ export function updatePlayingStep() {
         tracks[trackIndex];
 
       const playingStep =
-        state.playingStepIndex === null
-          ? -1
-          : state.playingStepIndex %
-            track.stepLength;
+  state.playbackTickIndex === null
+    ? -1
+    : state.playbackTickIndex %
+      track.stepLength;
 
       lane.classList.toggle(
         "playing",
@@ -4167,10 +4184,10 @@ export function updatePlayingStep() {
     .querySelectorAll(".offset-step")
     .forEach(button => {
       const playingStep =
-        state.playingStepIndex === null
-          ? -1
-          : state.playingStepIndex %
-            selectedTrack().stepLength;
+  state.playbackTickIndex === null
+    ? -1
+    : state.playbackTickIndex %
+      selectedTrack().stepLength;
 
       button.classList.toggle(
         "playing",

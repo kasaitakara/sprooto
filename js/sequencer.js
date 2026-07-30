@@ -357,7 +357,17 @@ export const state = {
   patternLength: 32,
 
   playingStepIndex: null,
-  isPlaying: false,
+
+/*
+ * Trackごとの独立ループ計算に使う、
+ * Pattern終端でリセットしない連続ステップ位置。
+ *
+ * Pattern／Fill／SectionのSourceが
+ * 切り替わった時だけ0へ戻す。
+ */
+playbackTickIndex: null,
+
+isPlaying: false,
 
   /*
    * 現在画面に読み込まれている

@@ -266,6 +266,81 @@ function getParameterIcon(iconId) {
       </svg>
     `,
 
+    attack: `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 19h16V5"></path>
+    <path d="M4 19L20 5"></path>
+  </svg>
+`,
+
+    lfo: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M2 12c2.5-7 5.5-7 8 0s5.5 7 8 0 4-4 4-4"></path>
+        <path d="M2 19h20"></path>
+      </svg>
+    `,
+
+    fx: `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <rect
+      x="6"
+      y="3"
+      width="12"
+      height="18"
+      rx="2"
+    ></rect>
+
+    <circle
+      cx="12"
+      cy="8"
+      r="2"
+    ></circle>
+
+    <path d="M10 15h4"></path>
+
+    <path d="M9 18h6"></path>
+  </svg>
+`,
+
+    sub: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M3 12h4"></path>
+        <path d="M7 12c2-7 4-7 6 0s4 7 8 0"></path>
+      </svg>
+    `,
+
     probability: `
       <svg
         viewBox="0 0 24 24"
@@ -287,6 +362,45 @@ function getParameterIcon(iconId) {
   };
 
   return icons[iconId] ?? "";
+}
+
+
+const oscParameter = {
+  ...parameters.find(parameter => parameter.id === "sine"),
+  id: "osc",
+  label: "OSC",
+  icon: "sine",
+  children: [
+    { id: "sine", label: "SINE", baseOnly: true },
+    { id: "noise", label: "NOISE", baseOnly: true }
+  ]
+};
+
+const parameterMenuItems = [
+  { label: "OSC", parameter: oscParameter, icon: "sine" },
+  { label: "NOTE", parameterId: "note", icon: "note" },
+  { label: "ATK", parameterId: "attack", icon: "attack" },
+  { label: "DEC", parameterId: "decay", icon: "decay" },
+  { label: "FM", parameterId: "fmDepth", icon: "fm" },
+  { label: "FILTER", parameterId: "tone", icon: "tone" },
+  { label: "PAN", parameterId: "pan", icon: "pan" },
+  { label: "LFO", placeholderId: "lfo", icon: "lfo" },
+  { label: "FX", placeholderId: "fx", icon: "fx" },
+  { label: "FX1", placeholderId: "fx1", icon: "fx" },
+  { label: "FX2", placeholderId: "fx2", icon: "fx" },
+  { label: "FX3", placeholderId: "fx3", icon: "fx" },
+  { label: "FX4", placeholderId: "fx4", icon: "fx" },
+  { label: "FX5", placeholderId: "fx5", icon: "fx" },
+  { label: "PROB", parameterId: "probability", icon: "probability" },
+  { label: "SUB", placeholderId: "sub", icon: "sub" }
+];
+
+function editorParameterById(id) {
+  if (id === "osc") {
+    return oscParameter;
+  }
+
+  return parameterById(id);
 }
 
 function restoreFocus(selector) {
@@ -1164,44 +1278,74 @@ function displayBaseValue(parameter) {
   return String(value);
 }
 
-function parameterButton(parameter) {
+function parameterButton(menuItem) {
+  const parameter =
+    menuItem.parameter ??
+    parameterById(menuItem.parameterId);
+
   const button = document.createElement("button");
 
   button.type = "button";
   button.className = "parameter-button";
-button.dataset.focusKey =
-    `parameter-${parameter.id}`;
+
+  const focusId =
+    parameter?.id ??
+    menuItem.placeholderId;
+
+  button.dataset.focusKey =
+    `parameter-${focusId}`;
 
   button.setAttribute(
     "aria-label",
-    parameter.label
+    menuItem.label
   );
 
-  button.innerHTML = `
-  <span class="parameter-icon">
-    ${getParameterIcon(parameter.icon)}
-  </span>
+  const valueText = parameter
+    ? displayBaseValue(
+        parameter.id === "osc"
+          ? parameterById("sine")
+          : parameter
+      )
+    : menuItem.label;
 
-  <span class="parameter-value">
-    ${displayBaseValue(parameter)}
-  </span>
-`;
+  button.innerHTML = `
+    <span class="parameter-icon">
+      ${getParameterIcon(menuItem.icon)}
+    </span>
+
+    <span class="parameter-value">
+      ${valueText}
+    </span>
+  `;
+
+  if (!parameter) {
+    button.classList.add(
+      "parameter-placeholder"
+    );
+
+    button.setAttribute(
+      "aria-disabled",
+      "true"
+    );
+
+    return button;
+  }
 
   button.addEventListener("click", () => {
-    state.selectedParameterId = parameter.id;
+    state.selectedParameterId =
+      parameter.id;
 
     state.selectedChildId =
       parameter.children?.[0]?.id ??
       parameter.id;
 
     const activeId =
-    parameter.children?.[0]?.id ??
-    parameter.id;
+      parameter.children?.[0]?.id ??
+      parameter.id;
 
-renderEditorAndRestore(
-    `base-value-${activeId}`
-);
-
+    renderEditorAndRestore(
+      `base-value-${activeId}`
+    );
   });
 
   return button;
@@ -1667,6 +1811,94 @@ if (isTouchInput) {
   return button;
 }
 
+
+function createTrackVolumeControl() {
+  const track = selectedTrack();
+  const parameter = parameterById("velocity");
+
+  const wrapper = document.createElement("div");
+  wrapper.className =
+  "master-control track-volume-control";
+
+  const offsetButton = document.createElement("button");
+  offsetButton.type = "button";
+  offsetButton.className =
+  "master-volume-icon track-volume-icon";
+  offsetButton.dataset.focusKey = "menu-volume-offset";
+  offsetButton.setAttribute(
+    "aria-label",
+    "ボリュームオフセットを表示"
+  );
+  offsetButton.innerHTML = getParameterIcon("volume");
+
+  offsetButton.addEventListener("click", () => {
+    state.selectedParameterId = "velocity";
+    state.selectedChildId = "velocity";
+
+    renderEditorAndRestore(
+      "base-value-velocity"
+    );
+  });
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.className = "track-volume-slider";
+  slider.min = String(parameter.min);
+  slider.max = String(parameter.max);
+  slider.step = String(parameter.step ?? 1);
+  slider.value = String(track.base.velocity);
+  slider.dataset.focusKey = "menu-volume-base";
+  slider.setAttribute(
+    "aria-label",
+    `トラック${track.id}のボリューム`
+  );
+
+  const output = document.createElement("output");
+  output.className = "track-volume-value";
+  output.value = String(track.base.velocity);
+  output.textContent = String(track.base.velocity);
+
+  let historySaved = false;
+
+  slider.addEventListener("input", () => {
+    const nextValue = clamp(
+      Number(slider.value),
+      parameter.min,
+      parameter.max
+    );
+
+    if (nextValue === track.base.velocity) {
+      return;
+    }
+
+    if (!historySaved) {
+      saveHistory();
+      historySaved = true;
+    }
+
+    track.base.velocity = nextValue;
+    output.value = String(nextValue);
+    output.textContent = String(nextValue);
+  });
+
+  const finish = () => {
+    historySaved = false;
+  };
+
+  slider.addEventListener("change", finish);
+  slider.addEventListener("blur", finish);
+  slider.addEventListener("pointerup", finish);
+  slider.addEventListener("pointercancel", finish);
+
+  wrapper.append(
+    offsetButton,
+    slider,
+    output
+  );
+
+  return wrapper;
+}
+
 function renderMenu() {
   const header =
     document.createElement("div");
@@ -1713,6 +1945,10 @@ function renderMenu() {
       S
     </button>
   `;
+
+  topRow.appendChild(
+    createTrackVolumeControl()
+  );
 
   const bottomRow =
     document.createElement("div");
@@ -1869,11 +2105,11 @@ function renderMenu() {
   grid.className =
     "parameter-menu";
 
-  parameters.forEach(
-    parameter =>
+  parameterMenuItems.forEach(
+    menuItem =>
       grid.appendChild(
         parameterButton(
-          parameter
+          menuItem
         )
       )
   );
@@ -4161,7 +4397,7 @@ patternPageButton?.addEventListener(
 export function renderEditor() {
   editor.innerHTML = "";
   if (!state.selectedParameterId) renderMenu();
-  else renderEdit(parameterById(state.selectedParameterId));
+  else renderEdit(editorParameterById(state.selectedParameterId));
 }
 
 export function updatePlayingStep() {

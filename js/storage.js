@@ -88,6 +88,43 @@ export function scheduleAutosave() {
     );
 }
 
+function migrateSnapshot(snapshot) {
+  const sources = [
+    ...(snapshot.patterns ?? []),
+    ...(snapshot.fills ?? [])
+  ];
+
+  sources.forEach(source => {
+    source?.tracks?.forEach(track => {
+      if (!track.base) {
+        track.base = {};
+      }
+
+      if (!track.offsets) {
+        track.offsets = {};
+      }
+
+      if (
+        typeof track.base.attack !==
+        "number"
+      ) {
+        track.base.attack = 1;
+      }
+
+      if (
+        !Array.isArray(
+          track.offsets.attack
+        )
+      ) {
+        track.offsets.attack =
+          Array(64).fill(0);
+      }
+    });
+  });
+
+  return snapshot;
+}
+
 export function restoreAutosave() {
   try {
     const storedText =
@@ -120,9 +157,14 @@ export function restoreAutosave() {
       return false;
     }
 
-    restoreSnapshot(
-      snapshot
-    );
+    const migratedSnapshot =
+  migrateSnapshot(
+    snapshot
+  );
+
+restoreSnapshot(
+  migratedSnapshot
+);
 
     /*
      * 古い保存データなどに再生状態が

@@ -438,6 +438,47 @@ function moveFocus(
   }
 
   /*
+ * Section編集記号 → Section内容
+ */
+if (
+  area === "pattern-manager" &&
+  direction === "right" &&
+  activeElement.classList.contains(
+    "section-editor-button"
+  )
+) {
+  const firstSectionCell =
+    document.querySelector(
+      ".section-pattern-cell"
+    );
+
+  if (firstSectionCell) {
+    firstSectionCell.focus();
+    return true;
+  }
+}
+
+/*
+ * Section内容 ← Section編集記号
+ */
+if (
+  area === "pattern-manager" &&
+  direction === "left" &&
+  activeElement.classList.contains(
+    "section-pattern-cell"
+  )
+) {
+  const editorButton =
+    document.querySelector(
+      ".section-editor-button"
+    );
+
+  if (editorButton) {
+    editorButton.focus();
+    return true;
+  }
+}
+  /*
    * 通常のエリア内移動
    */
   const sameAreaTargets =

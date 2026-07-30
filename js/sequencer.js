@@ -37,6 +37,7 @@ function makeTrack(id) {
       sine: 100,
       noise: 0,
       velocity: 70,
+      attack: 1,
       decay: 5,
       fmDepth: 0,
       fmRatio: 1,
@@ -51,6 +52,8 @@ function makeTrack(id) {
 
       velocity:
         filled(0),
+
+      attack: filled(0),
 
       decay:
         filled(0),
@@ -282,6 +285,16 @@ export const parameters = [
     step: 1,
     baseOnly: true
   },
+
+  {
+  id: "attack",
+  label: "attack",
+  icon: "attack",
+  min: 1,
+  max: 50,
+  step: 1,
+  offsetMode: "offset"
+},
 
   {
     id: "decay",

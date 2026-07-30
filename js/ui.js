@@ -329,18 +329,18 @@ function getParameterIcon(iconId) {
 
     delay: `
       <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M7 7a7 7 0 1 1-1.5 7.5"></path>
-        <path d="M7 3v4H3"></path>
-        <path d="M12 8v4l3 2"></path>
-      </svg>
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.8"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M4 5.5c4 2.2 4 10.8 0 13" />
+  <path d="M10 7.5c3 1.7 3 7.3 0 9" />
+  <path d="M16 9.5c1.8 1 1.8 4 0 5" />
+</svg>
     `,
 
     sub: `
@@ -1288,6 +1288,24 @@ function displayBaseValue(parameter) {
     return `${value}%`;
   }
 
+  if (parameter.id === "delayTime") {
+  const delayNames = [
+    "1/64",
+    "1/32T",
+    "1/32",
+    "1/16T",
+    "1/16",
+    "1/8T",
+    "1/8",
+    "1/4T",
+    "1/4",
+    "1/2T",
+    "1/2"
+  ];
+
+  return delayNames[value] ?? "1/16";
+}
+
   if (parameter.id === "fmDepth") {
     return String(track.base.fmDepth);
   }
@@ -2188,7 +2206,22 @@ function editValueControl(parameter, id) {
   value.className = "base-value";
   value.dataset.focusKey = valueKey;
   value.dataset.valueControl = "true";
-  value.textContent = track.base[id];
+  value.textContent =
+  id === "delayTime"
+    ? [
+        "1/64",
+        "1/32T",
+        "1/32",
+        "1/16T",
+        "1/16",
+        "1/8T",
+        "1/8",
+        "1/4T",
+        "1/4",
+        "1/2T",
+        "1/2"
+      ][track.base[id]] ?? "1/16"
+    : track.base[id];
 
   /*
    * 最後に触った入力機器を記録する。
@@ -2201,144 +2234,259 @@ function editValueControl(parameter, id) {
    */
   let lastPointerType = null;
 
-  value.addEventListener(
-    "pointerdown",
-    event => {
-      lastPointerType =
-        event.pointerType;
-    }
-  );
-
-  /*
-   * 上下スイープによる値変更
-   */
-  let sweepHistorySaved = false;
-
-  enableVerticalSweep({
-    element: value,
-
-    getValue: () => {
-      return track.base[id];
-    },
-
-    setValue: nextValue => {
-      /*
-       * 1回のスイープにつき、
-       * Undo履歴は最初の変更時だけ保存。
-       */
-      if (!sweepHistorySaved) {
-        saveHistory();
-        sweepHistorySaved = true;
-      }
-
-      track.base[id] = nextValue;
-      value.textContent = nextValue;
-    },
-
-    min: definition.min,
-    max: definition.max,
-    step: definition.step ?? 1,
-
-    onCommit: (
-      startValue,
-      currentValue,
-      changed
-    ) => {
-      sweepHistorySaved = false;
-
-      if (changed) {
-        renderEditorAndRestore(
-          valueKey
-        );
-      }
-    }
-  });
-
-  /*
-   * PCのマウスクリック、
-   * またはキーボード操作時の直接入力。
-   *
-   * 指やペンでタップした場合は
-   * 入力欄へ切り替えない。
-   */
-  value.addEventListener(
+    value.addEventListener(
     "click",
     event => {
       const isTouchInput =
-  isTouchOrPen(
-    lastPointerType
-  );
+        isTouchOrPen(
+          lastPointerType
+        );
 
       if (isTouchInput) {
         event.preventDefault();
         return;
       }
 
+      /*
+       * Delay Timeだけは
+       * 音価表示の選択欄にする。
+       */
+      if (id === "delayTime") {
+        const delayNames = [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2T",
+          "1/2"
+        ];
+
+        const select =
+          document.createElement(
+            "select"
+          );
+
+        select.className =
+          "base-input";
+
+        select.dataset.focusKey =
+          valueKey;
+
+        select.dataset.keyboardEditing =
+          "true";
+
+        delayNames.forEach(
+          (
+            delayName,
+            delayIndex
+          ) => {
+            const option =
+              document.createElement(
+                "option"
+              );
+
+            option.value =
+              String(delayIndex);
+
+            option.textContent =
+              delayName;
+
+            select.appendChild(
+              option
+            );
+          }
+        );
+
+        select.value =
+          String(
+            clamp(
+              track.base[id] ?? 4,
+              0,
+              10
+            )
+          );
+
+        value.replaceWith(
+          select
+        );
+
+        select.focus();
+
+        let finished = false;
+
+        const finish =
+          shouldCommit => {
+            if (finished) {
+              return;
+            }
+
+            finished = true;
+
+            if (shouldCommit) {
+              const previousValue =
+                track.base[id];
+
+              const nextValue =
+                clamp(
+                  Number(
+                    select.value
+                  ),
+                  0,
+                  10
+                );
+
+              if (
+                nextValue !==
+                previousValue
+              ) {
+                saveHistory();
+
+                track.base[id] =
+                  nextValue;
+              }
+            }
+
+            renderEditorAndRestore(
+              valueKey
+            );
+          };
+
+        select.addEventListener(
+          "keydown",
+          event => {
+            if (
+              event.key === "Enter"
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+
+              finish(true);
+            }
+
+            if (
+              event.key === "Escape"
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+
+              finish(false);
+            }
+          }
+        );
+
+        select.addEventListener(
+          "blur",
+          () => finish(true),
+          { once: true }
+        );
+
+        return;
+      }
+
+      /*
+       * その他は従来どおり数値入力。
+       */
       const input =
-        document.createElement("input");
+        document.createElement(
+          "input"
+        );
 
       input.type = "number";
-      input.value = track.base[id];
-      input.min = definition.min;
-      input.max = definition.max;
-      input.step = definition.step;
-      input.className = "base-input";
-      input.dataset.focusKey = valueKey;
-      input.dataset.keyboardEditing = "true";
+      input.value =
+        track.base[id];
 
-      value.replaceWith(input);
+      input.min =
+        definition.min;
+
+      input.max =
+        definition.max;
+
+      input.step =
+        definition.step;
+
+      input.className =
+        "base-input";
+
+      input.dataset.focusKey =
+        valueKey;
+
+      input.dataset.keyboardEditing =
+        "true";
+
+      value.replaceWith(
+        input
+      );
+
       input.focus();
       input.select();
 
       let finished = false;
 
-      const finish = shouldCommit => {
-        if (finished) {
-          return;
-        }
-
-        finished = true;
-
-        if (shouldCommit) {
-          const previousValue =
-            track.base[id];
-
-          let nextValue = clamp(
-            Number(input.value) || 0,
-            definition.min,
-            definition.max
-          );
-
-          nextValue =
-            Math.round(
-              nextValue * 100
-            ) / 100;
-
-          if (
-            nextValue !== previousValue
-          ) {
-            saveHistory();
-
-            track.base[id] =
-              nextValue;
+      const finish =
+        shouldCommit => {
+          if (finished) {
+            return;
           }
-        }
 
-        renderEditorAndRestore(
-          valueKey
-        );
-      };
+          finished = true;
+
+          if (shouldCommit) {
+            const previousValue =
+              track.base[id];
+
+            let nextValue =
+              clamp(
+                Number(
+                  input.value
+                ) || 0,
+                definition.min,
+                definition.max
+              );
+
+            nextValue =
+              Math.round(
+                nextValue * 100
+              ) / 100;
+
+            if (
+              nextValue !==
+              previousValue
+            ) {
+              saveHistory();
+
+              track.base[id] =
+                nextValue;
+            }
+          }
+
+          renderEditorAndRestore(
+            valueKey
+          );
+        };
 
       input.addEventListener(
         "keydown",
         event => {
-          if (event.key === "Enter") {
+          if (
+            event.key === "Enter"
+          ) {
             event.preventDefault();
+            event.stopPropagation();
+
             finish(true);
           }
 
-          if (event.key === "Escape") {
+          if (
+            event.key === "Escape"
+          ) {
             event.preventDefault();
+            event.stopPropagation();
+
             finish(false);
           }
         }
@@ -2350,7 +2498,7 @@ function editValueControl(parameter, id) {
         { once: true }
       );
     }
-  );
+);
 
   wrap.appendChild(value);
 
@@ -2366,6 +2514,23 @@ function displayStepValue(parameter, stepIndex) {
     const midi = 60 + result;
     return `${names[(midi % 12 + 12) % 12]}${Math.floor(midi / 12) - 1}`;
   }
+  if (parameter.id === "delayTime") {
+  const delayNames = [
+    "1/64",
+    "1/32T",
+    "1/32",
+    "1/16T",
+    "1/16",
+    "1/8T",
+    "1/8",
+    "1/4T",
+    "1/4",
+    "1/2T",
+    "1/2"
+  ];
+
+  return delayNames[result] ?? "1/16";
+}
   if (parameter.offsetMode === "result") return String(result);
   return offset === 0 ? "·" : offset > 0 ? `+${offset}` : String(offset);
 }

@@ -44,38 +44,45 @@ function makeTrack(id) {
       tone: 50,
       pan: 50,
       delay: 0,
-      delayTime: 25,
+      delayTime: 4,
       delayFeedback: 35,
       probability: 100
     },
 
     offsets: {
-      note:
-        filled(0),
+  note:
+    filled(0),
 
-      velocity:
-        filled(0),
+  velocity:
+    filled(0),
 
-      attack: filled(0),
+  attack:
+    filled(0),
 
-      decay:
-        filled(0),
+  decay:
+    filled(0),
 
-      fmDepth:
-        filled(0),
+  fmDepth:
+    filled(0),
 
-      tone:
-        filled(0),
+  tone:
+    filled(0),
 
-      pan:
-        filled(0),
+  pan:
+    filled(0),
 
-      delay:
-        filled(0),
+  delay:
+    filled(0),
 
-      probability:
-        filled(0)
-    }
+  delayTime:
+    filled(0),
+
+  delayFeedback:
+    filled(0),
+
+  probability:
+    filled(0)
+}
   };
 }
 
@@ -372,22 +379,20 @@ export const parameters = [
       },
 
       {
-        id: "delayTime",
-        label: "time",
-        baseOnly: true,
-        min: 1,
-        max: 100,
-        step: 1
-      },
+  id: "delayTime",
+  label: "time",
+  min: 0,
+  max: 10,
+  step: 1
+},
 
       {
-        id: "delayFeedback",
-        label: "fdbk",
-        baseOnly: true,
-        min: 0,
-        max: 95,
-        step: 1
-      }
+  id: "delayFeedback",
+  label: "fdbk",
+  min: 0,
+  max: 95,
+  step: 1
+}
     ]
   },
 
@@ -1404,6 +1409,14 @@ function normalizeTrackData(track) {
   track.base ??= {};
   track.offsets ??= {};
 
+  const hasNewDelayData =
+  Array.isArray(
+    track.offsets.delayTime
+  ) &&
+  Array.isArray(
+    track.offsets.delayFeedback
+  );
+
   if (
     typeof track.base.delay !==
     "number"
@@ -1412,11 +1425,14 @@ function normalizeTrackData(track) {
   }
 
   if (
-    typeof track.base.delayTime !==
-    "number"
-  ) {
-    track.base.delayTime = 25;
-  }
+  !hasNewDelayData ||
+  typeof track.base.delayTime !==
+    "number" ||
+  track.base.delayTime < 0 ||
+  track.base.delayTime > 10
+) {
+  track.base.delayTime = 4;
+}
 
   if (
     typeof track.base.delayFeedback !==
@@ -1432,6 +1448,24 @@ function normalizeTrackData(track) {
   ) {
     track.offsets.delay =
       filled(0);
+  }
+
+  if (
+  !Array.isArray(
+    track.offsets.delayTime
+  )
+  ) {
+  track.offsets.delayTime =
+    filled(0);
+  }
+
+  if (
+  !Array.isArray(
+    track.offsets.delayFeedback
+  )
+  ) {
+  track.offsets.delayFeedback =
+    filled(0);
   }
 }
 

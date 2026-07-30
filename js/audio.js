@@ -145,19 +145,44 @@ export async function playTrackStep(
    * UI上の1〜100を
    * 10ms〜1000msとして扱う。
    */
-  const delayTime =
-    clamp(
-      track.base.delayTime ?? 25,
-      1,
-      100
-    ) / 100;
+  const delayTimeIndex =
+  clamp(
+    (track.base.delayTime ?? 4) +
+      offset("delayTime"),
+    0,
+    10
+  );
+  
+  const bpm =
+  Number(
+    document.getElementById("bpm-input")?.value
+  ) || 120;
+
+const delayRatios = [
+  1 / 16, // 1/64
+  1 / 12, // 1/32T
+  1 / 8,  // 1/32
+  1 / 6,  // 1/16T
+  1 / 4,  // 1/16
+  1 / 3,  // 1/8T
+  1 / 2,  // 1/8
+  2 / 3,  // 1/4T
+  1,      // 1/4
+  4 / 3,  // 1/2T
+  2       // 1/2
+];
+
+const delayTime =
+  (60 / bpm) *
+  delayRatios[delayTimeIndex];
 
   const delayFeedback =
-    clamp(
-      track.base.delayFeedback ?? 35,
-      0,
-      95
-    ) / 100;
+  clamp(
+    (track.base.delayFeedback ?? 35) +
+      offset("delayFeedback"),
+    0,
+    95
+  ) / 100;
 
   const output =
     context.createGain();

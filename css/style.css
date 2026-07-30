@@ -620,8 +620,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     --master-thumb-size: 8px;
     --master-track-height: 1px;
 
-    width: 40px;
-    height: 16px;
+    width: 58px;
+    height: 28px;
 
     margin: 0;
     padding: 0;
@@ -630,9 +630,14 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     -webkit-appearance: none;
 
     border: 0;
+    outline: none;
     background: transparent;
 
     cursor: pointer;
+
+    touch-action: none;
+    -webkit-tap-highlight-color:
+        transparent;
 }
 
 /* Edge・Chrome：ライン */
@@ -1769,4 +1774,12 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     width: 32px;
     min-width: 32px;
     margin: 0;
+}
+
+.master-control
+input[type="range"]:focus,
+.master-control
+input[type="range"]:focus-visible {
+    outline: none;
+    box-shadow: none;
 }

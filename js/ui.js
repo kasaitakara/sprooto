@@ -2359,139 +2359,151 @@ function editValueControl(parameter, id) {
        * 数値入力ではなく音価選択。
        */
       if (id === "delayTime") {
-        const select =
-          document.createElement(
-            "select"
+  const input =
+    document.createElement(
+      "input"
+    );
+
+  input.type = "text";
+  input.readOnly = true;
+
+  input.className =
+    "base-input";
+
+  input.dataset.focusKey =
+    valueKey;
+
+  input.dataset.keyboardEditing =
+    "true";
+
+  let currentIndex =
+    clamp(
+      Math.round(
+        track.base[id] ?? 4
+      ),
+      definition.min,
+      definition.max
+    );
+
+  const startIndex =
+    currentIndex;
+
+  input.value =
+    delayNames[currentIndex];
+
+  value.replaceWith(
+    input
+  );
+
+  input.focus();
+  input.select();
+
+  let finished = false;
+
+  const finish =
+    shouldCommit => {
+      if (finished) {
+        return;
+      }
+
+      finished = true;
+
+      if (shouldCommit) {
+        const previousValue =
+          track.base[id];
+
+        if (
+          currentIndex !==
+          previousValue
+        ) {
+          saveHistory();
+
+          track.base[id] =
+            currentIndex;
+        }
+      } else {
+        currentIndex =
+          startIndex;
+      }
+
+      renderEditorAndRestore(
+        valueKey
+      );
+    };
+
+  input.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key === "ArrowUp" ||
+        event.key === "ArrowRight"
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        currentIndex =
+          clamp(
+            currentIndex + 1,
+            definition.min,
+            definition.max
           );
 
-        select.className =
-          "base-input";
+        input.value =
+          delayNames[currentIndex];
 
-        select.dataset.focusKey =
-          valueKey;
-
-        select.dataset.keyboardEditing =
-          "true";
-
-        delayNames.forEach(
-          (
-            delayName,
-            delayIndex
-          ) => {
-            const option =
-              document.createElement(
-                "option"
-              );
-
-            option.value =
-              String(delayIndex);
-
-            option.textContent =
-              delayName;
-
-            select.appendChild(
-              option
-            );
-          }
-        );
-
-        select.value =
-          String(
-            clamp(
-              Math.round(
-                track.base[id] ?? 4
-              ),
-              definition.min,
-              definition.max
-            )
-          );
-
-        value.replaceWith(
-          select
-        );
-
-        select.focus();
-
-        let finished = false;
-
-        const finish =
-          shouldCommit => {
-            if (finished) {
-              return;
-            }
-
-            finished = true;
-
-            if (shouldCommit) {
-              const previousValue =
-                track.base[id];
-
-              const nextValue =
-                clamp(
-                  Math.round(
-                    Number(
-                      select.value
-                    )
-                  ),
-                  definition.min,
-                  definition.max
-                );
-
-              if (
-                nextValue !==
-                previousValue
-              ) {
-                saveHistory();
-
-                track.base[id] =
-                  nextValue;
-              }
-            }
-
-            renderEditorAndRestore(
-              valueKey
-            );
-          };
-
-        select.addEventListener(
-          "keydown",
-          event => {
-            if (
-              event.key === "Enter"
-            ) {
-              event.preventDefault();
-              event.stopPropagation();
-
-              finish(true);
-
-              return;
-            }
-
-            if (
-              event.key === "Escape"
-            ) {
-              event.preventDefault();
-              event.stopPropagation();
-
-              finish(false);
-            }
-          }
-        );
-
-        select.addEventListener(
-          "change",
-          () => finish(true),
-          { once: true }
-        );
-
-        select.addEventListener(
-          "blur",
-          () => finish(true),
-          { once: true }
-        );
+        input.select();
 
         return;
       }
+
+      if (
+        event.key === "ArrowDown" ||
+        event.key === "ArrowLeft"
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        currentIndex =
+          clamp(
+            currentIndex - 1,
+            definition.min,
+            definition.max
+          );
+
+        input.value =
+          delayNames[currentIndex];
+
+        input.select();
+
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+
+        finish(true);
+
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+
+        finish(false);
+      }
+    }
+  );
+
+  input.addEventListener(
+    "blur",
+    () => finish(true),
+    { once: true }
+  );
+
+  return;
+}
 
       /*
        * Delay Time以外は
@@ -2609,7 +2621,7 @@ function editValueControl(parameter, id) {
       );
     }
   );
-  
+
   wrap.appendChild(value);
 
   return wrap;

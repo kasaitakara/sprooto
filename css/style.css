@@ -589,7 +589,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 #master-volume,
 .track-volume-slider {
     --volume-thumb-size: 8px;
-    --volume-track-height: 0.1px;
+    --volume-track-height: 1px;
 
     width: 58px;
     min-width: 58px;

@@ -589,7 +589,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 #master-volume,
 .track-volume-slider {
     --volume-thumb-size: 8px;
-    --volume-track-height: 1px;
+    --volume-track-height: 0.1px;
 
     width: 58px;
     min-width: 58px;
@@ -1992,4 +1992,20 @@ input.track-volume-slider::-moz-range-thumb {
 .editor-header-primary
 .track-volume-control {
     margin-left: 10px;
+}
+
+/* =========================
+   iPhone Volume track 補正
+========================= */
+
+@media (hover: none) and (pointer: coarse) {
+    #master-volume,
+    .track-volume-slider {
+        --volume-track-height: 1px;
+    }
+
+    #master-volume::-webkit-slider-thumb,
+    input.track-volume-slider::-webkit-slider-thumb {
+        margin-top: calc((1px - 8px) / 2);
+    }
 }

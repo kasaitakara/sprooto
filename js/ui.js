@@ -2233,6 +2233,13 @@ function editValueControl(parameter, id) {
    * 従来の直接入力も使用可能。
    */
   let lastPointerType = null;
+  value.addEventListener(
+  "pointerdown",
+  event => {
+    lastPointerType =
+      event.pointerType;
+  }
+);
 
     value.addEventListener(
     "click",

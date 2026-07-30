@@ -326,6 +326,23 @@ function getParameterIcon(iconId) {
   </svg>
 `,
 
+
+    delay: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M7 7a7 7 0 1 1-1.5 7.5"></path>
+        <path d="M7 3v4H3"></path>
+        <path d="M12 8v4l3 2"></path>
+      </svg>
+    `,
+
     sub: `
       <svg
         viewBox="0 0 24 24"
@@ -386,7 +403,7 @@ const parameterMenuItems = [
   { label: "PAN", parameterId: "pan", icon: "pan" },
   { label: "LFO", placeholderId: "lfo", icon: "lfo" },
   { label: "FX", placeholderId: "fx", icon: "fx" },
-  { label: "FX1", placeholderId: "fx1", icon: "fx" },
+  { label: "FX1", parameterId: "delay", icon: "delay" },
   { label: "FX2", placeholderId: "fx2", icon: "fx" },
   { label: "FX3", placeholderId: "fx3", icon: "fx" },
   { label: "FX4", placeholderId: "fx4", icon: "fx" },
@@ -2131,6 +2148,11 @@ function makeAdjustButton(text, action) {
 function editValueControl(parameter, id) {
   const track = selectedTrack();
 
+  const childDefinition =
+    parameter.children?.find(
+      child => child.id === id
+    );
+
   const definition =
     id === "fmRatio"
       ? {
@@ -2138,7 +2160,18 @@ function editValueControl(parameter, id) {
           max: 8,
           step: 0.25
         }
-      : parameter;
+      : {
+          min:
+            childDefinition?.min ??
+            parameter.min,
+          max:
+            childDefinition?.max ??
+            parameter.max,
+          step:
+            childDefinition?.step ??
+            parameter.step ??
+            1
+        };
 
   const wrap =
     document.createElement("div");

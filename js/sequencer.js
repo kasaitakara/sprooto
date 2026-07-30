@@ -43,6 +43,9 @@ function makeTrack(id) {
       fmRatio: 1,
       tone: 50,
       pan: 50,
+      delay: 0,
+      delayTime: 25,
+      delayFeedback: 35,
       probability: 100
     },
 
@@ -65,6 +68,9 @@ function makeTrack(id) {
         filled(0),
 
       pan:
+        filled(0),
+
+      delay:
         filled(0),
 
       probability:
@@ -347,6 +353,42 @@ export const parameters = [
     max: 100,
     step: 1,
     offsetMode: "offset"
+  },
+
+
+  {
+    id: "delay",
+    label: "delay",
+    icon: "delay",
+    min: 0,
+    max: 100,
+    step: 1,
+    offsetMode: "offset",
+
+    children: [
+      {
+        id: "delay",
+        label: "level"
+      },
+
+      {
+        id: "delayTime",
+        label: "time",
+        baseOnly: true,
+        min: 1,
+        max: 100,
+        step: 1
+      },
+
+      {
+        id: "delayFeedback",
+        label: "fdbk",
+        baseOnly: true,
+        min: 0,
+        max: 95,
+        step: 1
+      }
+    ]
   },
 
   {
@@ -1353,9 +1395,67 @@ export function createSnapshot() {
   });
 }
 
+
+function normalizeTrackData(track) {
+  if (!track || typeof track !== "object") {
+    return;
+  }
+
+  track.base ??= {};
+  track.offsets ??= {};
+
+  if (
+    typeof track.base.delay !==
+    "number"
+  ) {
+    track.base.delay = 0;
+  }
+
+  if (
+    typeof track.base.delayTime !==
+    "number"
+  ) {
+    track.base.delayTime = 25;
+  }
+
+  if (
+    typeof track.base.delayFeedback !==
+    "number"
+  ) {
+    track.base.delayFeedback = 35;
+  }
+
+  if (
+    !Array.isArray(
+      track.offsets.delay
+    )
+  ) {
+    track.offsets.delay =
+      filled(0);
+  }
+}
+
+function normalizeSnapshotData(
+  snapshot
+) {
+  [
+    ...(snapshot.patterns ?? []),
+    ...(snapshot.fills ?? [])
+  ].forEach(source => {
+    source?.tracks?.forEach(
+      normalizeTrackData
+    );
+  });
+
+  return snapshot;
+}
+
 export function restoreSnapshot(
   snapshot
 ) {
+  normalizeSnapshotData(
+    snapshot
+  );
   patterns.splice(
     0,
     patterns.length,

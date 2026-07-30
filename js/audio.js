@@ -133,6 +133,32 @@ export async function playTrackStep(
       50
     ) / 50;
 
+  const delayLevel =
+    clamp(
+      (track.base.delay ?? 0) +
+      offset("delay"),
+      0,
+      100
+    ) / 100;
+
+  /*
+   * UI上の1〜100を
+   * 10ms〜1000msとして扱う。
+   */
+  const delayTime =
+    clamp(
+      track.base.delayTime ?? 25,
+      1,
+      100
+    ) / 100;
+
+  const delayFeedback =
+    clamp(
+      track.base.delayFeedback ?? 35,
+      0,
+      95
+    ) / 100;
+
   const output =
     context.createGain();
 
@@ -195,8 +221,103 @@ export async function playTrackStep(
 
   output
     .connect(filter)
-    .connect(panner)
-    .connect(master);
+    .connect(panner);
+
+  /*
+   * 原音は常にそのまま出力する。
+   */
+  panner.connect(master);
+
+  /*
+   * クリーンなDelay。
+   *
+   * フィルターや拡散処理を挟まず、
+   * 原音と同じ信号を音量だけ減衰させて
+   * 繰り返す。
+   */
+  if (delayLevel > 0) {
+    const delayNode =
+      context.createDelay(1.1);
+
+    const feedbackGain =
+      context.createGain();
+
+    const wetGain =
+      context.createGain();
+
+    delayNode.delayTime.setValueAtTime(
+      delayTime,
+      now
+    );
+
+    feedbackGain.gain.setValueAtTime(
+      delayFeedback,
+      now
+    );
+
+    wetGain.gain.setValueAtTime(
+      delayLevel,
+      now
+    );
+
+    panner.connect(
+      delayNode
+    );
+
+    delayNode
+      .connect(wetGain)
+      .connect(master);
+
+    delayNode
+      .connect(feedbackGain)
+      .connect(delayNode);
+
+    /*
+     * Feedbackが十分小さくなった後に
+     * Delayノードを切り離す。
+     */
+    const repeatCount =
+      delayFeedback <= 0
+        ? 1
+        : Math.min(
+            64,
+            Math.ceil(
+              Math.log(0.001) /
+              Math.log(delayFeedback)
+            )
+          );
+
+    const cleanupSeconds =
+      Math.min(
+        20,
+        attack +
+        decay +
+        delayTime *
+          (repeatCount + 2)
+      );
+
+    window.setTimeout(
+      () => {
+        try {
+          panner.disconnect(
+            delayNode
+          );
+
+          delayNode.disconnect();
+          feedbackGain.disconnect();
+          wetGain.disconnect();
+        } catch {
+          /*
+           * すでに切断済みなら何もしない。
+           */
+        }
+      },
+      Math.max(
+        100,
+        cleanupSeconds * 1000
+      )
+    );
+  }
 
   const stopAt =
     now +

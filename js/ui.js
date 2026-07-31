@@ -1354,17 +1354,132 @@ function parameterButton(menuItem) {
   `;
 
   if (!parameter) {
-    button.classList.add(
+  button.classList.add(
+    "parameter-placeholder"
+  );
+
+  /*
+   * 左端FXボタンだけは
+   * プレースホルダーではなく、
+   * FX一括ミュート操作として使う。
+   */
+  if (focusId === "fx") {
+    button.classList.remove(
       "parameter-placeholder"
     );
 
     button.setAttribute(
-      "aria-disabled",
-      "true"
+      "aria-label",
+      selectedTrack().fxMuted
+        ? "全FXミュートを解除"
+        : "ダブルタップで全FXをミュート"
+    );
+
+    let firstTapTime = 0;
+    let resetTimer = null;
+
+    function resetFxMuteTap() {
+      firstTapTime = 0;
+
+      if (resetTimer !== null) {
+        clearTimeout(resetTimer);
+        resetTimer = null;
+      }
+
+      button.classList.remove(
+        "delete-armed"
+      );
+    }
+
+    button.addEventListener(
+      "click",
+      event => {
+        event.preventDefault();
+
+        const track =
+          selectedTrack();
+
+        /*
+         * ミュート中は
+         * シングルタップで即解除。
+         */
+        if (track.fxMuted) {
+          saveHistory();
+
+          track.fxMuted = false;
+
+          resetFxMuteTap();
+
+          renderEditorAndRestore(
+            "parameter-fx"
+          );
+
+          return;
+        }
+
+        const now =
+          performance.now();
+
+        /*
+         * 1秒以内の2回目タップで
+         * FX一括ミュート。
+         */
+        if (
+          firstTapTime !== 0 &&
+          now - firstTapTime <=
+            DELETE_DOUBLE_TAP_INTERVAL
+        ) {
+          saveHistory();
+
+          track.fxMuted = true;
+
+          resetFxMuteTap();
+
+          renderEditorAndRestore(
+            "parameter-fx"
+          );
+
+          return;
+        }
+
+        /*
+         * 1回目のタップ。
+         * 消しゴムと同じく
+         * 1秒間だけ待機表示する。
+         */
+        firstTapTime = now;
+
+        button.classList.add(
+          "delete-armed"
+        );
+
+        if (resetTimer !== null) {
+          clearTimeout(resetTimer);
+        }
+
+        resetTimer =
+          window.setTimeout(
+            resetFxMuteTap,
+            DELETE_DOUBLE_TAP_INTERVAL
+          );
+      }
+    );
+
+    button.addEventListener(
+      "blur",
+      resetFxMuteTap
     );
 
     return button;
   }
+
+  button.setAttribute(
+    "aria-disabled",
+    "true"
+  );
+
+  return button;
+}
 
   button.addEventListener("click", () => {
     state.selectedParameterId =
@@ -2140,14 +2255,60 @@ function renderMenu() {
   grid.className =
     "parameter-menu";
 
-  parameterMenuItems.forEach(
-    menuItem =>
-      grid.appendChild(
-        parameterButton(
-          menuItem
-        )
-      )
+  /*
+ * パラメーターメニューを
+ * 主音 / FXラック / 発音条件に分けて配置する。
+ */
+const soundParameterItems =
+  parameterMenuItems.slice(0, 8);
+
+const fxParameterItems =
+  parameterMenuItems.slice(8, 14);
+
+const timingParameterItems =
+  parameterMenuItems.slice(14, 16);
+
+/*
+ * 1行目：主音パラメーター
+ */
+soundParameterItems.forEach(menuItem => {
+  grid.appendChild(
+    parameterButton(menuItem)
   );
+});
+
+/*
+ * 2行目左側：FXラック
+ */
+const fxRack =
+  document.createElement("div");
+
+fxRack.className =
+  selectedTrack().fxMuted
+    ? "fx-parameter-rack fx-muted"
+    : "fx-parameter-rack";
+
+fxRack.setAttribute(
+  "aria-label",
+  "FX"
+);
+
+fxParameterItems.forEach(menuItem => {
+  fxRack.appendChild(
+    parameterButton(menuItem)
+  );
+});
+
+grid.appendChild(fxRack);
+
+/*
+ * 2行目右側：発音条件パラメーター
+ */
+timingParameterItems.forEach(menuItem => {
+  grid.appendChild(
+    parameterButton(menuItem)
+  );
+});
 
   editor.append(
     header,

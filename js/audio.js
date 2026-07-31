@@ -133,13 +133,20 @@ export async function playTrackStep(
       50
     ) / 50;
 
-  const delayLevel =
-    clamp(
-      (track.base.delay ?? 0) +
-      offset("delay"),
-      0,
-      100
-    ) / 100;
+  /*
+ * FX一括ミュート中は、
+ * パラメーター値を保持したまま
+ * Delay処理だけを停止する。
+ */
+const delayLevel =
+  track.fxMuted
+    ? 0
+    : clamp(
+        (track.base.delay ?? 0) +
+          offset("delay"),
+        0,
+        100
+      ) / 100;
 
   /*
    * UI上の1〜100を

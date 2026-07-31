@@ -30,7 +30,12 @@ function makeTrack(id) {
       filled(false),
 
     muted: false,
-    solo: false,
+solo: false,
+
+/*
+ * Track内の全FXを一括バイパスする。
+ */
+fxMuted: false,
 
     base: {
       note: 0,
@@ -1408,6 +1413,12 @@ function normalizeTrackData(track) {
 
   track.base ??= {};
   track.offsets ??= {};
+  if (
+  typeof track.fxMuted !==
+  "boolean"
+) {
+  track.fxMuted = false;
+}
 
   const hasNewDelayData =
   Array.isArray(

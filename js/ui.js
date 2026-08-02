@@ -1661,6 +1661,137 @@ function parameterButton(menuItem) {
 }
 
   button.addEventListener("click", () => {
+    
+      /*
+   * 親パラアイコンの上下スイープ。
+   *
+   * タップ：
+   * 従来どおり編集画面へ入る。
+   *
+   * 上下スイープ：
+   * 編集画面へ入らず、
+   * 現在代表表示中のベース値を変更する。
+   */
+  const sweepTrack =
+    selectedTrack();
+
+  let parentSweepHistorySaved =
+    false;
+
+  enableVerticalSweep({
+    element: button,
+
+    getValue: () => {
+      return Number(
+        sweepTrack.base[
+          parentSweepParameter.id
+        ]
+      );
+    },
+
+    setValue: nextValue => {
+      if (
+        !parentSweepHistorySaved
+      ) {
+        saveHistory();
+
+        parentSweepHistorySaved =
+          true;
+      }
+
+      const correctedValue =
+        roundToStep(
+          clamp(
+            Number(nextValue),
+            parentSweepParameter.min,
+            parentSweepParameter.max
+          ),
+          parentSweepParameter.step ?? 1
+        );
+
+      sweepTrack.base[
+        parentSweepParameter.id
+      ] =
+        correctedValue;
+
+      /*
+       * パラセレクト全体を再描画せず、
+       * 操作中の親枠だけ即時更新する。
+       */
+      const valueElement =
+        button.querySelector(
+          ".parameter-value"
+        );
+
+      if (valueElement) {
+        valueElement.textContent =
+          displayBaseValue(
+            parentSweepParameter
+          );
+      }
+
+      const iconElement =
+        button.querySelector(
+          ".parameter-icon"
+        );
+
+      if (iconElement) {
+        iconElement.innerHTML =
+          getParameterIcon(
+            displayedIcon
+          );
+      }
+
+      button.setAttribute(
+        "aria-label",
+        `${menuItem.label} ${
+          displayBaseValue(
+            parentSweepParameter
+          )
+        }`
+      );
+    },
+
+    min:
+      parentSweepParameter.min,
+
+    max:
+      parentSweepParameter.max,
+
+    step:
+      parentSweepParameter.step ??
+      1,
+
+    /*
+     * Delay Timeのような
+     * 選択肢型では加速しない。
+     */
+    acceleration:
+      parentSweepParameter.id !==
+      "delayTime",
+
+    onCommit: (
+      startValue,
+      currentValue,
+      changed
+    ) => {
+      parentSweepHistorySaved =
+        false;
+
+      if (!changed) {
+        return;
+      }
+
+      /*
+       * 最終状態だけ再描画して、
+       * 表示とフォーカスを確定する。
+       */
+      renderEditorAndRestore(
+        `parameter-${focusId}`
+      );
+    }
+  });
+
     state.selectedParameterId =
       parameter.id;
 

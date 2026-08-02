@@ -1458,7 +1458,21 @@ function parameterButton(menuItem) {
   parameterById(menuItem.parameterId);
 
   const parentSweepParameter =
-  currentParentParameter(menuItem);
+  parameter?.id === "osc"
+    ? parameterById(
+        selectedTrack().oscSelectedId ===
+          "noiseVolume" ||
+        selectedTrack().oscSelectedId ===
+          "noiseDecay"
+          ? "noiseVolume"
+          : "sineVolume"
+      )
+    : parameter?.id === "envelope"
+      ? parameterById(
+          selectedTrack().envelopeSelectedId ??
+          "decay"
+        )
+      : parameter;
 
   const button = document.createElement("button");
 
@@ -1663,8 +1677,6 @@ function parameterButton(menuItem) {
     /*
    * 親パラアイコンの上下スイープ。
    */
-  const sweepTrack =
-    selectedTrack();
 
   let parentSweepHistorySaved =
     false;
@@ -1673,12 +1685,12 @@ function parameterButton(menuItem) {
     element: button,
 
     getValue: () => {
-      return Number(
-        sweepTrack.base[
-          parentSweepParameter.id
-        ]
-      );
-    },
+  return Number(
+    selectedTrack().base[
+      parentSweepParameter.id
+    ]
+  );
+},
 
     setValue: nextValue => {
       if (
@@ -1700,10 +1712,10 @@ function parameterButton(menuItem) {
           parentSweepParameter.step ?? 1
         );
 
-      sweepTrack.base[
-        parentSweepParameter.id
-      ] =
-        correctedValue;
+      selectedTrack().base[
+  parentSweepParameter.id
+] =
+  correctedValue;
 
       const valueElement =
         button.querySelector(

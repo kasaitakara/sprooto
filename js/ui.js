@@ -1491,16 +1491,23 @@ function parameterButton(menuItem) {
       : null;
 
   const displayedParameter =
-    parameter?.id === "osc"
-      ? parameterById("sineVolume")
-      : parameter?.id === "envelope"
-        ? parameterById(
-            envelopeChildId
-          )
-        : parameter;
+  parameter?.id === "osc"
+    ? parentSweepParameter
+    : parameter?.id === "envelope"
+      ? parameterById(
+          envelopeChildId
+        )
+      : parameter;
 
   const displayedIcon =
-    parameter?.id === "envelope"
+  parameter?.id === "osc"
+    ? (
+        parentSweepParameter?.id ===
+          "noiseVolume"
+          ? "noise"
+          : "sine"
+      )
+    : parameter?.id === "envelope"
       ? envelopeParameter.children.find(
           child =>
             child.id ===
@@ -1658,20 +1665,30 @@ function parameterButton(menuItem) {
       parameter.id;
 
     const activeId =
-      parameter.id === "envelope"
-        ? (
-            envelopeParameter.children.some(
-              child =>
-                child.id ===
-                selectedTrack().envelopeSelectedId
-            )
-              ? selectedTrack().envelopeSelectedId
-              : "decay"
+  parameter.id === "envelope"
+    ? (
+        envelopeParameter.children.some(
+          child =>
+            child.id ===
+            selectedTrack().envelopeSelectedId
+        )
+          ? selectedTrack().envelopeSelectedId
+          : "decay"
+      )
+    : parameter.id === "osc"
+      ? (
+          oscParameter.children.some(
+            child =>
+              child.id ===
+              selectedTrack().oscSelectedId
           )
-        : (
-            parameter.children?.[0]?.id ??
-            parameter.id
-          );
+            ? selectedTrack().oscSelectedId
+            : "sineVolume"
+        )
+      : (
+          parameter.children?.[0]?.id ??
+          parameter.id
+        );
 
     state.selectedChildId =
       activeId;
@@ -3419,8 +3436,16 @@ function renderOscEdit() {
   parentButton.dataset.focusKey =
     "edit-parameter-osc";
 
-  parentButton.innerHTML =
-    getParameterIcon("sine");
+  const activeSourceIcon =
+  activeId === "noiseVolume" ||
+  activeId === "noiseDecay"
+    ? "noise"
+    : "sine";
+
+parentButton.innerHTML =
+  getParameterIcon(
+    activeSourceIcon
+  );
 
   parentButton.setAttribute(
     "aria-label",

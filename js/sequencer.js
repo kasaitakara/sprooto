@@ -26,6 +26,9 @@ function makeTrack(id) {
      */
     soundName: `sound ${String(id).padStart(2, "0")}`,
 
+    /* ENV親枠へ最後に表示した子パラメーター */
+    envelopeSelectedId: "decay",
+
     steps:
       filled(false),
 
@@ -46,6 +49,8 @@ fxMuted: false,
   velocity: 70,
   attack: 1,
   decay: 5,
+  sustain: 0,
+  gate: 5,
   fmDepth: 0,
       fmRatio: 1,
       tone: 50,
@@ -67,6 +72,12 @@ fxMuted: false,
   filled(0),
 
 decay:
+  filled(0),
+
+sustain:
+  filled(0),
+
+gate:
   filled(0),
 
 sineVolume:
@@ -217,7 +228,7 @@ function applyInitialPatternData(
   );
 
   patternTracks[3]
-  .base.noiseVolume = 45;
+    .base.noiseVolume = 45;
 
   patternTracks[3]
     .base.sineVolume = 0;
@@ -313,7 +324,7 @@ export const parameters = [
     label: "sine decay",
     icon: "decay",
     min: 1,
-    max: 50,
+    max: 100,
     step: 1,
     offsetMode: "offset"
   },
@@ -333,7 +344,7 @@ export const parameters = [
     label: "noise decay",
     icon: "decay",
     min: 1,
-    max: 50,
+    max: 100,
     step: 1,
     offsetMode: "offset"
   },
@@ -353,7 +364,27 @@ export const parameters = [
   label: "decay",
   icon: "decay",
   min: 1,
-  max: 50,
+  max: 100,
+  step: 1,
+  offsetMode: "offset"
+},
+
+{
+  id: "sustain",
+  label: "sustain",
+  icon: "sustain",
+  min: 0,
+  max: 100,
+  step: 1,
+  offsetMode: "offset"
+},
+
+{
+  id: "gate",
+  label: "gate",
+  icon: "gate",
+  min: 1,
+  max: 100,
   step: 1,
   offsetMode: "offset"
 },
@@ -1447,6 +1478,39 @@ function normalizeTrackData(track) {
 
   track.base ??= {};
   track.offsets ??= {};
+
+  if (
+    !["attack", "decay", "sustain", "gate"].includes(
+      track.envelopeSelectedId
+    )
+  ) {
+    track.envelopeSelectedId = "decay";
+  }
+
+  if (
+    typeof track.base.sustain !== "number"
+  ) {
+    track.base.sustain = 0;
+  }
+
+  if (
+    typeof track.base.gate !== "number"
+  ) {
+    track.base.gate = 5;
+  }
+
+  ["sustain", "gate"].forEach(
+    parameterId => {
+      if (
+        !Array.isArray(
+          track.offsets[parameterId]
+        )
+      ) {
+        track.offsets[parameterId] =
+          filled(0);
+      }
+    }
+  );
 
   /*
    * 旧OSCデータを新しい音源別パラメーターへ移行する。

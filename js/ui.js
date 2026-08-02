@@ -281,6 +281,36 @@ function getParameterIcon(iconId) {
   </svg>
 `,
 
+    sustain: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M4 19h16"></path>
+        <path d="M4 11h16"></path>
+      </svg>
+    `,
+
+    gate: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M4 19V7h12v12"></path>
+        <path d="M4 19h16"></path>
+      </svg>
+    `,
+
     lfo: `
       <svg
         viewBox="0 0 24 24"
@@ -414,11 +444,53 @@ const oscParameter = {
   ]
 };
 
+const envelopeParameter = {
+  id: "envelope",
+  label: "ENV",
+  children: [
+    {
+      id: "attack",
+      label: "attack",
+      text: "attack",
+      icon: "attack",
+      min: 1,
+      max: 50,
+      step: 1
+    },
+    {
+      id: "decay",
+      label: "decay",
+      text: "decay",
+      icon: "decay",
+      min: 1,
+      max: 100,
+      step: 1
+    },
+    {
+      id: "sustain",
+      label: "sustain",
+      text: "sustain",
+      icon: "sustain",
+      min: 0,
+      max: 100,
+      step: 1
+    },
+    {
+      id: "gate",
+      label: "gate",
+      text: "gate",
+      icon: "gate",
+      min: 1,
+      max: 100,
+      step: 1
+    }
+  ]
+};
+
 const parameterMenuItems = [
   { label: "OSC", parameter: oscParameter, icon: "sine" },
   { label: "NOTE", parameterId: "note", icon: "note" },
-  { label: "ATK", parameterId: "attack", icon: "attack" },
-  { label: "DEC", parameterId: "decay", icon: "decay" },
+  { label: "ENV", parameter: envelopeParameter, icon: "decay" },
   { label: "FM", parameterId: "fmDepth", icon: "fm" },
   { label: "FILTER", parameterId: "tone", icon: "tone" },
   { label: "PAN", parameterId: "pan", icon: "pan" },
@@ -436,6 +508,10 @@ const parameterMenuItems = [
 function editorParameterById(id) {
   if (id === "osc") {
     return oscParameter;
+  }
+
+  if (id === "envelope") {
+    return envelopeParameter;
   }
 
   return parameterById(id);
@@ -1356,17 +1432,47 @@ function parameterButton(menuItem) {
     menuItem.label
   );
 
-  const valueText = parameter
-    ? displayBaseValue(
-        parameter.id === "osc"
-          ? parameterById("sineVolume")
-          : parameter
-      )
-    : menuItem.label;
+  const envelopeChildId =
+    parameter?.id === "envelope"
+      ? (
+          envelopeParameter.children.some(
+            child =>
+              child.id ===
+              selectedTrack().envelopeSelectedId
+          )
+            ? selectedTrack().envelopeSelectedId
+            : "decay"
+        )
+      : null;
+
+  const displayedParameter =
+    parameter?.id === "osc"
+      ? parameterById("sineVolume")
+      : parameter?.id === "envelope"
+        ? parameterById(
+            envelopeChildId
+          )
+        : parameter;
+
+  const displayedIcon =
+    parameter?.id === "envelope"
+      ? envelopeParameter.children.find(
+          child =>
+            child.id ===
+            envelopeChildId
+        )?.icon ?? "decay"
+      : menuItem.icon;
+
+  const valueText =
+    displayedParameter
+      ? displayBaseValue(
+          displayedParameter
+        )
+      : menuItem.label;
 
   button.innerHTML = `
     <span class="parameter-icon">
-      ${getParameterIcon(menuItem.icon)}
+      ${getParameterIcon(displayedIcon)}
     </span>
 
     <span class="parameter-value">
@@ -1506,13 +1612,24 @@ function parameterButton(menuItem) {
     state.selectedParameterId =
       parameter.id;
 
-    state.selectedChildId =
-      parameter.children?.[0]?.id ??
-      parameter.id;
-
     const activeId =
-      parameter.children?.[0]?.id ??
-      parameter.id;
+      parameter.id === "envelope"
+        ? (
+            envelopeParameter.children.some(
+              child =>
+                child.id ===
+                selectedTrack().envelopeSelectedId
+            )
+              ? selectedTrack().envelopeSelectedId
+              : "decay"
+          )
+        : (
+            parameter.children?.[0]?.id ??
+            parameter.id
+          );
+
+    state.selectedChildId =
+      activeId;
 
     renderEditorAndRestore(
       `base-value-${activeId}`
@@ -2281,13 +2398,13 @@ function renderMenu() {
  * 主音 / FXラック / 発音条件に分けて配置する。
  */
 const soundParameterItems =
-  parameterMenuItems.slice(0, 8);
+  parameterMenuItems.slice(0, 7);
 
 const fxParameterItems =
-  parameterMenuItems.slice(8, 14);
+  parameterMenuItems.slice(7, 13);
 
 const timingParameterItems =
-  parameterMenuItems.slice(14, 16);
+  parameterMenuItems.slice(13, 15);
 
 /*
  * 1行目：主音パラメーター
@@ -2349,31 +2466,39 @@ function editValueControl(parameter, id) {
   const track = selectedTrack();
 
   const childDefinition =
-    parameter.children?.find(
-      child => child.id === id
-    );
+  parameter.children?.find(
+    child => child.id === id
+  );
 
-  const definition =
-    id === "fmRatio"
-      ? {
-          min: 0.25,
-          max: 8,
-          step: 0.25
-        }
-      : {
-          min:
-            childDefinition?.min ??
-            parameter.min,
+const actualParameter =
+  parameterById(id);
 
-          max:
-            childDefinition?.max ??
-            parameter.max,
+const definition =
+  id === "fmRatio"
+    ? {
+        min: 0.25,
+        max: 8,
+        step: 0.25
+      }
+    : {
+        min:
+          childDefinition?.min ??
+          actualParameter?.min ??
+          parameter.min ??
+          0,
 
-          step:
-            childDefinition?.step ??
-            parameter.step ??
-            1
-        };
+        max:
+          childDefinition?.max ??
+          actualParameter?.max ??
+          parameter.max ??
+          100,
+
+        step:
+          childDefinition?.step ??
+          actualParameter?.step ??
+          parameter.step ??
+          1
+      };
 
   const wrap =
     document.createElement("div");
@@ -2472,16 +2597,28 @@ function editValueControl(parameter, id) {
           true;
       }
 
-      const correctedValue =
-        id === "delayTime"
-          ? Math.round(nextValue)
-          : roundToStep(
-              nextValue,
-              definition.step
-            );
+      const finiteValue =
+  Number.isFinite(Number(nextValue))
+    ? Number(nextValue)
+    : definition.min;
 
-      track.base[id] =
-        correctedValue;
+const clampedValue =
+  clamp(
+    finiteValue,
+    definition.min,
+    definition.max
+  );
+
+const correctedValue =
+  id === "delayTime"
+    ? Math.round(clampedValue)
+    : roundToStep(
+        clampedValue,
+        definition.step
+      );
+
+track.base[id] =
+  correctedValue;
 
       value.textContent =
         displayValue();
@@ -3391,6 +3528,245 @@ function renderOscEdit() {
 
   if (
     Array.isArray(offsets)
+  ) {
+    enableDoubleTapAction({
+      element:
+        offsetEraseButton,
+
+      onDoubleTap: () => {
+        const cleared =
+          clearSelectedParameterOffsets(
+            activeId
+          );
+
+        if (!cleared) {
+          return;
+        }
+
+        renderEditorAndRestore(
+          "edit-offset-erase"
+        );
+      }
+    });
+
+    header.appendChild(
+      offsetEraseButton
+    );
+  }
+
+  header.appendChild(
+  editValueControl(
+    envelopeParameter,
+    activeId
+  )
+);
+
+  editor.appendChild(
+    header
+  );
+
+  editor.appendChild(
+    renderOffsetGrid(
+      activeParameter
+    )
+  );
+}
+
+function renderEnvelopeEdit() {
+  const track =
+    selectedTrack();
+
+  const activeId =
+    envelopeParameter.children.some(
+      child =>
+        child.id ===
+        track.envelopeSelectedId
+    )
+      ? track.envelopeSelectedId
+      : "decay";
+
+  track.envelopeSelectedId =
+    activeId;
+
+  state.selectedChildId =
+    activeId;
+
+  const activeDefinition =
+    envelopeParameter.children.find(
+      child =>
+        child.id ===
+        activeId
+    );
+
+  const activeParameter =
+    parameterById(activeId);
+
+  const header =
+    document.createElement("div");
+
+  header.className =
+    "edit-toolbar envelope-edit-toolbar";
+
+  const trackButton =
+    document.createElement("button");
+
+  trackButton.type = "button";
+  trackButton.className =
+    "track-cycle";
+
+  trackButton.dataset.focusKey =
+    "edit-track";
+
+  trackButton.innerHTML = `
+    <span class="track-icon">
+      ${getParameterIcon("track")}
+    </span>
+
+    <span class="track-number">
+      ${track.id}
+    </span>
+  `;
+
+  trackButton.addEventListener(
+    "click",
+    () => {
+      state.selectedTrackIndex =
+        (
+          state.selectedTrackIndex +
+          1
+        ) %
+        tracks.length;
+
+      renderSequence();
+
+      renderEditorAndRestore(
+        "edit-track"
+      );
+    }
+  );
+
+  const parentButton =
+    document.createElement("button");
+
+  parentButton.type = "button";
+  parentButton.className =
+    "edit-icon envelope-parent-icon";
+
+  parentButton.dataset.focusKey =
+    "edit-parameter-envelope";
+
+  parentButton.innerHTML =
+    getParameterIcon(
+      activeDefinition?.icon ??
+      "decay"
+    );
+
+  parentButton.setAttribute(
+    "aria-label",
+    "エンベロープ編集を閉じる"
+  );
+
+  parentButton.addEventListener(
+    "click",
+    () => {
+      state.selectedParameterId =
+        null;
+
+      renderEditorAndRestore(
+        "parameter-envelope"
+      );
+    }
+  );
+
+  const controls =
+    document.createElement("div");
+
+  controls.className =
+    "envelope-child-controls";
+
+  envelopeParameter.children.forEach(
+    definition => {
+      const button =
+        document.createElement(
+          "button"
+        );
+
+      button.type = "button";
+
+      button.className =
+        "envelope-child-button";
+
+      button.dataset.focusKey =
+        `child-${definition.id}`;
+
+      button.textContent =
+        definition.text;
+
+      button.setAttribute(
+        "aria-label",
+        definition.label
+      );
+
+      if (
+        activeId ===
+        definition.id
+      ) {
+        button.classList.add(
+          "active"
+        );
+      }
+
+      button.addEventListener(
+        "click",
+        () => {
+          track.envelopeSelectedId =
+            definition.id;
+
+          state.selectedChildId =
+            definition.id;
+
+          renderEditorAndRestore(
+            `base-value-${definition.id}`
+          );
+        }
+      );
+
+      controls.appendChild(
+        button
+      );
+    }
+  );
+
+  header.append(
+    trackButton,
+    parentButton,
+    controls
+  );
+
+  const offsetEraseButton =
+    document.createElement("button");
+
+  offsetEraseButton.type =
+    "button";
+
+  offsetEraseButton.className =
+    "mini-button erase-button";
+
+  offsetEraseButton.dataset.focusKey =
+    "edit-offset-erase";
+
+  offsetEraseButton.setAttribute(
+    "aria-label",
+    `${activeParameter.label}のOffsetをダブルタップで全消去`
+  );
+
+  offsetEraseButton.innerHTML =
+    getParameterIcon("erase");
+
+  if (
+    Array.isArray(
+      track.offsets[activeId]
+    )
   ) {
     enableDoubleTapAction({
       element:
@@ -5189,6 +5565,14 @@ export function renderEditor() {
       "osc"
   ) {
     renderOscEdit();
+    return;
+  }
+
+  if (
+    state.selectedParameterId ===
+      "envelope"
+  ) {
+    renderEnvelopeEdit();
     return;
   }
 

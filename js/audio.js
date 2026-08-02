@@ -61,6 +61,15 @@ export async function playTrackStep(
 ) {
   await initializeAudio();
 
+  console.log(
+  "playTrackStep",
+  {
+    trackId: track.id,
+    stepIndex: stepIndex + 1,
+    time: context.currentTime
+  }
+);
+
   const now =
     context.currentTime +
     Math.max(
@@ -92,19 +101,50 @@ export async function playTrackStep(
         offset("attack"),
         1,
         50
-      ) / 100
+      ) / 1000
     );
 
-    const decay =
+  const decay =
   Math.max(
     0.03,
     clamp(
       (track.base.decay ?? 5) +
         offset("decay"),
       1,
-      50
+      100
     ) / 10
   );
+
+  const sustain =
+    clamp(
+      (track.base.sustain ?? 0) +
+        offset("sustain"),
+      0,
+      100
+    ) / 100;
+
+  const gateValue =
+  clamp(
+    (track.base.gate ?? 5) +
+      offset("gate"),
+    1,
+    100
+  );
+
+const gateNormalized =
+  (gateValue - 1) / 99;
+
+/*
+ * 低い値ほど細かく短音を調整し、
+ * 最大値では約10秒まで伸ばす。
+ */
+const gate =
+  0.005 +
+  9.995 *
+    Math.pow(
+      gateNormalized,
+      3
+    );
 
   const sineVolume =
     clamp(
@@ -121,7 +161,7 @@ export async function playTrackStep(
         (track.base.sineDecay ?? 5) +
           offset("sineDecay"),
         1,
-        50
+        100
       ) / 10
     );
 
@@ -140,15 +180,19 @@ export async function playTrackStep(
         (track.base.noiseDecay ?? 5) +
           offset("noiseDecay"),
         1,
-        50
+        100
       ) / 10
     );
 
+  const commonEnvelopeDuration =
+  gate;
+
   const maximumDecay =
-  Math.max(
-    sineDecay,
-    noiseDecay
-  ) + decay;
+    Math.max(
+      sineDecay,
+      noiseDecay,
+      commonEnvelopeDuration
+    );
 
   const depth =
     clamp(
@@ -277,22 +321,82 @@ const delayTime =
 const mixGain =
   context.createGain();
 
+const peakLevel =
+  Math.max(
+    0.0001,
+    velocity
+  );
+
+const sustainLevel =
+  Math.max(
+    0.0001,
+    velocity * sustain
+  );
+
+const attackEnd =
+  now + attack;
+
+const decayEnd =
+  attackEnd + decay;
+
+const gateEnd =
+  now + gate;
+
+mixGain.gain.setValueAtTime(
+  0.0001,
+  now
+);
+
 mixGain.gain.setValueAtTime(
   0.0001,
   now
 );
 
 mixGain.gain.exponentialRampToValueAtTime(
-  Math.max(
-    0.0001,
-    velocity
-  ),
-  now + attack
+  peakLevel,
+  attackEnd
 );
 
+if (gateEnd <= decayEnd) {
+  const decayProgress =
+    clamp(
+      (gateEnd - attackEnd) / decay,
+      0,
+      1
+    );
+
+  const levelAtGate =
+    Math.max(
+      0.0001,
+      peakLevel *
+        Math.pow(
+          sustainLevel / peakLevel,
+          decayProgress
+        )
+    );
+
+  mixGain.gain.exponentialRampToValueAtTime(
+    levelAtGate,
+    gateEnd
+  );
+} else {
+  mixGain.gain.exponentialRampToValueAtTime(
+    sustainLevel,
+    decayEnd
+  );
+
+  mixGain.gain.setValueAtTime(
+    sustainLevel,
+    gateEnd
+  );
+}
+
+/*
+ * クリック防止用の短い終了フェード。
+ */
 mixGain.gain.exponentialRampToValueAtTime(
   0.0001,
-  now + attack + decay
+  gateEnd + 0.02
 );
 
 mixGain
@@ -401,18 +505,57 @@ mixGain
   level,
   sourceDecay
 ) {
-  gainNode.gain.setValueAtTime(
+  const safeLevel =
+    Number.isFinite(
+      Number(level)
+    )
+      ? Math.max(
+          0.0001,
+          Number(level)
+        )
+      : 0.0001;
+
+  const safeDecay =
+    Number.isFinite(
+      Number(sourceDecay)
+    )
+      ? Math.max(
+          0.001,
+          Number(sourceDecay)
+        )
+      : 0.5;
+
+  const tailLevel =
     Math.max(
       0.0001,
-      level
-    ),
+      safeLevel * 0.1
+    );
+
+  const sourceDecayEnd =
+    Math.min(
+      now + safeDecay,
+      gateEnd
+    );
+
+  gainNode.gain.setValueAtTime(
+    safeLevel,
     now
   );
 
   gainNode.gain.exponentialRampToValueAtTime(
-    0.0001,
-    now + sourceDecay
+    tailLevel,
+    sourceDecayEnd
   );
+
+  if (
+    sourceDecayEnd <
+    gateEnd
+  ) {
+    gainNode.gain.setValueAtTime(
+      tailLevel,
+      gateEnd
+    );
+  }
 }
 
   if (sineVolume > 0) {
@@ -432,13 +575,7 @@ mixGain
       frequency(note);
 
     const sineStopAt =
-  now +
-  attack +
-  Math.min(
-    sineDecay,
-    decay
-  ) +
-  0.03;
+  gateEnd + 0.05;
 
     carrier.type = "sine";
 
@@ -465,10 +602,17 @@ mixGain
       now
     );
 
-    scheduleSourceEnvelope(
-  sineGain,
-  sineVolume,
-  sineDecay
+    /*
+ * 検証：
+ * SINEはOSC個別Decayで減衰させず、
+ * ENVのSustain / Gateだけで音量を制御する。
+ */
+sineGain.gain.setValueAtTime(
+  Math.max(
+    0.0001,
+    sineVolume
+  ),
+  now
 );
 
     modulator
@@ -476,8 +620,8 @@ mixGain
       .connect(carrier.frequency);
 
     carrier
-  .connect(sineGain)
-  .connect(mixGain);
+      .connect(sineGain)
+      .connect(mixGain);
 
     carrier.start(now);
     modulator.start(now);
@@ -487,48 +631,33 @@ mixGain
   }
 
   if (noiseVolume > 0) {
-  const noise =
-    context.createBufferSource();
+    const noise =
+      context.createBufferSource();
 
-  const noiseGain =
-    context.createGain();
+    const noiseGain =
+      context.createGain();
 
-  const noiseStopAt =
-    now +
-    attack +
-    Math.min(
-      noiseDecay,
-      decay
-    ) +
-    0.03;
+    const noiseStopAt =
+  gateEnd + 0.05;
 
-  noise.buffer =
-    makeNoiseBuffer(
-      attack +
-      Math.min(
-        noiseDecay,
-        decay
-      ) +
-      0.05
-    );
-
-  scheduleSourceEnvelope(
-    noiseGain,
-    noiseVolume,
-    noiseDecay
+noise.buffer =
+  makeNoiseBuffer(
+    gate + 0.05
   );
 
-  noise
-    .connect(noiseGain)
-    .connect(mixGain);
+    scheduleSourceEnvelope(
+      noiseGain,
+      noiseVolume,
+      noiseDecay
+    );
 
-  noise.start(now);
-  noise.stop(noiseStopAt);
-}
+    noise
+      .connect(noiseGain)
+      .connect(mixGain);
 
-/*
- * playTrackStep()を閉じる括弧。
- */
+    noise.start(now);
+    noise.stop(noiseStopAt);
+  }
 }
 
 export function resumeAudio() {

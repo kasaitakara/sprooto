@@ -477,7 +477,7 @@ mixGain
 
     carrier
   .connect(sineGain)
-  .connect(filter);
+  .connect(mixGain);
 
     carrier.start(now);
     modulator.start(now);
@@ -487,42 +487,48 @@ mixGain
   }
 
   if (noiseVolume > 0) {
-    const noise =
-      context.createBufferSource();
+  const noise =
+    context.createBufferSource();
 
-    const noiseGain =
-      context.createGain();
+  const noiseGain =
+    context.createGain();
 
-    noise.buffer =
-  makeNoiseBuffer(
+  const noiseStopAt =
+    now +
     attack +
     Math.min(
       noiseDecay,
       decay
     ) +
-    0.05
+    0.03;
+
+  noise.buffer =
+    makeNoiseBuffer(
+      attack +
+      Math.min(
+        noiseDecay,
+        decay
+      ) +
+      0.05
+    );
+
+  scheduleSourceEnvelope(
+    noiseGain,
+    noiseVolume,
+    noiseDecay
   );
 
-    noise.buffer =
-      makeNoiseBuffer(
-        attack +
-        noiseDecay +
-        0.05
-      );
+  noise
+    .connect(noiseGain)
+    .connect(mixGain);
 
-    scheduleSourceEnvelope(
-  noiseGain,
-  noiseVolume,
-  noiseDecay
-);
+  noise.start(now);
+  noise.stop(noiseStopAt);
+}
 
-    noise
-  .connect(noiseGain)
-  .connect(mixGain);
-
-    noise.start(now);
-    noise.stop(noiseStopAt);
-  }
+/*
+ * playTrackStep()を閉じる括弧。
+ */
 }
 
 export function resumeAudio() {

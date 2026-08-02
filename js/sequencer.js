@@ -217,7 +217,7 @@ function applyInitialPatternData(
   );
 
   patternTracks[3]
-    .base.noise = 45;
+  .base.noiseVolume = 45;
 
   patternTracks[3]
     .base.sineVolume = 0;

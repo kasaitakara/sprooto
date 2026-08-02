@@ -2112,3 +2112,102 @@ input.track-volume-slider::-moz-range-thumb {
     -webkit-text-fill-color:
         var(--muted);
 }
+
+/* =========================
+   OSC source editor
+========================= */
+
+.osc-edit-toolbar {
+    gap: 5px;
+}
+
+.osc-parent-icon {
+    flex: 0 0 24px;
+    min-width: 24px;
+    width: 24px;
+}
+
+.osc-source-controls {
+    min-width: 0;
+    flex: 1 1 auto;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+
+    height: 28px;
+}
+
+.osc-source-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+
+    min-width: 0;
+    height: 28px;
+}
+
+.osc-source-icon {
+    width: 18px;
+    height: 18px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    flex: 0 0 18px;
+    color: var(--muted);
+}
+
+.osc-source-icon svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+.osc-child-button {
+    width: auto;
+    min-width: 30px;
+    height: 24px;
+
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+
+    font-size: var(--font-label);
+    line-height: 1;
+    text-transform: lowercase;
+}
+
+.osc-child-button.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color: var(--selected-text);
+}
+
+.osc-edit-toolbar .erase-button {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    padding: 4px;
+}
+
+.osc-edit-toolbar .value-control {
+    flex: 0 0 28px;
+    margin-left: 0;
+}
+
+.osc-edit-toolbar .value-control button {
+    width: 28px;
+    min-width: 28px;
+    padding: 0;
+}
+

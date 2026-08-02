@@ -38,13 +38,15 @@ solo: false,
 fxMuted: false,
 
     base: {
-      note: 0,
-      sine: 100,
-      noise: 0,
-      velocity: 70,
-      attack: 1,
-      decay: 5,
-      fmDepth: 0,
+  note: 0,
+  sineVolume: 100,
+  sineDecay: 5,
+  noiseVolume: 0,
+  noiseDecay: 5,
+  velocity: 70,
+  attack: 1,
+  decay: 5,
+  fmDepth: 0,
       fmRatio: 1,
       tone: 50,
       pan: 50,
@@ -62,9 +64,21 @@ fxMuted: false,
     filled(0),
 
   attack:
+  filled(0),
+
+decay:
+  filled(0),
+
+sineVolume:
+  filled(0),
+
+  sineDecay:
     filled(0),
 
-  decay:
+  noiseVolume:
+    filled(0),
+
+  noiseDecay:
     filled(0),
 
   fmDepth:
@@ -174,13 +188,13 @@ function applyInitialPatternData(
   );
 
   patternTracks[2]
-    .base.noise = 70;
+    .base.noiseVolume = 70;
 
   patternTracks[2]
-    .base.sine = 0;
+    .base.sineVolume = 0;
 
   patternTracks[2]
-    .base.decay = 1;
+    .base.noiseDecay = 1;
 
   /*
    * Track 4
@@ -206,10 +220,10 @@ function applyInitialPatternData(
     .base.noise = 45;
 
   patternTracks[3]
-    .base.sine = 0;
+    .base.sineVolume = 0;
 
   patternTracks[3]
-    .base.decay = 1;
+    .base.noiseDecay = 1;
 }
 
 /*
@@ -285,23 +299,43 @@ export const parameters = [
   },
 
   {
-    id: "sine",
-    label: "sine",
-    icon: "sine",
+    id: "sineVolume",
+    label: "sine volume",
+    icon: "volume",
     min: 0,
     max: 100,
     step: 1,
-    baseOnly: true
+    offsetMode: "offset"
   },
 
   {
-    id: "noise",
-    label: "noise",
-    icon: "noise",
+    id: "sineDecay",
+    label: "sine decay",
+    icon: "decay",
+    min: 1,
+    max: 50,
+    step: 1,
+    offsetMode: "offset"
+  },
+
+  {
+    id: "noiseVolume",
+    label: "noise volume",
+    icon: "volume",
     min: 0,
     max: 100,
     step: 1,
-    baseOnly: true
+    offsetMode: "offset"
+  },
+
+  {
+    id: "noiseDecay",
+    label: "noise decay",
+    icon: "decay",
+    min: 1,
+    max: 50,
+    step: 1,
+    offsetMode: "offset"
   },
 
   {
@@ -314,15 +348,15 @@ export const parameters = [
   offsetMode: "offset"
 },
 
-  {
-    id: "decay",
-    label: "decay",
-    icon: "decay",
-    min: 1,
-    max: 50,
-    step: 1,
-    offsetMode: "offset"
-  },
+{
+  id: "decay",
+  label: "decay",
+  icon: "decay",
+  min: 1,
+  max: 50,
+  step: 1,
+  offsetMode: "offset"
+},
 
   {
     id: "fmDepth",
@@ -1413,6 +1447,108 @@ function normalizeTrackData(track) {
 
   track.base ??= {};
   track.offsets ??= {};
+
+  /*
+   * 旧OSCデータを新しい音源別パラメーターへ移行する。
+   * 旧キーは削除せず、既存保存データの復元だけに利用する。
+   */
+  if (
+    typeof track.base.sineVolume !==
+      "number"
+  ) {
+    track.base.sineVolume =
+      typeof track.base.sine ===
+        "number"
+        ? track.base.sine
+        : 100;
+  }
+
+  if (
+    typeof track.base.noiseVolume !==
+      "number"
+  ) {
+    track.base.noiseVolume =
+      typeof track.base.noise ===
+        "number"
+        ? track.base.noise
+        : 0;
+  }
+
+  if (
+  typeof track.base.decay !==
+  "number"
+) {
+  track.base.decay = 5;
+}
+
+if (
+  !Array.isArray(
+    track.offsets.decay
+  )
+) {
+  track.offsets.decay =
+    filled(0);
+}
+
+  const legacyDecay =
+    typeof track.base.decay ===
+      "number"
+      ? track.base.decay
+      : 5;
+
+  if (
+    typeof track.base.sineDecay !==
+      "number"
+  ) {
+    track.base.sineDecay =
+      legacyDecay;
+  }
+
+  if (
+    typeof track.base.noiseDecay !==
+      "number"
+  ) {
+    track.base.noiseDecay =
+      legacyDecay;
+  }
+
+  const legacyDecayOffsets =
+    Array.isArray(
+      track.offsets.decay
+    )
+      ? track.offsets.decay
+      : filled(0);
+
+  [
+    "sineVolume",
+    "noiseVolume"
+  ].forEach(parameterId => {
+    if (
+      !Array.isArray(
+        track.offsets[parameterId]
+      )
+    ) {
+      track.offsets[parameterId] =
+        filled(0);
+    }
+  });
+
+  [
+    "sineDecay",
+    "noiseDecay"
+  ].forEach(parameterId => {
+    if (
+      !Array.isArray(
+        track.offsets[parameterId]
+      )
+    ) {
+      track.offsets[parameterId] =
+        [
+          ...legacyDecayOffsets
+        ];
+    }
+  });
+
   if (
   typeof track.fxMuted !==
   "boolean"

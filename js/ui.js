@@ -383,13 +383,34 @@ function getParameterIcon(iconId) {
 
 
 const oscParameter = {
-  ...parameters.find(parameter => parameter.id === "sine"),
   id: "osc",
   label: "OSC",
   icon: "sine",
   children: [
-    { id: "sine", label: "SINE", baseOnly: true },
-    { id: "noise", label: "NOISE", baseOnly: true }
+    {
+      id: "sineVolume",
+      source: "sine",
+      label: "SINE MIX",
+      text: "mix"
+    },
+    {
+      id: "sineDecay",
+      source: "sine",
+      label: "SINE DECAY",
+      text: "decay"
+    },
+    {
+      id: "noiseVolume",
+      source: "noise",
+      label: "NOISE MIX",
+      text: "mix"
+    },
+    {
+      id: "noiseDecay",
+      source: "noise",
+      label: "NOISE DECAY",
+      text: "decay"
+    }
   ]
 };
 
@@ -1338,7 +1359,7 @@ function parameterButton(menuItem) {
   const valueText = parameter
     ? displayBaseValue(
         parameter.id === "osc"
-          ? parameterById("sine")
+          ? parameterById("sineVolume")
           : parameter
       )
     : menuItem.label;
@@ -3134,6 +3155,286 @@ function renderOffsetGrid(parameter) {
   return grid;
 }
 
+
+function renderOscEdit() {
+  const track = selectedTrack();
+
+  const activeId =
+    oscParameter.children.some(
+      child =>
+        child.id ===
+        state.selectedChildId
+    )
+      ? state.selectedChildId
+      : "sineVolume";
+
+  state.selectedChildId =
+    activeId;
+
+  const activeParameter =
+    parameterById(activeId);
+
+  const header =
+    document.createElement("div");
+
+  header.className =
+    "edit-toolbar osc-edit-toolbar";
+
+  const trackButton =
+    document.createElement("button");
+
+  trackButton.type = "button";
+  trackButton.className =
+    "track-cycle";
+
+  trackButton.dataset.focusKey =
+    "edit-track";
+
+  trackButton.innerHTML = `
+    <span class="track-icon">
+      ${getParameterIcon("track")}
+    </span>
+
+    <span class="track-number">
+      ${track.id}
+    </span>
+  `;
+
+  trackButton.addEventListener(
+    "click",
+    () => {
+      state.selectedTrackIndex =
+        (
+          state.selectedTrackIndex +
+          1
+        ) %
+        tracks.length;
+
+      renderSequence();
+
+      renderEditorAndRestore(
+        "edit-track"
+      );
+    }
+  );
+
+  const parentButton =
+    document.createElement("button");
+
+  parentButton.type = "button";
+  parentButton.className =
+    "edit-icon osc-parent-icon";
+
+  parentButton.dataset.focusKey =
+    "edit-parameter-osc";
+
+  parentButton.innerHTML =
+    getParameterIcon("sine");
+
+  parentButton.setAttribute(
+    "aria-label",
+    "OSC編集を閉じる"
+  );
+
+  parentButton.addEventListener(
+    "click",
+    () => {
+      state.selectedParameterId =
+        null;
+
+      renderEditorAndRestore(
+        "parameter-osc"
+      );
+    }
+  );
+
+  const controls =
+    document.createElement("div");
+
+  controls.className =
+    "osc-source-controls";
+
+  function appendSourceGroup(
+    sourceId,
+    parameterIds
+  ) {
+    const group =
+      document.createElement("div");
+
+    group.className =
+      "osc-source-group";
+
+    const sourceIcon =
+      document.createElement("span");
+
+    sourceIcon.className =
+      "osc-source-icon";
+
+    sourceIcon.innerHTML =
+      getParameterIcon(sourceId);
+
+    sourceIcon.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+    group.appendChild(
+      sourceIcon
+    );
+
+    parameterIds.forEach(
+      parameterId => {
+        const definition =
+          oscParameter.children.find(
+            child =>
+              child.id ===
+              parameterId
+          );
+
+        const button =
+          document.createElement(
+            "button"
+          );
+
+        button.type = "button";
+
+        button.className =
+          "osc-child-button";
+
+        button.dataset.focusKey =
+          `child-${parameterId}`;
+
+        button.textContent =
+  definition.text;
+
+        button.setAttribute(
+          "aria-label",
+          definition.label
+        );
+
+        if (
+          activeId ===
+          parameterId
+        ) {
+          button.classList.add(
+            "active"
+          );
+        }
+
+        button.addEventListener(
+          "click",
+          () => {
+            state.selectedChildId =
+              parameterId;
+
+            renderEditorAndRestore(
+              `base-value-${parameterId}`
+            );
+          }
+        );
+
+        group.appendChild(
+          button
+        );
+      }
+    );
+
+    controls.appendChild(
+      group
+    );
+  }
+
+  appendSourceGroup(
+    "sine",
+    [
+      "sineVolume",
+      "sineDecay"
+    ]
+  );
+
+  appendSourceGroup(
+    "noise",
+    [
+      "noiseVolume",
+      "noiseDecay"
+    ]
+  );
+
+  header.append(
+    trackButton,
+    parentButton,
+    controls
+  );
+
+  const offsetEraseButton =
+    document.createElement("button");
+
+  offsetEraseButton.type =
+    "button";
+
+  offsetEraseButton.className =
+    "mini-button erase-button";
+
+  offsetEraseButton.dataset.focusKey =
+    "edit-offset-erase";
+
+  offsetEraseButton.setAttribute(
+    "aria-label",
+    `${activeParameter.label}のOffsetをダブルタップで全消去`
+  );
+
+  offsetEraseButton.innerHTML =
+    getParameterIcon("erase");
+
+  const offsets =
+    track.offsets[activeId];
+
+  if (
+    Array.isArray(offsets)
+  ) {
+    enableDoubleTapAction({
+      element:
+        offsetEraseButton,
+
+      onDoubleTap: () => {
+        const cleared =
+          clearSelectedParameterOffsets(
+            activeId
+          );
+
+        if (!cleared) {
+          return;
+        }
+
+        renderEditorAndRestore(
+          "edit-offset-erase"
+        );
+      }
+    });
+
+    header.appendChild(
+      offsetEraseButton
+    );
+  }
+
+  header.appendChild(
+    editValueControl(
+      activeParameter,
+      activeId
+    )
+  );
+
+  editor.appendChild(
+    header
+  );
+
+  editor.appendChild(
+    renderOffsetGrid(
+      activeParameter
+    )
+  );
+}
+
 function renderEdit(parameter) {
   const header = document.createElement("div");
   header.className = "edit-toolbar";
@@ -4877,8 +5178,25 @@ patternPageButton?.addEventListener(
 
 export function renderEditor() {
   editor.innerHTML = "";
-  if (!state.selectedParameterId) renderMenu();
-  else renderEdit(editorParameterById(state.selectedParameterId));
+
+  if (!state.selectedParameterId) {
+    renderMenu();
+    return;
+  }
+
+  if (
+    state.selectedParameterId ===
+      "osc"
+  ) {
+    renderOscEdit();
+    return;
+  }
+
+  renderEdit(
+    editorParameterById(
+      state.selectedParameterId
+    )
+  );
 }
 
 export function updatePlayingStep() {

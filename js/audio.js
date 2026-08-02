@@ -95,16 +95,60 @@ export async function playTrackStep(
       ) / 100
     );
 
-  const decay =
+    const decay =
+  Math.max(
+    0.03,
+    clamp(
+      (track.base.decay ?? 5) +
+        offset("decay"),
+      1,
+      50
+    ) / 10
+  );
+
+  const sineVolume =
+    clamp(
+      (track.base.sineVolume ?? 100) +
+        offset("sineVolume"),
+      0,
+      100
+    ) / 100;
+
+  const sineDecay =
     Math.max(
       0.03,
       clamp(
-        track.base.decay +
-        offset("decay"),
+        (track.base.sineDecay ?? 5) +
+          offset("sineDecay"),
         1,
         50
       ) / 10
     );
+
+  const noiseVolume =
+    clamp(
+      (track.base.noiseVolume ?? 0) +
+        offset("noiseVolume"),
+      0,
+      100
+    ) / 100;
+
+  const noiseDecay =
+    Math.max(
+      0.03,
+      clamp(
+        (track.base.noiseDecay ?? 5) +
+          offset("noiseDecay"),
+        1,
+        50
+      ) / 10
+    );
+
+  const maximumDecay =
+  Math.max(
+    sineDecay,
+    noiseDecay
+  ) + decay;
 
   const depth =
     clamp(
@@ -191,9 +235,6 @@ const delayTime =
     95
   ) / 100;
 
-  const output =
-    context.createGain();
-
   const panner =
     context.createStereoPanner();
 
@@ -233,27 +274,31 @@ const delayTime =
     filter.type = "allpass";
   }
 
-  output.gain.setValueAtTime(
+const mixGain =
+  context.createGain();
+
+mixGain.gain.setValueAtTime(
+  0.0001,
+  now
+);
+
+mixGain.gain.exponentialRampToValueAtTime(
+  Math.max(
     0.0001,
-    now
-  );
+    velocity
+  ),
+  now + attack
+);
 
-  output.gain.exponentialRampToValueAtTime(
-    Math.max(
-      0.0001,
-      velocity
-    ),
-    now + attack
-  );
+mixGain.gain.exponentialRampToValueAtTime(
+  0.0001,
+  now + attack + decay
+);
 
-  output.gain.exponentialRampToValueAtTime(
-    0.0001,
-    now + attack + decay
-  );
+mixGain
+  .connect(filter);
 
-  output
-    .connect(filter)
-    .connect(panner);
+  filter.connect(panner);
 
   /*
    * 原音は常にそのまま出力する。
@@ -323,7 +368,7 @@ const delayTime =
       Math.min(
         20,
         attack +
-        decay +
+        maximumDecay +
         delayTime *
           (repeatCount + 2)
       );
@@ -351,20 +396,26 @@ const delayTime =
     );
   }
 
-  const stopAt =
-    now +
-    attack +
-    decay +
-    0.03;
+  function scheduleSourceEnvelope(
+  gainNode,
+  level,
+  sourceDecay
+) {
+  gainNode.gain.setValueAtTime(
+    Math.max(
+      0.0001,
+      level
+    ),
+    now
+  );
 
-  const sineLevel =
-    clamp(
-      track.base.sine,
-      0,
-      100
-    ) / 100;
+  gainNode.gain.exponentialRampToValueAtTime(
+    0.0001,
+    now + sourceDecay
+  );
+}
 
-  if (sineLevel > 0) {
+  if (sineVolume > 0) {
     const carrier =
       context.createOscillator();
 
@@ -379,6 +430,15 @@ const delayTime =
 
     const carrierFrequency =
       frequency(note);
+
+    const sineStopAt =
+  now +
+  attack +
+  Math.min(
+    sineDecay,
+    decay
+  ) +
+  0.03;
 
     carrier.type = "sine";
 
@@ -405,32 +465,28 @@ const delayTime =
       now
     );
 
-    sineGain.gain.value =
-      sineLevel;
+    scheduleSourceEnvelope(
+  sineGain,
+  sineVolume,
+  sineDecay
+);
 
     modulator
       .connect(modulationGain)
       .connect(carrier.frequency);
 
     carrier
-      .connect(sineGain)
-      .connect(output);
+  .connect(sineGain)
+  .connect(filter);
 
     carrier.start(now);
     modulator.start(now);
 
-    carrier.stop(stopAt);
-    modulator.stop(stopAt);
+    carrier.stop(sineStopAt);
+    modulator.stop(sineStopAt);
   }
 
-  const noiseLevel =
-    clamp(
-      track.base.noise,
-      0,
-      100
-    ) / 100;
-
-  if (noiseLevel > 0) {
+  if (noiseVolume > 0) {
     const noise =
       context.createBufferSource();
 
@@ -438,21 +494,34 @@ const delayTime =
       context.createGain();
 
     noise.buffer =
+  makeNoiseBuffer(
+    attack +
+    Math.min(
+      noiseDecay,
+      decay
+    ) +
+    0.05
+  );
+
+    noise.buffer =
       makeNoiseBuffer(
         attack +
-        decay +
+        noiseDecay +
         0.05
       );
 
-    noiseGain.gain.value =
-      noiseLevel;
+    scheduleSourceEnvelope(
+  noiseGain,
+  noiseVolume,
+  noiseDecay
+);
 
     noise
-      .connect(noiseGain)
-      .connect(output);
+  .connect(noiseGain)
+  .connect(mixGain);
 
     noise.start(now);
-    noise.stop(stopAt);
+    noise.stop(noiseStopAt);
   }
 }
 

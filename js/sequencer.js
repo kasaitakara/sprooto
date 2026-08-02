@@ -28,6 +28,7 @@ function makeTrack(id) {
 
     /* ENV親枠へ最後に表示した子パラメーター */
     envelopeSelectedId: "decay",
+    oscSelectedId: "sineVolume",
 
     steps:
       filled(false),

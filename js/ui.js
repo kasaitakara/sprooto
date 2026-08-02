@@ -282,34 +282,49 @@ function getParameterIcon(iconId) {
 `,
 
     sustain: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M4 19h16"></path>
-        <path d="M4 11h16"></path>
-      </svg>
-    `,
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path
+      d="
+        M4 5
+        L11 15
+        H20
+        V19
+        H4
+        Z
+      "
+    ></path>
+  </svg>
+`,
 
     gate: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M4 19V7h12v12"></path>
-        <path d="M4 19h16"></path>
-      </svg>
-    `,
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <rect
+      x="4"
+      y="12"
+      width="10"
+      height="6"
+    ></rect>
+
+    <path d="M18 7V19"></path>
+    <path d="M16 7H20"></path>
+  </svg>
+`,
 
     lfo: `
       <svg
@@ -1410,10 +1425,40 @@ function displayBaseValue(parameter) {
   return String(value);
 }
 
+function currentParentParameter(menuItem) {
+  const track = selectedTrack();
+
+  // ENV
+  if (menuItem.parameter?.id === "envelope") {
+    return parameterById(
+      track.envelopeSelectedId ?? "decay"
+    );
+  }
+
+  // OSC
+  if (menuItem.parameter?.id === "osc") {
+    switch (track.oscSelectedId ?? "sineVolume") {
+      case "noiseVolume":
+      case "noiseDecay":
+        return parameterById("noiseVolume");
+
+      case "sineDecay":
+      default:
+        return parameterById("sineVolume");
+    }
+  }
+
+  return menuItem.parameter ??
+         parameterById(menuItem.parameterId);
+}
+
 function parameterButton(menuItem) {
   const parameter =
-    menuItem.parameter ??
-    parameterById(menuItem.parameterId);
+  menuItem.parameter ??
+  parameterById(menuItem.parameterId);
+
+  const parentSweepParameter =
+  currentParentParameter(menuItem);
 
   const button = document.createElement("button");
 
@@ -3297,16 +3342,25 @@ function renderOscEdit() {
   const track = selectedTrack();
 
   const activeId =
-    oscParameter.children.some(
-      child =>
-        child.id ===
-        state.selectedChildId
-    )
-      ? state.selectedChildId
+  oscParameter.children.some(
+    child =>
+      child.id ===
+      state.selectedChildId
+  )
+    ? state.selectedChildId
+    : oscParameter.children.some(
+        child =>
+          child.id ===
+          track.oscSelectedId
+      )
+      ? track.oscSelectedId
       : "sineVolume";
 
   state.selectedChildId =
     activeId;
+
+    track.oscSelectedId =
+  activeId;
 
   const activeParameter =
     parameterById(activeId);
@@ -3374,16 +3428,25 @@ function renderOscEdit() {
   );
 
   parentButton.addEventListener(
-    "click",
-    () => {
-      state.selectedParameterId =
-        null;
+  "click",
+  () => {
+    track.oscSelectedId =
+      activeId === "noiseVolume" ||
+      activeId === "noiseDecay"
+        ? "noiseVolume"
+        : "sineVolume";
 
-      renderEditorAndRestore(
-        "parameter-osc"
-      );
-    }
-  );
+    state.selectedChildId =
+      track.oscSelectedId;
+
+    state.selectedParameterId =
+      null;
+
+    renderEditorAndRestore(
+      "parameter-osc"
+    );
+  }
+);
 
   const controls =
     document.createElement("div");
@@ -3459,16 +3522,19 @@ function renderOscEdit() {
         }
 
         button.addEventListener(
-          "click",
-          () => {
-            state.selectedChildId =
-              parameterId;
+  "click",
+  () => {
+    track.oscSelectedId =
+      parameterId;
 
-            renderEditorAndRestore(
-              `base-value-${parameterId}`
-            );
-          }
-        );
+    state.selectedChildId =
+      parameterId;
+
+    renderEditorAndRestore(
+      `base-value-${parameterId}`
+    );
+  }
+);
 
         group.appendChild(
           button

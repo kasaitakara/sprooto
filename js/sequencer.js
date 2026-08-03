@@ -458,6 +458,46 @@ export const parameters = [
     offsetMode: "offset"
   },
 
+{
+  id: "lfo1Depth",
+  label: "LFO1 depth",
+  icon: "lfo",
+  min: 0,
+  max: 100,
+  step: 1,
+  offsetMode: "offset"
+},
+
+{
+  id: "lfo1Rate",
+  label: "LFO1 rate",
+  icon: "lfo",
+  min: 1,
+  max: 100,
+  step: 1,
+  offsetMode: "offset"
+},
+
+{
+  id: "lfo2Depth",
+  label: "LFO2 depth",
+  icon: "lfo",
+  min: 0,
+  max: 100,
+  step: 1,
+  offsetMode: "offset"
+},
+
+{
+  id: "lfo2Rate",
+  label: "LFO2 rate",
+  icon: "lfo",
+  min: 1,
+  max: 100,
+  step: 1,
+  offsetMode: "offset"
+},
+
   {
   id: "lfo",
   label: "lfo",

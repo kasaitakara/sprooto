@@ -4021,16 +4021,42 @@ function renderLfoEdit() {
   const track =
     selectedTrack();
 
+  const activeLfo =
+    track.lfoSelected === 2
+      ? 2
+      : 1;
+
+  const lfoParameterIds = [
+    "target",
+    "wave",
+    "depth",
+    "rate"
+  ];
+
+  const activeParameterId =
+    lfoParameterIds.includes(
+      state.selectedChildId
+    )
+      ? state.selectedChildId
+      : "target";
+
+  state.selectedChildId =
+    activeParameterId;
+
   const header =
     document.createElement("div");
 
   header.className =
     "edit-toolbar lfo-edit-toolbar";
 
+  /*
+   * Track切替
+   */
   const trackButton =
     document.createElement("button");
 
   trackButton.type = "button";
+
   trackButton.className =
     "track-cycle";
 
@@ -4065,10 +4091,14 @@ function renderLfoEdit() {
     }
   );
 
+  /*
+   * LFO編集を閉じる
+   */
   const parentButton =
     document.createElement("button");
 
   parentButton.type = "button";
+
   parentButton.className =
     "edit-icon lfo-parent-icon";
 
@@ -4095,24 +4125,417 @@ function renderLfoEdit() {
     }
   );
 
-  const temporaryLabel =
-    document.createElement("span");
+  /*
+   * LFO1／LFO2切替
+   */
+  const lfoSwitchButton =
+    document.createElement("button");
 
-  temporaryLabel.className =
-    "lfo-temporary-label";
+  lfoSwitchButton.type = "button";
 
-  temporaryLabel.textContent =
-    `LFO${track.lfoSelected ?? 1}`;
+  lfoSwitchButton.className =
+    "lfo-switch-button";
+
+  lfoSwitchButton.dataset.focusKey =
+    "lfo-switch";
+
+  lfoSwitchButton.textContent =
+    `LFO${activeLfo}`;
+
+  lfoSwitchButton.setAttribute(
+    "aria-label",
+    `LFO${activeLfo}を編集中。タップで切り替え`
+  );
+
+  lfoSwitchButton.addEventListener(
+    "click",
+    () => {
+      track.lfoSelected =
+        activeLfo === 2
+          ? 1
+          : 2;
+
+      renderEditorAndRestore(
+        "lfo-switch"
+      );
+    }
+  );
+
+  /*
+   * Target／Wave／Depth／Rate
+   */
+  const parameterControls =
+    document.createElement("div");
+
+  parameterControls.className =
+    "lfo-parameter-controls";
+
+const baseValue =
+  document.createElement("button");
+
+baseValue.type = "button";
+
+baseValue.className =
+  "base-value";
+
+baseValue.dataset.focusKey =
+  "lfo-base-value";
+
+const lfoParameterKeys =
+  activeLfo === 1
+    ? {
+        target: "lfo1Target",
+        wave: "lfo1Wave",
+        depth: "lfo1Depth",
+        rate: "lfo1Rate"
+      }
+    : {
+        target: "lfo2Target",
+        wave: "lfo2Wave",
+        depth: "lfo2Depth",
+        rate: "lfo2Rate"
+      };
+
+const activeBaseId =
+  lfoParameterKeys[
+    activeParameterId
+  ];
+
+const activeLfoParameter =
+  parameterById(
+    activeBaseId
+  );
+
+function updateLfoBaseValue() {
+  baseValue.textContent =
+    track.base[
+      activeBaseId
+    ];
+}
+
+updateLfoBaseValue();
+
+/*
+ * Depth／Rateのベース値編集
+ */
+if (
+  activeParameterId === "depth" ||
+  activeParameterId === "rate"
+) {
+  let sweepHistorySaved =
+    false;
+
+  enableVerticalSweep({
+    element: baseValue,
+
+    getValue: () => {
+      return Number(
+        track.base[
+          activeBaseId
+        ]
+      );
+    },
+
+    setValue: nextValue => {
+      if (
+        !sweepHistorySaved
+      ) {
+        saveHistory();
+
+        sweepHistorySaved =
+          true;
+      }
+
+      const correctedValue =
+        roundToStep(
+          clamp(
+            Number(nextValue),
+            activeLfoParameter.min,
+            activeLfoParameter.max
+          ),
+          activeLfoParameter.step ?? 1
+        );
+
+      track.base[
+        activeBaseId
+      ] = correctedValue;
+
+      updateLfoBaseValue();
+    },
+
+    min:
+      activeLfoParameter.min,
+
+    max:
+      activeLfoParameter.max,
+
+    step:
+      activeLfoParameter.step ?? 1,
+
+    onCommit: (
+      startValue,
+      currentValue,
+      changed
+    ) => {
+      sweepHistorySaved =
+        false;
+
+      if (!changed) {
+        return;
+      }
+
+      renderEditorAndRestore(
+        "lfo-base-value"
+      );
+    }
+  });
+}
+
+  const lfoParameterDefinitions = [
+    {
+      id: "target",
+      label: "target"
+    },
+    {
+      id: "wave",
+      label: "wave"
+    },
+    {
+      id: "depth",
+      label: "depth"
+    },
+    {
+      id: "rate",
+      label: "rate"
+    }
+  ];
+
+
+  
+  lfoParameterDefinitions.forEach(
+    definition => {
+      const button =
+        document.createElement(
+          "button"
+        );
+
+      button.type = "button";
+
+      button.className =
+        "lfo-parameter-button";
+
+      button.dataset.focusKey =
+        `lfo-parameter-${definition.id}`;
+
+      button.textContent =
+        definition.label;
+
+      button.setAttribute(
+        "aria-label",
+        `LFO${activeLfo} ${definition.label}`
+      );
+
+      if (
+        activeParameterId ===
+        definition.id
+      ) {
+        button.classList.add(
+          "active"
+        );
+      }
+
+      button.addEventListener(
+        "click",
+        () => {
+          state.selectedChildId =
+            definition.id;
+
+          renderEditorAndRestore(
+            `lfo-parameter-${definition.id}`
+          );
+        }
+      );
+
+      parameterControls.appendChild(
+        button
+      );
+    }
+  );
 
   header.append(
     trackButton,
     parentButton,
-    temporaryLabel
-  );
+    lfoSwitchButton,
+    parameterControls,
+    baseValue
+);
 
   editor.appendChild(
     header
   );
+
+    /*
+ * Target／Waveの選択肢
+ */
+if (
+  activeParameterId === "target" ||
+  activeParameterId === "wave"
+) {
+  const optionGrid =
+    document.createElement("div");
+
+  optionGrid.className =
+    "lfo-option-grid";
+
+  const prefix =
+    activeLfo === 1
+      ? "lfo1"
+      : "lfo2";
+
+  const baseId =
+    activeParameterId === "target"
+      ? `${prefix}Target`
+      : `${prefix}Wave`;
+
+  const options =
+    activeParameterId === "target"
+      ? [
+          {
+            value: "off",
+            label: "off"
+          },
+          {
+            value: "pitch",
+            label: "pitch"
+          },
+          {
+            value: "fmDepth",
+            label: "fm"
+          },
+          {
+            value: "filterCutoff",
+            label: "filter"
+          },
+          {
+            value: "pan",
+            label: "pan"
+          },
+          {
+            value: "sineDecay",
+            label: "sine decay"
+          },
+          {
+            value: "noiseDecay",
+            label: "noise decay"
+          },
+          {
+            value: "gate",
+            label: "gate"
+          }
+        ]
+      : [
+          {
+            value: "sine",
+            label: "sine"
+          },
+          {
+            value: "triangle",
+            label: "triangle"
+          },
+          {
+            value: "sawUp",
+            label: "saw up"
+          },
+          {
+            value: "sawDown",
+            label: "saw down"
+          },
+          {
+            value: "square",
+            label: "square"
+          },
+          {
+            value: "random",
+            label: "random"
+          }
+        ];
+
+  options.forEach(
+    option => {
+      const button =
+        document.createElement(
+          "button"
+        );
+
+      button.type = "button";
+
+      button.className =
+        "lfo-option-button";
+
+      button.dataset.focusKey =
+        `lfo-option-${option.value}`;
+
+      button.textContent =
+        option.label;
+
+      button.setAttribute(
+        "aria-label",
+        option.label
+      );
+
+      if (
+        track.base[baseId] ===
+        option.value
+      ) {
+        button.classList.add(
+          "active"
+        );
+      }
+
+      button.addEventListener(
+        "click",
+        () => {
+          if (
+            track.base[baseId] ===
+            option.value
+          ) {
+            return;
+          }
+
+          saveHistory();
+
+          track.base[baseId] =
+            option.value;
+
+          renderEditorAndRestore(
+            `lfo-option-${option.value}`
+          );
+        }
+      );
+
+      optionGrid.appendChild(
+        button
+      );
+    }
+  );
+
+  editor.appendChild(
+    optionGrid
+  );
+}
+/*
+ * Depth／RateのOffset
+ */
+if (
+  activeParameterId === "depth" ||
+  activeParameterId === "rate"
+) {
+  editor.appendChild(
+    renderOffsetGrid(
+      activeLfoParameter
+    )
+  );
+}
 }
 
 function renderEdit(parameter) {

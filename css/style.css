@@ -2283,3 +2283,106 @@ input.track-volume-slider::-moz-range-thumb {
     min-width: 28px;
     padding: 0;
 }
+
+/* =========================
+   LFO editor
+========================= */
+
+.lfo-edit-toolbar {
+    gap: 5px;
+}
+
+.lfo-parent-icon {
+    flex: 0 0 24px;
+    width: 24px;
+    min-width: 24px;
+}
+
+.lfo-switch-button {
+    width: auto;
+    min-width: 44px;
+    height: 24px;
+
+    padding: 0 5px;
+    border: 0;
+
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color:
+        var(--selected-text);
+
+    font-size: var(--font-label);
+    line-height: 1;
+}
+
+.lfo-parameter-controls {
+    min-width: 0;
+    flex: 1 1 auto;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 2px;
+    height: 28px;
+}
+
+.lfo-parameter-button {
+    width: auto;
+    min-width: 42px;
+    height: 24px;
+
+    padding: 0 3px;
+
+    border: 0;
+    background: transparent;
+
+    color: var(--text);
+    -webkit-text-fill-color:
+        var(--text);
+
+    font-size: var(--font-label);
+    line-height: 1;
+    text-transform: lowercase;
+}
+
+.lfo-parameter-button.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color:
+        var(--selected-text);
+}
+
+.lfo-option-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    column-gap: 5px;
+    row-gap: 4px;
+
+    margin-top: 4px;
+}
+
+.lfo-option-button {
+    width: 100%;
+    height: 24px;
+
+    padding: 0 2px;
+    border: 0;
+    background: var(--cell);
+
+    color: var(--text);
+    -webkit-text-fill-color:
+        var(--text);
+
+    font-size: var(--font-label);
+    line-height: 1;
+}
+
+.lfo-option-button.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color:
+        var(--selected-text);
+}

@@ -46,6 +46,35 @@ function frequency(note) {
   return 440 * Math.pow(2, (note - 69) / 12);
 }
 
+/*
+ * LFO Rate：
+ * UI上の1〜100を0.1〜10Hzへ変換。
+ */
+function lfoRateToHz(value) {
+  return (
+    clamp(
+      Number(value) || 1,
+      1,
+      100
+    ) / 10
+  );
+}
+
+/*
+ * LFO Depth：
+ * UI上の0〜100を
+ * 0〜1200cent（±12半音）へ変換。
+ */
+function lfoDepthToCents(value) {
+  return (
+    clamp(
+      Number(value) || 0,
+      0,
+      100
+    ) * 12
+  );
+}
+
 function makeNoiseBuffer(duration) {
   const size = Math.max(1, Math.ceil(context.sampleRate * duration));
   const buffer = context.createBuffer(1, size, context.sampleRate);
@@ -280,15 +309,165 @@ const delayTime =
   ) / 100;
 
   const panner =
-    context.createStereoPanner();
+  context.createStereoPanner();
 
-  const filter =
-    context.createBiquadFilter();
+const filter =
+  context.createBiquadFilter();
+
+/*
+ * トラック全体へ掛ける
+ * Pan LFOの停止管理用。
+ */
+const panLfoOscillators = [];
 
   panner.pan.setValueAtTime(
     panValue,
     now
   );
+
+  /*
+ * Pan LFO
+ *
+ * LFO1／LFO2のうち、
+ * Targetがpanのものだけ
+ * StereoPanner.panへ接続する。
+ */
+function connectPanLfo(
+  lfoNumber
+) {
+  const prefix =
+    `lfo${lfoNumber}`;
+
+  const target =
+    track.base[
+      `${prefix}Target`
+    ];
+
+  if (target !== "pan") {
+    return;
+  }
+
+  const lfoDepth =
+    clamp(
+      (
+        track.base[
+          `${prefix}Depth`
+        ] ?? 0
+      ) +
+        offset(
+          `${prefix}Depth`
+        ),
+      0,
+      100
+    );
+
+  if (lfoDepth <= 0) {
+    return;
+  }
+
+  const lfoRate =
+    clamp(
+      (
+        track.base[
+          `${prefix}Rate`
+        ] ?? 25
+      ) +
+        offset(
+          `${prefix}Rate`
+        ),
+      1,
+      100
+    );
+
+  const lfoOscillator =
+    context.createOscillator();
+
+  const lfoGain =
+    context.createGain();
+
+  const lfoWave =
+    track.base[
+      `${prefix}Wave`
+    ] ?? "sine";
+
+  let lfoGainDirection = 1;
+
+  switch (lfoWave) {
+    case "triangle":
+      lfoOscillator.type =
+        "triangle";
+      break;
+
+    case "square":
+      lfoOscillator.type =
+        "square";
+      break;
+
+    case "sawUp":
+      lfoOscillator.type =
+        "sawtooth";
+      break;
+
+    case "sawDown":
+      lfoOscillator.type =
+        "sawtooth";
+
+      lfoGainDirection = -1;
+      break;
+
+    case "random":
+      /*
+       * Randomは後で
+       * Sample & Holdとして実装。
+       */
+      lfoOscillator.type =
+        "sine";
+      break;
+
+    case "sine":
+    default:
+      lfoOscillator.type =
+        "sine";
+      break;
+  }
+
+  lfoOscillator.frequency
+    .setValueAtTime(
+      lfoRateToHz(
+        lfoRate
+      ),
+      now
+    );
+
+  /*
+   * Depth 100で
+   * panを最大±1揺らす。
+   */
+  lfoGain.gain
+    .setValueAtTime(
+      (
+        lfoDepth /
+        100
+      ) *
+        lfoGainDirection,
+      now
+    );
+
+  lfoOscillator
+    .connect(lfoGain)
+    .connect(panner.pan);
+
+  panLfoOscillators.push(
+    lfoOscillator
+  );
+
+  lfoOscillator.start(
+    now
+  );
+}
+
+connectPanLfo(1);
+connectPanLfo(2);
 
   if (tone < 50) {
     filter.type = "lowpass";
@@ -586,6 +765,156 @@ mixGain
 
     modulator.type = "sine";
 
+    /*
+ * Pitch LFO
+ *
+ * LFO1／LFO2のうち、
+ * Targetがpitchのものだけ
+ * carrier.detuneへ接続する。
+ */
+const pitchLfoNodes = [];
+
+function connectPitchLfo(
+  lfoNumber
+) {
+  const prefix =
+    `lfo${lfoNumber}`;
+
+  const target =
+    track.base[
+      `${prefix}Target`
+    ];
+
+  if (target !== "pitch") {
+    return;
+  }
+
+  const lfoDepth =
+    clamp(
+      (
+        track.base[
+          `${prefix}Depth`
+        ] ?? 0
+      ) +
+        offset(
+          `${prefix}Depth`
+        ),
+      0,
+      100
+    );
+
+  if (lfoDepth <= 0) {
+    return;
+  }
+
+  const lfoRate =
+    clamp(
+      (
+        track.base[
+          `${prefix}Rate`
+        ] ?? 25
+      ) +
+        offset(
+          `${prefix}Rate`
+        ),
+      1,
+      100
+    );
+
+  const lfoOscillator =
+    context.createOscillator();
+
+  const lfoGain =
+    context.createGain();
+
+  /*
+ * LFO Wave
+ */
+const lfoWave =
+  track.base[
+    `${prefix}Wave`
+  ] ?? "sine";
+
+let lfoGainDirection = 1;
+
+switch (lfoWave) {
+  case "triangle":
+    lfoOscillator.type =
+      "triangle";
+    break;
+
+  case "square":
+    lfoOscillator.type =
+      "square";
+    break;
+
+  case "sawUp":
+    lfoOscillator.type =
+      "sawtooth";
+    break;
+
+  case "sawDown":
+    lfoOscillator.type =
+      "sawtooth";
+
+    /*
+     * Saw Upを上下反転して
+     * Saw Downとして使う。
+     */
+    lfoGainDirection = -1;
+    break;
+
+  case "random":
+    /*
+     * Randomは次段階で
+     * Sample & Holdとして実装する。
+     * 現時点ではSineへフォールバック。
+     */
+    lfoOscillator.type =
+      "sine";
+    break;
+
+  case "sine":
+  default:
+    lfoOscillator.type =
+      "sine";
+    break;
+}
+
+lfoOscillator.frequency
+  .setValueAtTime(
+    lfoRateToHz(
+      lfoRate
+    ),
+    now
+  );
+
+lfoGain.gain
+  .setValueAtTime(
+    lfoDepthToCents(
+      lfoDepth
+    ) *
+      lfoGainDirection,
+    now
+  );
+
+  lfoOscillator
+    .connect(lfoGain)
+    .connect(carrier.detune);
+
+  pitchLfoNodes.push(
+    lfoOscillator,
+    lfoGain
+  );
+
+  lfoOscillator.start(
+    now
+  );
+}
+
+connectPitchLfo(1);
+connectPitchLfo(2);
+
     modulator.frequency.setValueAtTime(
       carrierFrequency *
       Math.max(
@@ -628,6 +957,18 @@ sineGain.gain.setValueAtTime(
 
     carrier.stop(sineStopAt);
     modulator.stop(sineStopAt);
+    pitchLfoNodes.forEach(
+  node => {
+    if (
+      typeof node.stop ===
+      "function"
+    ) {
+      node.stop(
+        sineStopAt
+      );
+    }
+  }
+);
   }
 
   if (noiseVolume > 0) {
@@ -658,6 +999,19 @@ noise.buffer =
     noise.start(now);
     noise.stop(noiseStopAt);
   }
+
+  /*
+ * トラック終了時に
+ * Pan LFOも停止する。
+ */
+panLfoOscillators.forEach(
+  oscillator => {
+    oscillator.stop(
+      gateEnd + 0.05
+    );
+  }
+);
+
 }
 
 export function resumeAudio() {

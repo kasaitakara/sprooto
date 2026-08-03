@@ -30,6 +30,9 @@ function makeTrack(id) {
     envelopeSelectedId: "decay",
     oscSelectedId: "sineVolume",
 
+    /* LFO編集画面で最後に選択していた系統 */
+    lfoSelected: 1,
+
     steps:
       filled(false),
 
@@ -59,7 +62,17 @@ fxMuted: false,
       delay: 0,
       delayTime: 4,
       delayFeedback: 35,
-      probability: 100
+      probability: 100,
+
+      lfo1Target: "pitch",
+      lfo1Wave: "sine",
+      lfo1Depth: 0,
+      lfo1Rate: 25,
+
+      lfo2Target: "off",
+      lfo2Wave: "sine",
+      lfo2Depth: 0,
+      lfo2Rate: 25
     },
 
     offsets: {
@@ -112,6 +125,18 @@ sineVolume:
     filled(0),
 
   probability:
+    filled(0),
+
+  lfo1Depth:
+    filled(0),
+
+  lfo1Rate:
+    filled(0),
+
+  lfo2Depth:
+    filled(0),
+
+  lfo2Rate:
     filled(0)
 }
   };
@@ -433,6 +458,42 @@ export const parameters = [
     offsetMode: "offset"
   },
 
+  {
+  id: "lfo",
+  label: "lfo",
+  icon: "lfo",
+  baseOnly: true,
+
+  children: [
+    {
+      id: "lfoTarget",
+      label: "target",
+      baseOnly: true
+    },
+
+    {
+      id: "lfoWave",
+      label: "wave",
+      baseOnly: true
+    },
+
+    {
+      id: "lfoDepth",
+      label: "depth",
+      min: 0,
+      max: 100,
+      step: 1
+    },
+
+    {
+      id: "lfoRate",
+      label: "rate",
+      min: 1,
+      max: 100,
+      step: 1
+    }
+  ]
+},
 
   {
     id: "delay",
@@ -1679,6 +1740,57 @@ if (
   track.offsets.delayFeedback =
     filled(0);
   }
+
+  /*
+   * 旧保存データへLFO初期値を補う。
+   */
+  if (
+    track.lfoSelected !== 1 &&
+    track.lfoSelected !== 2
+  ) {
+    track.lfoSelected = 1;
+  }
+
+  const lfoDefaults = {
+    lfo1Target: "pitch",
+    lfo1Wave: "sine",
+    lfo1Depth: 0,
+    lfo1Rate: 25,
+    lfo2Target: "off",
+    lfo2Wave: "sine",
+    lfo2Depth: 0,
+    lfo2Rate: 25
+  };
+
+  Object.entries(
+    lfoDefaults
+  ).forEach(
+    ([parameterId, defaultValue]) => {
+      if (
+        typeof track.base[parameterId] !==
+          typeof defaultValue
+      ) {
+        track.base[parameterId] =
+          defaultValue;
+      }
+    }
+  );
+
+  [
+    "lfo1Depth",
+    "lfo1Rate",
+    "lfo2Depth",
+    "lfo2Rate"
+  ].forEach(parameterId => {
+    if (
+      !Array.isArray(
+        track.offsets[parameterId]
+      )
+    ) {
+      track.offsets[parameterId] =
+        filled(0);
+    }
+  });
 }
 
 function normalizeSnapshotData(

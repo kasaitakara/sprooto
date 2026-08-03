@@ -509,7 +509,7 @@ const parameterMenuItems = [
   { label: "FM", parameterId: "fmDepth", icon: "fm" },
   { label: "FILTER", parameterId: "tone", icon: "tone" },
   { label: "PAN", parameterId: "pan", icon: "pan" },
-  { label: "LFO", placeholderId: "lfo", icon: "lfo" },
+  { label: "LFO", parameterId: "lfo", icon: "lfo" },
   { label: "FX", placeholderId: "fx", icon: "fx" },
   { label: "FX1", parameterId: "delay", icon: "delay" },
   { label: "FX2", placeholderId: "fx2", icon: "fx" },
@@ -1458,21 +1458,23 @@ function parameterButton(menuItem) {
   parameterById(menuItem.parameterId);
 
   const parentSweepParameter =
-  parameter?.id === "osc"
-    ? parameterById(
-        selectedTrack().oscSelectedId ===
-          "noiseVolume" ||
-        selectedTrack().oscSelectedId ===
-          "noiseDecay"
-          ? "noiseVolume"
-          : "sineVolume"
-      )
-    : parameter?.id === "envelope"
+  parameter?.id === "lfo"
+    ? null
+    : parameter?.id === "osc"
       ? parameterById(
-          selectedTrack().envelopeSelectedId ??
-          "decay"
+          selectedTrack().oscSelectedId ===
+            "noiseVolume" ||
+          selectedTrack().oscSelectedId ===
+            "noiseDecay"
+            ? "noiseVolume"
+            : "sineVolume"
         )
-      : parameter;
+      : parameter?.id === "envelope"
+        ? parameterById(
+            selectedTrack().envelopeSelectedId ??
+            "decay"
+          )
+        : parameter;
 
   const button = document.createElement("button");
 
@@ -1673,11 +1675,10 @@ function parameterButton(menuItem) {
 
   return button;
 }
-
     /*
-   * 親パラアイコンの上下スイープ。
-   */
-
+ * 親パラアイコンの上下スイープ。
+ */
+if (parentSweepParameter) {
   let parentSweepHistorySaved =
     false;
 
@@ -1685,17 +1686,15 @@ function parameterButton(menuItem) {
     element: button,
 
     getValue: () => {
-  return Number(
-    selectedTrack().base[
-      parentSweepParameter.id
-    ]
-  );
-},
+      return Number(
+        selectedTrack().base[
+          parentSweepParameter.id
+        ]
+      );
+    },
 
     setValue: nextValue => {
-      if (
-        !parentSweepHistorySaved
-      ) {
+      if (!parentSweepHistorySaved) {
         saveHistory();
 
         parentSweepHistorySaved =
@@ -1713,9 +1712,8 @@ function parameterButton(menuItem) {
         );
 
       selectedTrack().base[
-  parentSweepParameter.id
-] =
-  correctedValue;
+        parentSweepParameter.id
+      ] = correctedValue;
 
       const valueElement =
         button.querySelector(
@@ -1739,15 +1737,10 @@ function parameterButton(menuItem) {
       );
     },
 
-    min:
-      parentSweepParameter.min,
-
-    max:
-      parentSweepParameter.max,
-
+    min: parentSweepParameter.min,
+    max: parentSweepParameter.max,
     step:
-      parentSweepParameter.step ??
-      1,
+      parentSweepParameter.step ?? 1,
 
     acceleration:
       parentSweepParameter.id !==
@@ -1770,56 +1763,57 @@ function parameterButton(menuItem) {
       );
     }
   });
+}
 
-  /*
-   * 通常タップでは編集画面へ入る。
-   * スイープ後のクリックは
-   * enableVerticalSweep側で抑止される。
-   */
-  button.addEventListener(
-    "click",
-    () => {
-      state.selectedParameterId =
-        parameter.id;
+/*
+ * ここから下はifの外。
+ */
+button.addEventListener(
+  "click",
+  () => {
+    state.selectedParameterId =
+      parameter.id;
 
-      const activeId =
-        parameter.id === "envelope"
+    const activeId =
+      parameter.id === "envelope"
+        ? (
+            envelopeParameter.children.some(
+              child =>
+                child.id ===
+                selectedTrack().envelopeSelectedId
+            )
+              ? selectedTrack().envelopeSelectedId
+              : "decay"
+          )
+        : parameter.id === "osc"
           ? (
-              envelopeParameter.children.some(
+              oscParameter.children.some(
                 child =>
                   child.id ===
-                  selectedTrack().envelopeSelectedId
+                  selectedTrack().oscSelectedId
               )
-                ? selectedTrack().envelopeSelectedId
-                : "decay"
+                ? selectedTrack().oscSelectedId
+                : "sineVolume"
             )
-          : parameter.id === "osc"
-            ? (
-                oscParameter.children.some(
-                  child =>
-                    child.id ===
-                    selectedTrack().oscSelectedId
-                )
-                  ? selectedTrack().oscSelectedId
-                  : "sineVolume"
-              )
+          : parameter.id === "lfo"
+            ? "lfoTarget"
             : (
                 parameter.children?.[0]?.id ??
                 parameter.id
               );
 
-      state.selectedChildId =
-        activeId;
+    state.selectedChildId =
+      activeId;
 
-      renderEditorAndRestore(
-        `base-value-${activeId}`
-      );
-    }
-  );
+    renderEditorAndRestore(
+      parameter.id === "lfo"
+        ? "edit-parameter-lfo"
+        : `base-value-${activeId}`
+    );
+  }
+);
 
-  return button;
-
-  return button;
+return button;
 }
 
 function createTrackLengthInput(focusKey) {
@@ -4023,6 +4017,104 @@ function renderEnvelopeEdit() {
   );
 }
 
+function renderLfoEdit() {
+  const track =
+    selectedTrack();
+
+  const header =
+    document.createElement("div");
+
+  header.className =
+    "edit-toolbar lfo-edit-toolbar";
+
+  const trackButton =
+    document.createElement("button");
+
+  trackButton.type = "button";
+  trackButton.className =
+    "track-cycle";
+
+  trackButton.dataset.focusKey =
+    "edit-track";
+
+  trackButton.innerHTML = `
+    <span class="track-icon">
+      ${getParameterIcon("track")}
+    </span>
+
+    <span class="track-number">
+      ${track.id}
+    </span>
+  `;
+
+  trackButton.addEventListener(
+    "click",
+    () => {
+      state.selectedTrackIndex =
+        (
+          state.selectedTrackIndex +
+          1
+        ) %
+        tracks.length;
+
+      renderSequence();
+
+      renderEditorAndRestore(
+        "edit-track"
+      );
+    }
+  );
+
+  const parentButton =
+    document.createElement("button");
+
+  parentButton.type = "button";
+  parentButton.className =
+    "edit-icon lfo-parent-icon";
+
+  parentButton.dataset.focusKey =
+    "edit-parameter-lfo";
+
+  parentButton.innerHTML =
+    getParameterIcon("lfo");
+
+  parentButton.setAttribute(
+    "aria-label",
+    "LFO編集を閉じる"
+  );
+
+  parentButton.addEventListener(
+    "click",
+    () => {
+      state.selectedParameterId =
+        null;
+
+      renderEditorAndRestore(
+        "parameter-lfo"
+      );
+    }
+  );
+
+  const temporaryLabel =
+    document.createElement("span");
+
+  temporaryLabel.className =
+    "lfo-temporary-label";
+
+  temporaryLabel.textContent =
+    `LFO${track.lfoSelected ?? 1}`;
+
+  header.append(
+    trackButton,
+    parentButton,
+    temporaryLabel
+  );
+
+  editor.appendChild(
+    header
+  );
+}
+
 function renderEdit(parameter) {
   const header = document.createElement("div");
   header.className = "edit-toolbar";
@@ -5787,6 +5879,14 @@ export function renderEditor() {
     renderEnvelopeEdit();
     return;
   }
+
+  if (
+  state.selectedParameterId ===
+    "lfo"
+) {
+  renderLfoEdit();
+  return;
+}
 
   renderEdit(
     editorParameterById(

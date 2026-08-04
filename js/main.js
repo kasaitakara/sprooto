@@ -35,6 +35,14 @@ import "./keyboard-navigation.js";
 
 let timer = null;
 let nextTickTime = 0;
+/*
+ * 発音時刻より少し前にtickを実行し、
+ * Web Audioへ先行予約する。
+ *
+ * BPM 300の16分音符が50ms間隔なので、
+ * それを超えない45msとする。
+ */
+const AUDIO_LOOKAHEAD_MS = 45;
 const playButton = document.getElementById("play-button");
 const bpmInput = document.getElementById("bpm-input");
 const volumeInput = document.getElementById("master-volume");
@@ -89,9 +97,16 @@ function duration() {
 function scheduleNextTick() {
   nextTickTime += duration();
 
+  /*
+   * 実際の発音予定時刻より
+   * AUDIO_LOOKAHEAD_MSだけ早く
+   * tickを実行する。
+   */
   const delay = Math.max(
     0,
-    nextTickTime - performance.now()
+    nextTickTime -
+      performance.now() -
+      AUDIO_LOOKAHEAD_MS
   );
 
   timer = setTimeout(
@@ -150,7 +165,23 @@ function swingDelaySeconds(track, stepIndex) {
   );
 }
 
-function playCurrentStep() {
+function playCurrentStep(
+  plannedPerformanceTime =
+    performance.now()
+) {
+  /*
+   * AudioContextへ渡す、
+   * 現在から発音予定時刻までの待ち時間。
+   */
+  const scheduleDelaySeconds =
+    Math.max(
+      0,
+      (
+        plannedPerformanceTime -
+        performance.now()
+      ) / 1000
+    );
+
   tracks.forEach(track => {
     const trackStepIndex =
   state.playbackTickIndex %
@@ -177,13 +208,14 @@ function playCurrentStep() {
       probability
     ) {
       playTrackStep(
-        track,
-        trackStepIndex,
-        swingDelaySeconds(
-          track,
-          trackStepIndex
-        )
-      );
+  track,
+  trackStepIndex,
+  scheduleDelaySeconds +
+    swingDelaySeconds(
+      track,
+      trackStepIndex
+    )
+);
     }
   });
 }
@@ -238,7 +270,9 @@ if (sourceChanged) {
   updatePlayingStep();
 }
 
-    playCurrentStep();
+    playCurrentStep(
+  nextTickTime
+);
 
     scheduleNextTick();
 
@@ -251,7 +285,9 @@ if (sourceChanged) {
 state.playbackTickIndex += 1;
 
 updatePlayingStep();
-playCurrentStep();
+playCurrentStep(
+  nextTickTime
+);
 
   scheduleNextTick();
 }

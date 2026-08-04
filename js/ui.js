@@ -92,6 +92,126 @@ const PATTERNS_PER_PAGE = 12;
 const FILLS_PER_PAGE = 4;
 const SECTIONS_PER_PAGE = 8;
 
+const LFO_BPM_RATE_NAMES = [
+  "1/64",
+  "1/32T",
+  "1/32",
+  "1/16T",
+  "1/16",
+  "1/8T",
+  "1/8",
+  "1/4T",
+  "1/4",
+  "1/2T",
+  "1/2",
+  "1/1",
+  "2/1",
+  "4/1"
+];
+
+const LFO_BPM_BEAT_RATIOS = [
+  1 / 16,
+  1 / 12,
+  1 / 8,
+  1 / 6,
+  1 / 4,
+  1 / 3,
+  1 / 2,
+  2 / 3,
+  1,
+  4 / 3,
+  2,
+  4,
+  8,
+  16
+];
+
+function currentBpm() {
+  return Math.max(
+    1,
+    Number(
+      document.getElementById(
+        "bpm-input"
+      )?.value
+    ) || 120
+  );
+}
+
+function freeRateToBpmIndex(
+  freeRate
+) {
+  const freeHz =
+    clamp(
+      Number(freeRate) || 1,
+      1,
+      100
+    ) / 10;
+
+  const bpm =
+    currentBpm();
+
+  let nearestIndex = 0;
+  let nearestDifference =
+    Infinity;
+
+  LFO_BPM_BEAT_RATIOS.forEach(
+    (beatRatio, index) => {
+      const syncedHz =
+        1 /
+        (
+          (60 / bpm) *
+          beatRatio
+        );
+
+      const difference =
+        Math.abs(
+          syncedHz - freeHz
+        );
+
+      if (
+        difference <
+        nearestDifference
+      ) {
+        nearestDifference =
+          difference;
+
+        nearestIndex =
+          index;
+      }
+    }
+  );
+
+  return nearestIndex;
+}
+
+function bpmIndexToFreeRate(
+  bpmIndex
+) {
+  const index =
+    clamp(
+      Math.round(
+        Number(bpmIndex) || 0
+      ),
+      0,
+      LFO_BPM_BEAT_RATIOS.length - 1
+    );
+
+  const syncedHz =
+    1 /
+    (
+      (60 / currentBpm()) *
+      LFO_BPM_BEAT_RATIOS[index]
+    );
+
+  return clamp(
+    Math.round(
+      syncedHz * 10
+    ),
+    1,
+    100
+  );
+}
+
 let patternManagerPage = 0;
 
 function getParameterIcon(iconId) {
@@ -1459,7 +1579,11 @@ function parameterButton(menuItem) {
 
   const parentSweepParameter =
   parameter?.id === "lfo"
-    ? null
+    ? parameterById(
+        selectedTrack().lfoSelected === 2
+          ? "lfo2Depth"
+          : "lfo1Depth"
+      )
     : parameter?.id === "osc"
       ? parameterById(
           selectedTrack().oscSelectedId ===
@@ -1507,7 +1631,9 @@ function parameterButton(menuItem) {
       : null;
 
   const displayedParameter =
-  parameter?.id === "osc"
+  parameter?.id === "lfo"
+    ? parentSweepParameter
+    : parameter?.id === "osc"
     ? parentSweepParameter
     : parameter?.id === "envelope"
       ? parameterById(
@@ -1539,8 +1665,13 @@ function parameterButton(menuItem) {
       : menuItem.label;
 
   button.innerHTML = `
-    <span class="parameter-icon">
+    <span class="parameter-icon${parameter?.id === "lfo" ? " lfo-menu-icon" : ""}">
       ${getParameterIcon(displayedIcon)}
+      ${
+        parameter?.id === "lfo"
+          ? `<span class="lfo-menu-number">${selectedTrack().lfoSelected === 2 ? "2" : "1"}</span>`
+          : ""
+      }
     </span>
 
     <span class="parameter-value">
@@ -1796,7 +1927,7 @@ button.addEventListener(
                 : "sineVolume"
             )
           : parameter.id === "lfo"
-            ? "lfoTarget"
+            ? "settings"
             : (
                 parameter.children?.[0]?.id ??
                 parameter.id
@@ -4018,524 +4149,343 @@ function renderEnvelopeEdit() {
 }
 
 function renderLfoEdit() {
-  const track =
-    selectedTrack();
-
-  const activeLfo =
-    track.lfoSelected === 2
-      ? 2
-      : 1;
-
-  const lfoParameterIds = [
-    "target",
-    "wave",
-    "depth",
-    "rate"
-  ];
-
-  const activeParameterId =
-    lfoParameterIds.includes(
-      state.selectedChildId
-    )
+  const track = selectedTrack();
+  const activeLfo = track.lfoSelected === 2 ? 2 : 1;
+  const activeView =
+    state.selectedChildId === "depth" ||
+    state.selectedChildId === "rate"
       ? state.selectedChildId
-      : "target";
+      : "settings";
 
-  state.selectedChildId =
-    activeParameterId;
+  state.selectedChildId = activeView;
 
-  const header =
-    document.createElement("div");
+  const prefix = `lfo${activeLfo}`;
+  const parameterKeys = {
+    target: `${prefix}Target`,
+    wave: `${prefix}Wave`,
+    depth: `${prefix}Depth`,
+    rate: `${prefix}Rate`,
+    syncMode: `${prefix}SyncMode`
+  };
 
-  header.className =
-    "edit-toolbar lfo-edit-toolbar";
+  const header = document.createElement("div");
+  header.className = "edit-toolbar lfo-edit-toolbar";
 
-  /*
-   * Track切替
-   */
-  const trackButton =
-    document.createElement("button");
-
+  const trackButton = document.createElement("button");
   trackButton.type = "button";
-
-  trackButton.className =
-    "track-cycle";
-
-  trackButton.dataset.focusKey =
-    "edit-track";
-
+  trackButton.className = "track-cycle";
+  trackButton.dataset.focusKey = "edit-track";
   trackButton.innerHTML = `
-    <span class="track-icon">
-      ${getParameterIcon("track")}
-    </span>
-
-    <span class="track-number">
-      ${track.id}
-    </span>
+    <span class="track-icon">${getParameterIcon("track")}</span>
+    <span class="track-number">${track.id}</span>
   `;
+  trackButton.addEventListener("click", () => {
+    state.selectedTrackIndex =
+      (state.selectedTrackIndex + 1) % tracks.length;
+    renderSequence();
+    renderEditorAndRestore("edit-track");
+  });
 
-  trackButton.addEventListener(
-    "click",
-    () => {
-      state.selectedTrackIndex =
-        (
-          state.selectedTrackIndex +
-          1
-        ) %
-        tracks.length;
-
-      renderSequence();
-
-      renderEditorAndRestore(
-        "edit-track"
-      );
-    }
-  );
-
-  /*
-   * LFO編集を閉じる
-   */
-  const parentButton =
-    document.createElement("button");
-
+  const parentButton = document.createElement("button");
   parentButton.type = "button";
+  parentButton.className = "edit-icon lfo-parent-icon";
+  parentButton.dataset.focusKey = "edit-parameter-lfo";
+  parentButton.innerHTML = getParameterIcon("lfo");
+  parentButton.setAttribute("aria-label", "LFO編集を閉じる");
+  parentButton.addEventListener("click", () => {
+    state.selectedParameterId = null;
+    renderEditorAndRestore("parameter-lfo");
+  });
 
-  parentButton.className =
-    "edit-icon lfo-parent-icon";
+  header.append(trackButton, parentButton);
 
-  parentButton.dataset.focusKey =
-    "edit-parameter-lfo";
+  [1, 2].forEach(lfoNumber => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lfo-switch-button";
+    button.dataset.focusKey = `lfo-switch-${lfoNumber}`;
+    button.textContent = String(lfoNumber);
+    button.setAttribute("aria-label", `lfo ${lfoNumber}を選択`);
+    if (activeLfo === lfoNumber) button.classList.add("active");
+    button.addEventListener("click", () => {
+      track.lfoSelected = lfoNumber;
+      state.selectedChildId = "settings";
+      renderEditorAndRestore(`lfo-switch-${lfoNumber}`);
+    });
+    header.appendChild(button);
+  });
 
-  parentButton.innerHTML =
-    getParameterIcon("lfo");
+  ["depth", "rate"].forEach(id => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lfo-parameter-button";
+    button.dataset.focusKey = `lfo-parameter-${id}`;
+    button.textContent = id;
+    button.setAttribute("aria-label", `lfo ${activeLfo} ${id}`);
+    if (activeView === id) button.classList.add("active");
+    button.addEventListener("click", () => {
+      state.selectedChildId = id;
+      renderEditorAndRestore(`lfo-parameter-${id}`);
+    });
+    header.appendChild(button);
+  });
 
-  parentButton.setAttribute(
-    "aria-label",
-    "LFO編集を閉じる"
-  );
-
-  parentButton.addEventListener(
-    "click",
-    () => {
-      state.selectedParameterId =
-        null;
-
-      renderEditorAndRestore(
-        "parameter-lfo"
-      );
-    }
-  );
-
-  /*
-   * LFO1／LFO2切替
-   */
-  const lfoSwitchButton =
-    document.createElement("button");
-
-  lfoSwitchButton.type = "button";
-
-  lfoSwitchButton.className =
-    "lfo-switch-button";
-
-  lfoSwitchButton.dataset.focusKey =
-    "lfo-switch";
-
-  lfoSwitchButton.textContent =
-    `LFO${activeLfo}`;
-
-  lfoSwitchButton.setAttribute(
-    "aria-label",
-    `LFO${activeLfo}を編集中。タップで切り替え`
-  );
-
-  lfoSwitchButton.addEventListener(
-    "click",
-    () => {
-      track.lfoSelected =
-        activeLfo === 2
-          ? 1
-          : 2;
-
-      renderEditorAndRestore(
-        "lfo-switch"
-      );
-    }
-  );
+  const syncMode =
+    track.base[parameterKeys.syncMode] === "bpm"
+      ? "bpm"
+      : "free";
 
   /*
-   * Target／Wave／Depth／Rate
+   * bpm / freeはRateの単位と動作だけに関係するため、
+   * Rate編集時だけ表示する。
    */
-  const parameterControls =
-    document.createElement("div");
+  if (activeView === "rate") {
+    const syncButton =
+      document.createElement("button");
 
-  parameterControls.className =
-    "lfo-parameter-controls";
+    syncButton.type = "button";
+    syncButton.className =
+      "lfo-sync-button";
 
-const baseValue =
-  document.createElement("button");
+    syncButton.dataset.focusKey =
+      "lfo-sync-mode";
 
-baseValue.type = "button";
+    syncButton.textContent =
+      syncMode;
 
-baseValue.className =
-  "base-value";
+    syncButton.setAttribute(
+      "aria-label",
+      `lfo ${activeLfo} rate ${syncMode}`
+    );
 
-baseValue.dataset.focusKey =
-  "lfo-base-value";
+    syncButton.addEventListener(
+  "click",
+  () => {
+    saveHistory();
 
-const lfoParameterKeys =
-  activeLfo === 1
-    ? {
-        target: "lfo1Target",
-        wave: "lfo1Wave",
-        depth: "lfo1Depth",
-        rate: "lfo1Rate"
-      }
-    : {
-        target: "lfo2Target",
-        wave: "lfo2Wave",
-        depth: "lfo2Depth",
-        rate: "lfo2Rate"
-      };
+    const rateId =
+      parameterKeys.rate;
 
-const activeBaseId =
-  lfoParameterKeys[
-    activeParameterId
-  ];
+    if (syncMode === "bpm") {
+      /*
+       * BPM → FREE
+       * 現在の音価に近いHzへ変換する。
+       */
+      track.base[rateId] =
+        bpmIndexToFreeRate(
+          track.base[rateId]
+        );
 
-const activeLfoParameter =
+      track.base[
+        parameterKeys.syncMode
+      ] = "free";
+    } else {
+      /*
+       * FREE → BPM
+       * 現在のHzに最も近い音価へ変換する。
+       */
+      track.base[rateId] =
+        freeRateToBpmIndex(
+          track.base[rateId]
+        );
+
+      track.base[
+        parameterKeys.syncMode
+      ] = "bpm";
+    }
+
+    renderEditorAndRestore(
+      "lfo-sync-mode"
+    );
+  }
+);
+
+    header.appendChild(
+      syncButton
+    );
+  }
+
+  if (activeView === "depth" || activeView === "rate") {
+    const activeBaseId = parameterKeys[activeView];
+    const sourceParameter =
   parameterById(
     activeBaseId
   );
 
-function updateLfoBaseValue() {
-  baseValue.textContent =
-    track.base[
-      activeBaseId
-    ];
-}
-
-updateLfoBaseValue();
-
-/*
- * Depth／Rateのベース値編集
- */
-if (
-  activeParameterId === "depth" ||
-  activeParameterId === "rate"
-) {
-  let sweepHistorySaved =
-    false;
-
-  enableVerticalSweep({
-    element: baseValue,
-
-    getValue: () => {
-      return Number(
-        track.base[
-          activeBaseId
-        ]
-      );
-    },
-
-    setValue: nextValue => {
-      if (
-        !sweepHistorySaved
-      ) {
-        saveHistory();
-
-        sweepHistorySaved =
-          true;
+const activeParameter =
+  activeView === "rate" &&
+  syncMode === "bpm"
+    ? {
+        ...sourceParameter,
+        min: 0,
+        max:
+          LFO_BPM_RATE_NAMES.length -
+          1,
+        step: 1
       }
+    : sourceParameter;
 
-      const correctedValue =
-        roundToStep(
-          clamp(
-            Number(nextValue),
-            activeLfoParameter.min,
-            activeLfoParameter.max
-          ),
-          activeLfoParameter.step ?? 1
-        );
-
-      track.base[
-        activeBaseId
-      ] = correctedValue;
-
-      updateLfoBaseValue();
-    },
-
-    min:
-      activeLfoParameter.min,
-
-    max:
-      activeLfoParameter.max,
-
-    step:
-      activeLfoParameter.step ?? 1,
-
-    onCommit: (
-      startValue,
-      currentValue,
-      changed
-    ) => {
-      sweepHistorySaved =
-        false;
-
-      if (!changed) {
-        return;
+    const eraseButton = document.createElement("button");
+    eraseButton.type = "button";
+    eraseButton.className = "mini-button erase-button lfo-erase-button";
+    eraseButton.dataset.focusKey = "edit-offset-erase";
+    eraseButton.innerHTML = getParameterIcon("erase");
+    eraseButton.setAttribute("aria-label", `${activeParameter.label}のOffsetをダブルタップで全消去`);
+    enableDoubleTapAction({
+      element: eraseButton,
+      onDoubleTap: () => {
+        if (!clearSelectedParameterOffsets(activeBaseId)) return;
+        renderEditorAndRestore("edit-offset-erase");
       }
+    });
+    header.appendChild(eraseButton);
 
-      renderEditorAndRestore(
-        "lfo-base-value"
-      );
-    }
-  });
-}
+    const baseValue = document.createElement("button");
+    baseValue.type = "button";
+    baseValue.className = "base-value lfo-base-value";
+    baseValue.dataset.focusKey = "lfo-base-value";
 
-  const lfoParameterDefinitions = [
-    {
-      id: "target",
-      label: "target"
-    },
-    {
-      id: "wave",
-      label: "wave"
-    },
-    {
-      id: "depth",
-      label: "depth"
-    },
-    {
-      id: "rate",
-      label: "rate"
-    }
-  ];
+    const rateName = value => {
+  const index =
+    clamp(
+      Math.round(
+        Number(value) || 0
+      ),
+      0,
+      LFO_BPM_RATE_NAMES.length - 1
+    );
 
-
-  
-  lfoParameterDefinitions.forEach(
-    definition => {
-      const button =
-        document.createElement(
-          "button"
-        );
-
-      button.type = "button";
-
-      button.className =
-        "lfo-parameter-button";
-
-      button.dataset.focusKey =
-        `lfo-parameter-${definition.id}`;
-
-      button.textContent =
-        definition.label;
-
-      button.setAttribute(
-        "aria-label",
-        `LFO${activeLfo} ${definition.label}`
-      );
-
-      if (
-        activeParameterId ===
-        definition.id
-      ) {
-        button.classList.add(
-          "active"
-        );
-      }
-
-      button.addEventListener(
-        "click",
-        () => {
-          state.selectedChildId =
-            definition.id;
-
-          renderEditorAndRestore(
-            `lfo-parameter-${definition.id}`
-          );
-        }
-      );
-
-      parameterControls.appendChild(
-        button
-      );
-    }
+  return (
+    LFO_BPM_RATE_NAMES[index] ??
+    "1/4"
   );
+};
+    const updateBaseValue = () => {
+      const value = track.base[activeBaseId];
+      baseValue.textContent =
+        activeView === "rate" && syncMode === "bpm"
+          ? rateName(value)
+          : activeView === "rate"
+            ? `${(Number(value) / 10).toFixed(1)}Hz`
+            : String(value);
+    };
+    updateBaseValue();
 
-  header.append(
-    trackButton,
-    parentButton,
-    lfoSwitchButton,
-    parameterControls,
-    baseValue
-);
-
-  editor.appendChild(
-    header
-  );
-
-    /*
- * Target／Waveの選択肢
- */
-if (
-  activeParameterId === "target" ||
-  activeParameterId === "wave"
-) {
-  const optionGrid =
-    document.createElement("div");
-
-  optionGrid.className =
-    "lfo-option-grid";
-
-  const prefix =
-    activeLfo === 1
-      ? "lfo1"
-      : "lfo2";
-
-  const baseId =
-    activeParameterId === "target"
-      ? `${prefix}Target`
-      : `${prefix}Wave`;
-
-  const options =
-    activeParameterId === "target"
-      ? [
-          {
-            value: "off",
-            label: "off"
-          },
-          {
-            value: "pitch",
-            label: "pitch"
-          },
-          {
-            value: "fmDepth",
-            label: "fm"
-          },
-          {
-            value: "filterCutoff",
-            label: "filter"
-          },
-          {
-            value: "pan",
-            label: "pan"
-          },
-          {
-            value: "sineDecay",
-            label: "sine decay"
-          },
-          {
-            value: "noiseDecay",
-            label: "noise decay"
-          },
-          {
-            value: "gate",
-            label: "gate"
-          }
-        ]
-      : [
-          {
-            value: "sine",
-            label: "sine"
-          },
-          {
-            value: "triangle",
-            label: "triangle"
-          },
-          {
-            value: "sawUp",
-            label: "saw up"
-          },
-          {
-            value: "sawDown",
-            label: "saw down"
-          },
-          {
-            value: "square",
-            label: "square"
-          },
-          {
-            value: "random",
-            label: "random"
-          }
-        ];
-
-  options.forEach(
-    option => {
-      const button =
-        document.createElement(
-          "button"
-        );
-
-      button.type = "button";
-
-      button.className =
-        "lfo-option-button";
-
-      button.dataset.focusKey =
-        `lfo-option-${option.value}`;
-
-      button.textContent =
-        option.label;
-
-      button.setAttribute(
-        "aria-label",
-        option.label
-      );
-
-      if (
-        track.base[baseId] ===
-        option.value
-      ) {
-        button.classList.add(
-          "active"
-        );
-      }
-
-      button.addEventListener(
-        "click",
-        () => {
-          if (
-            track.base[baseId] ===
-            option.value
-          ) {
-            return;
-          }
-
+    let sweepHistorySaved = false;
+    enableVerticalSweep({
+      element: baseValue,
+      getValue: () => Number(track.base[activeBaseId]),
+      setValue: nextValue => {
+        if (!sweepHistorySaved) {
           saveHistory();
-
-          track.base[baseId] =
-            option.value;
-
-          renderEditorAndRestore(
-            `lfo-option-${option.value}`
-          );
+          sweepHistorySaved = true;
         }
-      );
+        track.base[activeBaseId] = roundToStep(
+          clamp(Number(nextValue), activeParameter.min, activeParameter.max),
+          activeParameter.step ?? 1
+        );
+        updateBaseValue();
+      },
+      min: activeParameter.min,
+      max: activeParameter.max,
+      step: activeParameter.step ?? 1,
+      onCommit: (startValue, currentValue, changed) => {
+        sweepHistorySaved = false;
+        if (changed) renderEditorAndRestore("lfo-base-value");
+      }
+    });
 
-      optionGrid.appendChild(
-        button
-      );
-    }
-  );
+    header.appendChild(baseValue);
+    editor.append(header, renderOffsetGrid(activeParameter));
+    return;
+  }
 
-  editor.appendChild(
-    optionGrid
+  editor.appendChild(header);
+
+  const settings = document.createElement("div");
+  settings.className = "lfo-settings";
+  const createSectionLabel = text => {
+    const label = document.createElement("div");
+    label.className = "lfo-settings-label";
+    label.textContent = text;
+    return label;
+  };
+  const setLfoOption = (baseId, value, focusKey) => {
+    if (track.base[baseId] === value) return;
+    saveHistory();
+    track.base[baseId] = value;
+    renderEditorAndRestore(focusKey);
+  };
+
+  const targetGrid = document.createElement("div");
+  targetGrid.className = "lfo-target-grid";
+  [
+    ["pitch", "Pitch", "note"],
+    ["fmDepth", "FM", "fm"],
+    ["filterCutoff", "Filter", "tone"],
+    ["pan", "Pan", "pan"],
+    ["decay", "Decay", "decay"],
+    ["gate", "Gate", "gate"]
+  ].forEach(([value, label, icon]) => {
+    const button = document.createElement("button");
+    const focusKey = `lfo-target-${value}`;
+    button.type = "button";
+    button.className = "lfo-target-button";
+    button.dataset.focusKey = focusKey;
+    button.innerHTML = `<span class="lfo-target-icon">${getParameterIcon(icon)}</span>`;
+    button.setAttribute("aria-label", label);
+    const currentTarget = track.base[parameterKeys.target];
+    if (
+      currentTarget === value ||
+      (value === "decay" && ["decay", "sineDecay", "noiseDecay"].includes(currentTarget))
+    ) button.classList.add("active");
+    button.addEventListener("click", () => setLfoOption(parameterKeys.target, value, focusKey));
+    targetGrid.appendChild(button);
+  });
+
+  function getWaveSvg(waveId) {
+    const paths = {
+      sine: `<path d="M2 14 C8 3 14 3 20 14 S32 25 38 14 S50 3 56 14 S68 25 74 14" />`,
+      triangle: `<path d="M2 14 L11 5 L20 23 L29 5 L38 23 L47 5 L56 23 L65 5 L74 14" />`,
+      sawUp: `<path d="M2 23 L20 5 L20 23 L38 5 L38 23 L56 5 L56 23 L74 5" />`,
+      sawDown: `<path d="M2 5 L2 23 L20 5 L20 23 L38 5 L38 23 L56 5 L56 23 L74 5" />`,
+      square: `<path d="M2 22 V6 H14 V22 H26 V6 H38 V22 H50 V6 H62 V22 H74" />`,
+      random: `<path d="M2 18 H12 V8 H24 V21 H36 V11 H48 V5 H60 V19 H74" />`,
+      rise: `<path d="M2 23 C10 23 14 18 20 12 S34 4 50 4 S66 4 74 4"/>`,
+      fall: `<path d="M2 4 C10 4 14 9 20 15 S34 23 50 23 S66 23 74 23"/>`,
+    };
+    return `<svg viewBox="0 0 76 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[waveId] ?? paths.sine}</svg>`;
+  }
+
+  const waveGrid = document.createElement("div");
+  waveGrid.className = "lfo-wave-grid";
+  [
+  ["sine", "Sine"],
+  ["triangle", "Triangle"],
+  ["sawUp", "Saw Up"],
+  ["sawDown", "Saw Down"],
+  ["square", "Square"],
+  ["random", "Random"],
+  ["rise", "Rise"],
+  ["fall", "Fall"]
+].forEach(([value, label]) => {
+    const button = document.createElement("button");
+    const focusKey = `lfo-wave-${value}`;
+    button.type = "button";
+    button.className = "lfo-wave-button";
+    button.dataset.focusKey = focusKey;
+    button.innerHTML = getWaveSvg(value);
+    button.setAttribute("aria-label", label);
+    if (track.base[parameterKeys.wave] === value) button.classList.add("active");
+    button.addEventListener("click", () => setLfoOption(parameterKeys.wave, value, focusKey));
+    waveGrid.appendChild(button);
+  });
+
+  settings.append(
+    createSectionLabel("target"), targetGrid,
+    createSectionLabel("wave"), waveGrid
   );
-}
-/*
- * Depth／RateのOffset
- */
-if (
-  activeParameterId === "depth" ||
-  activeParameterId === "rate"
-) {
-  editor.appendChild(
-    renderOffsetGrid(
-      activeLfoParameter
-    )
-  );
-}
+  editor.appendChild(settings);
 }
 
 function renderEdit(parameter) {

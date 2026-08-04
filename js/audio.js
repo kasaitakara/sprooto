@@ -50,20 +50,69 @@ function frequency(note) {
  * LFO Rate：
  * UI上の1〜100を0.1〜10Hzへ変換。
  */
-function lfoRateToHz(value) {
-  return (
+function lfoRateToHz(
+  value,
+  syncMode = "free",
+  bpm = 120
+) {
+  if (syncMode !== "bpm") {
+    return (
+      clamp(
+        Number(value) || 1,
+        1,
+        100
+      ) / 10
+    );
+  }
+
+  const beatRatios = [
+    1 / 16,
+    1 / 12,
+    1 / 8,
+    1 / 6,
+    1 / 4,
+    1 / 3,
+    1 / 2,
+    2 / 3,
+    1,
+    4 / 3,
+    2,
+    4,
+    8,
+    16
+  ];
+
+  const index =
     clamp(
-      Number(value) || 1,
-      1,
-      100
-    ) / 10
+      Math.round(
+        Number(value) || 0
+      ),
+      0,
+      beatRatios.length - 1
+    );
+
+  const durationSeconds =
+    (
+      60 /
+      Math.max(
+        1,
+        Number(bpm) || 120
+      )
+    ) *
+    beatRatios[index];
+
+  return (
+    1 /
+    Math.max(
+      0.001,
+      durationSeconds
+    )
   );
 }
 
 /*
- * LFO Depth：
- * UI上の0〜100を
- * 0〜1200cent（±12半音）へ変換。
+ * 通常LFO用
+ * 最大±1200cent（1オクターブ）
  */
 function lfoDepthToCents(value) {
   return (
@@ -75,12 +124,104 @@ function lfoDepthToCents(value) {
   );
 }
 
+/*
+ * Rise / Fall専用
+ * 最大±3600cent（3オクターブ）
+ */
+function oneShotPitchDepthToCents(value) {
+  return (
+    clamp(
+      Number(value) || 0,
+      0,
+      100
+    ) * 36
+  );
+}
+
 function makeNoiseBuffer(duration) {
   const size = Math.max(1, Math.ceil(context.sampleRate * duration));
   const buffer = context.createBuffer(1, size, context.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
   return buffer;
+}
+
+/*
+ * Random LFO
+ *
+ * 一定間隔ごとにランダム値を作り、
+ * 次の更新時刻までその値を保持する。
+ */
+function createSampleAndHoldLfo({
+  audioParam,
+  depth,
+  rateHz,
+  startTime,
+  stopTime
+}) {
+  const source =
+    context.createConstantSource();
+
+  const safeRate =
+    Math.max(
+      0.001,
+      Number(rateHz) || 1
+    );
+
+  const interval =
+    1 / safeRate;
+
+  const safeDepth =
+    Number.isFinite(
+      Number(depth)
+    )
+      ? Number(depth)
+      : 0;
+
+  /*
+   * ConstantSourceの出力を
+   * AudioParamへ加算する。
+   */
+  source.connect(
+    audioParam
+  );
+
+  /*
+   * 発音開始時点から、
+   * Rate間隔で新しいランダム値を設定する。
+   */
+  let time =
+    startTime;
+
+  let eventCount = 0;
+
+  while (
+    time <= stopTime &&
+    eventCount < 4096
+  ) {
+    const randomValue =
+      (
+        Math.random() * 2 -
+        1
+      ) *
+      safeDepth;
+
+    source.offset.setValueAtTime(
+      randomValue,
+      time
+    );
+
+    time +=
+      interval;
+
+    eventCount += 1;
+  }
+
+  source.start(
+    startTime
+  );
+
+  return source;
 }
 
 export async function playTrackStep(
@@ -365,32 +506,108 @@ function connectPanLfo(
     return;
   }
 
-  const lfoRate =
-    clamp(
+  const syncMode =
+  track.base[
+    `${prefix}SyncMode`
+  ] === "bpm"
+    ? "bpm"
+    : "free";
+
+const lfoRate =
+  clamp(
+    (
+      track.base[
+        `${prefix}Rate`
+      ] ??
       (
-        track.base[
-          `${prefix}Rate`
-        ] ?? 25
-      ) +
-        offset(
-          `${prefix}Rate`
-        ),
-      1,
-      100
-    );
-
-  const lfoOscillator =
-    context.createOscillator();
-
-  const lfoGain =
-    context.createGain();
+        syncMode === "bpm"
+          ? 8
+          : 25
+      )
+    ) +
+      offset(
+        `${prefix}Rate`
+      ),
+    syncMode === "bpm"
+      ? 0
+      : 1,
+    syncMode === "bpm"
+      ? 13
+      : 100
+  );
 
   const lfoWave =
-    track.base[
-      `${prefix}Wave`
-    ] ?? "sine";
+  track.base[
+    `${prefix}Wave`
+  ] ?? "sine";
+
+const rateHz =
+  lfoRateToHz(
+    lfoRate,
+    syncMode,
+    bpm
+  );
+
+/*
+ * RandomはOscillatorではなく、
+ * Sample & Hold信号を直接Panへ接続する。
+ */
+if (lfoWave === "random") {
+  const randomSource =
+    createSampleAndHoldLfo({
+      audioParam:
+        panner.pan,
+
+      /*
+       * Depth 100で
+       * Panを最大±1変化させる。
+       */
+      depth:
+        lfoDepth / 100,
+
+      rateHz,
+
+      startTime:
+        now,
+
+      stopTime:
+        now + gate + 0.05
+    });
+
+  panLfoOscillators.push(
+    randomSource
+  );
+
+  return;
+}
+
+const lfoOscillator =
+  context.createOscillator();
+
+const lfoGain =
+  context.createGain();
 
   let lfoGainDirection = 1;
+
+if (lfoWave === "rise" || lfoWave === "fall") {
+
+    const start =
+        lfoWave === "fall"
+            ? lfoDepth / 100
+            : -(lfoDepth / 100);
+
+    panner.pan.setValueAtTime(
+        panValue + start,
+        now
+    );
+
+    panner.pan.linearRampToValueAtTime(
+        panValue,
+        now + (1 / rateHz)
+    );
+
+    return;
+}
 
   switch (lfoWave) {
     case "triangle":
@@ -415,15 +632,6 @@ function connectPanLfo(
       lfoGainDirection = -1;
       break;
 
-    case "random":
-      /*
-       * Randomは後で
-       * Sample & Holdとして実装。
-       */
-      lfoOscillator.type =
-        "sine";
-      break;
-
     case "sine":
     default:
       lfoOscillator.type =
@@ -432,12 +640,10 @@ function connectPanLfo(
   }
 
   lfoOscillator.frequency
-    .setValueAtTime(
-      lfoRateToHz(
-        lfoRate
-      ),
-      now
-    );
+  .setValueAtTime(
+    rateHz,
+    now
+  );
 
   /*
    * Depth 100で
@@ -807,25 +1013,35 @@ function connectPitchLfo(
     return;
   }
 
-  const lfoRate =
-    clamp(
+  const syncMode =
+  track.base[
+    `${prefix}SyncMode`
+  ] === "bpm"
+    ? "bpm"
+    : "free";
+
+const lfoRate =
+  clamp(
+    (
+      track.base[
+        `${prefix}Rate`
+      ] ??
       (
-        track.base[
-          `${prefix}Rate`
-        ] ?? 25
-      ) +
-        offset(
-          `${prefix}Rate`
-        ),
-      1,
-      100
-    );
-
-  const lfoOscillator =
-    context.createOscillator();
-
-  const lfoGain =
-    context.createGain();
+        syncMode === "bpm"
+          ? 8
+          : 25
+      )
+    ) +
+      offset(
+        `${prefix}Rate`
+      ),
+    syncMode === "bpm"
+      ? 0
+      : 1,
+    syncMode === "bpm"
+      ? 13
+      : 100
+  );
 
   /*
  * LFO Wave
@@ -835,7 +1051,92 @@ const lfoWave =
     `${prefix}Wave`
   ] ?? "sine";
 
+const rateHz =
+  lfoRateToHz(
+    lfoRate,
+    syncMode,
+    bpm
+  );
+
+/*
+ * RandomはSample & Hold信号を
+ * carrier.detuneへ直接接続する。
+ */
+if (lfoWave === "random") {
+  const randomSource =
+    createSampleAndHoldLfo({
+      audioParam:
+        carrier.detune,
+
+      /*
+       * Pitch Depthはcent単位。
+       */
+      depth:
+        lfoDepthToCents(
+          lfoDepth
+        ),
+
+      rateHz,
+
+      startTime:
+        now,
+
+      stopTime:
+        sineStopAt
+    });
+
+  pitchLfoNodes.push(
+    randomSource
+  );
+
+  return;
+}
+
+const lfoOscillator =
+  context.createOscillator();
+
+const lfoGain =
+  context.createGain();
+
 let lfoGainDirection = 1;
+
+if (lfoWave === "rise" || lfoWave === "fall") {
+
+  const oneShot =
+    context.createConstantSource();
+
+  oneShot.connect(
+    carrier.detune
+  );
+
+  const amount =
+  oneShotPitchDepthToCents(
+    lfoDepth
+  );
+
+  oneShot.offset.setValueAtTime(
+    lfoWave === "fall"
+      ? amount
+      : -amount,
+    now
+  );
+
+  oneShot.offset.linearRampToValueAtTime(
+    0,
+    now + (1 / rateHz)
+  );
+
+  oneShot.start(now);
+  oneShot.stop(
+    now + (1 / rateHz) + 0.01
+  );
+
+  pitchLfoNodes.push(
+    oneShot
+  );
+
+  return;
+}
 
 switch (lfoWave) {
   case "triangle":
@@ -864,16 +1165,6 @@ switch (lfoWave) {
     lfoGainDirection = -1;
     break;
 
-  case "random":
-    /*
-     * Randomは次段階で
-     * Sample & Holdとして実装する。
-     * 現時点ではSineへフォールバック。
-     */
-    lfoOscillator.type =
-      "sine";
-    break;
-
   case "sine":
   default:
     lfoOscillator.type =
@@ -883,9 +1174,7 @@ switch (lfoWave) {
 
 lfoOscillator.frequency
   .setValueAtTime(
-    lfoRateToHz(
-      lfoRate
-    ),
+    rateHz,
     now
   );
 
@@ -924,12 +1213,235 @@ connectPitchLfo(2);
       now
     );
 
+    const baseFmAmount =
+  carrierFrequency *
+  depth *
+  0.1;
+
+modulationGain.gain.setValueAtTime(
+  baseFmAmount,
+  now
+);
+
+/*
+ * FM Depth LFO
+ *
+ * 現在のFM Depthを中心値として、
+ * LFO Depth 100で0〜2倍まで揺らす。
+ */
+const fmLfoNodes = [];
+
+function connectFmLfo(
+  lfoNumber
+) {
+  const prefix =
+    `lfo${lfoNumber}`;
+
+  const target =
+    track.base[
+      `${prefix}Target`
+    ];
+
+  if (
+    target !== "fmDepth"
+  ) {
+    return;
+  }
+
+  const lfoDepth =
+    clamp(
+      (
+        track.base[
+          `${prefix}Depth`
+        ] ?? 0
+      ) +
+        offset(
+          `${prefix}Depth`
+        ),
+      0,
+      100
+    );
+
+  if (
+    lfoDepth <= 0 ||
+    baseFmAmount <= 0
+  ) {
+    return;
+  }
+
+  const syncMode =
+    track.base[
+      `${prefix}SyncMode`
+    ] === "bpm"
+      ? "bpm"
+      : "free";
+
+  const lfoRate =
+    clamp(
+      (
+        track.base[
+          `${prefix}Rate`
+        ] ??
+        (
+          syncMode === "bpm"
+            ? 8
+            : 25
+        )
+      ) +
+        offset(
+          `${prefix}Rate`
+        ),
+      syncMode === "bpm"
+        ? 0
+        : 1,
+      syncMode === "bpm"
+        ? 13
+        : 100
+    );
+
+  const lfoWave =
+    track.base[
+      `${prefix}Wave`
+    ] ?? "sine";
+
+  const rateHz =
+    lfoRateToHz(
+      lfoRate,
+      syncMode,
+      bpm
+    );
+
+  /*
+   * LFO Depth 100で、
+   * ベースFM量と同じ幅だけ
+   * 上下へ変化させる。
+   */
+  const fmLfoAmount =
+    baseFmAmount *
+    (
+      lfoDepth /
+      100
+    );
+
+  /*
+   * Random：
+   * Sample & HoldでFM量を変化。
+   */
+  if (
+    lfoWave === "random"
+  ) {
+    const randomSource =
+      createSampleAndHoldLfo({
+        audioParam:
+          modulationGain.gain,
+
+        depth:
+          fmLfoAmount,
+
+        rateHz,
+
+        startTime:
+          now,
+
+        stopTime:
+          sineStopAt
+      });
+
+    fmLfoNodes.push(
+      randomSource
+    );
+
+    return;
+  }
+
+  const lfoOscillator =
+    context.createOscillator();
+
+  const lfoGain =
+    context.createGain();
+
+  let lfoGainDirection = 1;
+
+if (lfoWave === "rise" || lfoWave === "fall") {
+
+    const start =
+        lfoWave === "fall"
+            ? fmLfoAmount
+            : -fmLfoAmount;
+
     modulationGain.gain.setValueAtTime(
-      carrierFrequency *
-      depth *
-      0.1,
+        baseFmAmount + start,
+        now
+    );
+
+    modulationGain.gain.linearRampToValueAtTime(
+        baseFmAmount,
+        now + (1 / rateHz)
+    );
+
+    return;
+}
+
+  switch (lfoWave) {
+    case "triangle":
+      lfoOscillator.type =
+        "triangle";
+      break;
+
+    case "square":
+      lfoOscillator.type =
+        "square";
+      break;
+
+    case "sawUp":
+      lfoOscillator.type =
+        "sawtooth";
+      break;
+
+    case "sawDown":
+      lfoOscillator.type =
+        "sawtooth";
+
+      lfoGainDirection = -1;
+      break;
+
+    case "sine":
+    default:
+      lfoOscillator.type =
+        "sine";
+      break;
+  }
+
+  lfoOscillator.frequency
+    .setValueAtTime(
+      rateHz,
       now
     );
+
+  lfoGain.gain
+    .setValueAtTime(
+      fmLfoAmount *
+      lfoGainDirection,
+      now
+    );
+
+  lfoOscillator
+    .connect(lfoGain)
+    .connect(
+      modulationGain.gain
+    );
+
+  fmLfoNodes.push(
+    lfoOscillator
+  );
+
+  lfoOscillator.start(
+    now
+  );
+}
+
+connectFmLfo(1);
+connectFmLfo(2);
 
     /*
  * 検証：
@@ -969,6 +1481,20 @@ sineGain.gain.setValueAtTime(
     }
   }
 );
+
+fmLfoNodes.forEach(
+  node => {
+    if (
+      typeof node.stop ===
+      "function"
+    ) {
+      node.stop(
+        sineStopAt
+      );
+    }
+  }
+);
+
   }
 
   if (noiseVolume > 0) {

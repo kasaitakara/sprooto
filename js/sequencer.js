@@ -68,11 +68,13 @@ fxMuted: false,
       lfo1Wave: "sine",
       lfo1Depth: 0,
       lfo1Rate: 25,
+      lfo1SyncMode: "free",
 
-      lfo2Target: "off",
+      lfo2Target: "pitch",
       lfo2Wave: "sine",
       lfo2Depth: 0,
-      lfo2Rate: 25
+      lfo2Rate: 25,
+      lfo2SyncMode: "free"
     },
 
     offsets: {
@@ -1796,10 +1798,12 @@ if (
     lfo1Wave: "sine",
     lfo1Depth: 0,
     lfo1Rate: 25,
-    lfo2Target: "off",
+    lfo1SyncMode: "free",
+    lfo2Target: "pitch",
     lfo2Wave: "sine",
     lfo2Depth: 0,
-    lfo2Rate: 25
+    lfo2Rate: 25,
+    lfo2SyncMode: "free"
   };
 
   Object.entries(
@@ -1812,6 +1816,70 @@ if (
       ) {
         track.base[parameterId] =
           defaultValue;
+      }
+    }
+  );
+
+  ["lfo1SyncMode", "lfo2SyncMode"].forEach(
+    parameterId => {
+      if (
+        track.base[parameterId] !== "bpm" &&
+        track.base[parameterId] !== "free"
+      ) {
+        track.base[parameterId] = "free";
+      }
+    }
+  );
+
+[1, 2].forEach(
+  lfoNumber => {
+    const syncModeId =
+      `lfo${lfoNumber}SyncMode`;
+
+    const rateId =
+      `lfo${lfoNumber}Rate`;
+
+    if (
+      track.base[syncModeId] ===
+      "bpm"
+    ) {
+      track.base[rateId] =
+        clamp(
+          Math.round(
+            Number(
+              track.base[rateId]
+            ) || 0
+          ),
+          0,
+          13
+        );
+
+      return;
+    }
+
+    track.base[rateId] =
+      clamp(
+        Number(
+          track.base[rateId]
+        ) || 25,
+        1,
+        100
+      );
+  }
+);
+
+  /*
+   * OFF廃止後の旧保存データ補正。
+   * Depth=0で停止するためTargetはPitchへ戻す。
+   */
+  ["lfo1Target", "lfo2Target"].forEach(
+    parameterId => {
+      if (
+        track.base[parameterId] ===
+        "off"
+      ) {
+        track.base[parameterId] =
+          "pitch";
       }
     }
   );

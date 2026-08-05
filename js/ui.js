@@ -2617,6 +2617,9 @@ function createTrackVolumeControl() {
       pointerId =
         event.pointerId;
 
+        slider.dataset.relativeDragging =
+  "true";
+
       startX =
         event.clientX;
 
@@ -2703,10 +2706,19 @@ function createTrackVolumeControl() {
     }
 
     pointerId =
-      null;
+  null;
 
-    historySaved =
-      false;
+/*
+ * pointerup後の標準inputによる
+ * 値の上書きを防ぐ。
+ */
+requestAnimationFrame(() => {
+  delete slider.dataset
+    .relativeDragging;
+});
+
+historySaved =
+  false;
   }
 
   slider.addEventListener(
@@ -2734,10 +2746,13 @@ function createTrackVolumeControl() {
     "input",
     () => {
       if (
-        pointerId !== null
-      ) {
-        return;
-      }
+  pointerId !== null ||
+  slider.dataset
+    .relativeDragging ===
+    "true"
+) {
+  return;
+}
 
       const nextValue =
         clamp(

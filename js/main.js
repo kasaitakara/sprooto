@@ -514,6 +514,9 @@ function enableRelativeVolumeDrag({
       pointerId =
         event.pointerId;
 
+        slider.dataset.relativeDragging =
+  "true";
+
       startX =
         event.clientX;
 
@@ -622,7 +625,17 @@ function enableRelativeVolumeDrag({
 
     pointerId = null;
 
-    onFinish?.(
+/*
+ * pointerup直後にブラウザ標準の
+ * inputイベントが遅れて発生するため、
+ * 次の描画までドラッグ中扱いを残す。
+ */
+requestAnimationFrame(() => {
+  delete slider.dataset
+    .relativeDragging;
+});
+
+onFinish?.(
       startValue,
       currentValue,
       moved
@@ -699,6 +712,14 @@ enableRelativeVolumeDrag({
 volumeInput.addEventListener(
   "input",
   () => {
+    if (
+      volumeInput.dataset
+        .relativeDragging ===
+        "true"
+    ) {
+      return;
+    }
+
     setMasterVolumeValue(
       Number(
         volumeInput.value

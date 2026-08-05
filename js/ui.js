@@ -7173,7 +7173,7 @@ body.append(
       ? (list.scrollTop / maximumScroll) * maximumThumbTop
       : 0;
 
-    scrollThumb.style.height = `${thumbSize}px`;
+    scrollThumb.style.height = "8px";
     scrollThumb.style.transform = `translateY(${thumbTop}px)`;
   }
 

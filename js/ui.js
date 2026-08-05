@@ -2546,7 +2546,7 @@ function createTrackVolumeControl() {
   let historySaved =
     false;
 
-  slider.style.touchAction =
+  wrapper.style.touchAction =
     "none";
 
   function updateValue(
@@ -2597,7 +2597,7 @@ function createTrackVolumeControl() {
       );
   }
 
-  slider.addEventListener(
+  wrapper.addEventListener(
     "pointerdown",
     event => {
       if (
@@ -2608,17 +2608,27 @@ function createTrackVolumeControl() {
         return;
       }
 
-      /*
-       * タップ位置への
-       * 標準ジャンプを止める。
-       */
+      const sliderRect =
+        slider.getBoundingClientRect();
+
+      const insideSlider =
+        event.clientX >=
+          sliderRect.left &&
+        event.clientX <=
+          sliderRect.right &&
+        event.clientY >=
+          sliderRect.top &&
+        event.clientY <=
+          sliderRect.bottom;
+
+      if (!insideSlider) {
+        return;
+      }
+
       event.preventDefault();
 
       pointerId =
         event.pointerId;
-
-        slider.dataset.relativeDragging =
-  "true";
 
       startX =
         event.clientX;
@@ -2632,17 +2642,13 @@ function createTrackVolumeControl() {
       historySaved =
         false;
 
-      slider.setPointerCapture(
+      wrapper.setPointerCapture(
         event.pointerId
       );
-
-      slider.focus({
-        preventScroll: true
-      });
     }
   );
 
-  slider.addEventListener(
+  wrapper.addEventListener(
     "pointermove",
     event => {
       if (
@@ -2654,18 +2660,14 @@ function createTrackVolumeControl() {
 
       event.preventDefault();
 
-      const rect =
+      const sliderRect =
         slider.getBoundingClientRect();
 
-      const usableWidth =
+      const dragWidth =
         Math.max(
           1,
-          rect.width
+          sliderRect.width * 2
         );
-
-      const valueRange =
-        parameter.max -
-        parameter.min;
 
       const movementX =
         event.clientX -
@@ -2675,9 +2677,12 @@ function createTrackVolumeControl() {
         startValue +
         (
           movementX /
-          usableWidth
+          dragWidth
         ) *
-        valueRange;
+        (
+          parameter.max -
+          parameter.min
+        );
 
       updateValue(
         nextValue
@@ -2696,64 +2701,60 @@ function createTrackVolumeControl() {
     }
 
     if (
-      slider.hasPointerCapture(
+      wrapper.hasPointerCapture(
         event.pointerId
       )
     ) {
-      slider.releasePointerCapture(
+      wrapper.releasePointerCapture(
         event.pointerId
       );
     }
 
     pointerId =
-  null;
+      null;
 
-/*
- * pointerup後の標準inputによる
- * 値の上書きを防ぐ。
- */
-requestAnimationFrame(() => {
-  delete slider.dataset
-    .relativeDragging;
-});
+    /*
+     * 最後に表示されていた値を
+     * そのまま確定する。
+     */
+    track.base.velocity =
+      currentValue;
 
-historySaved =
-  false;
+    slider.value =
+      String(
+        currentValue
+      );
+
+    output.value =
+      String(
+        currentValue
+      );
+
+    output.textContent =
+      String(
+        currentValue
+      );
+
+    historySaved =
+      false;
   }
 
-  slider.addEventListener(
+  wrapper.addEventListener(
     "pointerup",
     finishPointer
   );
 
-  slider.addEventListener(
+  wrapper.addEventListener(
     "pointercancel",
     finishPointer
   );
 
-  slider.addEventListener(
-    "click",
-    event => {
-      event.preventDefault();
-    }
-  );
-
   /*
-   * キーボード操作は
-   * 標準range操作を維持する。
+   * キーボードでは標準range操作。
    */
   slider.addEventListener(
     "input",
     () => {
-      if (
-  pointerId !== null ||
-  slider.dataset
-    .relativeDragging ===
-    "true"
-) {
-  return;
-}
-
       const nextValue =
         clamp(
           Number(
@@ -2775,15 +2776,18 @@ historySaved =
       track.base.velocity =
         nextValue;
 
+      currentValue =
+        nextValue;
+
       output.value =
         String(
           nextValue
-        );
+      );
 
       output.textContent =
         String(
           nextValue
-        );
+      );
     }
   );
 

@@ -479,6 +479,7 @@ bpmInput.addEventListener(
 playButton.addEventListener("click", togglePlayback);
 function enableRelativeVolumeDrag({
   slider,
+  hitTarget,
   getValue,
   setValue,
   min = 0,
@@ -493,9 +494,10 @@ function enableRelativeVolumeDrag({
   let currentValue = 0;
   let moved = false;
 
-  slider.style.touchAction = "none";
+  hitTarget.style.touchAction =
+    "none";
 
-  slider.addEventListener(
+  hitTarget.addEventListener(
     "pointerdown",
     event => {
       if (
@@ -506,22 +508,36 @@ function enableRelativeVolumeDrag({
       }
 
       /*
-       * range標準の
-       * タップ位置へのジャンプを止める。
+       * スライダー表示部分を触った場合だけ
+       * ボリューム操作を開始する。
        */
+      const sliderRect =
+        slider.getBoundingClientRect();
+
+      const insideSlider =
+        event.clientX >= sliderRect.left &&
+        event.clientX <= sliderRect.right &&
+        event.clientY >= sliderRect.top &&
+        event.clientY <= sliderRect.bottom;
+
+      if (!insideSlider) {
+        return;
+      }
+
       event.preventDefault();
 
       pointerId =
         event.pointerId;
 
-        slider.dataset.relativeDragging =
-  "true";
-
       startX =
         event.clientX;
 
       startValue =
-        Number(getValue());
+        clamp(
+          Number(getValue()),
+          min,
+          max
+        );
 
       currentValue =
         startValue;
@@ -530,17 +546,13 @@ function enableRelativeVolumeDrag({
 
       onStart?.();
 
-      slider.setPointerCapture(
+      hitTarget.setPointerCapture(
         event.pointerId
       );
-
-      slider.focus({
-        preventScroll: true
-      });
     }
   );
 
-  slider.addEventListener(
+  hitTarget.addEventListener(
     "pointermove",
     event => {
       if (
@@ -552,17 +564,18 @@ function enableRelativeVolumeDrag({
 
       event.preventDefault();
 
-      const rect =
+      const sliderRect =
         slider.getBoundingClientRect();
 
-      const usableWidth =
+      /*
+       * 58pxで0～100だと敏感すぎるため、
+       * スライダー幅の約2倍を全変化幅にする。
+       */
+      const dragWidth =
         Math.max(
           1,
-          rect.width
+          sliderRect.width * 2
         );
-
-      const valueRange =
-        max - min;
 
       const movementX =
         event.clientX -
@@ -572,9 +585,9 @@ function enableRelativeVolumeDrag({
         startValue +
         (
           movementX /
-          usableWidth
+          dragWidth
         ) *
-        valueRange;
+        (max - min);
 
       const steppedValue =
         Math.round(
@@ -595,9 +608,10 @@ function enableRelativeVolumeDrag({
         return;
       }
 
-      moved = true;
       currentValue =
         nextValue;
+
+      moved = true;
 
       setValue(
         nextValue
@@ -614,53 +628,41 @@ function enableRelativeVolumeDrag({
     }
 
     if (
-      slider.hasPointerCapture(
+      hitTarget.hasPointerCapture(
         event.pointerId
       )
     ) {
-      slider.releasePointerCapture(
+      hitTarget.releasePointerCapture(
         event.pointerId
       );
     }
 
-    pointerId = null;
+    pointerId =
+      null;
 
-/*
- * pointerup直後にブラウザ標準の
- * inputイベントが遅れて発生するため、
- * 次の描画までドラッグ中扱いを残す。
- */
-requestAnimationFrame(() => {
-  delete slider.dataset
-    .relativeDragging;
-});
+    /*
+     * 指を離した瞬間の値を
+     * 改めて確定表示する。
+     */
+    setValue(
+      currentValue
+    );
 
-onFinish?.(
+    onFinish?.(
       startValue,
       currentValue,
       moved
     );
   }
 
-  slider.addEventListener(
+  hitTarget.addEventListener(
     "pointerup",
     finish
   );
 
-  slider.addEventListener(
+  hitTarget.addEventListener(
     "pointercancel",
     finish
-  );
-
-  /*
-   * pointerdown後に発生する
-   * clickでも値を飛ばさせない。
-   */
-  slider.addEventListener(
-    "click",
-    event => {
-      event.preventDefault();
-    }
   );
 }
 
@@ -692,6 +694,11 @@ enableRelativeVolumeDrag({
   slider:
     volumeInput,
 
+  hitTarget:
+    volumeInput.closest(
+      ".master-control"
+    ),
+
   getValue: () =>
     Number(
       volumeInput.value
@@ -712,14 +719,6 @@ enableRelativeVolumeDrag({
 volumeInput.addEventListener(
   "input",
   () => {
-    if (
-      volumeInput.dataset
-        .relativeDragging ===
-        "true"
-    ) {
-      return;
-    }
-
     setMasterVolumeValue(
       Number(
         volumeInput.value
@@ -727,6 +726,7 @@ volumeInput.addEventListener(
     );
   }
 );
+
 themeButton.addEventListener(
   "click",
   () => {

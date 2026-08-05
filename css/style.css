@@ -2781,3 +2781,23 @@ input.track-volume-slider::-moz-range-thumb {
     box-shadow: none;
     filter: none;
 }
+
+/* =========================
+   Custom volume drag
+========================= */
+
+/*
+ * range本体にはポインター操作させない。
+ * 表示とキーボード操作だけに使う。
+ */
+#master-volume,
+.track-volume-slider {
+    pointer-events: none;
+}
+
+/*
+ * 親領域でドラッグを受け取る。
+ */
+.master-control {
+    touch-action: none;
+}

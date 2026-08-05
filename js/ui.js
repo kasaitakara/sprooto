@@ -4639,8 +4639,8 @@ const activeParameter =
     ["fmDepth", "FM", "fm"],
     ["filterCutoff", "Filter", "tone"],
     ["pan", "Pan", "pan"],
-    ["decay", "Decay", "decay"],
-    ["gate", "Gate", "gate"]
+    ["attack", "Attack", "attack"],
+    ["decay", "Decay", "decay"]
   ].forEach(([value, label, icon]) => {
     const button = document.createElement("button");
     const focusKey = `lfo-target-${value}`;
@@ -4652,7 +4652,8 @@ const activeParameter =
     const currentTarget = track.base[parameterKeys.target];
     if (
       currentTarget === value ||
-      (value === "decay" && ["decay", "sineDecay", "noiseDecay"].includes(currentTarget))
+      (value === "decay" && ["decay", "sineDecay", "noiseDecay"].includes(currentTarget)) ||
+      (value === "attack" && currentTarget === "gate")
     ) button.classList.add("active");
     button.addEventListener("click", () => setLfoOption(parameterKeys.target, value, focusKey));
     targetGrid.appendChild(button);

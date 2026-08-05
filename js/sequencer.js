@@ -1949,12 +1949,31 @@ if (
    */
   ["lfo1Target", "lfo2Target"].forEach(
     parameterId => {
-      if (
-        track.base[parameterId] ===
-        "off"
-      ) {
+      const target =
+        track.base[parameterId];
+
+      if (target === "off") {
         track.base[parameterId] =
           "pitch";
+        return;
+      }
+
+      /*
+       * 旧GateターゲットはAttackへ移行。
+       * OSC個別Decayターゲットは共通ENV Decayへ統合。
+       */
+      if (target === "gate") {
+        track.base[parameterId] =
+          "attack";
+        return;
+      }
+
+      if (
+        target === "sineDecay" ||
+        target === "noiseDecay"
+      ) {
+        track.base[parameterId] =
+          "decay";
       }
     }
   );

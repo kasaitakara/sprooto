@@ -247,6 +247,11 @@ export async function playTrackStep(
       Number(delaySeconds) || 0
     );
 
+  const bpm =
+    Number(
+      document.getElementById("bpm-input")?.value
+    ) || 120;
+
   const offset = id =>
     track.offsets[id]?.[stepIndex] ?? 0;
 
@@ -263,27 +268,198 @@ export async function playTrackStep(
       100
     ) / 100;
 
+  /*
+   * Attack / Decay LFO
+   *
+   * エンベロープ時間は発音開始時に確定するため、
+   * LFO波形をその瞬間に1回だけサンプルし、
+   * その音のAttack / Decay値として使う。
+   * Randomは発音ごとに新しい値、周期波形は
+   * AudioContext上の現在位相をサンプルする。
+   */
+  function sampleLfoWave(
+    wave,
+    rateHz
+  ) {
+    if (wave === "random") {
+      return Math.random() * 2 - 1;
+    }
+
+    const phase =
+      2 *
+      Math.PI *
+      rateHz *
+      now;
+
+    switch (wave) {
+      case "triangle":
+        return (2 / Math.PI) *
+          Math.asin(
+            Math.sin(phase)
+          );
+
+      case "square":
+        return Math.sin(phase) >= 0
+          ? 1
+          : -1;
+
+      case "sawUp": {
+        const cyclePosition =
+          ((phase / (2 * Math.PI)) % 1 + 1) % 1;
+
+        return cyclePosition * 2 - 1;
+      }
+
+      case "sawDown": {
+        const cyclePosition =
+          ((phase / (2 * Math.PI)) % 1 + 1) % 1;
+
+        return 1 - cyclePosition * 2;
+      }
+
+      case "rise":
+        return -1;
+
+      case "fall":
+        return 1;
+
+      case "sine":
+      default:
+        return Math.sin(phase);
+    }
+  }
+
+  function envelopeLfoValue(
+    targetId,
+    baseValue,
+    minimum,
+    maximum
+  ) {
+    let result =
+      Number(baseValue) || minimum;
+
+    [1, 2].forEach(
+      lfoNumber => {
+        const prefix =
+          `lfo${lfoNumber}`;
+
+        if (
+          track.base[
+            `${prefix}Target`
+          ] !== targetId
+        ) {
+          return;
+        }
+
+        const depth =
+          clamp(
+            (
+              track.base[
+                `${prefix}Depth`
+              ] ?? 0
+            ) +
+              offset(
+                `${prefix}Depth`
+              ),
+            0,
+            100
+          );
+
+        if (depth <= 0) {
+          return;
+        }
+
+        const syncMode =
+          track.base[
+            `${prefix}SyncMode`
+          ] === "bpm"
+            ? "bpm"
+            : "free";
+
+        const rateValue =
+          clamp(
+            (
+              track.base[
+                `${prefix}Rate`
+              ] ??
+              (
+                syncMode === "bpm"
+                  ? 8
+                  : 25
+              )
+            ) +
+              offset(
+                `${prefix}Rate`
+              ),
+            syncMode === "bpm"
+              ? 0
+              : 1,
+            syncMode === "bpm"
+              ? 13
+              : 100
+          );
+
+        const rateHz =
+          lfoRateToHz(
+            rateValue,
+            syncMode,
+            bpm
+          );
+
+        const wave =
+          track.base[
+            `${prefix}Wave`
+          ] ?? "sine";
+
+        const amount =
+          (maximum - minimum) *
+          0.5 *
+          (depth / 100);
+
+        result +=
+          sampleLfoWave(
+            wave,
+            rateHz
+          ) * amount;
+      }
+    );
+
+    return clamp(
+      result,
+      minimum,
+      maximum
+    );
+  }
+
+  const attackValue =
+    envelopeLfoValue(
+      "attack",
+      (track.base.attack ?? 1) +
+        offset("attack"),
+      1,
+      50
+    );
+
   const attack =
     Math.max(
       0.001,
-      clamp(
-        track.base.attack +
-        offset("attack"),
-        1,
-        50
-      ) / 1000
+      attackValue / 1000
     );
 
-  const decay =
-  Math.max(
-    0.03,
-    clamp(
+  const decayValue =
+    envelopeLfoValue(
+      "decay",
       (track.base.decay ?? 5) +
         offset("decay"),
       1,
       100
-    ) / 10
-  );
+    );
+
+  const decay =
+    Math.max(
+      0.03,
+      decayValue / 10
+    );
 
   const sustain =
     clamp(
@@ -426,11 +602,6 @@ const delayLevel =
     10
   );
   
-  const bpm =
-  Number(
-    document.getElementById("bpm-input")?.value
-  ) || 120;
-
 const delayRatios = [
   1 / 16, // 1/64
   1 / 12, // 1/32T

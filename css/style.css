@@ -2871,8 +2871,5 @@ select[data-focus-key]:focus-visible,
     -webkit-text-fill-color:
         var(--selected-text) !important;
 
-    outline: 1px solid var(--text) !important;
-    outline-offset: -1px;
-
     box-shadow: none !important;
 }

@@ -466,6 +466,20 @@ const filter1 =
 const filter2 =
   context.createBiquadFilter();
 
+const gateEnd =
+  now + gate;
+
+  /*
+ * クリック防止用のRelease。
+ * Resonanceが高い時も自然に消す。
+ */
+const releaseTime =
+  0.05;
+
+const releaseEnd =
+  gateEnd +
+  releaseTime;
+
 /*
  * トラック全体へ掛ける
  * Pan LFOの停止管理用。
@@ -859,7 +873,7 @@ connectPanLfo(2);
       lfoDepth * 36;
 
     const stopTime =
-      now + gate + 0.05;
+  releaseEnd + 0.01;
 
     if (lfoWave === "random") {
       const source =
@@ -927,59 +941,159 @@ connectPanLfo(2);
       return;
     }
 
-    const oscillator =
-      context.createOscillator();
+    /*
+ * 周期Filter LFO
+ *
+ * OscillatorNodeをAudioParamへ接続せず、
+ * 発音開始を位相0とする波形カーブを
+ * detuneへ直接予約する。
+ *
+ * これにより同じRate／Depthなら、
+ * 各発音で必ず同じ位置から始まる。
+ */
+const modulationDuration =
+  Math.max(
+    0.001,
+    stopTime - now
+  );
 
-    const gain =
-      context.createGain();
+/*
+ * 1周期あたり十分な分解能を確保しつつ、
+ * 長いGateでも配列が巨大にならないよう制限。
+ */
+const sampleCount =
+  Math.round(
+    clamp(
+      modulationDuration *
+        rateHz *
+        256,
+      128,
+      4096
+    )
+  );
 
-    let direction = 1;
+const curve =
+  new Float32Array(
+    sampleCount
+  );
 
-    switch (lfoWave) {
-      case "triangle":
-        oscillator.type = "triangle";
-        break;
+for (
+  let sampleIndex = 0;
+  sampleIndex < sampleCount;
+  sampleIndex++
+) {
+  const progress =
+    sampleCount <= 1
+      ? 0
+      : sampleIndex /
+        (sampleCount - 1);
 
-      case "square":
-        oscillator.type = "square";
-        break;
+  const elapsedSeconds =
+    progress *
+    modulationDuration;
 
-      case "sawUp":
-        oscillator.type = "sawtooth";
-        break;
+  const phase =
+    2 *
+    Math.PI *
+    rateHz *
+    elapsedSeconds;
 
-      case "sawDown":
-        oscillator.type = "sawtooth";
-        direction = -1;
-        break;
+  let waveValue = 0;
 
-      case "sine":
-      default:
-        oscillator.type = "sine";
-        break;
+  switch (lfoWave) {
+    case "triangle":
+      /*
+       * 位相0では0から上昇。
+       */
+      waveValue =
+        (
+          2 /
+          Math.PI
+        ) *
+        Math.asin(
+          Math.sin(phase)
+        );
+      break;
+
+    case "square":
+      /*
+       * 位相0ではプラス側から開始。
+       */
+      waveValue =
+        Math.sin(phase) >= 0
+          ? 1
+          : -1;
+      break;
+
+    case "sawUp": {
+      /*
+       * -1から+1へ上昇。
+       */
+      const cyclePosition =
+        (
+          phase /
+          (
+            2 *
+            Math.PI
+          )
+        ) % 1;
+
+      waveValue =
+        cyclePosition *
+          2 -
+        1;
+      break;
     }
 
-    oscillator.frequency.setValueAtTime(
-      rateHz,
-      now
-    );
+    case "sawDown": {
+      /*
+       * +1から-1へ下降。
+       */
+      const cyclePosition =
+        (
+          phase /
+          (
+            2 *
+            Math.PI
+          )
+        ) % 1;
 
-    gain.gain.setValueAtTime(
-      amountCents * direction,
-      now
-    );
+      waveValue =
+        1 -
+        cyclePosition *
+          2;
+      break;
+    }
 
-    oscillator.connect(gain);
-    gain.connect(filter1.detune);
-    gain.connect(filter2.detune);
+    case "sine":
+    default:
+      /*
+       * 位相0では0から上昇。
+       */
+      waveValue =
+        Math.sin(phase);
+      break;
+  }
 
-    oscillator.start(now);
-    oscillator.stop(stopTime);
+  curve[sampleIndex] =
+    waveValue *
+    amountCents;
+}
 
-    filterLfoNodes.push(
-      oscillator,
-      gain
-    );
+/*
+ * 2段のFilterへ完全に同じカーブを予約。
+ */
+filter1.detune.setValueCurveAtTime(
+  curve,
+  now,
+  modulationDuration
+);
+
+filter2.detune.setValueCurveAtTime(
+  curve,
+  now,
+  modulationDuration
+);
   }
 
   connectFilterLfo(1);
@@ -1005,9 +1119,6 @@ const attackEnd =
 
 const decayEnd =
   attackEnd + decay;
-
-const gateEnd =
-  now + gate;
 
 mixGain.gain.setValueAtTime(
   0.0001,
@@ -1063,7 +1174,7 @@ if (gateEnd <= decayEnd) {
  */
 mixGain.gain.exponentialRampToValueAtTime(
   0.0001,
-  gateEnd + 0.02
+  releaseEnd
 );
 
 mixGain
@@ -1242,7 +1353,7 @@ mixGain
       frequency(note);
 
     const sineStopAt =
-  gateEnd + 0.05;
+  releaseEnd + 0.01;
 
     carrier.type = "sine";
 
@@ -1787,7 +1898,7 @@ fmLfoNodes.forEach(
       context.createGain();
 
     const noiseStopAt =
-  gateEnd + 0.05;
+  releaseEnd + 0.01;
 
 noise.buffer =
   makeNoiseBuffer(
@@ -1815,8 +1926,8 @@ noise.buffer =
 panLfoOscillators.forEach(
   oscillator => {
     oscillator.stop(
-      gateEnd + 0.05
-    );
+  releaseEnd + 0.01
+);
   }
 );
 

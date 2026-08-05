@@ -9,6 +9,13 @@ function sound(base = {}, options = {}) {
 
 export const FACTORY_SOUND_PRESETS = [
   {
+  id: "factory-initialize",
+  category: "other",
+  name: "Initialize Tone",
+  sound: createDefaultSound()
+},
+
+  {
     id: "factory-kick-01",
     category: "kick",
     name: "Kick 01",

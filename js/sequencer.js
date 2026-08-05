@@ -2316,6 +2316,69 @@ export function saveHistory() {
   );
 }
 
+function capturePerformanceFlags() {
+  return {
+    patterns: patterns.map(source =>
+      source.tracks.map(track => ({
+        muted: Boolean(track.muted),
+        solo: Boolean(track.solo)
+      }))
+    ),
+
+    fills: fills.map(source =>
+      source.tracks.map(track => ({
+        muted: Boolean(track.muted),
+        solo: Boolean(track.solo)
+      }))
+    )
+  };
+}
+
+function restorePerformanceFlags(flags) {
+  if (!flags) {
+    return;
+  }
+
+  [
+    [patterns, flags.patterns],
+    [fills, flags.fills]
+  ].forEach(([sources, savedSources]) => {
+    sources.forEach((source, sourceIndex) => {
+      source.tracks.forEach((track, trackIndex) => {
+        const saved =
+          savedSources?.[sourceIndex]?.[trackIndex];
+
+        if (!saved) {
+          return;
+        }
+
+        track.muted = saved.muted;
+        track.solo = saved.solo;
+      });
+    });
+  });
+
+  /*
+   * restoreSnapshot()後はtracksが選択中Sourceを参照している。
+   * フラグ再適用後も参照関係はそのままなので再読込は不要。
+   */
+}
+
+function restoreHistorySnapshot(snapshot) {
+  /*
+   * Mute / Soloは演奏用の一時状態であり、
+   * Undo / Redoの対象にしない。
+   */
+  const performanceFlags =
+    capturePerformanceFlags();
+
+  restoreSnapshot(snapshot);
+
+  restorePerformanceFlags(
+    performanceFlags
+  );
+}
+
 export function undo() {
   if (
     undoStack.length === 0
@@ -2330,7 +2393,7 @@ export function undo() {
   const snapshot =
     undoStack.pop();
 
-  restoreSnapshot(
+  restoreHistorySnapshot(
     snapshot
   );
 
@@ -2357,7 +2420,7 @@ export function redo() {
   const snapshot =
     redoStack.pop();
 
-  restoreSnapshot(
+  restoreHistorySnapshot(
     snapshot
   );
 

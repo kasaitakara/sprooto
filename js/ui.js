@@ -7140,9 +7140,42 @@ body.append(
       selected = { type, id: item.id, name: item.name, category: item.category };
     }
 
-    renderSequence();
-    renderEditor();
-    renderList();
+    /*
+     * プリセット選択中は音データだけ即時反映する。
+     * Sequence / Editor / 一覧全体の再構築は行わない。
+     *
+     * 再生中に大きなDOM再描画を同期実行すると、
+     * schedulerのsetTimeoutが遅れて一瞬音が途切れるため。
+     */
+    list
+      .querySelectorAll(
+        ".sound-preset-item"
+      )
+      .forEach(button => {
+        button.classList.remove(
+          "active"
+        );
+      });
+
+    const activeButton =
+      type === "now"
+        ? list.querySelector(
+            ".sound-preset-now"
+          )
+        : Array.from(
+            list.querySelectorAll(
+              ".sound-preset-item"
+            )
+          ).find(button => {
+            return (
+              button.dataset.presetId ===
+              item.id
+            );
+          });
+
+    activeButton?.classList.add(
+      "active"
+    );
   }
 
   function updatePresetScrollbar() {
@@ -7299,6 +7332,7 @@ body.append(
 
       presets.forEach(preset => {
         const button = createModalButton(preset.name, "sound-preset-item");
+        button.dataset.presetId = preset.id;
         button.classList.toggle(
           "active",
           selected.type === library && selected.id === preset.id
@@ -7444,11 +7478,27 @@ modeWrap.appendChild(
     modal.append(shade);
 
     function updateMode() {
-  fields.hidden =
-    saveMode === "overwrite";
-}
+      /*
+       * overwriteでも入力欄を表示する。
+       * Userプリセットは上書き時に
+       * category／nameを変更できる。
+       */
+      fields.hidden = false;
 
-updateMode();
+      if (saveMode === "overwrite") {
+        categorySelect.value =
+          selected.category === "now"
+            ? "other"
+            : selected.category;
+
+        nameInput.value =
+          selected.type === "user"
+            ? selected.name
+            : "";
+      }
+    }
+
+    updateMode();
 
     cancel.addEventListener("click", () => shade.remove());
     dialog.addEventListener("submit", event => {
@@ -7457,8 +7507,8 @@ updateMode();
   saveMode;
       const saved = saveUserPreset({
         id: mode === "overwrite" ? selected.id : null,
-        category: mode === "overwrite" ? selected.category : categorySelect.value,
-        name: mode === "overwrite" ? selected.name : nameInput.value,
+        category: categorySelect.value,
+        name: nameInput.value,
         sound: captureTrackSound(track)
       });
       if (!saved) {

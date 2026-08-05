@@ -63,12 +63,12 @@ function areaOf(element) {
   }
 
   if (
-    element.closest(
-      ".parameter-menu, .offset-grid"
-    )
-  ) {
-    return "editor-content";
-  }
+  element.closest(
+    ".parameter-menu, .offset-grid, .lfo-settings"
+  )
+) {
+  return "editor-content";
+}
 
   if (element.closest(".pattern-section")) {
     return "pattern-manager";
@@ -91,7 +91,7 @@ function areaRoot(area) {
       ".editor-header, .edit-toolbar",
 
     "editor-content":
-      ".parameter-menu, .offset-grid",
+  ".parameter-menu, .offset-grid, .lfo-settings",
 
     "pattern-manager":
       ".pattern-section"

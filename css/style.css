@@ -439,7 +439,7 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
 .offset-grid {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
-    grid-template-rows: repeat(4, 22px);
+    grid-template-rows: repeat(4, 25px);
 
     column-gap: 5px;
     row-gap: 3px;
@@ -449,8 +449,8 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
 
 .offset-step {
     width: 100%;
-    height: 22px;
-    min-height: 22px;
+    height: 25px;
+    min-height: 25px;
 
     border: 2px solid transparent;
     background: var(--cell);
@@ -1203,16 +1203,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     -webkit-appearance: none;
 
     outline: none;
-}
-
-/*
- * PCキーボード編集モード
- */
-.section-editor-button[
-    data-keyboard-editing="true"
-] {
-    background: var(--hover-bg);
-    color: var(--hover-text);
 }
 
 /*
@@ -2800,4 +2790,89 @@ input.track-volume-slider::-moz-range-thumb {
  */
 .master-control {
     touch-action: none;
+}
+
+/* =========================
+   FM editor font size
+========================= */
+
+.child-tabs
+button[data-focus-key="child-fmDepth"],
+.child-tabs
+button[data-focus-key="child-fmRatio"] {
+    font-size: var(--font-label);
+    line-height: 1;
+    text-transform: lowercase;
+}
+
+/* =========================
+   FM editor button style
+========================= */
+
+.child-tabs
+button[data-focus-key="child-fmDepth"],
+.child-tabs
+button[data-focus-key="child-fmRatio"] {
+    background: transparent;
+}
+
+.child-tabs
+button[data-focus-key="child-fmDepth"].active,
+.child-tabs
+button[data-focus-key="child-fmRatio"].active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color: var(--selected-text);
+}
+
+/* =========================
+   Unified control appearance
+========================= */
+
+button,
+input,
+select,
+textarea {
+    border-radius: 0;
+    box-shadow: none;
+    -webkit-tap-highlight-color:
+        transparent;
+}
+
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+/*
+ * カーソル選択中。
+ * 編集開始前は枠だけ表示する。
+ */
+button[data-focus-key]:focus-visible,
+input[data-focus-key]:focus-visible,
+select[data-focus-key]:focus-visible,
+[tabindex="0"][data-focus-key]:focus-visible {
+    outline: 1px solid var(--text);
+    outline-offset: -1px;
+}
+
+/* =========================
+   Unified editing state
+========================= */
+
+[data-keyboard-editing="true"],
+.is-sweeping {
+    background: var(--selected-bg) !important;
+
+    color: var(--selected-text) !important;
+    -webkit-text-fill-color:
+        var(--selected-text) !important;
+
+    outline: 1px solid var(--text) !important;
+    outline-offset: -1px;
+
+    box-shadow: none !important;
 }

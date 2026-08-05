@@ -838,9 +838,13 @@ function enableVerticalSweep({
       }
 
       if (!sweeping) {
-        sweeping = true;
-        suppressClick = true;
-      }
+  sweeping = true;
+  suppressClick = true;
+
+  element.classList.add(
+    "is-sweeping"
+  );
+}
 
       event.preventDefault();
 
@@ -928,6 +932,9 @@ function enableVerticalSweep({
     }
 
     pointerId = null;
+    element.classList.remove(
+  "is-sweeping"
+);
 
     if (sweeping) {
       onCommit?.(
@@ -4900,6 +4907,168 @@ const activeParameter =
             : String(value);
     };
     updateBaseValue();
+    /*
+ * LFO Depth / Rate
+ * キーボード編集。
+ *
+ * Enter：編集開始／確定
+ * 矢印：値変更
+ * Escape：キャンセル
+ */
+let keyboardEditing = false;
+let keyboardStartValue =
+  Number(
+    track.base[activeBaseId]
+  );
+
+let keyboardValue =
+  keyboardStartValue;
+
+function displayKeyboardValue() {
+  baseValue.textContent =
+    activeView === "rate" &&
+    syncMode === "bpm"
+      ? rateName(
+          keyboardValue
+        )
+      : activeView === "rate"
+        ? `${(
+            Number(
+              keyboardValue
+            ) / 10
+          ).toFixed(1)}Hz`
+        : String(
+            keyboardValue
+          );
+}
+
+function finishKeyboardEdit(
+  shouldCommit
+) {
+  if (!keyboardEditing) {
+    return;
+  }
+
+  keyboardEditing = false;
+
+  delete baseValue.dataset
+    .keyboardEditing;
+
+  if (
+    shouldCommit &&
+    keyboardValue !==
+      keyboardStartValue
+  ) {
+    saveHistory();
+
+    track.base[activeBaseId] =
+      keyboardValue;
+  } else {
+    keyboardValue =
+      keyboardStartValue;
+  }
+
+  renderEditorAndRestore(
+    "lfo-base-value"
+  );
+}
+
+baseValue.addEventListener(
+  "keydown",
+  event => {
+    if (
+      event.key === "Enter"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!keyboardEditing) {
+        keyboardEditing = true;
+
+        keyboardStartValue =
+          Number(
+            track.base[
+              activeBaseId
+            ]
+          );
+
+        keyboardValue =
+          keyboardStartValue;
+
+        baseValue.dataset
+          .keyboardEditing =
+            "true";
+
+        return;
+      }
+
+      finishKeyboardEdit(
+        true
+      );
+
+      return;
+    }
+
+    if (
+      keyboardEditing &&
+      (
+        event.key ===
+          "ArrowUp" ||
+        event.key ===
+          "ArrowRight" ||
+        event.key ===
+          "ArrowDown" ||
+        event.key ===
+          "ArrowLeft"
+      )
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const amount =
+        (
+          event.key ===
+            "ArrowUp" ||
+          event.key ===
+            "ArrowRight"
+        )
+          ? activeParameter.step ??
+            1
+          : -(
+              activeParameter.step ??
+              1
+            );
+
+      keyboardValue =
+        roundToStep(
+          clamp(
+            keyboardValue +
+              amount,
+            activeParameter.min,
+            activeParameter.max
+          ),
+          activeParameter.step ??
+            1
+        );
+
+      displayKeyboardValue();
+
+      return;
+    }
+
+    if (
+      keyboardEditing &&
+      event.key === "Escape"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      finishKeyboardEdit(
+        false
+      );
+    }
+  }
+);
 
     let sweepHistorySaved = false;
     enableVerticalSweep({
@@ -5605,7 +5774,7 @@ for (
 
     if (isFill) {
   button.textContent =
-    `F${slotIndex + 1}`;
+    `f${slotIndex + 1}`;
 
   button.dataset.focusKey =
     `fill-${slotIndex}`;
@@ -6692,7 +6861,7 @@ if (
 
       const sourceLabel =
         source.type === "fill"
-          ? `F${source.index + 1}`
+          ? `f${source.index + 1}`
           : String(
               source.index + 1
             ).padStart(

@@ -57,7 +57,8 @@ fxMuted: false,
   gate: 5,
   fmDepth: 0,
       fmRatio: 1,
-      tone: 50,
+      filterCutoff: 0,
+      filterResonance: 0,
       pan: 50,
       delay: 0,
       delayTime: 4,
@@ -111,7 +112,10 @@ sineVolume:
   fmDepth:
     filled(0),
 
-  tone:
+  filterCutoff:
+    filled(0),
+
+  filterResonance:
     filled(0),
 
   pan:
@@ -441,8 +445,18 @@ export const parameters = [
   },
 
   {
-    id: "tone",
-    label: "tone",
+    id: "filterCutoff",
+    label: "cutoff",
+    icon: "tone",
+    min: -100,
+    max: 100,
+    step: 1,
+    offsetMode: "offset"
+  },
+
+  {
+    id: "filterResonance",
+    label: "resonance",
     icon: "tone",
     min: 0,
     max: 100,
@@ -1583,6 +1597,67 @@ function normalizeTrackData(track) {
   track.base ??= {};
   track.offsets ??= {};
 
+  /*
+   * 旧tone（0〜100、50=OFF）を
+   * 新Filter Cutoff（-100〜100、0=OFF）へ移行する。
+   */
+  if (
+    typeof track.base.filterCutoff !==
+      "number"
+  ) {
+    const legacyTone =
+      typeof track.base.tone === "number"
+        ? track.base.tone
+        : 50;
+
+    track.base.filterCutoff =
+      clamp(
+        Math.round(
+          (legacyTone - 50) * 2
+        ),
+        -100,
+        100
+      );
+  }
+
+  if (
+    typeof track.base.filterResonance !==
+      "number"
+  ) {
+    track.base.filterResonance = 0;
+  }
+
+  if (
+    !Array.isArray(
+      track.offsets.filterCutoff
+    )
+  ) {
+    const legacyOffsets =
+      Array.isArray(track.offsets.tone)
+        ? track.offsets.tone
+        : filled(0);
+
+    track.offsets.filterCutoff =
+      legacyOffsets.map(value =>
+        clamp(
+          Math.round(
+            Number(value || 0) * 2
+          ),
+          -200,
+          200
+        )
+      );
+  }
+
+  if (
+    !Array.isArray(
+      track.offsets.filterResonance
+    )
+  ) {
+    track.offsets.filterResonance =
+      filled(0);
+  }
+
   if (
     !["attack", "decay", "sustain", "gate"].includes(
       track.envelopeSelectedId
@@ -1912,6 +1987,30 @@ function normalizeSnapshotData(
       normalizeTrackData
     );
   });
+
+  /*
+   * 旧FILTER画面を開いたまま保存されていた場合、
+   * state側には selectedParameterId = "tone" が残る。
+   * 新コードではtoneが存在しないため、描画時の例外を防いで
+   * 新しいfilterCutoffへ移行する。
+   */
+  snapshot.state ??= {};
+
+  if (
+    snapshot.state.selectedParameterId ===
+      "tone"
+  ) {
+    snapshot.state.selectedParameterId =
+      "filterCutoff";
+  }
+
+  if (
+    snapshot.state.selectedChildId ===
+      "tone"
+  ) {
+    snapshot.state.selectedChildId =
+      "filterCutoff";
+  }
 
   return snapshot;
 }

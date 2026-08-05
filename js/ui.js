@@ -627,7 +627,7 @@ const parameterMenuItems = [
   { label: "NOTE", parameterId: "note", icon: "note" },
   { label: "ENV", parameter: envelopeParameter, icon: "decay" },
   { label: "FM", parameterId: "fmDepth", icon: "fm" },
-  { label: "FILTER", parameterId: "tone", icon: "tone" },
+  { label: "FILTER", parameterId: "filterCutoff", icon: "tone" },
   { label: "PAN", parameterId: "pan", icon: "pan" },
   { label: "LFO", parameterId: "lfo", icon: "lfo" },
   { label: "FX", placeholderId: "fx", icon: "fx" },
@@ -1518,6 +1518,16 @@ function displayBaseValue(parameter) {
 
   if (parameter.id === "probability") {
     return `${value}%`;
+  }
+
+  if (parameter.id === "filterCutoff") {
+    if (value === 0) {
+      return "OFF";
+    }
+
+    return value < 0
+      ? `LP${Math.abs(value)}`
+      : `HP${value}`;
   }
 
   if (parameter.id === "delayTime") {
@@ -2854,6 +2864,19 @@ const definition =
       );
     }
 
+    if (id === "filterCutoff") {
+      const cutoffValue =
+        Number(track.base[id]) || 0;
+
+      if (cutoffValue === 0) {
+        return "OFF";
+      }
+
+      return cutoffValue < 0
+        ? `LP${Math.abs(cutoffValue)}`
+        : `HP${cutoffValue}`;
+    }
+
     return String(
       track.base[id]
     );
@@ -4141,6 +4164,198 @@ function renderEnvelopeEdit() {
     header
   );
 
+  editor.appendChild(
+    renderOffsetGrid(
+      activeParameter
+    )
+  );
+}
+
+function renderFilterEdit() {
+  const track = selectedTrack();
+
+  const filterChildren = [
+    {
+      id: "filterCutoff",
+      label: "cutoff"
+    },
+    {
+      id: "filterResonance",
+      label: "reso"
+    }
+  ];
+
+  const activeId =
+    filterChildren.some(
+      child =>
+        child.id ===
+        state.selectedChildId
+    )
+      ? state.selectedChildId
+      : "filterCutoff";
+
+  state.selectedChildId = activeId;
+
+  const activeParameter =
+    parameterById(activeId);
+
+  const header =
+    document.createElement("div");
+
+  header.className =
+    "edit-toolbar filter-edit-toolbar";
+
+  const trackButton =
+    document.createElement("button");
+
+  trackButton.type = "button";
+  trackButton.className =
+    "track-cycle";
+  trackButton.dataset.focusKey =
+    "edit-track";
+
+  trackButton.innerHTML = `
+    <span class="track-icon">
+      ${getParameterIcon("track")}
+    </span>
+    <span class="track-number">
+      ${track.id}
+    </span>
+  `;
+
+  trackButton.addEventListener(
+    "click",
+    () => {
+      state.selectedTrackIndex =
+        (
+          state.selectedTrackIndex +
+          1
+        ) % tracks.length;
+
+      renderSequence();
+      renderEditorAndRestore(
+        "edit-track"
+      );
+    }
+  );
+
+  const parentButton =
+    document.createElement("button");
+
+  parentButton.type = "button";
+  parentButton.className =
+    "edit-icon filter-parent-icon";
+  parentButton.dataset.focusKey =
+    "edit-parameter-filterCutoff";
+  parentButton.innerHTML =
+    getParameterIcon("tone");
+  parentButton.setAttribute(
+    "aria-label",
+    "フィルター編集を閉じる"
+  );
+
+  parentButton.addEventListener(
+    "click",
+    () => {
+      state.selectedParameterId = null;
+      renderEditorAndRestore(
+        "parameter-filterCutoff"
+      );
+    }
+  );
+
+  const controls =
+    document.createElement("div");
+
+  controls.className =
+    "filter-child-controls";
+
+  filterChildren.forEach(
+    definition => {
+      const button =
+        document.createElement(
+          "button"
+        );
+
+      button.type = "button";
+      button.className =
+        "filter-child-button";
+      button.dataset.focusKey =
+        `child-${definition.id}`;
+      button.textContent =
+        definition.label;
+
+      if (
+        definition.id === activeId
+      ) {
+        button.classList.add(
+          "active"
+        );
+      }
+
+      button.addEventListener(
+        "click",
+        () => {
+          state.selectedChildId =
+            definition.id;
+
+          renderEditorAndRestore(
+            `base-value-${definition.id}`
+          );
+        }
+      );
+
+      controls.appendChild(button);
+    }
+  );
+
+  header.append(
+    trackButton,
+    parentButton,
+    controls
+  );
+
+  const eraseButton =
+    document.createElement("button");
+
+  eraseButton.type = "button";
+  eraseButton.className =
+    "mini-button erase-button";
+  eraseButton.dataset.focusKey =
+    "edit-offset-erase";
+  eraseButton.innerHTML =
+    getParameterIcon("erase");
+  eraseButton.setAttribute(
+    "aria-label",
+    `${activeParameter.label}のOffsetをダブルタップで全消去`
+  );
+
+  enableDoubleTapAction({
+    element: eraseButton,
+    onDoubleTap: () => {
+      if (
+        !clearSelectedParameterOffsets(
+          activeId
+        )
+      ) {
+        return;
+      }
+
+      renderEditorAndRestore(
+        "edit-offset-erase"
+      );
+    }
+  });
+
+  header.appendChild(eraseButton);
+  header.appendChild(
+    editValueControl(
+      activeParameter,
+      activeId
+    )
+  );
+
+  editor.appendChild(header);
   editor.appendChild(
     renderOffsetGrid(
       activeParameter
@@ -6250,6 +6465,14 @@ export function renderEditor() {
       "envelope"
   ) {
     renderEnvelopeEdit();
+    return;
+  }
+
+  if (
+    state.selectedParameterId ===
+      "filterCutoff"
+  ) {
+    renderFilterEdit();
     return;
   }
 

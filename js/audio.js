@@ -372,10 +372,18 @@ const gate =
       20
     );
 
-  const tone =
+  const filterCutoff =
     clamp(
-      track.base.tone +
-      offset("tone"),
+      (track.base.filterCutoff ?? 0) +
+        offset("filterCutoff"),
+      -100,
+      100
+    );
+
+  const filterResonance =
+    clamp(
+      (track.base.filterResonance ?? 0) +
+        offset("filterResonance"),
       0,
       100
     );
@@ -452,7 +460,10 @@ const delayTime =
   const panner =
   context.createStereoPanner();
 
-const filter =
+const filter1 =
+  context.createBiquadFilter();
+
+const filter2 =
   context.createBiquadFilter();
 
 /*
@@ -675,33 +686,304 @@ if (lfoWave === "rise" || lfoWave === "fall") {
 connectPanLfo(1);
 connectPanLfo(2);
 
-  if (tone < 50) {
-    filter.type = "lowpass";
-
-    filter.frequency.setValueAtTime(
-      120 +
-      Math.pow(
-        tone / 50,
-        2
-      ) *
-      18000,
-      now
-    );
-  } else if (tone > 50) {
-    filter.type = "highpass";
-
-    filter.frequency.setValueAtTime(
-      Math.pow(
-        (tone - 50) / 50,
-        2
-      ) *
-      6000 +
-      20,
-      now
-    );
+  /*
+   * Filter Cutoff
+   *
+   * -100〜-1：Low Pass
+   * 0       ：OFF
+   * +1〜100 ：High Pass
+   *
+   * 同じBiquadFilterを2段直列にして、
+   * LP／HPとも24dB/oct相当として扱う。
+   */
+  if (filterCutoff === 0) {
+    filter1.type = "allpass";
+    filter2.type = "allpass";
   } else {
-    filter.type = "allpass";
+    const normalizedAmount =
+      Math.abs(filterCutoff) / 100;
+
+    const isLowPass =
+      filterCutoff < 0;
+
+    const filterType =
+      isLowPass
+        ? "lowpass"
+        : "highpass";
+
+    const cutoffFrequency =
+      isLowPass
+        ? 20000 *
+          Math.pow(
+            40 / 20000,
+            normalizedAmount
+          )
+        : 20 *
+          Math.pow(
+            12000 / 20,
+            normalizedAmount
+          );
+
+    filter1.type = filterType;
+    filter2.type = filterType;
+
+    filter1.frequency.setValueAtTime(
+      cutoffFrequency,
+      now
+    );
+
+    filter2.frequency.setValueAtTime(
+      cutoffFrequency,
+      now
+    );
+
+    /*
+     * Resonanceは1段目だけへ与える。
+     * 2段とも同じQを与えるとピークが
+     * 過剰になりやすいため。
+     */
+    const resonanceQ =
+      0.0001 +
+      Math.pow(
+        filterResonance / 100,
+        1.7
+      ) * 30;
+
+    filter1.Q.setValueAtTime(
+      resonanceQ,
+      now
+    );
+
+    /*
+     * 2段目にも弱めのQを与えて、
+     * 24dB構成でもResonanceの変化を
+     * 聴き取りやすくする。
+     */
+    filter2.Q.setValueAtTime(
+      Math.max(
+        0.0001,
+        resonanceQ * 0.35
+      ),
+      now
+    );
   }
+
+  /*
+   * Filter Cutoff LFO
+   *
+   * filterCutoffがLP／HPの時だけ、
+   * 2段のFilter detuneを同じ信号で変調する。
+   * Depth 100で最大±3600cent（3oct）。
+   */
+  const filterLfoNodes = [];
+
+  function connectFilterLfo(
+    lfoNumber
+  ) {
+    if (filterCutoff === 0) {
+      return;
+    }
+
+    const prefix =
+      `lfo${lfoNumber}`;
+
+    if (
+      track.base[
+        `${prefix}Target`
+      ] !== "filterCutoff"
+    ) {
+      return;
+    }
+
+    const lfoDepth =
+      clamp(
+        (
+          track.base[
+            `${prefix}Depth`
+          ] ?? 0
+        ) +
+          offset(
+            `${prefix}Depth`
+          ),
+        0,
+        100
+      );
+
+    if (lfoDepth <= 0) {
+      return;
+    }
+
+    const syncMode =
+      track.base[
+        `${prefix}SyncMode`
+      ] === "bpm"
+        ? "bpm"
+        : "free";
+
+    const lfoRate =
+      clamp(
+        (
+          track.base[
+            `${prefix}Rate`
+          ] ??
+          (
+            syncMode === "bpm"
+              ? 8
+              : 25
+          )
+        ) +
+          offset(
+            `${prefix}Rate`
+          ),
+        syncMode === "bpm"
+          ? 0
+          : 1,
+        syncMode === "bpm"
+          ? 13
+          : 100
+      );
+
+    const lfoWave =
+      track.base[
+        `${prefix}Wave`
+      ] ?? "sine";
+
+    const rateHz =
+      lfoRateToHz(
+        lfoRate,
+        syncMode,
+        bpm
+      );
+
+    const amountCents =
+      lfoDepth * 36;
+
+    const stopTime =
+      now + gate + 0.05;
+
+    if (lfoWave === "random") {
+      const source =
+        context.createConstantSource();
+
+      source.connect(filter1.detune);
+      source.connect(filter2.detune);
+
+      const interval =
+        1 / Math.max(0.001, rateHz);
+
+      let time = now;
+      let eventCount = 0;
+
+      while (
+        time <= stopTime &&
+        eventCount < 4096
+      ) {
+        source.offset.setValueAtTime(
+          (Math.random() * 2 - 1) *
+            amountCents,
+          time
+        );
+
+        time += interval;
+        eventCount += 1;
+      }
+
+      source.start(now);
+      filterLfoNodes.push(source);
+      return;
+    }
+
+    if (
+      lfoWave === "rise" ||
+      lfoWave === "fall"
+    ) {
+      const source =
+        context.createConstantSource();
+
+      source.connect(filter1.detune);
+      source.connect(filter2.detune);
+
+      source.offset.setValueAtTime(
+        lfoWave === "fall"
+          ? amountCents
+          : -amountCents,
+        now
+      );
+
+      source.offset.linearRampToValueAtTime(
+        0,
+        now + 1 / rateHz
+      );
+
+      source.start(now);
+      source.stop(
+        Math.min(
+          stopTime,
+          now + 1 / rateHz + 0.01
+        )
+      );
+
+      filterLfoNodes.push(source);
+      return;
+    }
+
+    const oscillator =
+      context.createOscillator();
+
+    const gain =
+      context.createGain();
+
+    let direction = 1;
+
+    switch (lfoWave) {
+      case "triangle":
+        oscillator.type = "triangle";
+        break;
+
+      case "square":
+        oscillator.type = "square";
+        break;
+
+      case "sawUp":
+        oscillator.type = "sawtooth";
+        break;
+
+      case "sawDown":
+        oscillator.type = "sawtooth";
+        direction = -1;
+        break;
+
+      case "sine":
+      default:
+        oscillator.type = "sine";
+        break;
+    }
+
+    oscillator.frequency.setValueAtTime(
+      rateHz,
+      now
+    );
+
+    gain.gain.setValueAtTime(
+      amountCents * direction,
+      now
+    );
+
+    oscillator.connect(gain);
+    gain.connect(filter1.detune);
+    gain.connect(filter2.detune);
+
+    oscillator.start(now);
+    oscillator.stop(stopTime);
+
+    filterLfoNodes.push(
+      oscillator,
+      gain
+    );
+  }
+
+  connectFilterLfo(1);
+  connectFilterLfo(2);
 
 const mixGain =
   context.createGain();
@@ -785,9 +1067,9 @@ mixGain.gain.exponentialRampToValueAtTime(
 );
 
 mixGain
-  .connect(filter);
-
-  filter.connect(panner);
+  .connect(filter1)
+  .connect(filter2)
+  .connect(panner);
 
   /*
    * 原音は常にそのまま出力する。

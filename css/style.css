@@ -2570,3 +2570,68 @@ input.track-volume-slider::-moz-range-thumb {
     font-weight: 600;
     line-height: 1;
 }
+
+/* =========================
+   Filter editor
+========================= */
+.filter-edit-toolbar {
+    gap: 5px;
+}
+
+.filter-parent-icon {
+    flex: 0 0 24px;
+    width: 24px;
+    min-width: 24px;
+}
+
+.filter-child-controls {
+    min-width: 0;
+    flex: 1 1 auto;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+
+    height: 28px;
+}
+
+.filter-child-button {
+    min-width: 52px;
+    height: 24px;
+
+    padding: 0 5px;
+    border: 0;
+    background: transparent;
+
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+
+    font-size: var(--font-label);
+    line-height: 1;
+    text-transform: lowercase;
+}
+
+.filter-child-button.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color: var(--selected-text);
+}
+
+.filter-edit-toolbar .erase-button {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    padding: 4px;
+}
+
+.filter-edit-toolbar .value-control {
+    flex: 0 0 38px;
+    margin-left: 0;
+}
+
+.filter-edit-toolbar .value-control button {
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+}

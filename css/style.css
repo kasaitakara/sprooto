@@ -1611,13 +1611,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     white-space: nowrap;
 }
 
-.compact-value-label {
-    font-size: var(--font-sub);
-    line-height: 1;
-    color: var(--muted);
-    text-transform: lowercase;
-}
-
 .compact-value-number,
 .track-length-input.compact-value-number,
 .pattern-length-input.compact-value-number {
@@ -1707,7 +1700,12 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 
 /* SWとSTEPのラベル・数値間隔を統一 */
 .compact-value {
-    gap: 4px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1px;
+
+    min-width: 0;
+    white-space: nowrap;
 }
 
 /* パラセレクト下のベース値を小さくする */
@@ -2634,4 +2632,152 @@ input.track-volume-slider::-moz-range-thumb {
     width: 38px;
     min-width: 38px;
     padding: 0;
+}
+
+/* =========================
+   Editor right-side controls
+========================= */
+
+/*
+ * 編集項目は左側。
+ * 消しゴム以降を右端へ固定する。
+ */
+.edit-toolbar .erase-button {
+    margin-left: auto;
+    margin-right: -6px;
+    flex: 0 0 24px;
+}
+
+/*
+ * base表示は必要幅だけ使用。
+ * 右側で間延びさせない。
+ */
+.edit-toolbar .value-control,
+.edit-toolbar .lfo-base-value-control {
+    flex: 0 0 auto;
+    margin-left: 0;
+}
+
+/*
+ * base / sw / stepの
+ * ラベルと数値を密着させる。
+ */
+.compact-value {
+    gap: 0;
+}
+
+.compact-value-label {
+    margin-right: 1px;
+}
+
+/*
+ * 数値側の不要な最低幅を縮める。
+ */
+.compact-value-number {
+    min-width: 0;
+}
+
+/*
+ * base値ボタン自体も
+ * 中身に必要な幅だけにする。
+ */
+.value-control .base-value {
+    width: auto;
+    min-width: 20px;
+    padding: 0;
+}
+
+/*
+ * LFOのbase表示も同じルール。
+ */
+.lfo-base-value-control {
+    gap: 0;
+    white-space: nowrap;
+}
+
+.lfo-base-value-control .lfo-base-value {
+    width: auto;
+    min-width: 28px;
+    margin-left: 0;
+    padding: 0;
+}
+
+/*
+ * 通常パラメータのタブ領域は
+ * 余った幅を左側で受け持つ。
+ */
+.edit-toolbar .child-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/*
+ * メニュー2行目も、
+ * 消しゴム以降を右側へ固定。
+ */
+.editor-header-secondary .track-sound-name {
+    flex: 1 1 auto;
+}
+
+.editor-header-secondary .erase-button {
+    margin-left: auto;
+    margin-right: 0;
+    flex: 0 0 28px;
+}
+
+.track-swing-control,
+.track-step-control {
+    flex: 0 0 auto;
+}
+
+/* =========================
+   Base value position fixed
+========================= */
+
+/*
+ * 数値でも音価・Hz表示でも、
+ * base領域の横幅を変えない。
+ */
+.edit-toolbar .value-control,
+.edit-toolbar .lfo-base-value-control {
+    width: 72px;
+    min-width: 72px;
+    flex: 0 0 72px;
+
+    justify-content: flex-end;
+}
+
+/*
+ * base文字と値は右寄せしつつ密着。
+ */
+.edit-toolbar
+.value-control
+.compact-value,
+.edit-toolbar
+.lfo-base-value-control {
+    width: 100%;
+
+    justify-content: flex-end;
+    gap: 0;
+}
+
+.edit-toolbar
+.compact-value-label {
+    margin-right: 1px;
+}
+
+/* =========================
+   Volume slider flat thumb
+========================= */
+
+#master-volume::-webkit-slider-thumb,
+input.track-volume-slider::-webkit-slider-thumb {
+    box-shadow: none;
+    filter: none;
+}
+
+#master-volume::-moz-range-thumb,
+input.track-volume-slider::-moz-range-thumb {
+    box-shadow: none;
+    filter: none;
 }

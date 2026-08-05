@@ -2419,82 +2419,358 @@ if (isTouchInput) {
 
 
 function createTrackVolumeControl() {
-  const track = selectedTrack();
-  const parameter = parameterById("velocity");
+  const track =
+    selectedTrack();
 
-  const wrapper = document.createElement("div");
+  const parameter =
+    parameterById(
+      "velocity"
+    );
+
+  const wrapper =
+    document.createElement(
+      "div"
+    );
+
   wrapper.className =
-  "master-control track-volume-control";
+    "master-control track-volume-control";
 
-  const offsetButton = document.createElement("button");
-  offsetButton.type = "button";
+  const offsetButton =
+    document.createElement(
+      "button"
+    );
+
+  offsetButton.type =
+    "button";
+
   offsetButton.className =
-  "master-volume-icon track-volume-icon";
-  offsetButton.dataset.focusKey = "menu-volume-offset";
+    "master-volume-icon track-volume-icon";
+
+  offsetButton.dataset.focusKey =
+    "menu-volume-offset";
+
   offsetButton.setAttribute(
     "aria-label",
     "ボリュームオフセットを表示"
   );
-  offsetButton.innerHTML = getParameterIcon("volume");
 
-  offsetButton.addEventListener("click", () => {
-    state.selectedParameterId = "velocity";
-    state.selectedChildId = "velocity";
-
-    renderEditorAndRestore(
-      "base-value-velocity"
+  offsetButton.innerHTML =
+    getParameterIcon(
+      "volume"
     );
-  });
 
-  const slider = document.createElement("input");
-  slider.type = "range";
-  slider.className = "track-volume-slider";
-  slider.min = String(parameter.min);
-  slider.max = String(parameter.max);
-  slider.step = String(parameter.step ?? 1);
-  slider.value = String(track.base.velocity);
-  slider.dataset.focusKey = "menu-volume-base";
+  offsetButton.addEventListener(
+    "click",
+    () => {
+      state.selectedParameterId =
+        "velocity";
+
+      state.selectedChildId =
+        "velocity";
+
+      renderEditorAndRestore(
+        "base-value-velocity"
+      );
+    }
+  );
+
+  const slider =
+    document.createElement(
+      "input"
+    );
+
+  slider.type =
+    "range";
+
+  slider.className =
+    "track-volume-slider";
+
+  slider.min =
+    String(
+      parameter.min
+    );
+
+  slider.max =
+    String(
+      parameter.max
+    );
+
+  slider.step =
+    String(
+      parameter.step ?? 1
+    );
+
+  slider.value =
+    String(
+      track.base.velocity
+    );
+
+  slider.dataset.focusKey =
+    "menu-volume-base";
+
   slider.setAttribute(
     "aria-label",
     `トラック${track.id}のボリューム`
   );
 
-  const output = document.createElement("output");
-  output.className = "track-volume-value";
-  output.value = String(track.base.velocity);
-  output.textContent = String(track.base.velocity);
-
-  let historySaved = false;
-
-  slider.addEventListener("input", () => {
-    const nextValue = clamp(
-      Number(slider.value),
-      parameter.min,
-      parameter.max
+  const output =
+    document.createElement(
+      "output"
     );
 
-    if (nextValue === track.base.velocity) {
+  output.className =
+    "track-volume-value";
+
+  output.value =
+    String(
+      track.base.velocity
+    );
+
+  output.textContent =
+    String(
+      track.base.velocity
+    );
+
+  let pointerId =
+    null;
+
+  let startX =
+    0;
+
+  let startValue =
+    track.base.velocity;
+
+  let currentValue =
+    startValue;
+
+  let historySaved =
+    false;
+
+  slider.style.touchAction =
+    "none";
+
+  function updateValue(
+    nextValue
+  ) {
+    const correctedValue =
+      clamp(
+        Math.round(
+          nextValue
+        ),
+        parameter.min,
+        parameter.max
+      );
+
+    if (
+      correctedValue ===
+        currentValue
+    ) {
       return;
     }
 
     if (!historySaved) {
       saveHistory();
-      historySaved = true;
+
+      historySaved =
+        true;
     }
 
-    track.base.velocity = nextValue;
-    output.value = String(nextValue);
-    output.textContent = String(nextValue);
-  });
+    currentValue =
+      correctedValue;
 
-  const finish = () => {
-    historySaved = false;
-  };
+    track.base.velocity =
+      correctedValue;
 
-  slider.addEventListener("change", finish);
-  slider.addEventListener("blur", finish);
-  slider.addEventListener("pointerup", finish);
-  slider.addEventListener("pointercancel", finish);
+    slider.value =
+      String(
+        correctedValue
+      );
+
+    output.value =
+      String(
+        correctedValue
+      );
+
+    output.textContent =
+      String(
+        correctedValue
+      );
+  }
+
+  slider.addEventListener(
+    "pointerdown",
+    event => {
+      if (
+        event.pointerType ===
+          "mouse" &&
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      /*
+       * タップ位置への
+       * 標準ジャンプを止める。
+       */
+      event.preventDefault();
+
+      pointerId =
+        event.pointerId;
+
+      startX =
+        event.clientX;
+
+      startValue =
+        track.base.velocity;
+
+      currentValue =
+        startValue;
+
+      historySaved =
+        false;
+
+      slider.setPointerCapture(
+        event.pointerId
+      );
+
+      slider.focus({
+        preventScroll: true
+      });
+    }
+  );
+
+  slider.addEventListener(
+    "pointermove",
+    event => {
+      if (
+        pointerId !==
+          event.pointerId
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const rect =
+        slider.getBoundingClientRect();
+
+      const usableWidth =
+        Math.max(
+          1,
+          rect.width
+        );
+
+      const valueRange =
+        parameter.max -
+        parameter.min;
+
+      const movementX =
+        event.clientX -
+        startX;
+
+      const nextValue =
+        startValue +
+        (
+          movementX /
+          usableWidth
+        ) *
+        valueRange;
+
+      updateValue(
+        nextValue
+      );
+    }
+  );
+
+  function finishPointer(
+    event
+  ) {
+    if (
+      pointerId !==
+        event.pointerId
+    ) {
+      return;
+    }
+
+    if (
+      slider.hasPointerCapture(
+        event.pointerId
+      )
+    ) {
+      slider.releasePointerCapture(
+        event.pointerId
+      );
+    }
+
+    pointerId =
+      null;
+
+    historySaved =
+      false;
+  }
+
+  slider.addEventListener(
+    "pointerup",
+    finishPointer
+  );
+
+  slider.addEventListener(
+    "pointercancel",
+    finishPointer
+  );
+
+  slider.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+    }
+  );
+
+  /*
+   * キーボード操作は
+   * 標準range操作を維持する。
+   */
+  slider.addEventListener(
+    "input",
+    () => {
+      if (
+        pointerId !== null
+      ) {
+        return;
+      }
+
+      const nextValue =
+        clamp(
+          Number(
+            slider.value
+          ),
+          parameter.min,
+          parameter.max
+        );
+
+      if (
+        nextValue ===
+          track.base.velocity
+      ) {
+        return;
+      }
+
+      saveHistory();
+
+      track.base.velocity =
+        nextValue;
+
+      output.value =
+        String(
+          nextValue
+        );
+
+      output.textContent =
+        String(
+          nextValue
+        );
+    }
+  );
 
   wrapper.append(
     offsetButton,
@@ -3272,9 +3548,29 @@ track.base[id] =
     }
   );
 
-  wrap.appendChild(value);
+  const label =
+  document.createElement("span");
 
-  return wrap;
+label.className =
+  "compact-value-label";
+
+label.textContent =
+  "base";
+
+const compact =
+  document.createElement("div");
+
+compact.className =
+  "compact-value";
+
+compact.append(
+  label,
+  value
+);
+
+wrap.appendChild(compact);
+
+return wrap;
 }
 
 function displayStepValue(parameter, stepIndex) {
@@ -4610,8 +4906,24 @@ const activeParameter =
       }
     });
 
-    header.appendChild(baseValue);
-    editor.append(header, renderOffsetGrid(activeParameter));
+    const baseValueWrapper =
+  createCompactValue({
+    label: "base",
+    control: baseValue,
+    className:
+      "lfo-base-value-control"
+  });
+
+header.appendChild(
+  baseValueWrapper
+);
+
+editor.append(
+  header,
+  renderOffsetGrid(
+    activeParameter
+  )
+);
     return;
   }
 

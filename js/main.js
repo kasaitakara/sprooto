@@ -312,6 +312,9 @@ state.playingSectionIndex =
 state.playingSectionItemIndex =
   null;
 
+state.fillReturnTarget =
+  null;
+
 clearQueuedSource();
 
     clearTimeout(timer);
@@ -474,12 +477,235 @@ bpmInput.addEventListener(
 );
 
 playButton.addEventListener("click", togglePlayback);
-volumeInput.addEventListener("input", () => {
-  const value = clamp(Number(volumeInput.value), 0, 100);
-  volumeValue.value = value;
-  volumeValue.textContent = value;
-  setMasterVolume(value / 100);
+function enableRelativeVolumeDrag({
+  slider,
+  getValue,
+  setValue,
+  min = 0,
+  max = 100,
+  step = 1,
+  onStart,
+  onFinish
+}) {
+  let pointerId = null;
+  let startX = 0;
+  let startValue = 0;
+  let currentValue = 0;
+  let moved = false;
+
+  slider.style.touchAction = "none";
+
+  slider.addEventListener(
+    "pointerdown",
+    event => {
+      if (
+        event.pointerType === "mouse" &&
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      /*
+       * range標準の
+       * タップ位置へのジャンプを止める。
+       */
+      event.preventDefault();
+
+      pointerId =
+        event.pointerId;
+
+      startX =
+        event.clientX;
+
+      startValue =
+        Number(getValue());
+
+      currentValue =
+        startValue;
+
+      moved = false;
+
+      onStart?.();
+
+      slider.setPointerCapture(
+        event.pointerId
+      );
+
+      slider.focus({
+        preventScroll: true
+      });
+    }
+  );
+
+  slider.addEventListener(
+    "pointermove",
+    event => {
+      if (
+        pointerId !==
+        event.pointerId
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const rect =
+        slider.getBoundingClientRect();
+
+      const usableWidth =
+        Math.max(
+          1,
+          rect.width
+        );
+
+      const valueRange =
+        max - min;
+
+      const movementX =
+        event.clientX -
+        startX;
+
+      const rawValue =
+        startValue +
+        (
+          movementX /
+          usableWidth
+        ) *
+        valueRange;
+
+      const steppedValue =
+        Math.round(
+          rawValue / step
+        ) * step;
+
+      const nextValue =
+        clamp(
+          steppedValue,
+          min,
+          max
+        );
+
+      if (
+        nextValue ===
+        currentValue
+      ) {
+        return;
+      }
+
+      moved = true;
+      currentValue =
+        nextValue;
+
+      setValue(
+        nextValue
+      );
+    }
+  );
+
+  function finish(event) {
+    if (
+      pointerId !==
+        event.pointerId
+    ) {
+      return;
+    }
+
+    if (
+      slider.hasPointerCapture(
+        event.pointerId
+      )
+    ) {
+      slider.releasePointerCapture(
+        event.pointerId
+      );
+    }
+
+    pointerId = null;
+
+    onFinish?.(
+      startValue,
+      currentValue,
+      moved
+    );
+  }
+
+  slider.addEventListener(
+    "pointerup",
+    finish
+  );
+
+  slider.addEventListener(
+    "pointercancel",
+    finish
+  );
+
+  /*
+   * pointerdown後に発生する
+   * clickでも値を飛ばさせない。
+   */
+  slider.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+    }
+  );
+}
+
+function setMasterVolumeValue(
+  nextValue
+) {
+  const value =
+    clamp(
+      Math.round(nextValue),
+      0,
+      100
+    );
+
+  volumeInput.value =
+    String(value);
+
+  volumeValue.value =
+    String(value);
+
+  volumeValue.textContent =
+    String(value);
+
+  setMasterVolume(
+    value / 100
+  );
+}
+
+enableRelativeVolumeDrag({
+  slider:
+    volumeInput,
+
+  getValue: () =>
+    Number(
+      volumeInput.value
+    ),
+
+  setValue:
+    setMasterVolumeValue,
+
+  min: 0,
+  max: 100,
+  step: 1
 });
+
+/*
+ * キーボード操作は
+ * range本来の操作を残す。
+ */
+volumeInput.addEventListener(
+  "input",
+  () => {
+    setMasterVolumeValue(
+      Number(
+        volumeInput.value
+      )
+    );
+  }
+);
 themeButton.addEventListener(
   "click",
   () => {

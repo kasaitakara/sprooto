@@ -11,6 +11,8 @@ import {
   getMaxTrackLength,
   syncPatternLength,
   saveHistory,
+  saveHistorySnapshot,
+  createSnapshot,
   selectPattern,
   selectFill,
   queuePattern,
@@ -29,6 +31,18 @@ import {
   clearSelectedTrackSequence,
   clearSelectedParameterOffsets,
 } from "./sequencer.js";
+
+
+import {
+  SOUND_CATEGORIES,
+  getFactoryPresets,
+  getUserPresets,
+  saveUserPreset,
+  deleteUserPreset,
+  captureTrackSound,
+  applyTrackSound,
+  soundsEqual
+} from "./sound-preset-manager.js";
 
 const sequenceGrid = document.getElementById("sequence-grid");
 const sequencePageButton = document.getElementById("sequence-page-button");
@@ -386,6 +400,39 @@ function getParameterIcon(iconId) {
       </svg>
     `,
 
+    save: `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 4h14l2 2v14H4z"></path>
+    <path d="M7 4v6h10V4"></path>
+    <rect x="7" y="14" width="10" height="6"></rect>
+  </svg>
+`,
+
+trash: `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 7h16"></path>
+    <path d="M9 7V4h6v3"></path>
+    <path d="M6 7l1 13h10l1-13"></path>
+    <path d="M10 11v5"></path>
+    <path d="M14 11v5"></path>
+  </svg>
+`,
     attack: `
   <svg
     viewBox="0 0 24 24"
@@ -2865,7 +2912,11 @@ function renderMenu() {
     "editor-header-row editor-header-secondary";
 
   const soundName =
-    document.createElement("span");
+    document.createElement("button");
+
+  soundName.type = "button";
+  soundName.dataset.focusKey =
+    "menu-sound-name";
 
   soundName.className =
     "track-sound-name";
@@ -2876,7 +2927,12 @@ function renderMenu() {
 
   soundName.setAttribute(
     "aria-label",
-    `サウンド名 ${soundName.textContent}`
+    `サウンド名 ${soundName.textContent}。プリセットを開く`
+  );
+
+  soundName.addEventListener(
+    "click",
+    openSoundPresetModal
   );
 
   const sequenceEraseButton =
@@ -6944,6 +7000,535 @@ patternPageButton?.addEventListener(
     );
   }
 );
+
+
+let soundPresetModal = null;
+
+function createModalButton(label, className = "") {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.textContent = label;
+  return button;
+}
+
+function openSoundPresetModal() {
+  if (soundPresetModal) return;
+
+  const track = selectedTrack();
+  const openingSnapshot = createSnapshot();
+  const nowSound = captureTrackSound(track);
+  const nowName = track.soundName || `sound ${String(track.id).padStart(2, "0")}`;
+
+  let library = "factory";
+  let selected = { type: "now", id: "now", name: "now", category: "now" };
+
+  const overlay = document.createElement("div");
+  overlay.className = "sound-preset-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", "サウンドプリセット");
+
+  const modal = document.createElement("div");
+  modal.className = "sound-preset-modal";
+
+  const header = document.createElement("div");
+  header.className = "sound-preset-header";
+
+  const factoryTab = createModalButton("Factory", "sound-preset-tab active");
+  const userTab = createModalButton("User", "sound-preset-tab");
+  const actions = document.createElement("div");
+  actions.className = "sound-preset-actions";
+
+  const saveButton =
+  createModalButton(
+    "",
+    "sound-preset-icon-button"
+  );
+
+saveButton.innerHTML =
+  getParameterIcon("save");
+
+saveButton.setAttribute(
+  "aria-label",
+  "save user preset"
+);
+
+const deleteButton =
+  createModalButton(
+    "",
+    "sound-preset-icon-button"
+  );
+
+deleteButton.innerHTML =
+  getParameterIcon("trash");
+
+deleteButton.setAttribute(
+  "aria-label",
+  "delete user preset"
+);
+  const closeButton = createModalButton("×", "sound-preset-close");
+  closeButton.setAttribute("aria-label", "閉じる");
+
+  actions.append(saveButton, deleteButton);
+  header.append(factoryTab, userTab, actions, closeButton);
+
+  const body = document.createElement("div");
+  body.className = "sound-preset-body";
+  const categories = document.createElement("div");
+  categories.className = "sound-preset-categories";
+  const listWrap =
+  document.createElement("div");
+
+listWrap.className =
+  "sound-preset-list-wrap";
+
+const list =
+  document.createElement("div");
+
+list.className =
+  "sound-preset-list";
+
+const scrollbar =
+  document.createElement("div");
+
+scrollbar.className =
+  "sound-preset-scrollbar";
+
+const scrollTrack =
+  document.createElement("div");
+
+scrollTrack.className =
+  "sound-preset-scroll-track";
+
+const scrollThumb =
+  document.createElement("div");
+
+scrollThumb.className =
+  "sound-preset-scroll-thumb";
+
+scrollbar.append(
+  scrollTrack,
+  scrollThumb
+);
+
+listWrap.append(
+  list,
+  scrollbar
+);
+
+body.append(
+  categories,
+  listWrap
+);
+
+  modal.append(header, body);
+  overlay.append(modal);
+  document.body.append(overlay);
+  soundPresetModal = overlay;
+
+  function currentPresets() {
+    return library === "factory" ? getFactoryPresets() : getUserPresets();
+  }
+
+  function applySelection(item, type) {
+    if (type === "now") {
+      applyTrackSound(track, nowSound, nowName);
+      selected = { type: "now", id: "now", name: "now", category: "now" };
+    } else {
+      applyTrackSound(track, item.sound, item.name);
+      selected = { type, id: item.id, name: item.name, category: item.category };
+    }
+
+    renderSequence();
+    renderEditor();
+    renderList();
+  }
+
+  function updatePresetScrollbar() {
+    const visibleHeight = list.clientHeight;
+    const contentHeight = list.scrollHeight;
+
+    if (contentHeight <= visibleHeight) {
+      scrollbar.hidden = true;
+      return;
+    }
+
+    scrollbar.hidden = false;
+
+    const trackHeight = Math.max(
+      1,
+      scrollbar.clientHeight - 8
+    );
+
+    const thumbSize = Math.max(
+      8,
+      trackHeight * (visibleHeight / contentHeight)
+    );
+
+    const maximumScroll = contentHeight - visibleHeight;
+    const maximumThumbTop = Math.max(0, trackHeight - thumbSize);
+
+    const thumbTop = maximumScroll > 0
+      ? (list.scrollTop / maximumScroll) * maximumThumbTop
+      : 0;
+
+    scrollThumb.style.height = `${thumbSize}px`;
+    scrollThumb.style.transform = `translateY(${thumbTop}px)`;
+  }
+
+  let scrollPointerId = null;
+  let scrollStartY = 0;
+  let scrollStartTop = 0;
+
+  scrollThumb.addEventListener("pointerdown", event => {
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    scrollPointerId = event.pointerId;
+    scrollStartY = event.clientY;
+    scrollStartTop = list.scrollTop;
+    scrollThumb.setPointerCapture(event.pointerId);
+  });
+
+  scrollThumb.addEventListener("pointermove", event => {
+    if (scrollPointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const visibleHeight = list.clientHeight;
+    const contentHeight = list.scrollHeight;
+    const maximumScroll = contentHeight - visibleHeight;
+
+    if (maximumScroll <= 0) {
+      return;
+    }
+
+    const trackHeight = Math.max(
+      1,
+      scrollbar.clientHeight - 8
+    );
+
+    const movableHeight = trackHeight - scrollThumb.offsetHeight;
+
+    if (movableHeight <= 0) {
+      return;
+    }
+
+    const movementY = event.clientY - scrollStartY;
+
+    list.scrollTop = scrollStartTop +
+      (movementY / movableHeight) * maximumScroll;
+  });
+
+  function finishPresetScroll(event) {
+    if (scrollPointerId !== event.pointerId) {
+      return;
+    }
+
+    if (scrollThumb.hasPointerCapture(event.pointerId)) {
+      scrollThumb.releasePointerCapture(event.pointerId);
+    }
+
+    scrollPointerId = null;
+  }
+
+  scrollThumb.addEventListener("pointerup", finishPresetScroll);
+  scrollThumb.addEventListener("pointercancel", finishPresetScroll);
+
+  function groupedPresets() {
+    const presets = currentPresets();
+    return SOUND_CATEGORIES.map(category => ({
+      category,
+      presets: presets.filter(preset => preset.category === category)
+    })).filter(group => group.presets.length > 0);
+  }
+
+  function scrollToCategory(category) {
+    list.querySelector(`[data-category-heading="${category}"]`)?.scrollIntoView({
+      block: "start",
+      behavior: "smooth"
+    });
+  }
+
+  function updateActiveCategory() {
+    const headings = Array.from(list.querySelectorAll("[data-category-heading]"));
+    if (!headings.length) return;
+    const listTop = list.getBoundingClientRect().top;
+    let active = headings[0].dataset.categoryHeading;
+    headings.forEach(heading => {
+      if (heading.getBoundingClientRect().top <= listTop + 10) {
+        active = heading.dataset.categoryHeading;
+      }
+    });
+    categories.querySelectorAll("button").forEach(button => {
+      button.classList.toggle("active", button.dataset.category === active);
+    });
+  }
+
+  function renderCategories(groups) {
+    categories.innerHTML = "";
+    groups.forEach(({ category }) => {
+      const button = createModalButton(category, "sound-preset-category");
+      button.dataset.category = category;
+      button.addEventListener("click", () => scrollToCategory(category));
+      categories.append(button);
+    });
+    categories.querySelector("button")?.classList.add("active");
+  }
+
+  function renderList() {
+    const groups = groupedPresets();
+    list.innerHTML = "";
+
+    const nowButton = createModalButton("now", "sound-preset-item sound-preset-now");
+    nowButton.classList.toggle("active", selected.type === "now");
+    nowButton.addEventListener("click", () => applySelection(null, "now"));
+    list.append(nowButton);
+
+    groups.forEach(({ category, presets }) => {
+      const heading = document.createElement("div");
+      heading.className = "sound-preset-category-heading";
+      heading.dataset.categoryHeading = category;
+      heading.textContent = category;
+      list.append(heading);
+
+      presets.forEach(preset => {
+        const button = createModalButton(preset.name, "sound-preset-item");
+        button.classList.toggle(
+          "active",
+          selected.type === library && selected.id === preset.id
+        );
+        button.addEventListener("click", () => applySelection(preset, library));
+        list.append(button);
+      });
+    });
+
+    renderCategories(groups);
+    actions.hidden = library !== "user";
+    deleteButton.disabled = !(selected.type === "user" && selected.id !== "now");
+    requestAnimationFrame(() => {
+  updateActiveCategory();
+  updatePresetScrollbar();
+});
+  }
+
+  function switchLibrary(nextLibrary) {
+    library = nextLibrary;
+    factoryTab.classList.toggle("active", library === "factory");
+    userTab.classList.toggle("active", library === "user");
+    renderList();
+  }
+
+  function openSaveDialog() {
+    const shade = document.createElement("div");
+    shade.className = "sound-preset-dialog-shade";
+    const dialog = document.createElement("form");
+    dialog.className = "sound-preset-save-dialog";
+
+    const selectedText = document.createElement("div");
+    selectedText.className = "sound-preset-current";
+    selectedText.textContent = `current preset　${selected.name}${selected.type === "factory" ? "（Factory）" : selected.type === "user" ? "（User）" : ""}`;
+
+    const modeWrap =
+  document.createElement("div");
+
+modeWrap.className =
+  "sound-preset-save-modes";
+
+const canOverwrite =
+  selected.type === "user";
+
+let saveMode =
+  canOverwrite
+    ? "overwrite"
+    : "new";
+
+function createSaveModeButton(
+  label,
+  mode
+) {
+  const button =
+    document.createElement("button");
+
+  button.type = "button";
+
+  button.className =
+    "sound-preset-save-mode";
+
+  button.textContent =
+    label;
+
+  button.dataset.mode =
+    mode;
+
+  button.classList.toggle(
+    "selected",
+    saveMode === mode
+  );
+
+  button.addEventListener(
+    "click",
+    () => {
+      saveMode = mode;
+
+      modeWrap
+        .querySelectorAll(
+          ".sound-preset-save-mode"
+        )
+        .forEach(
+          modeButton => {
+            modeButton.classList.toggle(
+              "selected",
+              modeButton.dataset.mode ===
+                saveMode
+            );
+          }
+        );
+
+      updateMode();
+    }
+  );
+
+  return button;
+}
+
+if (canOverwrite) {
+  modeWrap.appendChild(
+    createSaveModeButton(
+      "overwrite",
+      "overwrite"
+    )
+  );
+}
+
+modeWrap.appendChild(
+  createSaveModeButton(
+    "save as",
+    "new"
+  )
+);
+
+    const categorySelect = document.createElement("select");
+    SOUND_CATEGORIES.forEach(category => {
+      const option = document.createElement("option");
+      option.value = category;
+      option.textContent = category;
+      categorySelect.append(option);
+    });
+    categorySelect.value = selected.category === "now" ? "other" : selected.category;
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.maxLength = 40;
+    nameInput.placeholder = "preset name";
+    nameInput.value = selected.type === "user" ? selected.name : "";
+
+    const fields = document.createElement("div");
+    fields.className = "sound-preset-save-fields";
+    fields.append(categorySelect, nameInput);
+
+    const buttons = document.createElement("div");
+    buttons.className = "sound-preset-dialog-buttons";
+    const cancel = createModalButton("cancel");
+    const commit = createModalButton("save");
+    commit.type = "submit";
+    buttons.append(cancel, commit);
+
+    dialog.append(selectedText, modeWrap, fields, buttons);
+    shade.append(dialog);
+    modal.append(shade);
+
+    function updateMode() {
+  fields.hidden =
+    saveMode === "overwrite";
+}
+
+updateMode();
+
+    cancel.addEventListener("click", () => shade.remove());
+    dialog.addEventListener("submit", event => {
+      event.preventDefault();
+      const mode =
+  saveMode;
+      const saved = saveUserPreset({
+        id: mode === "overwrite" ? selected.id : null,
+        category: mode === "overwrite" ? selected.category : categorySelect.value,
+        name: mode === "overwrite" ? selected.name : nameInput.value,
+        sound: captureTrackSound(track)
+      });
+      if (!saved) {
+        nameInput.focus();
+        return;
+      }
+      selected = { type: "user", id: saved.id, name: saved.name, category: saved.category };
+      track.soundName = saved.name;
+      library = "user";
+      factoryTab.classList.remove("active");
+      userTab.classList.add("active");
+      shade.remove();
+      renderEditor();
+      renderList();
+    });
+    nameInput.focus();
+  }
+
+  function closeModal() {
+    const changed =
+      !soundsEqual(nowSound, captureTrackSound(track)) ||
+      nowName !== track.soundName;
+
+    if (changed) {
+      saveHistorySnapshot(openingSnapshot);
+    }
+
+    overlay.remove();
+    soundPresetModal = null;
+    renderEditor();
+    requestAnimationFrame(() => {
+      document.querySelector('[data-focus-key="menu-sound-name"]')?.focus();
+    });
+  }
+
+  factoryTab.addEventListener("click", () => switchLibrary("factory"));
+  userTab.addEventListener("click", () => switchLibrary("user"));
+  saveButton.addEventListener("click", openSaveDialog);
+  deleteButton.addEventListener("click", () => {
+    if (selected.type !== "user" || !deleteUserPreset(selected.id)) return;
+    selected = {
+      type: "detached",
+      id: null,
+      name: track.soundName || "current sound",
+      category: selected.category || "other"
+    };
+    renderList();
+  });
+  closeButton.addEventListener("click", closeModal);
+  list.addEventListener(
+  "scroll",
+  () => {
+    updateActiveCategory();
+    updatePresetScrollbar();
+  },
+  { passive: true }
+);
+
+  overlay.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeModal();
+      return;
+    }
+    event.stopPropagation();
+  }, true);
+
+  renderList();
+  closeButton.focus();
+}
 
 export function renderEditor() {
   editor.innerHTML = "";

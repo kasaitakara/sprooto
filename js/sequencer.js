@@ -1779,6 +1779,10 @@ function normalizeTrackData(track) {
   track.base ??= {};
   track.offsets ??= {};
 
+  if (typeof track.soundName !== "string" || !track.soundName.trim()) {
+    track.soundName = `sound ${String(track.id ?? 1).padStart(2, "0")}`;
+  }
+
   /*
    * 旧tone（0〜100、50=OFF）を
    * 新Filter Cutoff（-100〜100、0=OFF）へ移行する。
@@ -2267,6 +2271,28 @@ export function restoreSnapshot(
       state.selectedPatternIndex
     );
   }
+}
+
+export function saveHistorySnapshot(snapshot) {
+  if (!snapshot) {
+    return false;
+  }
+
+  undoStack.push(
+    structuredClone(snapshot)
+  );
+
+  if (undoStack.length > HISTORY_LIMIT) {
+    undoStack.shift();
+  }
+
+  redoStack.length = 0;
+
+  window.dispatchEvent(
+    new Event("historychange")
+  );
+
+  return true;
 }
 
 export function saveHistory() {

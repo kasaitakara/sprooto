@@ -1590,6 +1590,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     font-size: var(--font-main);
     line-height: 1;
     color: var(--text);
+    text-transform: lowercase;
 }
 
 .compact-value {
@@ -2872,4 +2873,578 @@ select[data-focus-key]:focus-visible,
         var(--selected-text) !important;
 
     box-shadow: none !important;
+}
+/* =========================
+   Sound preset modal
+========================= */
+.track-sound-name {
+    min-width: 0;
+    flex: 1 1 auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    font-size: var(--font-small);
+    line-height: 1;
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
+    transform: translateX(6px);
+    cursor: pointer;
+}
+
+.sound-preset-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--bg) 76%, transparent);
+}
+
+.sound-preset-modal {
+    position: relative;
+    width: 344px;
+    height: min(560px, calc(100dvh - 24px));
+    display: grid;
+    grid-template-rows: 38px minmax(0, 1fr);
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 8px 28px rgb(0 0 0 / 20%);
+}
+
+.sound-preset-header {
+    display: grid;
+    grid-template-columns: 74px 74px 1fr 30px;
+    align-items: stretch;
+    border-bottom: 1px solid var(--line);
+}
+
+.sound-preset-tab,
+.sound-preset-close,
+.sound-preset-icon-button,
+.sound-preset-category,
+.sound-preset-item,
+.sound-preset-dialog-buttons button {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.sound-preset-tab {
+    font-size: var(--font-label);
+    line-height: 1;
+    text-transform: lowercase;
+}
+
+.sound-preset-tab.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color: var(--selected-text);
+}
+
+.sound-preset-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 2px;
+}
+
+.sound-preset-icon-button,
+.sound-preset-close {
+    width: 34px;
+    height: 100%;
+    font-size: 18px;
+}
+
+.sound-preset-icon-button:disabled {
+    opacity: .3;
+}
+
+.sound-preset-body {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 82px minmax(0, 1fr);
+}
+
+.sound-preset-categories {
+    padding: 9px 6px;
+    border-right: 1px solid var(--line);
+    overflow: hidden;
+}
+
+.sound-preset-category {
+    width: 100%;
+    padding: 7px 4px;
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
+    text-align: left;
+    font-size: var(--font-small);
+}
+
+.sound-preset-category.active {
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+}
+
+.sound-preset-list {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px 8px 20px;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+.sound-preset-category-heading {
+    padding: 10px 6px 4px;
+    color: var(--muted);
+    font-size: var(--font-label);
+    text-transform: lowercase;
+}
+
+.sound-preset-item {
+    width: 100%;
+    min-height: 34px;
+    padding: 7px 8px;
+    text-align: left;
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+
+    text-transform: lowercase;
+}
+
+.sound-preset-item.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color: var(--selected-text);
+}
+
+.sound-preset-now {
+    position: sticky;
+    top: -6px;
+    z-index: 2;
+    background: var(--bg);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
+}
+
+.sound-preset-now.active {
+    background: var(--selected-bg);
+}
+
+.sound-preset-dialog-shade {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+}
+
+.sound-preset-save-dialog {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+
+    font-size: var(--font-small);
+}
+
+.sound-preset-current {
+    padding-bottom: 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+    .sound-preset-current {
+    padding-bottom: 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+    font-size: var(--font-small);
+}
+}
+
+.sound-preset-save-modes {
+    display: grid;
+    gap: 8px;
+    padding: 12px 0;
+}
+
+.sound-preset-save-modes label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    .sound-preset-save-modes label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: var(--font-small);
+}
+}
+
+.sound-preset-save-fields {
+    display: grid;
+    grid-template-columns: 88px 1fr;
+    gap: 7px;
+}
+
+.sound-preset-save-fields select,
+.sound-preset-save-fields input {
+    min-width: 0;
+    height: 32px;
+    padding: 4px 6px;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--cell);
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.sound-preset-dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.sound-preset-dialog-buttons button {
+    min-width: 70px;
+    height: 30px;
+    background: var(--cell);
+}
+
+.sound-preset-dialog-buttons button[type="submit"] {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color: var(--selected-text);
+}
+
+/* =========================
+   Sound preset modal
+   Compact size override
+========================= */
+
+/*
+ * 画面切替ではなく、
+ * エディター上に浮く小型ライブラリとして表示する。
+ */
+.sound-preset-overlay {
+    padding: 20px;
+
+    background:
+        color-mix(
+            in srgb,
+            var(--bg) 58%,
+            transparent
+        );
+
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+}
+
+.sound-preset-modal {
+    width:
+        min(
+            250px,
+            calc(100vw - 40px)
+        );
+
+    height:
+        min(
+            320px,
+            calc(100dvh - 80px)
+        );
+
+    min-height: 260px;
+
+    grid-template-rows:
+        34px
+        minmax(0, 1fr);
+
+    box-shadow:
+        0 10px 30px
+        rgb(0 0 0 / 24%);
+
+    transform-origin: center;
+    animation:
+        sound-preset-modal-open
+        120ms
+        ease-out;
+}
+
+@keyframes sound-preset-modal-open {
+    from {
+        opacity: 0;
+        transform:
+            scale(0.96)
+            translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform:
+            scale(1)
+            translateY(0);
+    }
+}
+
+.sound-preset-header {
+    grid-template-columns:
+        56px
+        56px
+        minmax(0, 1fr)
+        30px;
+}
+
+.sound-preset-icon-button,
+.sound-preset-close {
+    width: 30px;
+    font-size: 16px;
+}
+
+.sound-preset-body {
+    grid-template-columns:
+        62px
+        minmax(0, 1fr);
+}
+
+.sound-preset-categories {
+    padding:
+        7px
+        4px;
+}
+
+.sound-preset-category {
+    padding:
+        6px
+        3px;
+
+    font-size:
+        var(--font-label);
+}
+
+.sound-preset-list {
+    padding:
+        4px
+        6px
+        14px;
+}
+
+.sound-preset-category-heading {
+    padding:
+        8px
+        5px
+        3px;
+}
+
+.sound-preset-item {
+    min-height: 30px;
+
+    padding:
+        5px
+        6px;
+
+    font-size:
+        var(--font-small);
+}
+
+.sound-preset-now {
+    top: -4px;
+}
+
+/*
+ * iPhoneなど高さの小さい画面でも、
+ * 上下へ張り付かず小型モーダルを維持する。
+ */
+@media (max-height: 520px) {
+    .sound-preset-overlay {
+        padding:
+            12px
+            20px;
+    }
+
+    .sound-preset-modal {
+        height:
+            calc(100dvh - 48px);
+
+        min-height: 220px;
+    }
+}
+
+/* プリセット名をカテゴリ名と同じサイズにする */
+.sound-preset-item {
+    font-size: var(--font-label);
+}
+
+/* サウンド名だけ開始位置を少し右へ寄せる */
+.sound-preset-item:not(.sound-preset-now) {
+    padding-left: 14px;
+}
+
+.sound-preset-icon-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+}
+
+.sound-preset-icon-button svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+/* =========================
+   Sound preset save mode
+========================= */
+
+.sound-preset-save-modes
+input[type="radio"] {
+    width: 12px;
+    height: 12px;
+
+    margin: 0;
+    padding: 0;
+
+    appearance: none;
+    -webkit-appearance: none;
+
+    border: 1px solid var(--text);
+    border-radius: 50%;
+
+    background: transparent;
+
+    flex: 0 0 12px;
+}
+
+.sound-preset-save-modes
+input[type="radio"]:checked {
+    background:
+        radial-gradient(
+            circle,
+            var(--text) 0 3px,
+            transparent 3.5px
+        );
+}
+
+.sound-preset-save-modes
+input[type="radio"]:focus-visible {
+    outline: 1px solid var(--selected-bg);
+    outline-offset: 2px;
+}
+
+.sound-preset-save-modes {
+    display: grid;
+    gap: 2px;
+    padding: 10px 0;
+}
+
+.sound-preset-save-mode {
+    width: 100%;
+    min-height: 26px;
+
+    padding: 4px 8px;
+
+    border: 0;
+    background: var(--cell);
+
+    color: var(--text);
+    -webkit-text-fill-color:
+        var(--text);
+
+    font-size:
+        var(--font-small);
+
+    text-align: left;
+}
+
+.sound-preset-save-mode.selected {
+    background:
+        var(--selected-bg);
+
+    color:
+        var(--selected-text);
+
+    -webkit-text-fill-color:
+        var(--selected-text);
+}
+
+/* =========================
+   Sound preset custom scrollbar
+========================= */
+
+.sound-preset-list {
+    position: relative;
+
+    /* 標準スクロールバーを隠す */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.sound-preset-list::-webkit-scrollbar {
+    display: none;
+}
+
+.sound-preset-scrollbar {
+    position: absolute;
+
+    top: 6px;
+    right: 4px;
+    bottom: 6px;
+
+    width: 8px;
+
+    pointer-events: none;
+}
+
+.sound-preset-scroll-track {
+    position: absolute;
+
+    top: 4px;
+    bottom: 4px;
+    left: 50%;
+
+    width: 1px;
+
+    background: var(--text);
+
+    transform: translateX(-50%);
+}
+
+.sound-preset-scroll-thumb {
+    position: absolute;
+
+    left: 0;
+    top: 0;
+
+    width: 8px;
+    height: 8px;
+
+    border-radius: 50%;
+
+    background: var(--text);
+
+    pointer-events: auto;
+    touch-action: none;
+
+    cursor: grab;
+}
+
+.sound-preset-scroll-thumb:active {
+    cursor: grabbing;
+}
+
+.sound-preset-list-wrap {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.sound-preset-list {
+    width: 100%;
+    height: 100%;
+    padding-right: 16px;
 }

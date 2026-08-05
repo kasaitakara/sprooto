@@ -554,7 +554,43 @@ document.addEventListener("focusin", event => {
 });
 
 document.addEventListener("keydown", event => {
+  const eventTarget = event.target;
   const activeElement = document.activeElement;
+
+  /*
+   * 実際にキーイベントが発生した要素を最優先する。
+   * プリセット保存ダイアログを含む通常フォームでは、
+   * アプリ共通のショートカット／カーソル移動を行わない。
+   */
+  const editingTarget =
+    eventTarget instanceof HTMLElement
+      ? eventTarget
+      : activeElement;
+
+  const isNativeTextEditing =
+    editingTarget instanceof HTMLTextAreaElement ||
+    editingTarget instanceof HTMLSelectElement ||
+    editingTarget?.isContentEditable ||
+    (
+      editingTarget instanceof HTMLInputElement &&
+      [
+        "text",
+        "search",
+        "email",
+        "password",
+        "url",
+        "tel"
+      ].includes(editingTarget.type)
+    ) ||
+    Boolean(
+      editingTarget?.closest?.(
+        ".sound-preset-save-dialog input, .sound-preset-save-dialog select, .sound-preset-save-dialog textarea"
+      )
+    );
+
+  if (isNativeTextEditing) {
+    return;
+  }
 
   if (!(activeElement instanceof HTMLElement)) return;
 

@@ -7140,42 +7140,9 @@ body.append(
       selected = { type, id: item.id, name: item.name, category: item.category };
     }
 
-    /*
-     * プリセット選択中は音データだけ即時反映する。
-     * Sequence / Editor / 一覧全体の再構築は行わない。
-     *
-     * 再生中に大きなDOM再描画を同期実行すると、
-     * schedulerのsetTimeoutが遅れて一瞬音が途切れるため。
-     */
-    list
-      .querySelectorAll(
-        ".sound-preset-item"
-      )
-      .forEach(button => {
-        button.classList.remove(
-          "active"
-        );
-      });
-
-    const activeButton =
-      type === "now"
-        ? list.querySelector(
-            ".sound-preset-now"
-          )
-        : Array.from(
-            list.querySelectorAll(
-              ".sound-preset-item"
-            )
-          ).find(button => {
-            return (
-              button.dataset.presetId ===
-              item.id
-            );
-          });
-
-    activeButton?.classList.add(
-      "active"
-    );
+    renderSequence();
+    renderEditor();
+    renderList();
   }
 
   function updatePresetScrollbar() {
@@ -7332,7 +7299,6 @@ body.append(
 
       presets.forEach(preset => {
         const button = createModalButton(preset.name, "sound-preset-item");
-        button.dataset.presetId = preset.id;
         button.classList.toggle(
           "active",
           selected.type === library && selected.id === preset.id
@@ -7456,11 +7422,69 @@ modeWrap.appendChild(
     });
     categorySelect.value = selected.category === "now" ? "other" : selected.category;
 
-    const nameInput = document.createElement("input");
-    nameInput.type = "text";
-    nameInput.maxLength = 40;
-    nameInput.placeholder = "preset name";
-    nameInput.value = selected.type === "user" ? selected.name : "";
+    const nameInput =
+      document.createElement("div");
+
+    nameInput.className =
+      "sound-preset-name-input";
+
+    nameInput.contentEditable =
+      "true";
+
+    nameInput.setAttribute(
+      "role",
+      "textbox"
+    );
+
+    nameInput.setAttribute(
+      "aria-label",
+      "preset name"
+    );
+
+    nameInput.dataset.placeholder =
+      "preset name";
+
+    nameInput.textContent =
+      selected.type === "user"
+        ? selected.name
+        : "";
+
+    nameInput.addEventListener(
+      "beforeinput",
+      event => {
+        if (
+          event.isComposing ||
+          event.inputType.startsWith(
+            "delete"
+          )
+        ) {
+          return;
+        }
+
+        const currentText =
+          nameInput.textContent ?? "";
+
+        const selection =
+          window.getSelection();
+
+        const selectedLength =
+          selection?.toString()
+            .length ?? 0;
+
+        const incomingLength =
+          String(event.data ?? "")
+            .length;
+
+        if (
+          currentText.length -
+            selectedLength +
+            incomingLength >
+          40
+        ) {
+          event.preventDefault();
+        }
+      }
+    );
 
     const fields = document.createElement("div");
     fields.className = "sound-preset-save-fields";
@@ -7491,7 +7515,7 @@ modeWrap.appendChild(
             ? "other"
             : selected.category;
 
-        nameInput.value =
+        nameInput.textContent =
           selected.type === "user"
             ? selected.name
             : "";
@@ -7508,7 +7532,7 @@ modeWrap.appendChild(
       const saved = saveUserPreset({
         id: mode === "overwrite" ? selected.id : null,
         category: categorySelect.value,
-        name: nameInput.value,
+        name: nameInput.textContent ?? "",
         sound: captureTrackSound(track)
       });
       if (!saved) {
@@ -7547,16 +7571,124 @@ modeWrap.appendChild(
   factoryTab.addEventListener("click", () => switchLibrary("factory"));
   userTab.addEventListener("click", () => switchLibrary("user"));
   saveButton.addEventListener("click", openSaveDialog);
-  deleteButton.addEventListener("click", () => {
-    if (selected.type !== "user" || !deleteUserPreset(selected.id)) return;
-    selected = {
-      type: "detached",
-      id: null,
-      name: track.soundName || "current sound",
-      category: selected.category || "other"
-    };
-    renderList();
-  });
+  deleteButton.addEventListener(
+    "click",
+    () => {
+      if (
+        selected.type !== "user" ||
+        !selected.id
+      ) {
+        return;
+      }
+
+      /*
+       * Userプリセット削除前の確認。
+       */
+      const shade =
+        document.createElement("div");
+
+      shade.className =
+        "sound-preset-dialog-shade";
+
+      const dialog =
+        document.createElement("div");
+
+      dialog.className =
+        "sound-preset-save-dialog";
+
+      dialog.setAttribute(
+        "role",
+        "alertdialog"
+      );
+
+      dialog.setAttribute(
+        "aria-modal",
+        "true"
+      );
+
+      const message =
+        document.createElement("div");
+
+      message.className =
+        "sound-preset-current";
+
+      message.textContent =
+        "delete this preset?";
+
+      const buttons =
+        document.createElement("div");
+
+      buttons.className =
+        "sound-preset-dialog-buttons";
+
+      const noButton =
+        createModalButton("No");
+
+      const yesButton =
+        createModalButton("Yes");
+
+      noButton.type = "button";
+      yesButton.type = "button";
+
+      buttons.append(
+        noButton,
+        yesButton
+      );
+
+      dialog.append(
+        message,
+        buttons
+      );
+
+      shade.appendChild(
+        dialog
+      );
+
+      modal.appendChild(
+        shade
+      );
+
+      noButton.addEventListener(
+        "click",
+        () => {
+          shade.remove();
+          deleteButton.focus();
+        }
+      );
+
+      yesButton.addEventListener(
+        "click",
+        () => {
+          const deleted =
+            deleteUserPreset(
+              selected.id
+            );
+
+          if (!deleted) {
+            return;
+          }
+
+          selected = {
+            type: "detached",
+            id: null,
+            name:
+              track.soundName ||
+              "current sound",
+            category:
+              selected.category ||
+              "other"
+          };
+
+          shade.remove();
+          renderList();
+        }
+      );
+
+      requestAnimationFrame(
+        () => noButton.focus()
+      );
+    }
+  );
   closeButton.addEventListener("click", closeModal);
   list.addEventListener(
   "scroll",
@@ -7568,12 +7700,24 @@ modeWrap.appendChild(
 );
 
   overlay.addEventListener("keydown", event => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeModal();
+    if (event.key !== "Escape") {
       return;
     }
+
+    event.preventDefault();
     event.stopPropagation();
+
+    const saveDialog =
+      event.target.closest(
+        ".sound-preset-dialog-shade"
+      );
+
+    if (saveDialog) {
+      saveDialog.remove();
+      return;
+    }
+
+    closeModal();
   }, true);
 
   renderList();

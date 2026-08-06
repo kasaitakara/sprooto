@@ -3665,3 +3665,25 @@ input[type="radio"]:focus-visible {
 .step-edit-toolbar {
     display: none;
 }
+
+/*
+ * Offset選択モード中は、
+ * 未選択セルにも薄い枠を表示する。
+ */
+.offset-selection-mode
+.offset-step {
+    border: 1px solid
+        color-mix(
+            in srgb,
+            var(--text) 20%,
+            transparent
+        );
+}
+
+/*
+ * 実際の選択セルは濃い枠。
+ */
+.offset-selection-mode
+.offset-step.range-selected {
+    border: 1px solid var(--text);
+}

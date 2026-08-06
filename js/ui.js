@@ -1281,6 +1281,18 @@ function beginOffsetSelectionMode(stepIndex) {
   updateSelectionClasses();
 }
 
+function finishOffsetSelectionMode() {
+  clearEditSelection();
+
+  editSelection.mode = null;
+
+  document.body.classList.remove(
+    "offset-selection-mode"
+  );
+
+  renderEditor();
+}
+
 function captureClipboard() {
   const cells = selectedKeysSorted();
 
@@ -1701,15 +1713,38 @@ function enableSelectionPointer({
       };
 
       if (editSelection.mode === mode) {
-        event.preventDefault();
+  event.preventDefault();
 
-        startSelectionInteraction(
-          event,
-          cell
-        );
+  startSelectionInteraction(
+    event,
+    cell
+  );
 
-        return;
-      }
+  /*
+   * Offset選択モード中に
+   * もう一度長押しすると解除する。
+   *
+   * 指を動かした場合は、
+   * 通常の範囲選択スイープとして扱う。
+   */
+  if (
+    mode === "offset" &&
+    source === "offset"
+  ) {
+    clearTimer();
+
+    timer = window.setTimeout(
+      () => {
+        interactionActive = false;
+
+        finishOffsetSelectionMode();
+      },
+      LONG_PRESS_MS
+    );
+  }
+
+  return;
+}
 
       const canLongPress =
         (
@@ -1775,6 +1810,13 @@ function enableSelectionPointer({
 
         return;
       }
+
+      if (
+  interactionActive &&
+  movement > 12
+) {
+  clearTimer();
+}
 
       if (editSelection.mode !== mode) {
         return;
@@ -9074,13 +9116,3 @@ export function render() {
   renderPatternManager();
   updateSelectionClasses();
 }
-
-
-editor.addEventListener("click", event => {
-  if (editSelection.mode !== "offset") return;
-  const backButton = event.target.closest(".edit-icon");
-  if (!backButton) return;
-  clearEditSelection();
-  editSelection.mode = null;
-  document.body.classList.remove("offset-selection-mode");
-}, true);

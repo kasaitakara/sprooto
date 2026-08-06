@@ -3507,3 +3507,61 @@ input[type="radio"]:focus-visible {
     outline: 1px solid var(--text);
     outline-offset: -1px;
 }
+
+
+/* =========================
+   Range selection editor
+========================= */
+.app-header.editing-actions-visible > :not(.edit-action-toolbar) {
+    display: none;
+}
+
+.edit-action-toolbar {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 28px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 5px;
+    align-items: center;
+}
+
+.edit-action-toolbar button {
+    height: 28px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    font-size: var(--font-label);
+    text-transform: lowercase;
+}
+
+.edit-action-toolbar button:disabled {
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
+    opacity: .45;
+}
+
+.track-lane.range-selected,
+.offset-step.range-selected {
+    background: var(--selected-bg) !important;
+    color: var(--selected-text) !important;
+    -webkit-text-fill-color: var(--selected-text) !important;
+    outline: 1px solid var(--text);
+    outline-offset: -1px;
+}
+
+.sequence-selection-mode .sequence-step,
+.offset-selection-mode .offset-step {
+    touch-action: none;
+}
+
+.sequence-selection-panel {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: var(--font-small);
+    text-transform: lowercase;
+}

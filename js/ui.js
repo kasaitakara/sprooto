@@ -1022,6 +1022,529 @@ function enableVerticalSweep({
   );
 }
 
+
+
+/* =========================
+ * Range selection / clipboard
+ * ========================= */
+const LONG_PRESS_MS = 450;
+
+const editSelection = {
+  mode: null, // null | "sequence" | "offset"
+  selected: new Set(),
+  pasteTarget: false,
+  clipboard: null,
+  sweepPointerId: null,
+  sweepValue: true,
+  sweepAnchor: null,
+  sweepBaseline: null
+};
+
+function selectionKey(trackIndex, stepIndex) {
+  return `${trackIndex}:${stepIndex}`;
+}
+
+function parseSelectionKey(key) {
+  const [trackIndex, stepIndex] = key.split(":").map(Number);
+  return { trackIndex, stepIndex };
+}
+
+function clearEditSelection() {
+  editSelection.selected.clear();
+  editSelection.pasteTarget = false;
+}
+
+function finishEditMode({ returnToMenu = false } = {}) {
+  clearEditSelection();
+  editSelection.mode = null;
+  document.body.classList.remove("sequence-selection-mode", "offset-selection-mode");
+  renderEditActionToolbar();
+
+  if (returnToMenu) {
+    state.selectedParameterId = null;
+    renderEditor();
+  } else {
+    renderSequence();
+    renderEditor();
+  }
+}
+
+function selectedKeysSorted() {
+  return Array.from(editSelection.selected)
+    .map(parseSelectionKey)
+    .sort((a, b) => a.trackIndex - b.trackIndex || a.stepIndex - b.stepIndex);
+}
+
+function updateSelectionClasses() {
+  document.querySelectorAll(".track-lane[data-track-index][data-step-index]").forEach(lane => {
+    const key = selectionKey(Number(lane.dataset.trackIndex), Number(lane.dataset.stepIndex));
+    lane.classList.toggle("range-selected", editSelection.mode === "sequence" && editSelection.selected.has(key));
+  });
+
+  document.querySelectorAll(".offset-step[data-step-index]").forEach(button => {
+    const key = selectionKey(state.selectedTrackIndex, Number(button.dataset.stepIndex));
+    button.classList.toggle("range-selected", editSelection.mode === "offset" && editSelection.selected.has(key));
+  });
+
+  const panel = document.querySelector(".sequence-selection-panel");
+  if (panel && editSelection.mode === "sequence") {
+    panel.textContent = editSelection.pasteTarget
+      ? "paste position"
+      : `${editSelection.selected.size} selected`;
+  }
+
+  renderEditActionToolbar();
+}
+
+function setSelectionCell(trackIndex, stepIndex, selected) {
+  if (trackIndex < 0 || trackIndex >= tracks.length || stepIndex < 0 || stepIndex >= STEP_COUNT) return;
+  const key = selectionKey(trackIndex, stepIndex);
+  if (selected) editSelection.selected.add(key);
+  else editSelection.selected.delete(key);
+  updateSelectionClasses();
+}
+
+function toggleSelectionCell(trackIndex, stepIndex) {
+  const key = selectionKey(trackIndex, stepIndex);
+  setSelectionCell(trackIndex, stepIndex, !editSelection.selected.has(key));
+}
+
+function beginSelectionMode(mode, trackIndex, stepIndex) {
+  clearEditSelection();
+  editSelection.mode = mode;
+  document.body.classList.toggle("sequence-selection-mode", mode === "sequence");
+  document.body.classList.toggle("offset-selection-mode", mode === "offset");
+  setSelectionCell(trackIndex, stepIndex, true);
+  if (mode === "sequence") renderEditor();
+  renderEditActionToolbar();
+}
+
+function captureClipboard() {
+  const cells = selectedKeysSorted();
+  if (!cells.length) return false;
+
+  const minTrack = Math.min(...cells.map(cell => cell.trackIndex));
+  const minStep = Math.min(...cells.map(cell => cell.stepIndex));
+
+  editSelection.clipboard = {
+    cells: cells.map(({ trackIndex, stepIndex }) => {
+      const track = tracks[trackIndex];
+      return {
+        trackOffset: trackIndex - minTrack,
+        stepOffset: stepIndex - minStep,
+        stepOn: Boolean(track.steps[stepIndex]),
+        offsets: Object.fromEntries(
+          Object.entries(track.offsets).map(([id, values]) => [id, Number(values?.[stepIndex]) || 0])
+        )
+      };
+    })
+  };
+
+  return true;
+}
+
+function deleteSelectedSequenceCells() {
+  const cells = selectedKeysSorted();
+  if (!cells.length) return false;
+  saveHistory();
+  cells.forEach(({ trackIndex, stepIndex }) => {
+    const track = tracks[trackIndex];
+    track.steps[stepIndex] = false;
+    Object.values(track.offsets).forEach(values => {
+      if (Array.isArray(values)) values[stepIndex] = 0;
+    });
+  });
+  return true;
+}
+
+function pasteClipboardAt(targetTrackIndex, targetStepIndex) {
+  const clipboard = editSelection.clipboard;
+  if (!clipboard?.cells?.length) return false;
+  saveHistory();
+  clipboard.cells.forEach(cell => {
+    const trackIndex = targetTrackIndex + cell.trackOffset;
+    const stepIndex = targetStepIndex + cell.stepOffset;
+    if (trackIndex < 0 || trackIndex >= tracks.length || stepIndex < 0 || stepIndex >= STEP_COUNT) return;
+    const track = tracks[trackIndex];
+    track.steps[stepIndex] = cell.stepOn;
+    Object.entries(cell.offsets).forEach(([id, value]) => {
+      if (Array.isArray(track.offsets[id])) track.offsets[id][stepIndex] = value;
+    });
+  });
+  return true;
+}
+
+function renderEditActionToolbar() {
+  const header = document.querySelector(".app-header");
+  if (!header) return;
+  let toolbar = header.querySelector(".edit-action-toolbar");
+
+  if (editSelection.mode !== "sequence") {
+    toolbar?.remove();
+    header.classList.remove("editing-actions-visible");
+    return;
+  }
+
+  if (!toolbar) {
+    toolbar = document.createElement("div");
+    toolbar.className = "edit-action-toolbar";
+    header.appendChild(toolbar);
+  }
+
+  header.classList.add("editing-actions-visible");
+  const hasSelection = editSelection.selected.size > 0;
+  const hasClipboard = Boolean(editSelection.clipboard?.cells?.length);
+  toolbar.innerHTML = `
+    <button type="button" data-action="cancel">cancel</button>
+    <button type="button" data-action="copy" ${hasSelection ? "" : "disabled"}>copy</button>
+    <button type="button" data-action="cut" ${hasSelection ? "" : "disabled"}>cut</button>
+    <button type="button" data-action="delete" ${hasSelection ? "" : "disabled"}>delete</button>
+    <button type="button" data-action="paste" ${hasClipboard ? "" : "disabled"}>paste</button>
+  `;
+
+  toolbar.querySelector('[data-action="cancel"]').onclick = () => finishEditMode();
+  toolbar.querySelector('[data-action="copy"]').onclick = () => {
+    if (!captureClipboard()) return;
+    finishEditMode();
+  };
+  toolbar.querySelector('[data-action="cut"]').onclick = () => {
+    if (!captureClipboard()) return;
+    deleteSelectedSequenceCells();
+    finishEditMode();
+  };
+  toolbar.querySelector('[data-action="delete"]').onclick = () => {
+    if (!deleteSelectedSequenceCells()) return;
+    finishEditMode();
+  };
+  toolbar.querySelector('[data-action="paste"]').onclick = () => {
+    editSelection.pasteTarget = true;
+    clearEditSelection();
+    editSelection.pasteTarget = true;
+    updateSelectionClasses();
+  };
+}
+
+function enableRangePointer(element, getCell, mode) {
+  let pointerId = null;
+  let timer = null;
+  let startX = 0;
+  let startY = 0;
+  let interactionActive = false;
+
+  function clearTimer() {
+    if (timer !== null) {
+      clearTimeout(timer);
+    }
+
+    timer = null;
+  }
+
+  function cellFromPoint(clientX, clientY) {
+    const target = document.elementFromPoint(
+      clientX,
+      clientY
+    );
+
+    const selector =
+      mode === "sequence"
+        ? ".track-lane[data-track-index][data-step-index]"
+        : ".offset-step[data-step-index]";
+
+    const cellElement =
+      target?.closest?.(selector);
+
+    if (!cellElement) {
+      return null;
+    }
+
+    return mode === "sequence"
+      ? {
+          trackIndex: Number(
+            cellElement.dataset.trackIndex
+          ),
+          stepIndex: Number(
+            cellElement.dataset.stepIndex
+          )
+        }
+      : {
+          trackIndex:
+            state.selectedTrackIndex,
+          stepIndex: Number(
+            cellElement.dataset.stepIndex
+          )
+        };
+  }
+
+  function applySweepRectangle(currentCell) {
+    const anchor =
+      editSelection.sweepAnchor;
+
+    const baseline =
+      editSelection.sweepBaseline ??
+      new Set();
+
+    if (!anchor || !currentCell) {
+      return;
+    }
+
+    editSelection.selected =
+      new Set(baseline);
+
+    const minimumTrack =
+      mode === "offset"
+        ? state.selectedTrackIndex
+        : Math.min(
+            anchor.trackIndex,
+            currentCell.trackIndex
+          );
+
+    const maximumTrack =
+      mode === "offset"
+        ? state.selectedTrackIndex
+        : Math.max(
+            anchor.trackIndex,
+            currentCell.trackIndex
+          );
+
+    const minimumStep = Math.min(
+      anchor.stepIndex,
+      currentCell.stepIndex
+    );
+
+    const maximumStep = Math.max(
+      anchor.stepIndex,
+      currentCell.stepIndex
+    );
+
+    for (
+      let trackIndex = minimumTrack;
+      trackIndex <= maximumTrack;
+      trackIndex++
+    ) {
+      for (
+        let stepIndex = minimumStep;
+        stepIndex <= maximumStep;
+        stepIndex++
+      ) {
+        const key = selectionKey(
+          trackIndex,
+          stepIndex
+        );
+
+        if (editSelection.sweepValue) {
+          editSelection.selected.add(key);
+        } else {
+          editSelection.selected.delete(key);
+        }
+      }
+    }
+
+    updateSelectionClasses();
+  }
+
+  function startSelectionInteraction(
+    event,
+    cell
+  ) {
+    interactionActive = true;
+
+    editSelection.sweepPointerId =
+      event.pointerId;
+
+    editSelection.sweepAnchor =
+      cell;
+
+    editSelection.sweepBaseline =
+      new Set(editSelection.selected);
+
+    editSelection.sweepValue =
+      !editSelection.selected.has(
+        selectionKey(
+          cell.trackIndex,
+          cell.stepIndex
+        )
+      );
+
+    applySweepRectangle(cell);
+
+    element.setPointerCapture?.(
+      event.pointerId
+    );
+  }
+
+  element.style.touchAction = "none";
+
+  element.addEventListener(
+    "pointerdown",
+    event => {
+      if (
+        event.pointerType === "mouse" &&
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+      interactionActive = false;
+
+      const cell = getCell(element);
+
+      if (editSelection.mode === mode) {
+        event.preventDefault();
+
+        if (
+          mode === "sequence" &&
+          editSelection.pasteTarget
+        ) {
+          if (
+            pasteClipboardAt(
+              cell.trackIndex,
+              cell.stepIndex
+            )
+          ) {
+            finishEditMode();
+          }
+
+          pointerId = null;
+          return;
+        }
+
+        startSelectionInteraction(
+          event,
+          cell
+        );
+
+        return;
+      }
+
+      clearTimer();
+
+      timer = window.setTimeout(
+        () => {
+          beginSelectionMode(
+            mode,
+            cell.trackIndex,
+            cell.stepIndex
+          );
+
+          interactionActive = true;
+          editSelection.sweepPointerId =
+            event.pointerId;
+          editSelection.sweepAnchor =
+            cell;
+          editSelection.sweepBaseline =
+            new Set();
+          editSelection.sweepValue =
+            true;
+
+          element.setPointerCapture?.(
+            event.pointerId
+          );
+        },
+        LONG_PRESS_MS
+      );
+    }
+  );
+
+  element.addEventListener(
+    "pointermove",
+    event => {
+      if (pointerId !== event.pointerId) {
+        return;
+      }
+
+      const movement = Math.hypot(
+        event.clientX - startX,
+        event.clientY - startY
+      );
+
+      if (!interactionActive) {
+        if (movement > 8) {
+          clearTimer();
+        }
+
+        return;
+      }
+
+      if (editSelection.mode !== mode) {
+        return;
+      }
+
+      event.preventDefault();
+
+      applySweepRectangle(
+        cellFromPoint(
+          event.clientX,
+          event.clientY
+        )
+      );
+    }
+  );
+
+  function finish(event) {
+    if (pointerId !== event.pointerId) {
+      return;
+    }
+
+    clearTimer();
+
+    if (
+      element.hasPointerCapture?.(
+        event.pointerId
+      )
+    ) {
+      element.releasePointerCapture(
+        event.pointerId
+      );
+    }
+
+    pointerId = null;
+    interactionActive = false;
+    editSelection.sweepPointerId = null;
+    editSelection.sweepAnchor = null;
+    editSelection.sweepBaseline = null;
+  }
+
+  element.addEventListener(
+    "pointerup",
+    finish
+  );
+
+  element.addEventListener(
+    "pointercancel",
+    finish
+  );
+
+  element.addEventListener(
+    "click",
+    event => {
+      if (editSelection.mode !== mode) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    true
+  );
+}
+
+function applyOffsetDeltaToSelection(parameter, delta) {
+  if (editSelection.mode !== "offset" || !delta || editSelection.selected.size === 0) return false;
+  const track = selectedTrack();
+  const values = track.offsets[parameter.id];
+  if (!Array.isArray(values)) return false;
+  selectedKeysSorted().forEach(({ trackIndex, stepIndex }) => {
+    if (trackIndex !== state.selectedTrackIndex) return;
+    const minOffset = parameter.min - Number(track.base[parameter.id]);
+    const maxOffset = parameter.max - Number(track.base[parameter.id]);
+    values[stepIndex] = roundToStep(clamp((Number(values[stepIndex]) || 0) + delta, minOffset, maxOffset), parameter.step ?? 1);
+  });
+  return true;
+}
+
 function stepCell(stepIndex) {
   const button = document.createElement("button");
 
@@ -1040,6 +1563,20 @@ function stepCell(stepIndex) {
     lane.className = "track-lane";
     lane.dataset.trackIndex = trackIndex;
     lane.dataset.stepIndex = stepIndex;
+
+    enableRangePointer(
+      lane,
+      element => ({
+        trackIndex: Number(element.dataset.trackIndex),
+        stepIndex: Number(element.dataset.stepIndex)
+      }),
+      "sequence"
+    );
+
+    if (editSelection.mode === "sequence" && editSelection.selected.has(selectionKey(trackIndex, stepIndex))) {
+      lane.classList.add("range-selected");
+    }
+
 
     const exists =
       stepIndex < track.stepLength;
@@ -1080,6 +1617,7 @@ if (
       button.addEventListener(
     "click",
     () => {
+      if (editSelection.mode === "sequence") return;
       const trackIndex =
         state.selectedTrackIndex;
 
@@ -1192,6 +1730,7 @@ function renderCurrentSourceDisplay() {
 
 export function renderSequence() {
   sequenceGrid.innerHTML = "";
+  renderEditActionToolbar();
 
   syncPatternLength();
 
@@ -3281,6 +3820,14 @@ const definition = {
    * ベース値上下スイープ。
    */
   let sweepHistorySaved = false;
+  let offsetSelectionAppliedDelta = 0;
+
+  value.addEventListener(
+    "pointerdown",
+    () => {
+      offsetSelectionAppliedDelta = 0;
+    }
+  );
 
   enableVerticalSweep({
     element: value,
@@ -3319,11 +3866,39 @@ const correctedValue =
         definition.step
       );
 
-track.base[id] =
-  correctedValue;
+if (
+  editSelection.mode === "offset" &&
+  Array.isArray(track.offsets[id])
+) {
+  const currentBase =
+    Number(track.base[id]);
+
+  const totalDelta =
+    correctedValue - currentBase;
+
+  const incrementalDelta =
+    totalDelta -
+    offsetSelectionAppliedDelta;
+
+  applyOffsetDeltaToSelection(
+    { ...definition, id },
+    incrementalDelta
+  );
+
+  offsetSelectionAppliedDelta =
+    totalDelta;
+} else {
+  track.base[id] = correctedValue;
+}
 
       value.textContent =
         displayValue();
+
+      if (editSelection.mode === "offset") {
+        document.querySelectorAll(".offset-step[data-step-index]").forEach(offsetButton => {
+          offsetButton.textContent = displayStepValue(parameterById(id) ?? { ...definition, id, offsetMode: "offset" }, Number(offsetButton.dataset.stepIndex));
+        });
+      }
     },
 
     min: definition.min,
@@ -3354,6 +3929,8 @@ track.base[id] =
     ) => {
       sweepHistorySaved =
         false;
+
+      offsetSelectionAppliedDelta = 0;
 
       if (changed) {
         renderEditorAndRestore(
@@ -3449,8 +4026,17 @@ track.base[id] =
         ) {
           saveHistory();
 
-          track.base[id] =
-            currentIndex;
+          if (
+            editSelection.mode === "offset" &&
+            Array.isArray(track.offsets[id])
+          ) {
+            applyOffsetDeltaToSelection(
+              { ...definition, id },
+              currentIndex - previousValue
+            );
+          } else {
+            track.base[id] = currentIndex;
+          }
         }
       } else {
         currentIndex =
@@ -3610,8 +4196,17 @@ track.base[id] =
             ) {
               saveHistory();
 
-              track.base[id] =
-                nextValue;
+              if (
+                editSelection.mode === "offset" &&
+                Array.isArray(track.offsets[id])
+              ) {
+                applyOffsetDeltaToSelection(
+                  { ...definition, id },
+                  nextValue - previousValue
+                );
+              } else {
+                track.base[id] = nextValue;
+              }
             }
           }
 
@@ -3785,6 +4380,20 @@ function renderOffsetGrid(parameter) {
           event.pointerType;
       }
     );
+
+    enableRangePointer(
+      button,
+      element => ({
+        trackIndex: state.selectedTrackIndex,
+        stepIndex: Number(element.dataset.stepIndex)
+      }),
+      "offset"
+    );
+
+    if (editSelection.mode === "offset" && editSelection.selected.has(selectionKey(state.selectedTrackIndex, stepIndex))) {
+      button.classList.add("range-selected");
+    }
+
 
     /*
      * 上下スイープによる
@@ -5050,8 +5659,14 @@ function finishKeyboardEdit(
   ) {
     saveHistory();
 
-    track.base[activeBaseId] =
-      keyboardValue;
+    if (editSelection.mode === "offset") {
+      applyOffsetDeltaToSelection(
+        { ...activeParameter, id: activeBaseId },
+        keyboardValue - keyboardStartValue
+      );
+    } else {
+      track.base[activeBaseId] = keyboardValue;
+    }
   } else {
     keyboardValue =
       keyboardStartValue;
@@ -5160,6 +5775,15 @@ baseValue.addEventListener(
 );
 
     let sweepHistorySaved = false;
+    let offsetSelectionAppliedDelta = 0;
+
+    baseValue.addEventListener(
+      "pointerdown",
+      () => {
+        offsetSelectionAppliedDelta = 0;
+      }
+    );
+
     enableVerticalSweep({
       element: baseValue,
       getValue: () => Number(track.base[activeBaseId]),
@@ -5168,18 +5792,54 @@ baseValue.addEventListener(
           saveHistory();
           sweepHistorySaved = true;
         }
-        track.base[activeBaseId] = roundToStep(
+        const correctedValue = roundToStep(
           clamp(Number(nextValue), activeParameter.min, activeParameter.max),
           activeParameter.step ?? 1
         );
+        if (editSelection.mode === "offset") {
+          const totalDelta =
+            correctedValue -
+            Number(
+              track.base[activeBaseId]
+            );
+
+          const incrementalDelta =
+            totalDelta -
+            offsetSelectionAppliedDelta;
+
+          applyOffsetDeltaToSelection(
+            {
+              ...activeParameter,
+              id: activeBaseId
+            },
+            incrementalDelta
+          );
+
+          offsetSelectionAppliedDelta =
+            totalDelta;
+        } else {
+          track.base[activeBaseId] =
+            correctedValue;
+        }
         updateBaseValue();
+        if (editSelection.mode === "offset") {
+          document.querySelectorAll(".offset-step[data-step-index]").forEach(offsetButton => {
+            offsetButton.textContent = displayStepValue(activeParameter, Number(offsetButton.dataset.stepIndex));
+          });
+        }
       },
       min: activeParameter.min,
       max: activeParameter.max,
       step: activeParameter.step ?? 1,
       onCommit: (startValue, currentValue, changed) => {
         sweepHistorySaved = false;
-        if (changed) renderEditorAndRestore("lfo-base-value");
+        offsetSelectionAppliedDelta = 0;
+
+        if (changed) {
+          renderEditorAndRestore(
+            "lfo-base-value"
+          );
+        }
       }
     });
 
@@ -7760,6 +8420,16 @@ modeWrap.appendChild(
 export function renderEditor() {
   editor.innerHTML = "";
 
+  if (editSelection.mode === "sequence") {
+    const panel = document.createElement("div");
+    panel.className = "sequence-selection-panel";
+    panel.textContent = editSelection.pasteTarget
+      ? "paste position"
+      : `${editSelection.selected.size} selected`;
+    editor.appendChild(panel);
+    return;
+  }
+
   if (!state.selectedParameterId) {
     renderMenu();
     return;
@@ -7851,4 +8521,15 @@ export function render() {
   renderSequence();
   renderEditor();
   renderPatternManager();
+  updateSelectionClasses();
 }
+
+
+editor.addEventListener("click", event => {
+  if (editSelection.mode !== "offset") return;
+  const backButton = event.target.closest(".edit-icon");
+  if (!backButton) return;
+  clearEditSelection();
+  editSelection.mode = null;
+  document.body.classList.remove("offset-selection-mode");
+}, true);

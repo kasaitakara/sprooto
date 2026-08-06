@@ -24,9 +24,21 @@ const ARROW_DIRECTIONS = {
 let lastFocusedElement = null;
 
 function visibleElements(selector = NAVIGATION_SELECTOR, root = document) {
-  return Array.from(root.querySelectorAll(selector)).filter(element => {
-    const rect = element.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
+  return Array.from(
+    root.querySelectorAll(selector)
+  ).filter(element => {
+    const rect =
+      element.getBoundingClientRect();
+
+    const style =
+      window.getComputedStyle(element);
+
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      style.display !== "none" &&
+      style.visibility !== "hidden"
+    );
   });
 }
 

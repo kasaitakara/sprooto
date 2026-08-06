@@ -3510,20 +3510,27 @@ input[type="radio"]:focus-visible {
 
 
 /* =========================
-   Range selection editor
+   Step / offset range selection
 ========================= */
-.app-header.editing-actions-visible > :not(.edit-action-toolbar) {
+
+.app-header.editing-actions-visible
+> :not(.edit-action-toolbar) {
     display: none;
 }
 
+.app-header.editing-actions-visible {
+    display: block;
+    padding-bottom: 8px;
+}
+
 .edit-action-toolbar {
-    grid-column: 1 / -1;
-    width: 100%;
-    height: 28px;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 5px;
+    grid-template-columns:
+        repeat(5, minmax(0, 1fr));
     align-items: center;
+    gap: 5px;
+    width: 100%;
+    min-height: 28px;
 }
 
 .edit-action-toolbar button {
@@ -3541,27 +3548,51 @@ input[type="radio"]:focus-visible {
     opacity: .45;
 }
 
-.track-lane.range-selected,
-.offset-step.range-selected {
-    background: var(--selected-bg) !important;
-    color: var(--selected-text) !important;
-    -webkit-text-fill-color: var(--selected-text) !important;
-    outline: 1px solid var(--text);
-    outline-offset: -1px;
+/* シーケンサ側は大きなStep枠全体を選択表示 */
+.sequence-step.range-selected {
+    border-color: var(--selected-bg);
+    background:
+        color-mix(
+            in srgb,
+            var(--selected-bg) 18%,
+            transparent
+        );
 }
 
-.sequence-selection-mode .sequence-step,
+/* エディット側の単一Track選択とOffset一括選択 */
+.step-edit-cell.range-selected,
+.offset-step.range-selected {
+    border-color: var(--selected-bg);
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color:
+        var(--selected-text);
+}
+
+.step-edit-mode .sequence-step,
+.step-edit-mode .step-edit-cell,
 .offset-selection-mode .offset-step {
     touch-action: none;
 }
 
-.sequence-selection-panel {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.step-edit-toolbar {
+    justify-content: flex-start;
+}
+
+.step-edit-label {
     color: var(--muted);
-    font-size: var(--font-small);
+    font-size: var(--font-label);
+    line-height: 1;
     text-transform: lowercase;
 }
+
+.step-edit-cell {
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+}
+
+.step-edit-cell:focus-visible {
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+}
+

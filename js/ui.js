@@ -1030,7 +1030,7 @@ function enableVerticalSweep({
 const LONG_PRESS_MS = 450;
 
 const editSelection = {
-  mode: null, // null | "sequence" | "offset"
+  mode: null, // null | "step" | "offset"
   selected: new Set(),
   pasteTarget: false,
   clipboard: null,
@@ -1049,151 +1049,326 @@ function parseSelectionKey(key) {
   return { trackIndex, stepIndex };
 }
 
-function clearEditSelection() {
+function clearEditSelection({ keepPasteTarget = false } = {}) {
   editSelection.selected.clear();
-  editSelection.pasteTarget = false;
+  if (!keepPasteTarget) {
+    editSelection.pasteTarget = false;
+  }
 }
 
 function finishEditMode({ returnToMenu = false } = {}) {
   clearEditSelection();
   editSelection.mode = null;
-  document.body.classList.remove("sequence-selection-mode", "offset-selection-mode");
+  document.body.classList.remove(
+    "step-edit-mode",
+    "offset-selection-mode"
+  );
   renderEditActionToolbar();
 
   if (returnToMenu) {
     state.selectedParameterId = null;
-    renderEditor();
-  } else {
-    renderSequence();
-    renderEditor();
   }
+
+  renderSequence();
+  renderEditor();
 }
 
 function selectedKeysSorted() {
   return Array.from(editSelection.selected)
     .map(parseSelectionKey)
-    .sort((a, b) => a.trackIndex - b.trackIndex || a.stepIndex - b.stepIndex);
+    .sort(
+      (a, b) =>
+        a.stepIndex - b.stepIndex ||
+        a.trackIndex - b.trackIndex
+    );
+}
+
+function isWholeStepSelected(stepIndex) {
+  return tracks.every((track, trackIndex) => {
+    if (stepIndex >= track.stepLength) {
+      return true;
+    }
+
+    return editSelection.selected.has(
+      selectionKey(trackIndex, stepIndex)
+    );
+  });
 }
 
 function updateSelectionClasses() {
-  document.querySelectorAll(".track-lane[data-track-index][data-step-index]").forEach(lane => {
-    const key = selectionKey(Number(lane.dataset.trackIndex), Number(lane.dataset.stepIndex));
-    lane.classList.toggle("range-selected", editSelection.mode === "sequence" && editSelection.selected.has(key));
-  });
+  document
+    .querySelectorAll(".sequence-step[data-step-index]")
+    .forEach(button => {
+      const stepIndex = Number(button.dataset.stepIndex);
 
-  document.querySelectorAll(".offset-step[data-step-index]").forEach(button => {
-    const key = selectionKey(state.selectedTrackIndex, Number(button.dataset.stepIndex));
-    button.classList.toggle("range-selected", editSelection.mode === "offset" && editSelection.selected.has(key));
-  });
+      button.classList.toggle(
+        "range-selected",
+        editSelection.mode === "step" &&
+          isWholeStepSelected(stepIndex)
+      );
+    });
 
-  const panel = document.querySelector(".sequence-selection-panel");
-  if (panel && editSelection.mode === "sequence") {
-    panel.textContent = editSelection.pasteTarget
-      ? "paste position"
-      : `${editSelection.selected.size} selected`;
-  }
+  document
+    .querySelectorAll(".step-edit-cell[data-step-index]")
+    .forEach(button => {
+      const key = selectionKey(
+        state.selectedTrackIndex,
+        Number(button.dataset.stepIndex)
+      );
+
+      button.classList.toggle(
+        "range-selected",
+        editSelection.mode === "step" &&
+          editSelection.selected.has(key)
+      );
+    });
+
+  document
+    .querySelectorAll(".offset-step[data-step-index]")
+    .forEach(button => {
+      const key = selectionKey(
+        state.selectedTrackIndex,
+        Number(button.dataset.stepIndex)
+      );
+
+      button.classList.toggle(
+        "range-selected",
+        editSelection.mode === "offset" &&
+          editSelection.selected.has(key)
+      );
+    });
 
   renderEditActionToolbar();
 }
 
 function setSelectionCell(trackIndex, stepIndex, selected) {
-  if (trackIndex < 0 || trackIndex >= tracks.length || stepIndex < 0 || stepIndex >= STEP_COUNT) return;
+  if (
+    trackIndex < 0 ||
+    trackIndex >= tracks.length ||
+    stepIndex < 0 ||
+    stepIndex >= STEP_COUNT
+  ) {
+    return;
+  }
+
   const key = selectionKey(trackIndex, stepIndex);
-  if (selected) editSelection.selected.add(key);
-  else editSelection.selected.delete(key);
+
+  if (selected) {
+    editSelection.selected.add(key);
+  } else {
+    editSelection.selected.delete(key);
+  }
+}
+
+function setWholeStepSelection(stepIndex, selected) {
+  tracks.forEach((track, trackIndex) => {
+    if (stepIndex >= track.stepLength) {
+      return;
+    }
+
+    setSelectionCell(
+      trackIndex,
+      stepIndex,
+      selected
+    );
+  });
+}
+
+function beginStepEditMode(stepIndex) {
+  clearEditSelection();
+  editSelection.mode = "step";
+
+  document.body.classList.add(
+    "step-edit-mode"
+  );
+
+  document.body.classList.remove(
+    "offset-selection-mode"
+  );
+
+  setWholeStepSelection(stepIndex, true);
+  renderSequence();
+  renderEditor();
   updateSelectionClasses();
 }
 
-function toggleSelectionCell(trackIndex, stepIndex) {
-  const key = selectionKey(trackIndex, stepIndex);
-  setSelectionCell(trackIndex, stepIndex, !editSelection.selected.has(key));
-}
-
-function beginSelectionMode(mode, trackIndex, stepIndex) {
+function beginOffsetSelectionMode(stepIndex) {
   clearEditSelection();
-  editSelection.mode = mode;
-  document.body.classList.toggle("sequence-selection-mode", mode === "sequence");
-  document.body.classList.toggle("offset-selection-mode", mode === "offset");
-  setSelectionCell(trackIndex, stepIndex, true);
-  if (mode === "sequence") renderEditor();
-  renderEditActionToolbar();
+  editSelection.mode = "offset";
+
+  document.body.classList.add(
+    "offset-selection-mode"
+  );
+
+  document.body.classList.remove(
+    "step-edit-mode"
+  );
+
+  setSelectionCell(
+    state.selectedTrackIndex,
+    stepIndex,
+    true
+  );
+
+  updateSelectionClasses();
 }
 
 function captureClipboard() {
   const cells = selectedKeysSorted();
-  if (!cells.length) return false;
 
-  const minTrack = Math.min(...cells.map(cell => cell.trackIndex));
-  const minStep = Math.min(...cells.map(cell => cell.stepIndex));
+  if (!cells.length) {
+    return false;
+  }
+
+  const minTrack = Math.min(
+    ...cells.map(cell => cell.trackIndex)
+  );
+
+  const minStep = Math.min(
+    ...cells.map(cell => cell.stepIndex)
+  );
 
   editSelection.clipboard = {
-    cells: cells.map(({ trackIndex, stepIndex }) => {
-      const track = tracks[trackIndex];
-      return {
-        trackOffset: trackIndex - minTrack,
-        stepOffset: stepIndex - minStep,
-        stepOn: Boolean(track.steps[stepIndex]),
-        offsets: Object.fromEntries(
-          Object.entries(track.offsets).map(([id, values]) => [id, Number(values?.[stepIndex]) || 0])
-        )
-      };
-    })
+    cells: cells.map(
+      ({ trackIndex, stepIndex }) => {
+        const track = tracks[trackIndex];
+
+        return {
+          trackOffset:
+            trackIndex - minTrack,
+          stepOffset:
+            stepIndex - minStep,
+          stepOn:
+            Boolean(track.steps[stepIndex]),
+          offsets:
+            Object.fromEntries(
+              Object.entries(track.offsets)
+                .map(([id, values]) => [
+                  id,
+                  Number(values?.[stepIndex]) || 0
+                ])
+            )
+        };
+      }
+    )
   };
 
   return true;
 }
 
-function deleteSelectedSequenceCells() {
+function deleteSelectedSequenceCells({ save = true } = {}) {
   const cells = selectedKeysSorted();
-  if (!cells.length) return false;
-  saveHistory();
+
+  if (!cells.length) {
+    return false;
+  }
+
+  if (save) {
+    saveHistory();
+  }
+
   cells.forEach(({ trackIndex, stepIndex }) => {
     const track = tracks[trackIndex];
+
     track.steps[stepIndex] = false;
-    Object.values(track.offsets).forEach(values => {
-      if (Array.isArray(values)) values[stepIndex] = 0;
-    });
+
+    Object.values(track.offsets)
+      .forEach(values => {
+        if (Array.isArray(values)) {
+          values[stepIndex] = 0;
+        }
+      });
   });
+
   return true;
 }
 
-function pasteClipboardAt(targetTrackIndex, targetStepIndex) {
+function pasteClipboardAt(
+  targetTrackIndex,
+  targetStepIndex
+) {
   const clipboard = editSelection.clipboard;
-  if (!clipboard?.cells?.length) return false;
+
+  if (!clipboard?.cells?.length) {
+    return false;
+  }
+
   saveHistory();
+
   clipboard.cells.forEach(cell => {
-    const trackIndex = targetTrackIndex + cell.trackOffset;
-    const stepIndex = targetStepIndex + cell.stepOffset;
-    if (trackIndex < 0 || trackIndex >= tracks.length || stepIndex < 0 || stepIndex >= STEP_COUNT) return;
+    const trackIndex =
+      targetTrackIndex + cell.trackOffset;
+
+    const stepIndex =
+      targetStepIndex + cell.stepOffset;
+
+    if (
+      trackIndex < 0 ||
+      trackIndex >= tracks.length ||
+      stepIndex < 0 ||
+      stepIndex >= STEP_COUNT
+    ) {
+      return;
+    }
+
     const track = tracks[trackIndex];
-    track.steps[stepIndex] = cell.stepOn;
-    Object.entries(cell.offsets).forEach(([id, value]) => {
-      if (Array.isArray(track.offsets[id])) track.offsets[id][stepIndex] = value;
-    });
+
+    track.steps[stepIndex] =
+      cell.stepOn;
+
+    Object.entries(cell.offsets)
+      .forEach(([id, value]) => {
+        if (Array.isArray(track.offsets[id])) {
+          track.offsets[id][stepIndex] = value;
+        }
+      });
   });
+
   return true;
 }
 
 function renderEditActionToolbar() {
-  const header = document.querySelector(".app-header");
-  if (!header) return;
-  let toolbar = header.querySelector(".edit-action-toolbar");
+  const header =
+    document.querySelector(".app-header");
 
-  if (editSelection.mode !== "sequence") {
+  if (!header) {
+    return;
+  }
+
+  let toolbar =
+    header.querySelector(
+      ".edit-action-toolbar"
+    );
+
+  if (editSelection.mode !== "step") {
     toolbar?.remove();
-    header.classList.remove("editing-actions-visible");
+
+    header.classList.remove(
+      "editing-actions-visible"
+    );
+
     return;
   }
 
   if (!toolbar) {
     toolbar = document.createElement("div");
-    toolbar.className = "edit-action-toolbar";
+    toolbar.className =
+      "edit-action-toolbar";
     header.appendChild(toolbar);
   }
 
-  header.classList.add("editing-actions-visible");
-  const hasSelection = editSelection.selected.size > 0;
-  const hasClipboard = Boolean(editSelection.clipboard?.cells?.length);
+  header.classList.add(
+    "editing-actions-visible"
+  );
+
+  const hasSelection =
+    editSelection.selected.size > 0;
+
+  const hasClipboard =
+    Boolean(
+      editSelection.clipboard?.cells?.length
+    );
+
   toolbar.innerHTML = `
     <button type="button" data-action="cancel">cancel</button>
     <button type="button" data-action="copy" ${hasSelection ? "" : "disabled"}>copy</button>
@@ -1202,29 +1377,66 @@ function renderEditActionToolbar() {
     <button type="button" data-action="paste" ${hasClipboard ? "" : "disabled"}>paste</button>
   `;
 
-  toolbar.querySelector('[data-action="cancel"]').onclick = () => finishEditMode();
-  toolbar.querySelector('[data-action="copy"]').onclick = () => {
-    if (!captureClipboard()) return;
-    finishEditMode();
-  };
-  toolbar.querySelector('[data-action="cut"]').onclick = () => {
-    if (!captureClipboard()) return;
-    deleteSelectedSequenceCells();
-    finishEditMode();
-  };
-  toolbar.querySelector('[data-action="delete"]').onclick = () => {
-    if (!deleteSelectedSequenceCells()) return;
-    finishEditMode();
-  };
-  toolbar.querySelector('[data-action="paste"]').onclick = () => {
-    editSelection.pasteTarget = true;
+  toolbar.querySelector(
+    '[data-action="cancel"]'
+  ).onclick = () => finishEditMode();
+
+  toolbar.querySelector(
+    '[data-action="copy"]'
+  ).onclick = () => {
+    if (!captureClipboard()) {
+      return;
+    }
+
     clearEditSelection();
+    renderSequence();
+    renderEditor();
+    updateSelectionClasses();
+  };
+
+  toolbar.querySelector(
+    '[data-action="cut"]'
+  ).onclick = () => {
+    if (!captureClipboard()) {
+      return;
+    }
+
+    saveHistory();
+    deleteSelectedSequenceCells({ save: false });
+    clearEditSelection();
+    renderSequence();
+    renderEditor();
+    updateSelectionClasses();
+  };
+
+  toolbar.querySelector(
+    '[data-action="delete"]'
+  ).onclick = () => {
+    if (!deleteSelectedSequenceCells()) {
+      return;
+    }
+
+    finishEditMode();
+  };
+
+  toolbar.querySelector(
+    '[data-action="paste"]'
+  ).onclick = () => {
+    clearEditSelection({
+      keepPasteTarget: true
+    });
+
     editSelection.pasteTarget = true;
     updateSelectionClasses();
   };
 }
 
-function enableRangePointer(element, getCell, mode) {
+function enableSelectionPointer({
+  element,
+  mode,
+  source,
+  getStepIndex
+}) {
   let pointerId = null;
   let timer = null;
   let startX = 0;
@@ -1234,9 +1446,8 @@ function enableRangePointer(element, getCell, mode) {
   function clearTimer() {
     if (timer !== null) {
       clearTimeout(timer);
+      timer = null;
     }
-
-    timer = null;
   }
 
   function cellFromPoint(clientX, clientY) {
@@ -1246,9 +1457,11 @@ function enableRangePointer(element, getCell, mode) {
     );
 
     const selector =
-      mode === "sequence"
-        ? ".track-lane[data-track-index][data-step-index]"
-        : ".offset-step[data-step-index]";
+      source === "sequence"
+        ? ".sequence-step[data-step-index]"
+        : source === "step-editor"
+          ? ".step-edit-cell[data-step-index]"
+          : ".offset-step[data-step-index]";
 
     const cellElement =
       target?.closest?.(selector);
@@ -1257,31 +1470,51 @@ function enableRangePointer(element, getCell, mode) {
       return null;
     }
 
-    return mode === "sequence"
-      ? {
-          trackIndex: Number(
-            cellElement.dataset.trackIndex
-          ),
-          stepIndex: Number(
-            cellElement.dataset.stepIndex
-          )
-        }
-      : {
-          trackIndex:
-            state.selectedTrackIndex,
-          stepIndex: Number(
-            cellElement.dataset.stepIndex
-          )
-        };
+    return {
+      trackIndex:
+        source === "sequence"
+          ? 0
+          : state.selectedTrackIndex,
+      stepIndex:
+        Number(cellElement.dataset.stepIndex)
+    };
   }
 
-  function applySweepRectangle(currentCell) {
-    const anchor =
-      editSelection.sweepAnchor;
+  function keySelected(cell) {
+    if (source === "sequence") {
+      return isWholeStepSelected(
+        cell.stepIndex
+      );
+    }
 
+    return editSelection.selected.has(
+      selectionKey(
+        cell.trackIndex,
+        cell.stepIndex
+      )
+    );
+  }
+
+  function applyCell(cell, selected) {
+    if (source === "sequence") {
+      setWholeStepSelection(
+        cell.stepIndex,
+        selected
+      );
+      return;
+    }
+
+    setSelectionCell(
+      cell.trackIndex,
+      cell.stepIndex,
+      selected
+    );
+  }
+
+  function applySweep(currentCell) {
+    const anchor = editSelection.sweepAnchor;
     const baseline =
-      editSelection.sweepBaseline ??
-      new Set();
+      editSelection.sweepBaseline ?? new Set();
 
     if (!anchor || !currentCell) {
       return;
@@ -1289,22 +1522,6 @@ function enableRangePointer(element, getCell, mode) {
 
     editSelection.selected =
       new Set(baseline);
-
-    const minimumTrack =
-      mode === "offset"
-        ? state.selectedTrackIndex
-        : Math.min(
-            anchor.trackIndex,
-            currentCell.trackIndex
-          );
-
-    const maximumTrack =
-      mode === "offset"
-        ? state.selectedTrackIndex
-        : Math.max(
-            anchor.trackIndex,
-            currentCell.trackIndex
-          );
 
     const minimumStep = Math.min(
       anchor.stepIndex,
@@ -1317,26 +1534,20 @@ function enableRangePointer(element, getCell, mode) {
     );
 
     for (
-      let trackIndex = minimumTrack;
-      trackIndex <= maximumTrack;
-      trackIndex++
+      let stepIndex = minimumStep;
+      stepIndex <= maximumStep;
+      stepIndex++
     ) {
-      for (
-        let stepIndex = minimumStep;
-        stepIndex <= maximumStep;
-        stepIndex++
-      ) {
-        const key = selectionKey(
-          trackIndex,
+      applyCell(
+        {
+          trackIndex:
+            source === "sequence"
+              ? 0
+              : state.selectedTrackIndex,
           stepIndex
-        );
-
-        if (editSelection.sweepValue) {
-          editSelection.selected.add(key);
-        } else {
-          editSelection.selected.delete(key);
-        }
-      }
+        },
+        editSelection.sweepValue
+      );
     }
 
     updateSelectionClasses();
@@ -1351,21 +1562,15 @@ function enableRangePointer(element, getCell, mode) {
     editSelection.sweepPointerId =
       event.pointerId;
 
-    editSelection.sweepAnchor =
-      cell;
+    editSelection.sweepAnchor = cell;
 
     editSelection.sweepBaseline =
       new Set(editSelection.selected);
 
     editSelection.sweepValue =
-      !editSelection.selected.has(
-        selectionKey(
-          cell.trackIndex,
-          cell.stepIndex
-        )
-      );
+      !keySelected(cell);
 
-    applySweepRectangle(cell);
+    applySweep(cell);
 
     element.setPointerCapture?.(
       event.pointerId
@@ -1389,18 +1594,29 @@ function enableRangePointer(element, getCell, mode) {
       startY = event.clientY;
       interactionActive = false;
 
-      const cell = getCell(element);
+      const cell = {
+        trackIndex:
+          source === "sequence"
+            ? 0
+            : state.selectedTrackIndex,
+        stepIndex: getStepIndex(element)
+      };
 
       if (editSelection.mode === mode) {
         event.preventDefault();
 
         if (
-          mode === "sequence" &&
+          mode === "step" &&
           editSelection.pasteTarget
         ) {
+          const targetTrackIndex =
+            source === "sequence"
+              ? 0
+              : state.selectedTrackIndex;
+
           if (
             pasteClipboardAt(
-              cell.trackIndex,
+              targetTrackIndex,
               cell.stepIndex
             )
           ) {
@@ -1419,25 +1635,41 @@ function enableRangePointer(element, getCell, mode) {
         return;
       }
 
+      const canLongPress =
+        (
+          mode === "step" &&
+          source === "sequence"
+        ) ||
+        (
+          mode === "offset" &&
+          source === "offset"
+        );
+
+      if (!canLongPress) {
+        return;
+      }
+
       clearTimer();
 
       timer = window.setTimeout(
         () => {
-          beginSelectionMode(
-            mode,
-            cell.trackIndex,
-            cell.stepIndex
-          );
+          if (mode === "step") {
+            beginStepEditMode(
+              cell.stepIndex
+            );
+          } else {
+            beginOffsetSelectionMode(
+              cell.stepIndex
+            );
+          }
 
           interactionActive = true;
           editSelection.sweepPointerId =
             event.pointerId;
-          editSelection.sweepAnchor =
-            cell;
+          editSelection.sweepAnchor = cell;
           editSelection.sweepBaseline =
             new Set();
-          editSelection.sweepValue =
-            true;
+          editSelection.sweepValue = true;
 
           element.setPointerCapture?.(
             event.pointerId
@@ -1461,7 +1693,7 @@ function enableRangePointer(element, getCell, mode) {
       );
 
       if (!interactionActive) {
-        if (movement > 8) {
+        if (movement > 12) {
           clearTimer();
         }
 
@@ -1474,7 +1706,7 @@ function enableRangePointer(element, getCell, mode) {
 
       event.preventDefault();
 
-      applySweepRectangle(
+      applySweep(
         cellFromPoint(
           event.clientX,
           event.clientY
@@ -1531,17 +1763,54 @@ function enableRangePointer(element, getCell, mode) {
   );
 }
 
-function applyOffsetDeltaToSelection(parameter, delta) {
-  if (editSelection.mode !== "offset" || !delta || editSelection.selected.size === 0) return false;
+function applyOffsetDeltaToSelection(
+  parameter,
+  delta
+) {
+  if (
+    editSelection.mode !== "offset" ||
+    !delta ||
+    editSelection.selected.size === 0
+  ) {
+    return false;
+  }
+
   const track = selectedTrack();
   const values = track.offsets[parameter.id];
-  if (!Array.isArray(values)) return false;
-  selectedKeysSorted().forEach(({ trackIndex, stepIndex }) => {
-    if (trackIndex !== state.selectedTrackIndex) return;
-    const minOffset = parameter.min - Number(track.base[parameter.id]);
-    const maxOffset = parameter.max - Number(track.base[parameter.id]);
-    values[stepIndex] = roundToStep(clamp((Number(values[stepIndex]) || 0) + delta, minOffset, maxOffset), parameter.step ?? 1);
-  });
+
+  if (!Array.isArray(values)) {
+    return false;
+  }
+
+  selectedKeysSorted()
+    .forEach(({ trackIndex, stepIndex }) => {
+      if (
+        trackIndex !==
+        state.selectedTrackIndex
+      ) {
+        return;
+      }
+
+      const minOffset =
+        parameter.min -
+        Number(track.base[parameter.id]);
+
+      const maxOffset =
+        parameter.max -
+        Number(track.base[parameter.id]);
+
+      values[stepIndex] =
+        roundToStep(
+          clamp(
+            (Number(values[stepIndex]) || 0) +
+              delta,
+            minOffset,
+            maxOffset
+          ),
+          parameter.step ?? 1
+        );
+    });
+
   return true;
 }
 
@@ -1557,25 +1826,29 @@ function stepCell(stepIndex) {
     `step ${stepIndex + 1}`
   );
 
+  enableSelectionPointer({
+    element: button,
+    mode: "step",
+    source: "sequence",
+    getStepIndex: element =>
+      Number(element.dataset.stepIndex)
+  });
+
+  if (
+    editSelection.mode === "step" &&
+    isWholeStepSelected(stepIndex)
+  ) {
+    button.classList.add(
+      "range-selected"
+    );
+  }
+
   tracks.forEach((track, trackIndex) => {
     const lane = document.createElement("span");
 
     lane.className = "track-lane";
     lane.dataset.trackIndex = trackIndex;
     lane.dataset.stepIndex = stepIndex;
-
-    enableRangePointer(
-      lane,
-      element => ({
-        trackIndex: Number(element.dataset.trackIndex),
-        stepIndex: Number(element.dataset.stepIndex)
-      }),
-      "sequence"
-    );
-
-    if (editSelection.mode === "sequence" && editSelection.selected.has(selectionKey(trackIndex, stepIndex))) {
-      lane.classList.add("range-selected");
-    }
 
 
     const exists =
@@ -1617,7 +1890,7 @@ if (
       button.addEventListener(
     "click",
     () => {
-      if (editSelection.mode === "sequence") return;
+      if (editSelection.mode === "step") return;
       const trackIndex =
         state.selectedTrackIndex;
 
@@ -4381,14 +4654,13 @@ function renderOffsetGrid(parameter) {
       }
     );
 
-    enableRangePointer(
-      button,
-      element => ({
-        trackIndex: state.selectedTrackIndex,
-        stepIndex: Number(element.dataset.stepIndex)
-      }),
-      "offset"
-    );
+    enableSelectionPointer({
+      element: button,
+      mode: "offset",
+      source: "offset",
+      getStepIndex: element =>
+        Number(element.dataset.stepIndex)
+    });
 
     if (editSelection.mode === "offset" && editSelection.selected.has(selectionKey(state.selectedTrackIndex, stepIndex))) {
       button.classList.add("range-selected");
@@ -4413,6 +4685,10 @@ function renderOffsetGrid(parameter) {
       },
 
       setValue: nextOffset => {
+        if (editSelection.mode === "offset") {
+          return;
+        }
+
         /*
          * Undo履歴は
          * 1回のスイープにつき1回だけ保存。
@@ -8417,16 +8693,125 @@ modeWrap.appendChild(
   closeButton.focus();
 }
 
+function renderStepEditScreen() {
+  const header = document.createElement("div");
+  header.className =
+    "edit-toolbar step-edit-toolbar";
+
+  const trackButton =
+    document.createElement("button");
+
+  trackButton.type = "button";
+  trackButton.className = "track-cycle";
+  trackButton.dataset.focusKey =
+    "step-edit-track";
+
+  trackButton.innerHTML = `
+    <span class="track-icon">
+      ${getParameterIcon("track")}
+    </span>
+    <span class="track-number">
+      ${selectedTrack().id}
+    </span>
+  `;
+
+  trackButton.setAttribute(
+    "aria-label",
+    `track ${selectedTrack().id}`
+  );
+
+  trackButton.addEventListener(
+    "click",
+    () => {
+      state.selectedTrackIndex =
+        (
+          state.selectedTrackIndex + 1
+        ) % tracks.length;
+
+      renderSequence();
+      renderEditorAndRestore(
+        "step-edit-track"
+      );
+    }
+  );
+
+  const label = document.createElement("span");
+  label.className = "step-edit-label";
+  label.textContent = editSelection.pasteTarget
+    ? "paste position"
+    : "step edit";
+
+  header.append(
+    trackButton,
+    label
+  );
+
+  const grid = document.createElement("div");
+  grid.className =
+    "offset-grid step-edit-grid";
+
+  const firstStepIndex =
+    state.sequencePage * PAGE_STEP_COUNT;
+
+  const lastStepIndex = Math.min(
+    firstStepIndex + PAGE_STEP_COUNT,
+    selectedTrack().stepLength
+  );
+
+  for (
+    let stepIndex = firstStepIndex;
+    stepIndex < lastStepIndex;
+    stepIndex++
+  ) {
+    const button =
+      document.createElement("button");
+
+    button.type = "button";
+    button.className =
+      "offset-step step-edit-cell";
+    button.dataset.stepIndex = stepIndex;
+    button.dataset.focusKey =
+      `step-edit-${stepIndex}`;
+    button.setAttribute(
+      "aria-label",
+      `track ${selectedTrack().id} step ${stepIndex + 1}`
+    );
+
+    enableSelectionPointer({
+      element: button,
+      mode: "step",
+      source: "step-editor",
+      getStepIndex: element =>
+        Number(element.dataset.stepIndex)
+    });
+
+    if (
+      editSelection.selected.has(
+        selectionKey(
+          state.selectedTrackIndex,
+          stepIndex
+        )
+      )
+    ) {
+      button.classList.add(
+        "range-selected"
+      );
+    }
+
+    grid.appendChild(button);
+  }
+
+  editor.append(
+    header,
+    grid
+  );
+}
+
 export function renderEditor() {
   editor.innerHTML = "";
 
-  if (editSelection.mode === "sequence") {
-    const panel = document.createElement("div");
-    panel.className = "sequence-selection-panel";
-    panel.textContent = editSelection.pasteTarget
-      ? "paste position"
-      : `${editSelection.selected.size} selected`;
-    editor.appendChild(panel);
+  if (editSelection.mode === "step") {
+    renderStepEditScreen();
     return;
   }
 

@@ -242,11 +242,38 @@ function sound(
 
 export const FACTORY_SOUND_PRESETS = [
   {
-    id: "factory-initialize",
-    category: "other",
-    name: "Initialize Tone",
-    sound: createDefaultSound()
-  },
+  id: "factory-initialize",
+  category: "other",
+  name: "Initialize Tone",
+
+  sound: sound({
+    note: 12,
+
+    sineVolume: 100,
+    noiseVolume: 0,
+
+    attack: 1,
+    decay: 10,
+    sustain: 0,
+    gate: 50,
+
+    fmDepth: 0,
+    fmRatio: 1,
+    fmFeedback: 0,
+
+    filterCutoff: 0,
+
+    lfo1Target: "pitch",
+    lfo1Wave: "sine",
+    lfo1Depth: 0,
+    lfo1Rate: 65,
+
+    lfo2Target: "fmDepth",
+    lfo2Wave: "sine",
+    lfo2Depth: 0,
+    lfo2Rate: 65
+  })
+},
 
   {
     id: "factory-kick-01",
@@ -254,25 +281,25 @@ export const FACTORY_SOUND_PRESETS = [
     name: "Kick 01",
 
     sound: sound({
-      note: -12,
+      note: -24,
 
       sineVolume: 100,
-      noiseVolume: 4,
+      noiseVolume: 0,
 
       attack: 1,
-      decay: 18,
+      decay: 7,
       sustain: 0,
-      gate: 10,
+      gate: 30,
 
-      fmDepth: 2,
+      fmDepth: 0,
       fmRatio: 1,
 
-      filterCutoff: -8,
+      filterCutoff: 0,
 
       lfo1Target: "pitch",
       lfo1Wave: "fall",
-      lfo1Depth: 42,
-      lfo1Rate: 65
+      lfo1Depth: 50,
+      lfo1Rate: 100
     })
   },
 

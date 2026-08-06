@@ -831,6 +831,10 @@ function enableVerticalSweep({
   pixelsPerStep =
     SWEEP_PIXELS_PER_STEP,
   acceleration = true,
+  accelerationStart =
+    SWEEP_ACCELERATION_START,
+  accelerationRate =
+    SWEEP_ACCELERATION_RATE,
   onCommit
 }) {
   let pointerId = null;
@@ -919,18 +923,18 @@ function enableVerticalSweep({
       if (
   acceleration &&
   absoluteStepCount >
-    SWEEP_ACCELERATION_START
+    accelerationStart
 ) {
         const extra =
           absoluteStepCount -
-          SWEEP_ACCELERATION_START;
+          accelerationStart;
 
         acceleratedStepCount =
-          SWEEP_ACCELERATION_START +
+          accelerationStart +
           extra +
           extra *
             extra *
-            SWEEP_ACCELERATION_RATE;
+            accelerationRate;
       }
 
       const stepCount =
@@ -1940,6 +1944,22 @@ if (parentSweepParameter) {
     acceleration:
       parentSweepParameter.id !==
       "delayTime",
+
+    /*
+     * NOTEは短い移動では半音単位の精密操作、
+     * 長い移動ではオクターブ移動しやすい加速にする。
+     */
+    accelerationStart:
+      parentSweepParameter.id ===
+        "note"
+        ? 6
+        : SWEEP_ACCELERATION_START,
+
+    accelerationRate:
+      parentSweepParameter.id ===
+        "note"
+        ? 0.08
+        : SWEEP_ACCELERATION_RATE,
 
     onCommit: (
       startValue,
@@ -3317,6 +3337,16 @@ track.base[id] =
     acceleration:
       id !== "delayTime",
 
+    accelerationStart:
+      id === "note"
+        ? 6
+        : SWEEP_ACCELERATION_START,
+
+    accelerationRate:
+      id === "note"
+        ? 0.08
+        : SWEEP_ACCELERATION_RATE,
+
     onCommit: (
       startValue,
       currentValue,
@@ -3813,6 +3843,16 @@ function renderOffsetGrid(parameter) {
 
       step:
         parameter.step ?? 1,
+
+      accelerationStart:
+        parameter.id === "note"
+          ? 6
+          : SWEEP_ACCELERATION_START,
+
+      accelerationRate:
+        parameter.id === "note"
+          ? 0.08
+          : SWEEP_ACCELERATION_RATE,
 
       onCommit: (
         startValue,

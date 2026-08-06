@@ -326,8 +326,12 @@ export const parameters = [
     id: "note",
     label: "note",
     icon: "note",
-    min: -24,
-    max: 24,
+    /*
+     * MIDI 0〜127を、C4基準の相対値で保持する。
+     * 表示範囲：C-1〜G9
+     */
+    min: -60,
+    max: 67,
     step: 1,
     offsetMode: "result"
   },

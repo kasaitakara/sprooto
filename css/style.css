@@ -3605,6 +3605,9 @@ input[type="radio"]:focus-visible {
     display: inline-flex;
     align-items: center;
     gap: 3px;
+
+    margin-left: 12px;
+
     flex: 0 0 auto;
 }
 

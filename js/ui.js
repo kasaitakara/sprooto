@@ -3149,32 +3149,25 @@ function editValueControl(parameter, id) {
 const actualParameter =
   parameterById(id);
 
-const definition =
-  id === "fmRatio"
-    ? {
-        min: 0.25,
-        max: 8,
-        step: 0.25
-      }
-    : {
-        min:
-          childDefinition?.min ??
-          actualParameter?.min ??
-          parameter.min ??
-          0,
+const definition = {
+  min:
+    childDefinition?.min ??
+    actualParameter?.min ??
+    parameter.min ??
+    0,
 
-        max:
-          childDefinition?.max ??
-          actualParameter?.max ??
-          parameter.max ??
-          100,
+  max:
+    childDefinition?.max ??
+    actualParameter?.max ??
+    parameter.max ??
+    100,
 
-        step:
-          childDefinition?.step ??
-          actualParameter?.step ??
-          parameter.step ??
-          1
-      };
+  step:
+    childDefinition?.step ??
+    actualParameter?.step ??
+    parameter.step ??
+    1
+};
 
   const wrap =
     document.createElement("div");

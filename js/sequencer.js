@@ -56,8 +56,9 @@ fxMuted: false,
   sustain: 0,
   gate: 5,
   fmDepth: 0,
-      fmRatio: 1,
-      filterCutoff: 0,
+fmRatio: 1,
+fmFeedback: 0,
+filterCutoff: 0,
       filterResonance: 0,
       pan: 50,
       delay: 0,
@@ -422,27 +423,39 @@ export const parameters = [
 },
 
   {
-    id: "fmDepth",
-    label: "fm",
-    icon: "fm",
-    min: 0,
-    max: 20,
-    step: 1,
-    offsetMode: "offset",
+  id: "fmDepth",
+  label: "fm",
+  icon: "fm",
+  min: 0,
+  max: 20,
+  step: 1,
+  offsetMode: "offset",
 
-    children: [
-      {
-        id: "fmDepth",
-        label: "depth"
-      },
+  children: [
+    {
+      id: "fmDepth",
+      label: "depth"
+    },
 
-      {
-        id: "fmRatio",
-        label: "ratio",
-        baseOnly: true
-      }
-    ]
-  },
+    {
+      id: "fmRatio",
+      label: "ratio",
+      baseOnly: true,
+      min: 0.25,
+      max: 8,
+      step: 0.25
+    },
+
+    {
+      id: "fmFeedback",
+      label: "feedback",
+      baseOnly: true,
+      min: 0,
+      max: 50,
+      step: 1
+    }
+  ]
+},
 
   {
     id: "filterCutoff",
@@ -1778,6 +1791,26 @@ function normalizeTrackData(track) {
 
   track.base ??= {};
   track.offsets ??= {};
+
+  /*
+ * FM Feedback実装前の保存データへ
+ * 初期値0を補う。
+ */
+if (
+  typeof track.base.fmFeedback !==
+    "number"
+) {
+  track.base.fmFeedback = 0;
+}
+
+track.base.fmFeedback =
+  clamp(
+    Math.round(
+      track.base.fmFeedback
+    ),
+    0,
+    100
+  );
 
   if (typeof track.soundName !== "string" || !track.soundName.trim()) {
     track.soundName = `sound ${String(track.id ?? 1).padStart(2, "0")}`;

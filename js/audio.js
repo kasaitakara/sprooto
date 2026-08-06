@@ -3,6 +3,26 @@ import { clamp } from "./sequencer.js";
 let context;
 let master;
 
+/*
+ * Trackごとに最後に予約した発音の
+ * GainNodeを保持する。
+ *
+ * 次のトリガー時に前音を短く閉じて、
+ * FM波形同士の位相干渉を防ぐ。
+ */
+const activeTrackVoices =
+  new Map();
+
+/*
+ * 位相固定FM波形のキャッシュ。
+ * Random LFOを含まない同一条件の発音は
+ * 生成済みAudioBufferを再利用する。
+ */
+const fmBufferCache =
+  new Map();
+
+const FM_BUFFER_CACHE_LIMIT = 64;
+
 function resumeAudioContext() {
   if (
     context &&
@@ -240,12 +260,31 @@ export async function playTrackStep(
   }
 );
 
-  const now =
-    context.currentTime +
-    Math.max(
-      0,
-      Number(delaySeconds) || 0
-    );
+  /*
+ * Oscillator、Envelope、FM変調を
+ * 必ず同じ未来時刻から開始する。
+ *
+ * 現在時刻ぴったりへ予約すると、
+ * ノード生成中に開始時刻を過ぎてしまい、
+ * 強いFMでトリガー位相が不安定に
+ * 聞こえる場合がある。
+ */
+const requestedStartTime =
+  context.currentTime +
+  Math.max(
+    0,
+    Number(delaySeconds) || 0
+  );
+
+const minimumStartTime =
+  context.currentTime +
+  0.008;
+
+const now =
+  Math.max(
+    requestedStartTime,
+    minimumStartTime
+  );
 
   const bpm =
     Number(
@@ -1273,6 +1312,55 @@ filter2.detune.setValueCurveAtTime(
 const mixGain =
   context.createGain();
 
+/*
+ * 同じTrackの前音を、
+ * 今回の発音開始時刻までに閉じる。
+ *
+ * 新旧Voiceを重ねないことで、
+ * FM波形同士の位相干渉を防ぐ。
+ */
+const previousVoice =
+  activeTrackVoices.get(
+    track.id
+  );
+
+if (
+  previousVoice?.gainNode
+) {
+  const previousGain =
+    previousVoice.gainNode.gain;
+
+  const chokeStart =
+    Math.max(
+      context.currentTime,
+      now - 0.003
+    );
+
+  if (
+    typeof previousGain
+      .cancelAndHoldAtTime ===
+    "function"
+  ) {
+    previousGain.cancelAndHoldAtTime(
+      chokeStart
+    );
+  } else {
+    previousGain.cancelScheduledValues(
+      chokeStart
+    );
+
+    previousGain.setValueAtTime(
+      0.001,
+      chokeStart
+    );
+  }
+
+  previousGain.exponentialRampToValueAtTime(
+    0.0001,
+    now
+  );
+}
+  
 const peakLevel =
   Math.max(
     0.0001,
@@ -1346,6 +1434,21 @@ if (gateEnd <= decayEnd) {
 mixGain.gain.exponentialRampToValueAtTime(
   0.0001,
   releaseEnd
+);
+
+/*
+ * 今回の発音をTrackの最新Voiceとして登録。
+ *
+ * 次の同一Track発音時に、
+ * このGainが短く閉じられる。
+ */
+activeTrackVoices.set(
+  track.id,
+  {
+    gainNode: mixGain,
+    startTime: now,
+    endTime: releaseEnd
+  }
 );
 
 mixGain
@@ -1508,557 +1611,531 @@ mixGain
 }
 
   if (sineVolume > 0) {
-    const carrier =
-      context.createOscillator();
+    const sineSource =
+      context.createBufferSource();
 
     const sineGain =
-      context.createGain();
-
-    const modulator =
-      context.createOscillator();
-
-    const modulationGain =
       context.createGain();
 
     const carrierFrequency =
       frequency(note);
 
     const sineStopAt =
-  releaseEnd + 0.01;
+      releaseEnd + 0.01;
 
-    carrier.type = "sine";
+    const bufferDuration =
+      Math.max(
+        0.001,
+        sineStopAt - now
+      );
 
-    carrier.frequency.setValueAtTime(
-      carrierFrequency,
-      now
-    );
+    const sampleRate =
+      context.sampleRate;
 
-    modulator.type = "sine";
-
-    /*
- * Pitch LFO
- *
- * LFO1／LFO2のうち、
- * Targetがpitchのものだけ
- * carrier.detuneへ接続する。
- */
-const pitchLfoNodes = [];
-
-function connectPitchLfo(
-  lfoNumber
-) {
-  const prefix =
-    `lfo${lfoNumber}`;
-
-  const target =
-    track.base[
-      `${prefix}Target`
-    ];
-
-  if (target !== "pitch") {
-    return;
-  }
-
-  const lfoDepth =
-    clamp(
-      (
-        track.base[
-          `${prefix}Depth`
-        ] ?? 0
-      ) +
-        offset(
-          `${prefix}Depth`
-        ),
-      0,
-      100
-    );
-
-  if (lfoDepth <= 0) {
-    return;
-  }
-
-  const syncMode =
-  track.base[
-    `${prefix}SyncMode`
-  ] === "bpm"
-    ? "bpm"
-    : "free";
-
-const lfoRate =
-  clamp(
-    (
-      track.base[
-        `${prefix}Rate`
-      ] ??
-      (
-        syncMode === "bpm"
-          ? 8
-          : 25
-      )
-    ) +
-      offset(
-        `${prefix}Rate`
-      ),
-    syncMode === "bpm"
-      ? 0
-      : 1,
-    syncMode === "bpm"
-      ? 13
-      : 100
-  );
-
-  /*
- * LFO Wave
- */
-const lfoWave =
-  track.base[
-    `${prefix}Wave`
-  ] ?? "sine";
-
-const rateHz =
-  lfoRateToHz(
-    lfoRate,
-    syncMode,
-    bpm
-  );
-
-/*
- * RandomはSample & Hold信号を
- * carrier.detuneへ直接接続する。
- */
-if (lfoWave === "random") {
-  const randomSource =
-    createSampleAndHoldLfo({
-      audioParam:
-        carrier.detune,
-
-      /*
-       * Pitch Depthはcent単位。
-       */
-      depth:
-        lfoDepthToCents(
-          lfoDepth
-        ),
-
-      rateHz,
-
-      startTime:
-        now,
-
-      stopTime:
-        sineStopAt
-    });
-
-  pitchLfoNodes.push(
-    randomSource
-  );
-
-  return;
-}
-
-const lfoOscillator =
-  context.createOscillator();
-
-const lfoGain =
-  context.createGain();
-
-let lfoGainDirection = 1;
-
-if (lfoWave === "rise" || lfoWave === "fall") {
-
-  const oneShot =
-    context.createConstantSource();
-
-  oneShot.connect(
-    carrier.detune
-  );
-
-  const amount =
-  oneShotPitchDepthToCents(
-    lfoDepth
-  );
-
-  oneShot.offset.setValueAtTime(
-    lfoWave === "fall"
-      ? amount
-      : -amount,
-    now
-  );
-
-  oneShot.offset.linearRampToValueAtTime(
-    0,
-    now + (1 / rateHz)
-  );
-
-  oneShot.start(now);
-  oneShot.stop(
-    now + (1 / rateHz) + 0.01
-  );
-
-  pitchLfoNodes.push(
-    oneShot
-  );
-
-  return;
-}
-
-switch (lfoWave) {
-  case "triangle":
-    lfoOscillator.type =
-      "triangle";
-    break;
-
-  case "square":
-    lfoOscillator.type =
-      "square";
-    break;
-
-  case "sawUp":
-    lfoOscillator.type =
-      "sawtooth";
-    break;
-
-  case "sawDown":
-    lfoOscillator.type =
-      "sawtooth";
+    const sampleCount =
+      Math.max(
+        1,
+        Math.ceil(
+          bufferDuration *
+          sampleRate
+        )
+      );
 
     /*
-     * Saw Upを上下反転して
-     * Saw Downとして使う。
+     * Pitch / FM Depth LFOを
+     * AudioBuffer生成時に同じ時間軸へ統合する。
+     *
+     * 周期波形は毎トリガー位相0から開始し、
+     * Randomだけは発音ごとに変化する。
      */
-    lfoGainDirection = -1;
-    break;
+    function bufferLfoConfig(
+      lfoNumber,
+      target
+    ) {
+      const prefix =
+        `lfo${lfoNumber}`;
 
-  case "sine":
-  default:
-    lfoOscillator.type =
-      "sine";
-    break;
-}
+      if (
+        track.base[
+          `${prefix}Target`
+        ] !== target
+      ) {
+        return null;
+      }
 
-lfoOscillator.frequency
-  .setValueAtTime(
-    rateHz,
-    now
-  );
+      const lfoDepth =
+        clamp(
+          (
+            track.base[
+              `${prefix}Depth`
+            ] ?? 0
+          ) +
+            offset(
+              `${prefix}Depth`
+            ),
+          0,
+          100
+        );
 
-lfoGain.gain
-  .setValueAtTime(
-    lfoDepthToCents(
-      lfoDepth
-    ) *
-      lfoGainDirection,
-    now
-  );
+      if (lfoDepth <= 0) {
+        return null;
+      }
 
-  lfoOscillator
-    .connect(lfoGain)
-    .connect(carrier.detune);
+      const syncMode =
+        track.base[
+          `${prefix}SyncMode`
+        ] === "bpm"
+          ? "bpm"
+          : "free";
 
-  pitchLfoNodes.push(
-    lfoOscillator,
-    lfoGain
-  );
+      const rateValue =
+        clamp(
+          (
+            track.base[
+              `${prefix}Rate`
+            ] ??
+            (
+              syncMode === "bpm"
+                ? 8
+                : 25
+            )
+          ) +
+            offset(
+              `${prefix}Rate`
+            ),
+          syncMode === "bpm"
+            ? 0
+            : 1,
+          syncMode === "bpm"
+            ? 13
+            : 100
+        );
 
-  lfoOscillator.start(
-    now
-  );
-}
+      return {
+        depth: lfoDepth,
+        rateHz:
+          lfoRateToHz(
+            rateValue,
+            syncMode,
+            bpm
+          ),
+        wave:
+          track.base[
+            `${prefix}Wave`
+          ] ?? "sine"
+      };
+    }
 
-connectPitchLfo(1);
-connectPitchLfo(2);
+    const pitchLfos =
+      [1, 2]
+        .map(lfoNumber =>
+          bufferLfoConfig(
+            lfoNumber,
+            "pitch"
+          )
+        )
+        .filter(Boolean);
 
-    modulator.frequency.setValueAtTime(
-      carrierFrequency *
+    const fmDepthLfos =
+      [1, 2]
+        .map(lfoNumber =>
+          bufferLfoConfig(
+            lfoNumber,
+            "fmDepth"
+          )
+        )
+        .filter(Boolean);
+
+    const hasRandomLfo =
+      [
+        ...pitchLfos,
+        ...fmDepthLfos
+      ].some(
+        config =>
+          config.wave === "random"
+      );
+
+    function makeRandomState(
+      config
+    ) {
+      if (
+        config.wave !== "random"
+      ) {
+        return null;
+      }
+
+      return {
+        interval:
+          1 /
+          Math.max(
+            0.001,
+            config.rateHz
+          ),
+        nextTime: 0,
+        value:
+          Math.random() * 2 - 1
+      };
+    }
+
+    const pitchRandomStates =
+      pitchLfos.map(
+        makeRandomState
+      );
+
+    const fmRandomStates =
+      fmDepthLfos.map(
+        makeRandomState
+      );
+
+    function lfoWaveValue(
+      config,
+      elapsedSeconds,
+      randomState
+    ) {
+      const wave =
+        config.wave;
+
+      if (
+        wave === "random"
+      ) {
+        while (
+          elapsedSeconds >=
+          randomState.nextTime
+        ) {
+          randomState.value =
+            Math.random() * 2 - 1;
+
+          randomState.nextTime +=
+            randomState.interval;
+        }
+
+        return randomState.value;
+      }
+
+      const rateHz =
+        Math.max(
+          0.001,
+          config.rateHz
+        );
+
+      if (
+        wave === "rise" ||
+        wave === "fall"
+      ) {
+        const progress =
+          clamp(
+            elapsedSeconds *
+              rateHz,
+            0,
+            1
+          );
+
+        const startValue =
+          wave === "fall"
+            ? 1
+            : -1;
+
+        return (
+          startValue *
+          (1 - progress)
+        );
+      }
+
+      const phase =
+        2 *
+        Math.PI *
+        rateHz *
+        elapsedSeconds;
+
+      switch (wave) {
+        case "triangle":
+          return (
+            2 /
+            Math.PI
+          ) *
+            Math.asin(
+              Math.sin(phase)
+            );
+
+        case "square":
+          return (
+            Math.sin(phase) >= 0
+              ? 1
+              : -1
+          );
+
+        case "sawUp": {
+          const cyclePosition =
+            (
+              elapsedSeconds *
+              rateHz
+            ) % 1;
+
+          return (
+            cyclePosition * 2 - 1
+          );
+        }
+
+        case "sawDown": {
+          const cyclePosition =
+            (
+              elapsedSeconds *
+              rateHz
+            ) % 1;
+
+          return (
+            1 - cyclePosition * 2
+          );
+        }
+
+        case "sine":
+        default:
+          return Math.sin(phase);
+      }
+    }
+
+    const fmFeedbackNormalized =
+      clamp(
+        Number(
+          track.base.fmFeedback
+        ) || 0,
+        0,
+        50
+      ) / 50;
+
+    const fmFeedbackStrength =
+      Math.pow(
+        fmFeedbackNormalized,
+        1.2
+      ) * 1.8;
+
+    const fmRatio =
       Math.max(
         0.01,
-        track.base.fmRatio
+        Number(
+          track.base.fmRatio
+        ) || 1
+      );
+
+    const modulatorFrequency =
+      carrierFrequency *
+      fmRatio;
+
+    const baseFmAmount =
+      carrierFrequency *
+      depth *
+      0.1;
+
+    const cacheDescriptor = {
+      sampleRate,
+      sampleCount,
+      carrierFrequency,
+      modulatorFrequency,
+      baseFmAmount,
+      fmFeedbackStrength,
+      pitchLfos,
+      fmDepthLfos
+    };
+
+    const cacheKey =
+      hasRandomLfo
+        ? null
+        : JSON.stringify(
+            cacheDescriptor
+          );
+
+    let sineBuffer =
+      cacheKey
+        ? fmBufferCache.get(
+            cacheKey
+          )
+        : null;
+
+    if (!sineBuffer) {
+      sineBuffer =
+        context.createBuffer(
+          1,
+          sampleCount,
+          sampleRate
+        );
+
+      const samples =
+        sineBuffer.getChannelData(0);
+
+      let carrierPhase = 0;
+      let modulatorPhase = 0;
+
+      for (
+        let sampleIndex = 0;
+        sampleIndex < sampleCount;
+        sampleIndex++
+      ) {
+        const elapsedSeconds =
+          sampleIndex /
+          sampleRate;
+
+        let pitchCents = 0;
+
+        pitchLfos.forEach(
+          (config, index) => {
+            const amountCents =
+              (
+                config.wave === "rise" ||
+                config.wave === "fall"
+                  ? oneShotPitchDepthToCents(
+                      config.depth
+                    )
+                  : lfoDepthToCents(
+                      config.depth
+                    )
+              );
+
+            pitchCents +=
+              lfoWaveValue(
+                config,
+                elapsedSeconds,
+                pitchRandomStates[index]
+              ) *
+              amountCents;
+          }
+        );
+
+        const currentCarrierFrequency =
+          carrierFrequency *
+          Math.pow(
+            2,
+            pitchCents / 1200
+          );
+
+        let fmAmount =
+          baseFmAmount;
+
+        fmDepthLfos.forEach(
+          (config, index) => {
+            fmAmount +=
+              lfoWaveValue(
+                config,
+                elapsedSeconds,
+                fmRandomStates[index]
+              ) *
+              baseFmAmount *
+              (config.depth / 100);
+          }
+        );
+
+        fmAmount =
+          clamp(
+            fmAmount,
+            0,
+            baseFmAmount * 2
+          );
+
+        let modulatorValue =
+          Math.sin(
+            modulatorPhase
+          );
+
+        if (
+          fmFeedbackStrength > 0
+        ) {
+          for (
+            let harmonic = 2;
+            harmonic <= 12;
+            harmonic++
+          ) {
+            modulatorValue +=
+              (
+                fmFeedbackStrength /
+                harmonic
+              ) *
+              Math.sin(
+                modulatorPhase *
+                harmonic
+              );
+          }
+        }
+
+        const instantaneousFrequency =
+          currentCarrierFrequency +
+          modulatorValue *
+          fmAmount;
+
+        samples[sampleIndex] =
+          Math.sin(
+            carrierPhase
+          );
+
+        carrierPhase +=
+          2 *
+          Math.PI *
+          instantaneousFrequency /
+          sampleRate;
+
+        modulatorPhase +=
+          2 *
+          Math.PI *
+          modulatorFrequency /
+          sampleRate;
+
+        /*
+         * 長時間発音でも数値が巨大化しないよう、
+         * 位相を定期的に1周期内へ戻す。
+         */
+        if (
+          carrierPhase >
+          Math.PI * 2
+        ) {
+          carrierPhase %=
+            Math.PI * 2;
+        }
+
+        if (
+          modulatorPhase >
+          Math.PI * 2
+        ) {
+          modulatorPhase %=
+            Math.PI * 2;
+        }
+      }
+
+      if (cacheKey) {
+        fmBufferCache.set(
+          cacheKey,
+          sineBuffer
+        );
+
+        if (
+          fmBufferCache.size >
+          FM_BUFFER_CACHE_LIMIT
+        ) {
+          const oldestKey =
+            fmBufferCache.keys()
+              .next().value;
+
+          fmBufferCache.delete(
+            oldestKey
+          );
+        }
+      }
+    }
+
+    sineSource.buffer =
+      sineBuffer;
+
+    sineGain.gain.setValueAtTime(
+      Math.max(
+        0.0001,
+        sineVolume
       ),
       now
     );
 
-    const baseFmAmount =
-  carrierFrequency *
-  depth *
-  0.1;
-
-modulationGain.gain.setValueAtTime(
-  baseFmAmount,
-  now
-);
-
-/*
- * FM Depth LFO
- *
- * 現在のFM Depthを中心値として、
- * LFO Depth 100で0〜2倍まで揺らす。
- */
-const fmLfoNodes = [];
-
-function connectFmLfo(
-  lfoNumber
-) {
-  const prefix =
-    `lfo${lfoNumber}`;
-
-  const target =
-    track.base[
-      `${prefix}Target`
-    ];
-
-  if (
-    target !== "fmDepth"
-  ) {
-    return;
-  }
-
-  const lfoDepth =
-    clamp(
-      (
-        track.base[
-          `${prefix}Depth`
-        ] ?? 0
-      ) +
-        offset(
-          `${prefix}Depth`
-        ),
-      0,
-      100
-    );
-
-  if (
-    lfoDepth <= 0 ||
-    baseFmAmount <= 0
-  ) {
-    return;
-  }
-
-  const syncMode =
-    track.base[
-      `${prefix}SyncMode`
-    ] === "bpm"
-      ? "bpm"
-      : "free";
-
-  const lfoRate =
-    clamp(
-      (
-        track.base[
-          `${prefix}Rate`
-        ] ??
-        (
-          syncMode === "bpm"
-            ? 8
-            : 25
-        )
-      ) +
-        offset(
-          `${prefix}Rate`
-        ),
-      syncMode === "bpm"
-        ? 0
-        : 1,
-      syncMode === "bpm"
-        ? 13
-        : 100
-    );
-
-  const lfoWave =
-    track.base[
-      `${prefix}Wave`
-    ] ?? "sine";
-
-  const rateHz =
-    lfoRateToHz(
-      lfoRate,
-      syncMode,
-      bpm
-    );
-
-  /*
-   * LFO Depth 100で、
-   * ベースFM量と同じ幅だけ
-   * 上下へ変化させる。
-   */
-  const fmLfoAmount =
-    baseFmAmount *
-    (
-      lfoDepth /
-      100
-    );
-
-  /*
-   * Random：
-   * Sample & HoldでFM量を変化。
-   */
-  if (
-    lfoWave === "random"
-  ) {
-    const randomSource =
-      createSampleAndHoldLfo({
-        audioParam:
-          modulationGain.gain,
-
-        depth:
-          fmLfoAmount,
-
-        rateHz,
-
-        startTime:
-          now,
-
-        stopTime:
-          sineStopAt
-      });
-
-    fmLfoNodes.push(
-      randomSource
-    );
-
-    return;
-  }
-
-  const lfoOscillator =
-    context.createOscillator();
-
-  const lfoGain =
-    context.createGain();
-
-  let lfoGainDirection = 1;
-
-if (lfoWave === "rise" || lfoWave === "fall") {
-
-    const start =
-        lfoWave === "fall"
-            ? fmLfoAmount
-            : -fmLfoAmount;
-
-    modulationGain.gain.setValueAtTime(
-        baseFmAmount + start,
-        now
-    );
-
-    modulationGain.gain.linearRampToValueAtTime(
-        baseFmAmount,
-        now + (1 / rateHz)
-    );
-
-    return;
-}
-
-  switch (lfoWave) {
-    case "triangle":
-      lfoOscillator.type =
-        "triangle";
-      break;
-
-    case "square":
-      lfoOscillator.type =
-        "square";
-      break;
-
-    case "sawUp":
-      lfoOscillator.type =
-        "sawtooth";
-      break;
-
-    case "sawDown":
-      lfoOscillator.type =
-        "sawtooth";
-
-      lfoGainDirection = -1;
-      break;
-
-    case "sine":
-    default:
-      lfoOscillator.type =
-        "sine";
-      break;
-  }
-
-  lfoOscillator.frequency
-    .setValueAtTime(
-      rateHz,
-      now
-    );
-
-  lfoGain.gain
-    .setValueAtTime(
-      fmLfoAmount *
-      lfoGainDirection,
-      now
-    );
-
-  lfoOscillator
-    .connect(lfoGain)
-    .connect(
-      modulationGain.gain
-    );
-
-  fmLfoNodes.push(
-    lfoOscillator
-  );
-
-  lfoOscillator.start(
-    now
-  );
-}
-
-connectFmLfo(1);
-connectFmLfo(2);
-
-    /*
- * 検証：
- * SINEはOSC個別Decayで減衰させず、
- * ENVのSustain / Gateだけで音量を制御する。
- */
-sineGain.gain.setValueAtTime(
-  Math.max(
-    0.0001,
-    sineVolume
-  ),
-  now
-);
-
-    modulator
-      .connect(modulationGain)
-      .connect(carrier.frequency);
-
-    carrier
+    sineSource
       .connect(sineGain)
       .connect(mixGain);
 
-    carrier.start(now);
-    modulator.start(now);
-
-    carrier.stop(sineStopAt);
-    modulator.stop(sineStopAt);
-    pitchLfoNodes.forEach(
-  node => {
-    if (
-      typeof node.stop ===
-      "function"
-    ) {
-      node.stop(
-        sineStopAt
-      );
-    }
-  }
-);
-
-fmLfoNodes.forEach(
-  node => {
-    if (
-      typeof node.stop ===
-      "function"
-    ) {
-      node.stop(
-        sineStopAt
-      );
-    }
-  }
-);
-
+    sineSource.start(now);
+    sineSource.stop(sineStopAt);
   }
 
   if (noiseVolume > 0) {
@@ -2100,6 +2177,38 @@ panLfoOscillators.forEach(
   releaseEnd + 0.01
 );
   }
+);
+
+/*
+ * この発音がまだTrackの最新Voiceなら、
+ * 終了後に参照を削除する。
+ */
+const registeredVoice =
+  activeTrackVoices.get(
+    track.id
+  );
+
+window.setTimeout(
+  () => {
+    if (
+      activeTrackVoices.get(
+        track.id
+      ) === registeredVoice
+    ) {
+      activeTrackVoices.delete(
+        track.id
+      );
+    }
+  },
+  Math.max(
+    10,
+    (
+      releaseEnd -
+      context.currentTime +
+      0.05
+    ) *
+      1000
+  )
 );
 
 }

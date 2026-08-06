@@ -2800,7 +2800,9 @@ input.track-volume-slider::-moz-range-thumb {
 .child-tabs
 button[data-focus-key="child-fmDepth"],
 .child-tabs
-button[data-focus-key="child-fmRatio"] {
+button[data-focus-key="child-fmRatio"],
+.child-tabs
+button[data-focus-key="child-fmFeedback"] {
     font-size: var(--font-label);
     line-height: 1;
     text-transform: lowercase;
@@ -2813,14 +2815,18 @@ button[data-focus-key="child-fmRatio"] {
 .child-tabs
 button[data-focus-key="child-fmDepth"],
 .child-tabs
-button[data-focus-key="child-fmRatio"] {
+button[data-focus-key="child-fmRatio"],
+.child-tabs
+button[data-focus-key="child-fmFeedback"] {
     background: transparent;
 }
 
 .child-tabs
 button[data-focus-key="child-fmDepth"].active,
 .child-tabs
-button[data-focus-key="child-fmRatio"].active {
+button[data-focus-key="child-fmRatio"].active,
+.child-tabs
+button[data-focus-key="child-fmFeedback"].active {
     background: var(--selected-bg);
     color: var(--selected-text);
     -webkit-text-fill-color: var(--selected-text);

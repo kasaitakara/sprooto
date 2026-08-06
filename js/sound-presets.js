@@ -61,7 +61,7 @@ import {
  *
  *     fmDepth: 0,
  *     fmRatio: 1,
- *
+ *　　 fmFeedback: 0,
  *
  *     // ====================
  *     // FILTER

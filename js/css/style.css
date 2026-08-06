@@ -3627,3 +3627,16 @@ input[type="radio"]:focus-visible {
     -webkit-text-fill-color:
         transparent !important;
 }
+
+
+/* =========================
+   Step edit scope position fix
+========================= */
+.step-edit-scope-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 10px;
+    margin-right: auto;
+    flex: 0 0 auto;
+}

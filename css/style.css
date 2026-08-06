@@ -3550,23 +3550,17 @@ input[type="radio"]:focus-visible {
 
 /* シーケンサ側は大きなStep枠全体を選択表示 */
 .sequence-step.range-selected {
-    border-color: var(--selected-bg);
-    background:
-        color-mix(
-            in srgb,
-            var(--selected-bg) 18%,
-            transparent
-        );
+    border-color: var(--text);
+    background: transparent;
 }
 
 /* エディット側の単一Track選択とOffset一括選択 */
 .step-edit-cell.range-selected,
 .offset-step.range-selected {
-    border-color: var(--selected-bg);
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color:
-        var(--selected-text);
+    border-color: var(--text);
+    background: transparent;
+    color: inherit;
+    -webkit-text-fill-color: currentColor;
 }
 
 .step-edit-mode .sequence-step,
@@ -3651,7 +3645,7 @@ input[type="radio"]:focus-visible {
 .track-lane.range-selected {
     box-shadow:
         inset 0 0 0 2px
-        var(--selected-bg);
+        var(--text);
 }
 
 /* all選択時はONレーン全体を強調し、対象が全Trackだと示す。 */

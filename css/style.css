@@ -3631,8 +3631,20 @@ input[type="radio"]:focus-visible {
 }
 
 /* Step編集中はエディターを表示したまま操作だけ止める。 */
-.step-edit-mode .editor-section {
+/*
+ * Step編集モード中は
+ * エディター内の通常編集を停止する。
+ */
+.step-edit-mode .editor-section * {
     pointer-events: none;
+}
+
+/*
+ * Track切替だけは操作可能にする。
+ */
+.step-edit-mode .editor-section .track-cycle,
+.step-edit-mode .editor-section .track-cycle * {
+    pointer-events: auto;
 }
 
 /* allは選択した大枠、trackは対象レーンだけを選択表示する。 */
@@ -3640,7 +3652,6 @@ input[type="radio"]:focus-visible {
     box-shadow:
         inset 0 0 0 2px
         var(--selected-bg);
-    background: var(--selected-bg);
 }
 
 /* all選択時はONレーン全体を強調し、対象が全Trackだと示す。 */

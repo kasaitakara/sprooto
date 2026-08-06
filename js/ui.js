@@ -4000,26 +4000,39 @@ function renderMenu() {
   );
 
   topRow
-    .querySelector(
-      ".track-cycle"
-    )
-    .addEventListener(
-      "click",
-      () => {
-        state.selectedTrackIndex =
-          (
-            state.selectedTrackIndex +
-            1
-          ) %
-          tracks.length;
+  .querySelector(
+    ".track-cycle"
+  )
+  .addEventListener(
+    "click",
+    () => {
+      state.selectedTrackIndex =
+        (
+          state.selectedTrackIndex +
+          1
+        ) %
+        tracks.length;
 
-        renderSequence();
-
-        renderEditorAndRestore(
-          "menu-track"
-        );
+      /*
+       * Track対象の範囲選択中は、
+       * Track切替前の選択を引き継がない。
+       */
+      if (
+        editSelection.mode === "step" &&
+        editSelection.scope === "track"
+      ) {
+        clearEditSelection();
       }
-    );
+
+      renderSequence();
+
+      renderEditorAndRestore(
+        "menu-track"
+      );
+
+      updateSelectionClasses();
+    }
+  );
 
   topRow
     .querySelector(

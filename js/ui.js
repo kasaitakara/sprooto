@@ -2142,7 +2142,18 @@ function renderStepEditScopeControl() {
     control.appendChild(button);
   });
 
+  const sourceDisplay =
+  toolbar.querySelector(
+    ".current-source-display"
+  );
+
+if (sourceDisplay) {
+  sourceDisplay.appendChild(
+    control
+  );
+} else {
   toolbar.prepend(control);
+}
 }
 
 export function renderSequence() {

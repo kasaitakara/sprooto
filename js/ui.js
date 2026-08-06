@@ -1031,8 +1031,8 @@ const LONG_PRESS_MS = 450;
 
 const editSelection = {
   mode: null, // null | "step" | "offset"
+  scope: "all", // step mode: "all" | "track"
   selected: new Set(),
-  pasteTarget: false,
   clipboard: null,
   sweepPointerId: null,
   sweepValue: true,
@@ -1049,11 +1049,8 @@ function parseSelectionKey(key) {
   return { trackIndex, stepIndex };
 }
 
-function clearEditSelection({ keepPasteTarget = false } = {}) {
+function clearEditSelection() {
   editSelection.selected.clear();
-  if (!keepPasteTarget) {
-    editSelection.pasteTarget = false;
-  }
 }
 
 function finishEditMode({ returnToMenu = false } = {}) {
@@ -1061,6 +1058,8 @@ function finishEditMode({ returnToMenu = false } = {}) {
   editSelection.mode = null;
   document.body.classList.remove(
     "step-edit-mode",
+    "step-edit-scope-all",
+    "step-edit-scope-track",
     "offset-selection-mode"
   );
   renderEditActionToolbar();
@@ -1104,8 +1103,34 @@ function updateSelectionClasses() {
       button.classList.toggle(
         "range-selected",
         editSelection.mode === "step" &&
+          editSelection.scope === "all" &&
           isWholeStepSelected(stepIndex)
       );
+
+      button
+        .querySelectorAll(
+          ".track-lane[data-track-index]"
+        )
+        .forEach(lane => {
+          const trackIndex =
+            Number(
+              lane.dataset.trackIndex
+            );
+
+          lane.classList.toggle(
+            "range-selected",
+            editSelection.mode === "step" &&
+              editSelection.scope === "track" &&
+              trackIndex ===
+                state.selectedTrackIndex &&
+              editSelection.selected.has(
+                selectionKey(
+                  trackIndex,
+                  stepIndex
+                )
+              )
+          );
+        });
     });
 
   document
@@ -1116,18 +1141,9 @@ function updateSelectionClasses() {
         Number(button.dataset.stepIndex)
       );
 
-      const isSelected =
-        editSelection.mode === "step" &&
-        editSelection.selected.has(key);
-
       button.classList.toggle(
         "range-selected",
-        isSelected
-      );
-
-      button.setAttribute(
-        "aria-pressed",
-        String(isSelected)
+        false
       );
     });
 
@@ -1182,9 +1198,50 @@ function setWholeStepSelection(stepIndex, selected) {
   });
 }
 
+function applyStepEditScopeClass() {
+  document.body.classList.toggle(
+    "step-edit-scope-all",
+    editSelection.mode === "step" &&
+      editSelection.scope === "all"
+  );
+
+  document.body.classList.toggle(
+    "step-edit-scope-track",
+    editSelection.mode === "step" &&
+      editSelection.scope === "track"
+  );
+}
+
+function selectStepForCurrentScope(stepIndex, selected) {
+  if (editSelection.scope === "all") {
+    setWholeStepSelection(stepIndex, selected);
+    return;
+  }
+
+  setSelectionCell(
+    state.selectedTrackIndex,
+    stepIndex,
+    selected
+  );
+}
+
+function isStepSelectedForCurrentScope(stepIndex) {
+  if (editSelection.scope === "all") {
+    return isWholeStepSelected(stepIndex);
+  }
+
+  return editSelection.selected.has(
+    selectionKey(
+      state.selectedTrackIndex,
+      stepIndex
+    )
+  );
+}
+
 function beginStepEditMode(stepIndex) {
   clearEditSelection();
   editSelection.mode = "step";
+  editSelection.scope = "all";
 
   document.body.classList.add(
     "step-edit-mode"
@@ -1194,7 +1251,8 @@ function beginStepEditMode(stepIndex) {
     "offset-selection-mode"
   );
 
-  setWholeStepSelection(stepIndex, true);
+  applyStepEditScopeClass();
+  selectStepForCurrentScope(stepIndex, true);
   renderSequence();
   renderEditor();
   updateSelectionClasses();
@@ -1209,7 +1267,9 @@ function beginOffsetSelectionMode(stepIndex) {
   );
 
   document.body.classList.remove(
-    "step-edit-mode"
+    "step-edit-mode",
+    "step-edit-scope-all",
+    "step-edit-scope-track"
   );
 
   setSelectionCell(
@@ -1237,6 +1297,7 @@ function captureClipboard() {
   );
 
   editSelection.clipboard = {
+    mode: editSelection.scope,
     cells: cells.map(
       ({ trackIndex, stepIndex }) => {
         const track = tracks[trackIndex];
@@ -1291,24 +1352,32 @@ function deleteSelectedSequenceCells({ save = true } = {}) {
   return true;
 }
 
-function pasteClipboardAt(
-  targetTrackIndex,
-  targetStepIndex
-) {
+function pasteClipboardAt(targetStepIndex) {
   const clipboard = editSelection.clipboard;
 
   if (!clipboard?.cells?.length) {
     return false;
   }
 
+  const minimumSourceTrack =
+    Math.min(
+      ...clipboard.cells.map(
+        cell => cell.trackOffset
+      )
+    );
+
   saveHistory();
 
   clipboard.cells.forEach(cell => {
     const trackIndex =
-      targetTrackIndex + cell.trackOffset;
+      clipboard.mode === "all"
+        ? cell.trackOffset -
+          minimumSourceTrack
+        : state.selectedTrackIndex;
 
     const stepIndex =
-      targetStepIndex + cell.stepOffset;
+      targetStepIndex +
+      cell.stepOffset;
 
     if (
       trackIndex < 0 ||
@@ -1377,12 +1446,15 @@ function renderEditActionToolbar() {
       editSelection.clipboard?.cells?.length
     );
 
+  const canPaste =
+    hasClipboard && hasSelection;
+
   toolbar.innerHTML = `
     <button type="button" data-action="cancel">cancel</button>
     <button type="button" data-action="copy" ${hasSelection ? "" : "disabled"}>copy</button>
     <button type="button" data-action="cut" ${hasSelection ? "" : "disabled"}>cut</button>
     <button type="button" data-action="delete" ${hasSelection ? "" : "disabled"}>delete</button>
-    <button type="button" data-action="paste" ${hasClipboard ? "" : "disabled"}>paste</button>
+    <button type="button" data-action="paste" ${canPaste ? "" : "disabled"}>paste</button>
   `;
 
   toolbar.querySelector(
@@ -1424,18 +1496,36 @@ function renderEditActionToolbar() {
       return;
     }
 
-    finishEditMode();
+    clearEditSelection();
+    renderSequence();
+    renderEditor();
+    updateSelectionClasses();
   };
 
   toolbar.querySelector(
     '[data-action="paste"]'
   ).onclick = () => {
-    clearEditSelection({
-      keepPasteTarget: true
-    });
+    const targets =
+      selectedKeysSorted();
 
-    editSelection.pasteTarget = true;
-    updateSelectionClasses();
+    if (!targets.length) {
+      return;
+    }
+
+    const targetStepIndex =
+      Math.min(
+        ...targets.map(
+          target => target.stepIndex
+        )
+      );
+
+    if (!pasteClipboardAt(
+      targetStepIndex
+    )) {
+      return;
+    }
+
+    finishEditMode();
   };
 }
 
@@ -1490,7 +1580,7 @@ function enableSelectionPointer({
 
   function keySelected(cell) {
     if (source === "sequence") {
-      return isWholeStepSelected(
+      return isStepSelectedForCurrentScope(
         cell.stepIndex
       );
     }
@@ -1505,7 +1595,7 @@ function enableSelectionPointer({
 
   function applyCell(cell, selected) {
     if (source === "sequence") {
-      setWholeStepSelection(
+      selectStepForCurrentScope(
         cell.stepIndex,
         selected
       );
@@ -1612,28 +1702,6 @@ function enableSelectionPointer({
 
       if (editSelection.mode === mode) {
         event.preventDefault();
-
-        if (
-          mode === "step" &&
-          editSelection.pasteTarget
-        ) {
-          const targetTrackIndex =
-            source === "sequence"
-              ? 0
-              : state.selectedTrackIndex;
-
-          if (
-            pasteClipboardAt(
-              targetTrackIndex,
-              cell.stepIndex
-            )
-          ) {
-            finishEditMode();
-          }
-
-          pointerId = null;
-          return;
-        }
 
         startSelectionInteraction(
           event,
@@ -2009,6 +2077,74 @@ function renderCurrentSourceDisplay() {
   );
 }
 
+function renderStepEditScopeControl() {
+  const toolbar =
+    document.querySelector(
+      ".sequence-toolbar"
+    );
+
+  if (!toolbar) {
+    return;
+  }
+
+  toolbar
+    .querySelector(
+      ".step-edit-scope-control"
+    )
+    ?.remove();
+
+  if (editSelection.mode !== "step") {
+    return;
+  }
+
+  const control =
+    document.createElement("div");
+
+  control.className =
+    "step-edit-scope-control";
+
+  ["all", "track"].forEach(scope => {
+    const button =
+      document.createElement("button");
+
+    button.type = "button";
+    button.textContent = scope;
+    button.className =
+      "step-edit-scope-button";
+
+    button.classList.toggle(
+      "active",
+      editSelection.scope === scope
+    );
+
+    button.setAttribute(
+      "aria-pressed",
+      String(
+        editSelection.scope === scope
+      )
+    );
+
+    button.addEventListener(
+      "click",
+      () => {
+        if (editSelection.scope === scope) {
+          return;
+        }
+
+        editSelection.scope = scope;
+        clearEditSelection();
+        applyStepEditScopeClass();
+        renderSequence();
+        updateSelectionClasses();
+      }
+    );
+
+    control.appendChild(button);
+  });
+
+  toolbar.prepend(control);
+}
+
 export function renderSequence() {
   sequenceGrid.innerHTML = "";
   renderEditActionToolbar();
@@ -2058,7 +2194,10 @@ export function renderSequence() {
       ? "ステップ1～32を表示中。33～64へ切り替え"
       : "ステップ33～64を表示中。1～32へ切り替え"
   );
+
+  renderStepEditScopeControl();
 }
+
 
 sequencePageButton.addEventListener("click", () => {
   if (state.patternLength <= PAGE_STEP_COUNT) {
@@ -8745,7 +8884,7 @@ function renderStepEditScreen() {
 
   const label = document.createElement("span");
   label.className = "step-edit-label";
-  label.textContent = editSelection.pasteTarget
+  label.textContent = false
     ? "paste position"
     : "step edit";
 
@@ -8793,23 +8932,18 @@ function renderStepEditScreen() {
         Number(element.dataset.stepIndex)
     });
 
-    const isSelected =
+    if (
       editSelection.selected.has(
         selectionKey(
           state.selectedTrackIndex,
           stepIndex
         )
+      )
+    ) {
+      button.classList.add(
+        "range-selected"
       );
-
-    button.classList.toggle(
-      "range-selected",
-      isSelected
-    );
-
-    button.setAttribute(
-      "aria-pressed",
-      String(isSelected)
-    );
+    }
 
     grid.appendChild(button);
   }
@@ -8822,11 +8956,6 @@ function renderStepEditScreen() {
 
 export function renderEditor() {
   editor.innerHTML = "";
-
-  if (editSelection.mode === "step") {
-    renderStepEditScreen();
-    return;
-  }
 
   if (!state.selectedParameterId) {
     renderMenu();

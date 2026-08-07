@@ -7026,15 +7026,17 @@ for (
    * 現在選択中のFill。
    */
   if (
-    state.selectedSourceType ===
-      "fill" &&
-    state.selectedFillIndex ===
-      slotIndex
-  ) {
-    button.classList.add(
-      "active"
-    );
-  }
+  state.selectedPlaybackType ===
+    "source" &&
+  state.selectedSourceType ===
+    "fill" &&
+  state.selectedFillIndex ===
+    slotIndex
+) {
+  button.classList.add(
+    "active"
+  );
+}
 
   /*
    * 次回再生予約中のFill。
@@ -7064,6 +7066,8 @@ for (
       );
 
       if (
+  state.selectedPlaybackType ===
+    "source" &&
   state.selectedSourceType ===
     "pattern" &&
   state.selectedPatternIndex ===
@@ -7073,6 +7077,7 @@ for (
     "active"
   );
 }
+
 if (
   state.queuedSourceType ===
     "pattern" &&
@@ -7222,6 +7227,22 @@ visibleSections.forEach(
     );
 
     /*
+ * 停止中に、
+ * 次回再生対象として選択されているSection。
+ */
+if (
+  !state.isPlaying &&
+  state.selectedPlaybackType ===
+    "section" &&
+  state.selectedSectionIndex ===
+    sectionIndex
+) {
+  button.classList.add(
+    "selected"
+  );
+}
+
+/*
  * 現在再生中のSection。
  */
 if (

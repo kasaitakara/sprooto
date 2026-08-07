@@ -3687,3 +3687,88 @@ input[type="radio"]:focus-visible {
 .offset-step.range-selected {
     border: 1px solid var(--text);
 }
+
+/* =========================
+   Section queued blink
+========================= */
+
+@keyframes section-queued-blink {
+    0%,
+    100% {
+        background: var(--selected-bg);
+        color: var(--selected-text);
+        -webkit-text-fill-color: var(--selected-text);
+    }
+
+    50% {
+        background: var(--cell);
+        color: var(--text);
+        -webkit-text-fill-color: var(--text);
+    }
+}
+
+/*
+ * 再生予約中Section。
+ * 再生中(active)と重なっていても
+ * queued表示を優先して点滅させる。
+ */
+.section-selector-cell.queued,
+.section-selector-cell.active.queued {
+    animation:
+        section-queued-blink
+        500ms
+        steps(1, end)
+        infinite;
+}
+
+/* =========================
+   Section selected
+========================= */
+
+/*
+ * 停止中に次回再生対象として
+ * 選択されているSection。
+ */
+.section-selector-cell.selected {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color:
+        var(--selected-text);
+}
+
+/* =========================
+   Pattern / Fill queued blink
+========================= */
+
+@keyframes source-queued-blink {
+    0%,
+    100% {
+        background: var(--selected-bg);
+        color: var(--selected-text);
+        -webkit-text-fill-color:
+            var(--selected-text);
+    }
+
+    50% {
+        background: var(--cell);
+        color: var(--text);
+        -webkit-text-fill-color:
+            var(--text);
+    }
+}
+
+/*
+ * Pattern / Fill再生予約。
+ * activeと重なっていても
+ * queued点滅を優先する。
+ */
+.pattern-cell.queued,
+.pattern-cell.active.queued,
+.pattern-cell.fill-cell.queued,
+.pattern-cell.fill-cell.active.queued {
+    animation:
+        source-queued-blink
+        500ms
+        steps(1, end)
+        infinite;
+}

@@ -6621,374 +6621,378 @@ export function renderPatternManager() {
 
   patternGrid.innerHTML = "";
     function enablePatternSourceDrag(
-    button,
-    sourceType,
-    sourceIndex
-  ) {
-    const DRAG_START_DISTANCE = 6;
-
-    let pointerId = null;
-    let startX = 0;
-    let startY = 0;
-
-    let grabOffsetX = 0;
-    let grabOffsetY = 0;
-
-    let dragging = false;
-    let suppressClick = false;
-    let dragGhost = null;
-
-    button.style.touchAction = "none";
-
-    function updateDragGhost(event) {
-      if (!dragGhost) {
-        return;
-      }
-
-      dragGhost.style.left =
-        `${
-          event.clientX -
-          grabOffsetX
-        }px`;
-
-      dragGhost.style.top =
-        `${
-          event.clientY -
-          grabOffsetY
-        }px`;
-    }
-
-    function createDragGhost(event) {
-      document
-        .querySelectorAll(
-          ".pattern-source-drag-ghost"
-        )
-        .forEach(
-          ghost => ghost.remove()
-        );
-
-      const rect =
-        button.getBoundingClientRect();
-
-      dragGhost =
-        button.cloneNode(true);
-
-      dragGhost.classList.add(
-        "section-drag-ghost",
-        "pattern-source-drag-ghost"
-      );
-
-      dragGhost.removeAttribute(
-        "data-focus-key"
-      );
-
-      dragGhost.tabIndex = -1;
-
-      dragGhost.style.width =
-        `${rect.width}px`;
-
-      dragGhost.style.height =
-        `${rect.height}px`;
-
-      grabOffsetX =
-        event.clientX - rect.left;
-
-      grabOffsetY =
-        event.clientY - rect.top;
-
-      document.body.appendChild(
-        dragGhost
-      );
-
-      updateDragGhost(event);
-    }
-
-    function removeDragGhost() {
-      dragGhost?.remove();
-      dragGhost = null;
-    }
-
-    function isPointerInsideSection(
-      event
-    ) {
-      function getSectionInsertIndex(
-  pointerX
+  button,
+  sourceType,
+  sourceIndex
 ) {
-  const sectionItems =
-    Array.from(
-      sectionContents
-        .querySelectorAll(
-          ".section-pattern-cell"
-        )
+  const DRAG_START_DISTANCE = 6;
+
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+
+  let grabOffsetX = 0;
+  let grabOffsetY = 0;
+
+  let dragging = false;
+  let suppressClick = false;
+  let dragGhost = null;
+
+  button.style.touchAction = "none";
+
+  function updateDragGhost(event) {
+    if (!dragGhost) {
+      return;
+    }
+
+    dragGhost.style.left =
+      `${
+        event.clientX -
+        grabOffsetX
+      }px`;
+
+    dragGhost.style.top =
+      `${
+        event.clientY -
+        grabOffsetY
+      }px`;
+  }
+
+  function createDragGhost(event) {
+    document
+      .querySelectorAll(
+        ".pattern-source-drag-ghost"
+      )
+      .forEach(
+        ghost => ghost.remove()
+      );
+
+    const rect =
+      button.getBoundingClientRect();
+
+    dragGhost =
+      button.cloneNode(true);
+
+    dragGhost.classList.add(
+      "section-drag-ghost",
+      "pattern-source-drag-ghost"
     );
 
-  let insertIndex = 0;
+    dragGhost.removeAttribute(
+      "data-focus-key"
+    );
 
-  sectionItems.forEach(
-    item => {
-      const rect =
-        item.getBoundingClientRect();
+    dragGhost.tabIndex = -1;
 
-      const centerX =
-        rect.left +
-        rect.width / 2;
+    dragGhost.style.width =
+      `${rect.width}px`;
 
-      if (
-        pointerX >
-        centerX
-      ) {
-        insertIndex += 1;
-      }
-    }
-  );
+    dragGhost.style.height =
+      `${rect.height}px`;
 
-  return insertIndex;
-}
+    grabOffsetX =
+      event.clientX - rect.left;
 
-      const rect =
+    grabOffsetY =
+      event.clientY - rect.top;
+
+    document.body.appendChild(
+      dragGhost
+    );
+
+    updateDragGhost(event);
+  }
+
+  function removeDragGhost() {
+    dragGhost?.remove();
+    dragGhost = null;
+  }
+
+  function isPointerInsideSection(
+    event
+  ) {
+    const rect =
+      sectionContents
+        .getBoundingClientRect();
+
+    return (
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+    );
+  }
+
+  function getSectionInsertIndex(
+    pointerX
+  ) {
+    const sectionItems =
+      Array.from(
         sectionContents
-          .getBoundingClientRect();
-
-      return (
-        event.clientX >= rect.left &&
-        event.clientX <= rect.right &&
-        event.clientY >= rect.top &&
-        event.clientY <= rect.bottom
+          .querySelectorAll(
+            ".section-pattern-cell"
+          )
       );
+
+    let insertIndex = 0;
+
+    sectionItems.forEach(
+      item => {
+        const rect =
+          item.getBoundingClientRect();
+
+        const centerX =
+          rect.left +
+          rect.width / 2;
+
+        if (
+          pointerX >
+          centerX
+        ) {
+          insertIndex += 1;
+        }
+      }
+    );
+
+    return insertIndex;
+  }
+
+  function handlePointerMove(event) {
+    if (
+      pointerId !==
+      event.pointerId
+    ) {
+      return;
     }
 
-    function handlePointerMove(event) {
-      if (
-        pointerId !==
+    const distanceX =
+      event.clientX - startX;
+
+    const distanceY =
+      event.clientY - startY;
+
+    if (
+      !dragging &&
+      Math.hypot(
+        distanceX,
+        distanceY
+      ) <
+        DRAG_START_DISTANCE
+    ) {
+      return;
+    }
+
+    if (!dragging) {
+      dragging = true;
+      suppressClick = true;
+
+      button.classList.add(
+        "section-drag-origin"
+      );
+
+      createDragGhost(event);
+    }
+
+    event.preventDefault();
+
+    updateDragGhost(event);
+
+    const overSection =
+      isPointerInsideSection(
+        event
+      );
+
+    sectionContents.classList.toggle(
+      "dragging",
+      overSection
+    );
+  }
+
+  function removeWindowListeners() {
+    window.removeEventListener(
+      "pointermove",
+      handlePointerMove,
+      true
+    );
+
+    window.removeEventListener(
+      "pointerup",
+      handlePointerUp,
+      true
+    );
+
+    window.removeEventListener(
+      "pointercancel",
+      handlePointerCancel,
+      true
+    );
+  }
+
+  function finishDrag(
+    event,
+    cancelled
+  ) {
+    if (
+      pointerId !==
+      event.pointerId
+    ) {
+      return;
+    }
+
+    removeWindowListeners();
+
+    if (
+      button.hasPointerCapture(
         event.pointerId
-      ) {
-        return;
-      }
-
-      const distanceX =
-        event.clientX - startX;
-
-      const distanceY =
-        event.clientY - startY;
-
-      if (
-        !dragging &&
-        Math.hypot(
-          distanceX,
-          distanceY
-        ) <
-          DRAG_START_DISTANCE
-      ) {
-        return;
-      }
-
-      if (!dragging) {
-        dragging = true;
-        suppressClick = true;
-
-        button.classList.add(
-          "section-drag-origin"
-        );
-
-        createDragGhost(event);
-      }
-
-      event.preventDefault();
-
-      updateDragGhost(event);
-
-      const overSection =
-        isPointerInsideSection(
-          event
-        );
-
-      sectionContents.classList.toggle(
-        "dragging",
-        overSection
+      )
+    ) {
+      button.releasePointerCapture(
+        event.pointerId
       );
     }
 
-    function removeWindowListeners() {
-      window.removeEventListener(
+    pointerId = null;
+
+    const droppedOnSection =
+      dragging &&
+      !cancelled &&
+      isPointerInsideSection(
+        event
+      );
+
+    button.classList.remove(
+      "section-drag-origin"
+    );
+
+    sectionContents.classList.remove(
+      "dragging"
+    );
+
+    removeDragGhost();
+
+    if (!droppedOnSection) {
+      dragging = false;
+      return;
+    }
+
+    const editingSection =
+      currentEditingSection();
+
+    if (
+      !editingSection ||
+      editingSection.sequence.length >=
+        7
+    ) {
+      dragging = false;
+      return;
+    }
+
+    const insertIndex =
+      getSectionInsertIndex(
+        event.clientX
+      );
+
+    saveHistory();
+
+    const added =
+      addSourceToSection(
+        sourceType,
+        sourceIndex,
+        state.editingSectionIndex,
+        insertIndex
+      );
+
+    dragging = false;
+
+    if (!added) {
+      return;
+    }
+
+    renderPatternManager();
+
+    restorePatternFocus(
+      `section-source-${insertIndex}`
+    );
+  }
+
+  function handlePointerUp(event) {
+    finishDrag(
+      event,
+      false
+    );
+  }
+
+  function handlePointerCancel(event) {
+    finishDrag(
+      event,
+      true
+    );
+  }
+
+  button.addEventListener(
+    "pointerdown",
+    event => {
+      if (
+        event.pointerType ===
+          "mouse" &&
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      pointerId =
+        event.pointerId;
+
+      startX =
+        event.clientX;
+
+      startY =
+        event.clientY;
+
+      dragging = false;
+      suppressClick = false;
+
+      button.setPointerCapture(
+        event.pointerId
+      );
+
+      removeWindowListeners();
+
+      window.addEventListener(
         "pointermove",
         handlePointerMove,
         true
       );
 
-      window.removeEventListener(
+      window.addEventListener(
         "pointerup",
         handlePointerUp,
         true
       );
 
-      window.removeEventListener(
+      window.addEventListener(
         "pointercancel",
         handlePointerCancel,
         true
       );
     }
-
-    function finishDrag(
-      event,
-      cancelled
-    ) {
-      if (
-        pointerId !==
-        event.pointerId
-      ) {
-        return;
-      }
-
-      removeWindowListeners();
-
-      if (
-        button.hasPointerCapture(
-          event.pointerId
-        )
-      ) {
-        button.releasePointerCapture(
-          event.pointerId
-        );
-      }
-
-      pointerId = null;
-
-      const droppedOnSection =
-        dragging &&
-        !cancelled &&
-        isPointerInsideSection(
-          event
-        );
-
-      button.classList.remove(
-        "section-drag-origin"
-      );
-
-      sectionContents.classList.remove(
-        "dragging"
-      );
-
-      removeDragGhost();
-
-      if (!droppedOnSection) {
-        dragging = false;
-        return;
-      }
-
-      const editingSection =
-        currentEditingSection();
-
-      if (
-        !editingSection ||
-        editingSection.sequence.length >=
-          7
-      ) {
-        dragging = false;
-        return;
-      }
-
-      const insertIndex =
-  getSectionInsertIndex(
-    event.clientX
   );
 
-saveHistory();
-
-const added =
-  addSourceToSection(
-    sourceType,
-    sourceIndex,
-    state.editingSectionIndex,
-    insertIndex
-  );
-
-dragging = false;
-
-      if (!added) {
+  button.addEventListener(
+    "click",
+    event => {
+      if (!suppressClick) {
         return;
       }
 
-      renderPatternManager();
+      event.preventDefault();
+      event.stopImmediatePropagation();
 
-      restorePatternFocus(
-        "section-contents"
-      );
-    }
-
-    function handlePointerUp(event) {
-      finishDrag(
-        event,
-        false
-      );
-    }
-
-    function handlePointerCancel(event) {
-      finishDrag(
-        event,
-        true
-      );
-    }
-
-    button.addEventListener(
-      "pointerdown",
-      event => {
-        if (event.button !== 0) {
-          return;
-        }
-
-        pointerId =
-          event.pointerId;
-
-        startX =
-          event.clientX;
-
-        startY =
-          event.clientY;
-
-        dragging = false;
-        suppressClick = false;
-
-        button.setPointerCapture(
-          event.pointerId
-        );
-
-        removeWindowListeners();
-
-        window.addEventListener(
-          "pointermove",
-          handlePointerMove,
-          true
-        );
-
-        window.addEventListener(
-          "pointerup",
-          handlePointerUp,
-          true
-        );
-
-        window.addEventListener(
-          "pointercancel",
-          handlePointerCancel,
-          true
-        );
-      }
-    );
-
-    button.addEventListener(
-      "click",
-      event => {
-        if (!suppressClick) {
-          return;
-        }
-
-        event.preventDefault();
-        event.stopImmediatePropagation();
-
-        suppressClick = false;
-      },
-      true
-    );
-  }
+      suppressClick = false;
+    },
+    true
+  );
+}
 
   /*
    * Pattern 24個 + Fill 6個

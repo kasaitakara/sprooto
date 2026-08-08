@@ -342,10 +342,17 @@ beginSelectedPlayback();
 
 clearQueuedSource();
 
-  playButton.classList.add("playing");
+playButton.classList.add("playing");
 
-  updatePlayingStep();
-  playCurrentStep();
+/*
+ * 停止状態から再生開始した時点で、
+ * Pattern / Fill / Sectionの
+ * playing表示も即反映する。
+ */
+renderPatternManager();
+
+updatePlayingStep();
+playCurrentStep();
 
   nextTickTime = performance.now();
 scheduleNextTick();

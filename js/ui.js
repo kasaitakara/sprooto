@@ -25,7 +25,6 @@ import {
   selectSection,
   queueSection,
   selectEditingSection,
-  changeEditingSection,
   currentEditingSection,
   currentEditingSectionLabel,
   clearSelectedTrackSequence,
@@ -6712,6 +6711,40 @@ export function renderPatternManager() {
     function isPointerInsideSection(
       event
     ) {
+      function getSectionInsertIndex(
+  pointerX
+) {
+  const sectionItems =
+    Array.from(
+      sectionContents
+        .querySelectorAll(
+          ".section-pattern-cell"
+        )
+    );
+
+  let insertIndex = 0;
+
+  sectionItems.forEach(
+    item => {
+      const rect =
+        item.getBoundingClientRect();
+
+      const centerX =
+        rect.left +
+        rect.width / 2;
+
+      if (
+        pointerX >
+        centerX
+      ) {
+        insertIndex += 1;
+      }
+    }
+  );
+
+  return insertIndex;
+}
+
       const rect =
         sectionContents
           .getBoundingClientRect();
@@ -6854,15 +6887,22 @@ export function renderPatternManager() {
         return;
       }
 
-      saveHistory();
+      const insertIndex =
+  getSectionInsertIndex(
+    event.clientX
+  );
 
-      const added =
-        addSourceToSection(
-          sourceType,
-          sourceIndex
-        );
+saveHistory();
 
-      dragging = false;
+const added =
+  addSourceToSection(
+    sourceType,
+    sourceIndex,
+    state.editingSectionIndex,
+    insertIndex
+  );
+
+dragging = false;
 
       if (!added) {
         return;
@@ -7270,6 +7310,29 @@ if (
   "click",
   () => {
     /*
+     * 再生中に空Sectionを押した場合は、
+     * 予約もバー表示切替も行わない。
+     */
+    if (
+      state.isPlaying &&
+      section.sequence.length === 0
+    ) {
+      restorePatternFocus(
+        `section-${sectionIndex}`
+      );
+
+      return;
+    }
+
+    /*
+     * 有効なSectionを押した時点で、
+     * Sectionバー表示もそのSectionへ切り替える。
+     */
+    selectEditingSection(
+      sectionIndex
+    );
+
+    /*
      * 再生中は、
      * 次回Section予約にする。
      */
@@ -7289,9 +7352,8 @@ if (
 
     /*
      * 停止中は、
-     * 次回再生するSectionを選択する。
-     *
-     * 編集対象Sectionは変更しない。
+     * 空Sectionを含めて表示・編集対象にできる。
+     * 再生対象としての選択も行う。
      */
     selectSection(
       sectionIndex
@@ -7320,40 +7382,37 @@ if (
    currentEditingSection();
 
    const sectionEditorButton =
-   document.createElement("button");
+  document.createElement("button");
 
-   sectionEditorButton.type =
-   "button";
+sectionEditorButton.type =
+  "button";
 
-   sectionEditorButton.className =
-   "section-editor-button";
+sectionEditorButton.className =
+  "section-editor-button";
 
-   sectionEditorButton.dataset.focusKey =
-   "section-editor";
+sectionEditorButton.dataset.focusKey =
+  "section-editor";
 
-   function sectionLabelFromIndex(
-   sectionIndex
-   ) {
-   return String.fromCharCode(
-    65 + sectionIndex
-  );
-}
-
+/*
+ * Sectionバー左端は、
+ * 現在表示しているSection名を示すだけ。
+ *
+ * Section切替は上のA〜P記号から行う。
+ */
 function updateSectionEditorButton() {
-  const sectionIndex =
-   state.editingSectionIndex;
-
   const sectionLabel =
-  currentEditingSectionLabel();
+    currentEditingSectionLabel();
 
   sectionEditorButton.textContent =
     sectionLabel;
 
   sectionEditorButton.setAttribute(
     "aria-label",
-    `編集中のセクション ${sectionLabel}`
+    `表示中のセクション ${sectionLabel}`
   );
 }
+
+updateSectionEditorButton();
 
 enableVerticalSweep({
   element:
@@ -8115,11 +8174,27 @@ if (
 
       item.type = "button";
 
-      item.className =
-        "section-pattern-cell";
+item.className =
+  "section-pattern-cell";
 
-      const sourceLabel =
-        source.type === "fill"
+/*
+ * 現在表示しているSectionが
+ * 実際に再生中のSectionと同じで、
+ * さらに現在再生中の位置なら強調する。
+ */
+if (
+  state.playingSectionIndex ===
+    state.editingSectionIndex &&
+  state.playingSectionItemIndex ===
+    itemIndex
+) {
+  item.classList.add(
+    "playing"
+  );
+}
+
+const sourceLabel =
+  source.type === "fill"
           ? `f${source.index + 1}`
           : String(
               source.index + 1

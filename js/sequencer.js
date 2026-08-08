@@ -834,14 +834,18 @@ export function queuePattern(
     return true;
   }
 
+  /*
+   * 再生予約は常に1つだけ。
+   * Section / Fillなど既存予約を消してから
+   * Pattern予約へ切り替える。
+   */
+  clearQueuedSource();
+
   state.queuedSourceType =
     "pattern";
 
   state.queuedPatternIndex =
     patternIndex;
-
-  state.queuedFillIndex =
-    null;
 
   return true;
 }
@@ -872,11 +876,15 @@ export function queueFill(
     return true;
   }
 
+  /*
+   * 再生予約は常に1つだけ。
+   * Section / Patternなど既存予約を消してから
+   * Fill予約へ切り替える。
+   */
+  clearQueuedSource();
+
   state.queuedSourceType =
     "fill";
-
-  state.queuedPatternIndex =
-    null;
 
   state.queuedFillIndex =
     fillIndex;
@@ -1478,8 +1486,88 @@ export function addSourceToSection(
   type,
   sourceIndex,
   sectionIndex =
-    state.editingSectionIndex
+    state.editingSectionIndex,
+  insertIndex = null
 ) {
+  const section =
+    sections[sectionIndex];
+
+  if (!section) {
+    return false;
+  }
+
+  if (
+    section.sequence.length >= 7
+  ) {
+    return false;
+  }
+
+  /*
+   * Pattern／Fillの種類と番号を検証。
+   */
+  if (
+    type === "pattern"
+  ) {
+    if (
+      sourceIndex < 0 ||
+      sourceIndex >=
+        patterns.length
+    ) {
+      return false;
+    }
+  } else if (
+    type === "fill"
+  ) {
+    if (
+      sourceIndex < 0 ||
+      sourceIndex >=
+        fills.length
+    ) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+
+  const source = {
+    type,
+    index: sourceIndex
+  };
+
+  /*
+   * 挿入位置が指定されていなければ
+   * 従来どおり末尾へ追加。
+   */
+  if (insertIndex === null) {
+    section.sequence.push(
+      source
+    );
+
+    return true;
+  }
+
+  /*
+   * 指定位置へ挿入。
+   */
+  const correctedIndex =
+    Math.max(
+      0,
+      Math.min(
+        Math.round(
+          insertIndex
+        ),
+        section.sequence.length
+      )
+    );
+
+  section.sequence.splice(
+    correctedIndex,
+    0,
+    source
+  );
+
+  return true;
+}
   const section =
     sections[sectionIndex];
 

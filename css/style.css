@@ -3772,3 +3772,17 @@ input[type="radio"]:focus-visible {
         steps(1, end)
         infinite;
 }
+
+/* =========================
+   Section current source
+========================= */
+
+/*
+ * Section再生中の現在位置。
+ */
+.section-pattern-cell.playing {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color:
+        var(--selected-text);
+}

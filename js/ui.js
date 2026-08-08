@@ -6670,10 +6670,14 @@ function renderSourceEditToolbar() {
     return;
   }
 
-  const patternManager =
-  patternGrid?.parentElement;
+  const patternHeader =
+  patternGrid
+    ?.closest(".pattern-section")
+    ?.querySelector(
+      ".pattern-section-header"
+    );
 
-if (!patternManager) {
+if (!patternHeader) {
   return;
 }
 
@@ -6788,9 +6792,8 @@ toolbar
     }
   );
 
-  patternManager.insertBefore(
-  toolbar,
-  patternGrid
+  patternHeader.appendChild(
+  toolbar
 );
 }
 export function renderPatternManager() {
@@ -7232,6 +7235,22 @@ for (
       isFill
         ? "pattern-cell fill-cell"
         : "pattern-cell";
+        const sourceType =
+  isFill
+    ? "fill"
+    : "pattern";
+
+if (
+  sourceEditState.active &&
+  sourceEditState.type ===
+    sourceType &&
+  sourceEditState.index ===
+    slotIndex
+) {
+  button.classList.add(
+    "source-edit-target"
+  );
+}
 
     if (isFill) {
   button.textContent =

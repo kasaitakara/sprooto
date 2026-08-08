@@ -3792,24 +3792,24 @@ input[type="radio"]:focus-visible {
 ========================= */
 
 .source-edit-toolbar {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 28px;
+
+    margin-left: 10px;
+    padding: 0;
+
     display: grid;
     grid-template-columns:
         repeat(4, minmax(0, 1fr));
 
     align-items: center;
-
-    width: 100%;
-    height: 28px;
-
-    margin: 0 0 4px;
-    padding: 0;
-
-    gap: 5px;
+    gap: 4px;
 }
 
 .source-edit-toolbar button {
     width: 100%;
-    height: 28px;
+    height: 24px;
 
     margin: 0;
     padding: 0 2px;
@@ -3823,7 +3823,6 @@ input[type="radio"]:focus-visible {
 
     font-size: var(--font-label);
     line-height: 1;
-
     text-transform: lowercase;
 }
 
@@ -3835,11 +3834,11 @@ input[type="radio"]:focus-visible {
     opacity: 0.45;
 }
 
-.source-edit-toolbar button:hover,
-.source-edit-toolbar button:focus-visible {
-    background: var(--selected-bg);
+/* =========================
+   Pattern / Fill edit target
+========================= */
 
-    color: var(--selected-text);
-    -webkit-text-fill-color:
-        var(--selected-text);
+.pattern-cell.source-edit-target {
+    outline: 1px solid var(--text);
+    outline-offset: -1px;
 }

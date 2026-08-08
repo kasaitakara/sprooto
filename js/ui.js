@@ -1420,12 +1420,12 @@ function pasteClipboardAt(targetStepIndex) {
 }
 
 function renderEditActionToolbar() {
-  const header =
-    document.querySelector(".app-header");
+  const patternManager =
+  patternGrid?.parentElement;
 
-  if (!header) {
-    return;
-  }
+if (!patternManager) {
+  return;
+}
 
   let toolbar =
     header.querySelector(
@@ -6788,10 +6788,10 @@ toolbar
     }
   );
 
-  header.appendChild(
-    toolbar
-  );
-}
+  patternManager.insertBefore(
+  toolbar,
+  patternGrid
+);
 
 export function renderPatternManager() {
   if (!patternGrid || !sectionList) {

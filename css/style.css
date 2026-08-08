@@ -3870,3 +3870,172 @@ input[type="radio"]:focus-visible {
     -webkit-text-fill-color:
         var(--muted);
 }
+/* =========================
+   Song editor - stage 1
+========================= */
+.song-mode-button {
+    width: 28px;
+    height: 24px;
+    margin-left: auto;
+    padding: 3px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.song-mode-button svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.song-mode-button.active {
+    color: var(--selected-bg);
+}
+
+.pattern-section-header .song-mode-button {
+    flex: 0 0 28px;
+}
+
+.song-master-mix {
+    min-height: 203px;
+    padding-top: 0;
+}
+
+.song-master-mix-title,
+.song-parts-title {
+    font-size: var(--font-label);
+    color: var(--muted);
+    text-transform: lowercase;
+}
+
+.song-master-mix-placeholder {
+    height: 177px;
+    margin-top: 4px;
+    border: 1px solid color-mix(in srgb, var(--line) 38%, transparent);
+    background: color-mix(in srgb, var(--cell) 38%, transparent);
+}
+
+.song-parts {
+    width: 100%;
+    height: 100%;
+}
+
+.song-parts-toolbar {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.song-page-button {
+    width: 24px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 20px;
+    line-height: 1;
+}
+
+.song-grid {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-rows: repeat(4, 25px);
+    column-gap: 5px;
+    row-gap: 3px;
+    margin-top: 4px;
+}
+
+.song-part-cell {
+    width: 100%;
+    height: 25px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: var(--cell);
+    color: var(--muted);
+    font-size: var(--font-main);
+    line-height: 1;
+    touch-action: none;
+}
+
+.song-part-cell.filled {
+    background: var(--chip-bg);
+    color: var(--chip-text);
+}
+
+.song-part-cell:focus-visible,
+.song-part-cell:hover {
+    outline: 1px solid var(--text);
+    outline-offset: -1px;
+}
+
+.song-grid.dragging {
+    background: color-mix(in srgb, var(--selected-bg) 8%, transparent);
+}
+
+.song-grid.delete-ready {
+    opacity: 0.7;
+}
+
+.song-drag-origin {
+    opacity: 0.22;
+}
+
+.song-drag-ghost {
+    position: fixed;
+    z-index: 9999;
+    margin: 0;
+    pointer-events: none;
+    touch-action: none;
+    opacity: 0.72;
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 24%);
+}
+
+.song-drag-ghost.delete-ready {
+    opacity: 0.35;
+    transform: scale(0.92);
+}
+
+
+/* =========================
+   Song mode display override
+   hidden属性と既存display指定の競合を防止
+========================= */
+body.song-edit-mode .sequence-toolbar,
+body.song-edit-mode .sequence-grid,
+body.song-edit-mode #editor {
+    display: none !important;
+}
+
+body.song-edit-mode .song-master-mix {
+    display: block !important;
+}
+
+body.song-edit-mode .song-parts {
+    display: block !important;
+}
+
+body:not(.song-edit-mode) .song-master-mix,
+body:not(.song-edit-mode) .song-parts {
+    display: none !important;
+}
+
+/* Song Master Mixは旧Sequence領域をそのまま使う */
+body.song-edit-mode .sequence-section {
+    height: 209px;
+    min-height: 209px;
+}
+
+/* Song Partsは旧Editor領域をそのまま使う */
+body.song-edit-mode .editor-section {
+    height: 150px;
+    overflow: hidden;
+}

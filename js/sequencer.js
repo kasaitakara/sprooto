@@ -5,6 +5,7 @@ export const TRACK_COUNT = 4;
 export const PATTERN_SLOT_COUNT = 24;
 export const FILL_SLOT_COUNT = 8;
 export const SECTION_SLOT_COUNT = 16;
+export const SONG_PART_COUNT = 64;
 
 const filled = value =>
   Array(STEP_COUNT).fill(value);
@@ -302,6 +303,15 @@ export const fills =
     () =>
       makeSectionData()
   );
+
+/*
+ * SongはPattern / Fill / Sectionへの参照を
+ * 再生順に詰めた配列として保持する。
+ * 初期仕様は最大64パーツ。
+ */
+export const song = {
+  sequence: []
+};
 /*
  * 現在の初期データは
  * Pattern 01へ入れる。
@@ -620,6 +630,10 @@ export const state = {
 
   sequencePage: 0,
   patternLength: 32,
+
+  /* Song編集UI */
+  songMode: false,
+  songPage: 0,
 
   playingStepIndex: null,
 
@@ -2049,6 +2063,96 @@ export function clearSource(
   return true;
 }
 
+
+
+/* =========================
+ * Song editing
+ * ========================= */
+export function addSourceToSong(
+  type,
+  sourceIndex,
+  insertIndex = null
+) {
+  if (song.sequence.length >= SONG_PART_COUNT) {
+    return false;
+  }
+
+  const valid =
+    (type === "pattern" && sourceIndex >= 0 && sourceIndex < patterns.length) ||
+    (type === "fill" && sourceIndex >= 0 && sourceIndex < fills.length) ||
+    (type === "section" && sourceIndex >= 0 && sourceIndex < sections.length);
+
+  if (!valid) {
+    return false;
+  }
+
+  const source = {
+    type,
+    index: sourceIndex
+  };
+
+  if (insertIndex === null) {
+    song.sequence.push(source);
+    return true;
+  }
+
+  const correctedIndex = Math.max(
+    0,
+    Math.min(
+      Math.round(insertIndex),
+      song.sequence.length
+    )
+  );
+
+  song.sequence.splice(
+    correctedIndex,
+    0,
+    source
+  );
+
+  return true;
+}
+
+export function moveSongSource(
+  fromIndex,
+  toIndex
+) {
+  if (
+    fromIndex < 0 ||
+    fromIndex >= song.sequence.length ||
+    toIndex < 0 ||
+    toIndex >= song.sequence.length ||
+    fromIndex === toIndex
+  ) {
+    return false;
+  }
+
+  const [source] = song.sequence.splice(
+    fromIndex,
+    1
+  );
+
+  song.sequence.splice(
+    toIndex,
+    0,
+    source
+  );
+
+  return true;
+}
+
+export function removeSongSource(itemIndex) {
+  if (
+    itemIndex < 0 ||
+    itemIndex >= song.sequence.length
+  ) {
+    return false;
+  }
+
+  song.sequence.splice(itemIndex, 1);
+  return true;
+}
+
 export function currentSourceLabel() {
   if (
     state.selectedSourceType ===
@@ -2078,6 +2182,7 @@ export function createSnapshot() {
     patterns,
     fills,
     sections,
+    song,
     state
   });
 }
@@ -2533,6 +2638,25 @@ function normalizeSnapshotData(
    */
   snapshot.state ??= {};
 
+  if (!snapshot.song || !Array.isArray(snapshot.song.sequence)) {
+    snapshot.song = { sequence: [] };
+  }
+
+  snapshot.song.sequence = snapshot.song.sequence
+    .filter(item => {
+      if (!item || typeof item !== "object") return false;
+      const index = Number(item.index);
+      if (!Number.isInteger(index)) return false;
+      if (item.type === "pattern") return index >= 0 && index < PATTERN_SLOT_COUNT;
+      if (item.type === "fill") return index >= 0 && index < FILL_SLOT_COUNT;
+      if (item.type === "section") return index >= 0 && index < SECTION_SLOT_COUNT;
+      return false;
+    })
+    .slice(0, SONG_PART_COUNT);
+
+  snapshot.state.songMode = Boolean(snapshot.state.songMode);
+  snapshot.state.songPage = clamp(Math.round(Number(snapshot.state.songPage) || 0), 0, 1);
+
   if (
     snapshot.state.selectedParameterId ===
       "tone"
@@ -2581,6 +2705,14 @@ export function restoreSnapshot(
     snapshot.sections
   )
 );
+
+  song.sequence.splice(
+    0,
+    song.sequence.length,
+    ...structuredClone(
+      snapshot.song?.sequence ?? []
+    )
+  );
 
   Object.assign(
     state,

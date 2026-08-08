@@ -5,6 +5,10 @@ import {
   parameters,
   state,
   sections,
+  song,
+  addSourceToSong,
+  moveSongSource,
+  removeSongSource,
   selectedTrack,
   parameterById,
   clamp,
@@ -54,6 +58,11 @@ const sequencePageButton = document.getElementById("sequence-page-button");
 const patternLengthInput = document.getElementById("pattern-length-input");
 const currentSourceDisplay = document.getElementById("current-source-display");
 const editor = document.getElementById("editor");
+const songMasterMix = document.getElementById("song-master-mix");
+const songParts = document.getElementById("song-parts");
+const songGrid = document.getElementById("song-grid");
+const songPageButton = document.getElementById("song-page-button");
+const songModeButton = document.getElementById("song-mode-button");
 const patternGrid =
   document.getElementById(
     "pattern-grid"
@@ -6798,6 +6807,425 @@ toolbar
   toolbar
 );
 }
+
+
+/* =========================
+ * Song editor - stage 1
+ * ========================= */
+const SONG_PARTS_PER_PAGE = 32;
+const SONG_PAGE_COUNT = 2;
+const SONG_DRAG_START_DISTANCE = 6;
+const SONG_DELETE_DISTANCE = 24;
+
+function songPartLabel(source) {
+  if (!source) return "";
+
+  if (source.type === "fill") {
+    return `f${source.index + 1}`;
+  }
+
+  if (source.type === "section") {
+    return String.fromCharCode(65 + source.index);
+  }
+
+  return String(source.index + 1).padStart(2, "0");
+}
+
+function songInsertIndexFromPoint(clientX, clientY) {
+  if (!songGrid) return song.sequence.length;
+
+  const cell = document
+    .elementFromPoint(clientX, clientY)
+    ?.closest?.(".song-part-cell");
+
+  if (!cell || !songGrid.contains(cell)) {
+    return song.sequence.length;
+  }
+
+  const localIndex = Number(cell.dataset.songLocalIndex) || 0;
+  const rect = cell.getBoundingClientRect();
+  const afterCenter = clientX > rect.left + rect.width / 2;
+  const pageStart = state.songPage * SONG_PARTS_PER_PAGE;
+
+  return Math.max(
+    0,
+    Math.min(
+      pageStart + localIndex + (afterCenter ? 1 : 0),
+      song.sequence.length
+    )
+  );
+}
+
+function pointerInsideSongGrid(event) {
+  if (!songGrid || !state.songMode) return false;
+  const rect = songGrid.getBoundingClientRect();
+  return (
+    event.clientX >= rect.left &&
+    event.clientX <= rect.right &&
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom
+  );
+}
+
+function createSongDragGhost(button, event) {
+  document
+    .querySelectorAll(".song-drag-ghost")
+    .forEach(ghost => ghost.remove());
+
+  const rect = button.getBoundingClientRect();
+  const ghost = button.cloneNode(true);
+  ghost.classList.add("song-drag-ghost");
+  ghost.removeAttribute("data-focus-key");
+  ghost.tabIndex = -1;
+  ghost.style.width = `${rect.width}px`;
+  ghost.style.height = `${rect.height}px`;
+  document.body.appendChild(ghost);
+
+  return {
+    ghost,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top
+  };
+}
+
+function enableExternalSourceDragToSong(
+  button,
+  sourceType,
+  sourceIndex
+) {
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+  let dragging = false;
+  let suppressClick = false;
+  let ghostState = null;
+
+  function moveGhost(event) {
+    if (!ghostState) return;
+    ghostState.ghost.style.left = `${event.clientX - ghostState.offsetX}px`;
+    ghostState.ghost.style.top = `${event.clientY - ghostState.offsetY}px`;
+  }
+
+  function cleanup() {
+    ghostState?.ghost.remove();
+    ghostState = null;
+    button.classList.remove("song-drag-origin");
+    songGrid?.classList.remove("dragging");
+  }
+
+  function onMove(event) {
+    if (event.pointerId !== pointerId) return;
+
+    const distance = Math.hypot(
+      event.clientX - startX,
+      event.clientY - startY
+    );
+
+    if (!dragging && distance < SONG_DRAG_START_DISTANCE) return;
+
+    if (!dragging) {
+      dragging = true;
+      suppressClick = true;
+      button.classList.add("song-drag-origin");
+      ghostState = createSongDragGhost(button, event);
+    }
+
+    event.preventDefault();
+    moveGhost(event);
+    songGrid?.classList.toggle("dragging", pointerInsideSongGrid(event));
+  }
+
+  function finish(event, cancelled = false) {
+    if (event.pointerId !== pointerId) return;
+
+    window.removeEventListener("pointermove", onMove, true);
+    window.removeEventListener("pointerup", onUp, true);
+    window.removeEventListener("pointercancel", onCancel, true);
+
+    if (button.hasPointerCapture(event.pointerId)) {
+      button.releasePointerCapture(event.pointerId);
+    }
+
+    pointerId = null;
+
+    const dropped =
+      dragging &&
+      !cancelled &&
+      pointerInsideSongGrid(event);
+
+    cleanup();
+
+    if (!dropped || song.sequence.length >= 64) {
+      dragging = false;
+      return;
+    }
+
+    const insertIndex = songInsertIndexFromPoint(
+      event.clientX,
+      event.clientY
+    );
+
+    saveHistory();
+
+    if (addSourceToSong(sourceType, sourceIndex, insertIndex)) {
+      state.songPage = Math.floor(
+        Math.min(insertIndex, 63) / SONG_PARTS_PER_PAGE
+      );
+      renderSongMode();
+    }
+
+    dragging = false;
+  }
+
+  function onUp(event) {
+    finish(event, false);
+  }
+
+  function onCancel(event) {
+    finish(event, true);
+  }
+
+  button.addEventListener("pointerdown", event => {
+    if (!state.songMode) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    pointerId = event.pointerId;
+    startX = event.clientX;
+    startY = event.clientY;
+    dragging = false;
+    suppressClick = false;
+
+    button.setPointerCapture(event.pointerId);
+
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onCancel, true);
+  });
+
+  button.addEventListener(
+    "click",
+    event => {
+      if (!suppressClick) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressClick = false;
+    },
+    true
+  );
+}
+
+function enableSongItemDrag(button, initialIndex) {
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+  let dragging = false;
+  let suppressClick = false;
+  let historySaved = false;
+  let currentIndex = initialIndex;
+  let ghostState = null;
+
+  function moveGhost(event) {
+    if (!ghostState) return;
+    ghostState.ghost.style.left = `${event.clientX - ghostState.offsetX}px`;
+    ghostState.ghost.style.top = `${event.clientY - ghostState.offsetY}px`;
+  }
+
+  function songGridOutside(event) {
+    const rect = songGrid.getBoundingClientRect();
+    return (
+      event.clientX < rect.left - SONG_DELETE_DISTANCE ||
+      event.clientX > rect.right + SONG_DELETE_DISTANCE ||
+      event.clientY < rect.top - SONG_DELETE_DISTANCE ||
+      event.clientY > rect.bottom + SONG_DELETE_DISTANCE
+    );
+  }
+
+  function onMove(event) {
+    if (event.pointerId !== pointerId) return;
+
+    const distance = Math.hypot(
+      event.clientX - startX,
+      event.clientY - startY
+    );
+
+    if (!dragging && distance < SONG_DRAG_START_DISTANCE) return;
+
+    if (!dragging) {
+      dragging = true;
+      suppressClick = true;
+      button.classList.add("song-drag-origin");
+      ghostState = createSongDragGhost(button, event);
+    }
+
+    event.preventDefault();
+    moveGhost(event);
+
+    const deleteReady = songGridOutside(event);
+    ghostState?.ghost.classList.toggle("delete-ready", deleteReady);
+    songGrid.classList.toggle("delete-ready", deleteReady);
+
+    if (deleteReady || !pointerInsideSongGrid(event)) return;
+
+    let targetIndex = songInsertIndexFromPoint(event.clientX, event.clientY);
+    if (targetIndex > currentIndex) targetIndex -= 1;
+    targetIndex = Math.max(0, Math.min(targetIndex, song.sequence.length - 1));
+
+    if (targetIndex === currentIndex) return;
+
+    if (!historySaved) {
+      saveHistory();
+      historySaved = true;
+    }
+
+    if (moveSongSource(currentIndex, targetIndex)) {
+      currentIndex = targetIndex;
+      renderSongGrid();
+    }
+  }
+
+  function finish(event, cancelled = false) {
+    if (event.pointerId !== pointerId) return;
+
+    window.removeEventListener("pointermove", onMove, true);
+    window.removeEventListener("pointerup", onUp, true);
+    window.removeEventListener("pointercancel", onCancel, true);
+
+    if (button.hasPointerCapture?.(event.pointerId)) {
+      button.releasePointerCapture(event.pointerId);
+    }
+
+    pointerId = null;
+
+    if (dragging && !cancelled && songGridOutside(event)) {
+      if (!historySaved) saveHistory();
+      removeSongSource(currentIndex);
+    }
+
+    ghostState?.ghost.remove();
+    ghostState = null;
+    songGrid.classList.remove("delete-ready", "dragging");
+
+    renderSongGrid();
+    dragging = false;
+  }
+
+  function onUp(event) { finish(event, false); }
+  function onCancel(event) { finish(event, true); }
+
+  button.addEventListener("pointerdown", event => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    pointerId = event.pointerId;
+    startX = event.clientX;
+    startY = event.clientY;
+    dragging = false;
+    suppressClick = false;
+    historySaved = false;
+    currentIndex = initialIndex;
+
+    button.setPointerCapture(event.pointerId);
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onCancel, true);
+  });
+
+  button.addEventListener(
+    "click",
+    event => {
+      if (!suppressClick) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressClick = false;
+    },
+    true
+  );
+}
+
+function renderSongGrid() {
+  if (!songGrid) return;
+
+  songGrid.innerHTML = "";
+  const pageStart = state.songPage * SONG_PARTS_PER_PAGE;
+
+  for (let localIndex = 0; localIndex < SONG_PARTS_PER_PAGE; localIndex++) {
+    const globalIndex = pageStart + localIndex;
+    const source = song.sequence[globalIndex] ?? null;
+    const cell = document.createElement("button");
+
+    cell.type = "button";
+    cell.className = "song-part-cell";
+    cell.dataset.songLocalIndex = String(localIndex);
+    cell.dataset.songIndex = String(globalIndex);
+    cell.dataset.focusKey = `song-part-${globalIndex}`;
+
+    if (source) {
+      cell.classList.add("filled");
+      cell.textContent = songPartLabel(source);
+      cell.setAttribute(
+        "aria-label",
+        `song part ${globalIndex + 1}: ${source.type} ${songPartLabel(source)}`
+      );
+      enableSongItemDrag(cell, globalIndex);
+    } else {
+      cell.textContent = "・";
+      cell.classList.add("empty");
+      cell.setAttribute("aria-label", `song part ${globalIndex + 1} empty`);
+    }
+
+    songGrid.appendChild(cell);
+  }
+}
+
+function renderSongMode() {
+  const enabled = Boolean(state.songMode);
+
+  /*
+   * Song編集では中央2領域を完全に差し替える。
+   * hidden属性だけだと既存CSSのdisplay指定に負ける環境があるため、
+   * body classでも表示状態を固定する。
+   */
+  document.body.classList.toggle(
+    "song-edit-mode",
+    enabled
+  );
+
+  sequenceGrid.hidden = enabled;
+  document.querySelector(".sequence-toolbar")?.toggleAttribute("hidden", enabled);
+  editor.hidden = enabled;
+
+  if (songMasterMix) songMasterMix.hidden = !enabled;
+  if (songParts) songParts.hidden = !enabled;
+
+  songModeButton?.classList.toggle("active", enabled);
+  songModeButton?.setAttribute(
+    "aria-label",
+    enabled ? "通常編集へ切り替え" : "Song編集へ切り替え"
+  );
+
+  if (songPageButton) {
+    songPageButton.textContent = state.songPage === 0 ? "◧" : "◨";
+    songPageButton.setAttribute(
+      "aria-label",
+      state.songPage === 0
+        ? "Song 1～32を表示中。33～64へ切り替え"
+        : "Song 33～64を表示中。1～32へ切り替え"
+    );
+  }
+
+  if (enabled) renderSongGrid();
+}
+
+songModeButton?.addEventListener("click", () => {
+  state.songMode = !state.songMode;
+  renderSongMode();
+});
+
+songPageButton?.addEventListener("click", () => {
+  state.songPage = (state.songPage + 1) % SONG_PAGE_COUNT;
+  renderSongMode();
+});
+
+
 export function renderPatternManager() {
   if (!patternGrid || !sectionList) {
     return;
@@ -7116,6 +7544,10 @@ export function renderPatternManager() {
   button.addEventListener(
     "pointerdown",
     event => {
+      if (state.songMode) {
+        return;
+      }
+
       if (
         event.pointerType ===
           "mouse" &&
@@ -7543,6 +7975,14 @@ enablePatternSourceDrag(
   slotIndex
 );
 
+enableExternalSourceDragToSong(
+  button,
+  isFill
+    ? "fill"
+    : "pattern",
+  slotIndex
+);
+
     patternGrid.appendChild(
       button
     );
@@ -7714,6 +8154,12 @@ if (
     );
   }
 );
+
+    enableExternalSourceDragToSong(
+      button,
+      "section",
+      sectionIndex
+    );
 
     sectionSelector.appendChild(
       button
@@ -9558,5 +10004,6 @@ export function render() {
   renderSequence();
   renderEditor();
   renderPatternManager();
+  renderSongMode();
   updateSelectionClasses();
 }

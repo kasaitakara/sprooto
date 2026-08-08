@@ -201,10 +201,28 @@
   </div>
 </div>
       <div id="sequence-grid" class="sequence-grid"></div>
+
+      <div id="song-master-mix" class="song-master-mix" hidden>
+        <div class="song-master-mix-title">master mix</div>
+        <div class="song-master-mix-placeholder" aria-label="Song Master Mix reserved area"></div>
+      </div>
     </section>
 
     <section class="editor-section" aria-label="editor">
       <div id="editor"></div>
+
+      <div id="song-parts" class="song-parts" hidden>
+        <div class="song-parts-toolbar">
+          <span class="song-parts-title">song</span>
+          <button
+            id="song-page-button"
+            class="song-page-button"
+            type="button"
+            aria-label="Song 1～32を表示中。33～64へ切り替え"
+          >◧</button>
+        </div>
+        <div id="song-grid" class="song-grid" aria-label="song parts"></div>
+      </div>
     </section>
 
     <section class="pattern-section" aria-label="pattern manager">
@@ -228,6 +246,29 @@
     >
       F
     </span>
+
+    <button
+      id="song-mode-button"
+      class="song-mode-button"
+      type="button"
+      aria-label="Song編集へ切り替え"
+      title="song"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M4 6h4v4H4z"></path>
+        <path d="M10 6h10"></path>
+        <path d="M4 14h4v4H4z"></path>
+        <path d="M10 14h10"></path>
+      </svg>
+    </button>
   </div>
 
   <div

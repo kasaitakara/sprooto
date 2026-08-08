@@ -1568,53 +1568,6 @@ export function addSourceToSection(
 
   return true;
 }
-  const section =
-    sections[sectionIndex];
-
-  if (!section) {
-    return false;
-  }
-
-  if (
-    section.sequence.length >= 7
-  ) {
-    return false;
-  }
-
-  /*
-   * Pattern／Fillの種類と番号を検証。
-   */
-  if (
-    type === "pattern"
-  ) {
-    if (
-      sourceIndex < 0 ||
-      sourceIndex >=
-        patterns.length
-    ) {
-      return false;
-    }
-  } else if (
-    type === "fill"
-  ) {
-    if (
-      sourceIndex < 0 ||
-      sourceIndex >=
-        fills.length
-    ) {
-      return false;
-    }
-  } else {
-    return false;
-  }
-
-  section.sequence.push({
-    type,
-    index: sourceIndex
-  });
-
-  return true;
-}
 
 export function addCurrentSourceToSection(
   sectionIndex =

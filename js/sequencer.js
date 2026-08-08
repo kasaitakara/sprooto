@@ -1770,6 +1770,156 @@ export function currentSourceData() {
   ];
 }
 
+let sourceClipboard = null;
+
+export function hasSourceClipboard() {
+  return Boolean(
+    sourceClipboard
+  );
+}
+
+export function copySource(
+  type,
+  sourceIndex
+) {
+  const source =
+    type === "fill"
+      ? fills[sourceIndex]
+      : patterns[sourceIndex];
+
+  if (!source) {
+    return false;
+  }
+
+  sourceClipboard = structuredClone(
+    source
+  );
+
+  return true;
+}
+
+export function pasteSource(
+  type,
+  sourceIndex
+) {
+  if (!sourceClipboard) {
+    return false;
+  }
+
+  const target =
+    type === "fill"
+      ? fills[sourceIndex]
+      : patterns[sourceIndex];
+
+  if (!target) {
+    return false;
+  }
+
+  saveHistory();
+
+  const copied =
+    structuredClone(
+      sourceClipboard
+    );
+
+  Object.keys(target)
+    .forEach(key => {
+      delete target[key];
+    });
+
+  Object.assign(
+    target,
+    copied
+  );
+
+  /*
+   * 今画面に表示しているSourceへ
+   * 貼り付けた場合はtracksも更新する。
+   */
+  const isCurrentSource =
+    (
+      type === "pattern" &&
+      state.selectedSourceType ===
+        "pattern" &&
+      state.selectedPatternIndex ===
+        sourceIndex
+    ) ||
+    (
+      type === "fill" &&
+      state.selectedSourceType ===
+        "fill" &&
+      state.selectedFillIndex ===
+        sourceIndex
+    );
+
+  if (isCurrentSource) {
+    loadSourceTracks(
+      type,
+      sourceIndex
+    );
+  }
+
+  return true;
+}
+
+export function clearSource(
+  type,
+  sourceIndex
+) {
+  const source =
+    type === "fill"
+      ? fills[sourceIndex]
+      : patterns[sourceIndex];
+
+  if (!source) {
+    return false;
+  }
+
+  saveHistory();
+
+  const cleared =
+    makePatternData();
+
+  Object.keys(source)
+    .forEach(key => {
+      delete source[key];
+    });
+
+  Object.assign(
+    source,
+    cleared
+  );
+
+  /*
+   * 現在表示中なら、
+   * 初期化後の内容を即反映。
+   */
+  const isCurrentSource =
+    (
+      type === "pattern" &&
+      state.selectedSourceType ===
+        "pattern" &&
+      state.selectedPatternIndex ===
+        sourceIndex
+    ) ||
+    (
+      type === "fill" &&
+      state.selectedSourceType ===
+        "fill" &&
+      state.selectedFillIndex ===
+        sourceIndex
+    );
+
+  if (isCurrentSource) {
+    loadSourceTracks(
+      type,
+      sourceIndex
+    );
+  }
+
+  return true;
+}
+
 export function currentSourceLabel() {
   if (
     state.selectedSourceType ===

@@ -19,8 +19,12 @@ import {
   queueFill,
   addCurrentSourceToSection,
   addSourceToSection,
-  moveSectionSource,
+    moveSectionSource,
   removeSectionSource,
+  copySource,
+  pasteSource,
+  clearSource,
+  hasSourceClipboard,
   currentSourceLabel,
   selectSection,
   queueSection,
@@ -6614,6 +6618,181 @@ function restorePatternFocus(focusKey) {
   restoreFocusKey(focusKey);
 }
 
+const SOURCE_EDIT_LONG_PRESS_MS = 450;
+
+const sourceEditState = {
+  active: false,
+  type: null,
+  index: null
+};
+
+function closeSourceEditMode() {
+  sourceEditState.active = false;
+  sourceEditState.type = null;
+  sourceEditState.index = null;
+
+  document
+    .querySelector(
+      ".source-edit-toolbar"
+    )
+    ?.remove();
+
+  document.body.classList.remove(
+    "source-edit-mode"
+  );
+}
+
+function openSourceEditMode(
+  type,
+  index
+) {
+  sourceEditState.active = true;
+  sourceEditState.type = type;
+  sourceEditState.index = index;
+
+  document.body.classList.add(
+    "source-edit-mode"
+  );
+
+  renderSourceEditToolbar();
+}
+
+function renderSourceEditToolbar() {
+  document
+    .querySelector(
+      ".source-edit-toolbar"
+    )
+    ?.remove();
+
+  if (!sourceEditState.active) {
+    return;
+  }
+
+  const header =
+    document.querySelector(
+      ".app-header"
+    );
+
+  if (!header) {
+    return;
+  }
+
+  const toolbar =
+    document.createElement("div");
+
+  toolbar.className =
+    "source-edit-toolbar";
+
+  toolbar.innerHTML = `
+    <button type="button" data-action="cancel">
+      cancel
+    </button>
+
+    <button type="button" data-action="copy">
+      copy
+    </button>
+
+    <button type="button" data-action="delete">
+      delete
+    </button>
+
+    <button
+      type="button"
+      data-action="paste"
+      ${
+        hasSourceClipboard()
+          ? ""
+          : "disabled"
+      }
+    >
+      paste
+    </button>
+  `;
+
+  toolbar
+    .querySelector(
+      '[data-action="cancel"]'
+    )
+    .addEventListener(
+      "click",
+      () => {
+        closeSourceEditMode();
+        renderPatternManager();
+      }
+    );
+
+    toolbar
+  .querySelector(
+    '[data-action="copy"]'
+  )
+  .addEventListener(
+    "click",
+    () => {
+      const copied =
+        copySource(
+          sourceEditState.type,
+          sourceEditState.index
+        );
+
+      if (!copied) {
+        return;
+      }
+
+      renderSourceEditToolbar();
+    }
+  );
+
+toolbar
+  .querySelector(
+    '[data-action="delete"]'
+  )
+  .addEventListener(
+    "click",
+    () => {
+      const cleared =
+        clearSource(
+          sourceEditState.type,
+          sourceEditState.index
+        );
+
+      if (!cleared) {
+        return;
+      }
+
+      closeSourceEditMode();
+
+      render();
+    }
+  );
+
+toolbar
+  .querySelector(
+    '[data-action="paste"]'
+  )
+  .addEventListener(
+    "click",
+    () => {
+      const pasted =
+        pasteSource(
+          sourceEditState.type,
+          sourceEditState.index
+        );
+
+      if (!pasted) {
+        return;
+      }
+
+      closeSourceEditMode();
+
+      render();
+    }
+  );
+
+  header.appendChild(
+    toolbar
+  );
+}
+
 export function renderPatternManager() {
   if (!patternGrid || !sectionList) {
     return;
@@ -7199,6 +7378,105 @@ if (
       `pattern-${slotIndex}`
     );
   }
+);
+
+let sourceLongPressTimer = null;
+let sourceLongPressStartX = 0;
+let sourceLongPressStartY = 0;
+let sourceLongPressTriggered = false;
+
+button.addEventListener(
+  "pointerdown",
+  event => {
+    if (
+      event.pointerType === "mouse" &&
+      event.button !== 0
+    ) {
+      return;
+    }
+
+    sourceLongPressTriggered =
+      false;
+
+    sourceLongPressStartX =
+      event.clientX;
+
+    sourceLongPressStartY =
+      event.clientY;
+
+    clearTimeout(
+      sourceLongPressTimer
+    );
+
+    sourceLongPressTimer =
+      window.setTimeout(
+        () => {
+          sourceLongPressTriggered =
+            true;
+
+          openSourceEditMode(
+            isFill
+              ? "fill"
+              : "pattern",
+            slotIndex
+          );
+
+          renderPatternManager();
+        },
+        SOURCE_EDIT_LONG_PRESS_MS
+      );
+  }
+);
+
+button.addEventListener(
+  "pointermove",
+  event => {
+    const movement =
+      Math.hypot(
+        event.clientX -
+          sourceLongPressStartX,
+        event.clientY -
+          sourceLongPressStartY
+      );
+
+    if (movement > 10) {
+      clearTimeout(
+        sourceLongPressTimer
+      );
+    }
+  }
+);
+
+function clearSourceLongPress() {
+  clearTimeout(
+    sourceLongPressTimer
+  );
+}
+
+button.addEventListener(
+  "pointerup",
+  clearSourceLongPress
+);
+
+button.addEventListener(
+  "pointercancel",
+  clearSourceLongPress
+);
+
+button.addEventListener(
+  "click",
+  event => {
+    if (!sourceLongPressTriggered) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    sourceLongPressTriggered =
+      false;
+  },
+  true
 );
 
 enablePatternSourceDrag(

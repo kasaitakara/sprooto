@@ -7335,22 +7335,48 @@ if (
     button.addEventListener(
   "click",
   () => {
+    /*
+     * Pattern / Fill編集モード中。
+     * 通常選択は動かさず、
+     * 編集対象の枠だけ移動する。
+     */
+    if (sourceEditState.active) {
+      sourceEditState.type =
+        isFill
+          ? "fill"
+          : "pattern";
+
+      sourceEditState.index =
+        slotIndex;
+
+      renderPatternManager();
+
+      restorePatternFocus(
+        isFill
+          ? `fill-${slotIndex}`
+          : `pattern-${slotIndex}`
+      );
+
+      return;
+    }
+
+    /*
+     * 通常モード：Fill
+     */
     if (isFill) {
-      /*
-       * Fill予約は次段階で実装。
-       * 現時点では停止中のみ即切替。
-       */
       if (state.isPlaying) {
-    queueFill(slotIndex);
+        queueFill(
+          slotIndex
+        );
 
-    renderPatternManager();
+        renderPatternManager();
 
-    restorePatternFocus(
-        `fill-${slotIndex}`
-    );
+        restorePatternFocus(
+          `fill-${slotIndex}`
+        );
 
-    return;
-}
+        return;
+      }
 
       selectFill(
         slotIndex
@@ -7366,8 +7392,7 @@ if (
     }
 
     /*
-     * 再生中は即時切替せず、
-     * 次回Pattern予約にする。
+     * 通常モード：Pattern再生中
      */
     if (state.isPlaying) {
       queuePattern(
@@ -7384,8 +7409,7 @@ if (
     }
 
     /*
-     * 停止中は従来どおり
-     * 即時に編集対象を切り替える。
+     * 通常モード：Pattern停止中
      */
     selectPattern(
       slotIndex

@@ -3842,3 +3842,31 @@ input[type="radio"]:focus-visible {
     outline: 1px solid var(--text);
     outline-offset: -1px;
 }
+
+/* =========================
+   Empty Pattern / Fill / Section
+========================= */
+
+/*
+ * 空Pattern / Fill。
+ *
+ * 再生選択・予約・編集対象になった場合は
+ * 通常の強調表示を優先する。
+ */
+.pattern-cell.source-empty:not(.active):not(.queued):not(.source-edit-target) {
+    color: var(--muted);
+    -webkit-text-fill-color:
+        var(--muted);
+}
+
+/*
+ * 空Section。
+ *
+ * 選択中・再生中・予約中は
+ * 通常の強調表示を優先する。
+ */
+.section-selector-cell.section-empty:not(.selected):not(.active):not(.queued) {
+    color: var(--muted);
+    -webkit-text-fill-color:
+        var(--muted);
+}

@@ -1770,6 +1770,135 @@ export function currentSourceData() {
   ];
 }
 
+/*
+ * Pattern / Fillに
+ * 実質的な編集情報が入っているか判定する。
+ *
+ * Mute / Solo / FX Muteや、
+ * 最後に開いていた編集項目などの
+ * 一時的なUI・演奏状態は対象外。
+ */
+export function sourceHasData(
+  type,
+  sourceIndex
+) {
+  const source =
+    type === "fill"
+      ? fills[sourceIndex]
+      : patterns[sourceIndex];
+
+  if (!source?.tracks) {
+    return false;
+  }
+
+  return source.tracks.some(
+    track => {
+      const initial =
+        makeTrack(
+          track.id
+        );
+
+      /*
+       * Step入力
+       */
+      if (
+        track.steps?.some(
+          Boolean
+        )
+      ) {
+        return true;
+      }
+
+      /*
+       * Track Step数
+       */
+      if (
+        track.stepLength !==
+        initial.stepLength
+      ) {
+        return true;
+      }
+
+      /*
+       * Swing
+       */
+      if (
+        track.swing !==
+        initial.swing
+      ) {
+        return true;
+      }
+
+      /*
+       * Sound名
+       */
+      if (
+        track.soundName !==
+        initial.soundName
+      ) {
+        return true;
+      }
+
+      /*
+       * Base parameter
+       */
+      const baseChanged =
+        Object.keys(
+          initial.base
+        ).some(
+          parameterId =>
+            track.base?.[
+              parameterId
+            ] !==
+            initial.base[
+              parameterId
+            ]
+        );
+
+      if (baseChanged) {
+        return true;
+      }
+
+      /*
+       * Step Offset
+       */
+      const offsetChanged =
+        Object.values(
+          track.offsets ?? {}
+        ).some(
+          values =>
+            Array.isArray(
+              values
+            ) &&
+            values.some(
+              value =>
+                Number(value) !== 0
+            )
+        );
+
+      if (offsetChanged) {
+        return true;
+      }
+
+      return false;
+    }
+  );
+}
+
+/*
+ * SectionにPattern / Fillが
+ * 1つ以上登録されているか。
+ */
+export function sectionHasData(
+  sectionIndex
+) {
+  return Boolean(
+    sections[
+      sectionIndex
+    ]?.sequence?.length
+  );
+}
+
 let sourceClipboard = null;
 
 export function hasSourceClipboard() {

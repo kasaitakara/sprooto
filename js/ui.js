@@ -23,8 +23,10 @@ import {
   removeSectionSource,
   copySource,
   pasteSource,
-  clearSource,
+    clearSource,
   hasSourceClipboard,
+  sourceHasData,
+  sectionHasData,
   currentSourceLabel,
   selectSection,
   queueSection,
@@ -7240,6 +7242,17 @@ for (
     ? "fill"
     : "pattern";
 
+    if (
+  !sourceHasData(
+    sourceType,
+    slotIndex
+  )
+) {
+  button.classList.add(
+    "source-empty"
+  );
+}
+
 if (
   sourceEditState.active &&
   sourceEditState.type ===
@@ -7579,6 +7592,16 @@ visibleSections.forEach(
     button.type = "button";
     button.className =
       "section-selector-cell";
+
+      if (
+  !sectionHasData(
+    sectionIndex
+  )
+) {
+  button.classList.add(
+    "section-empty"
+  );
+}
 
     button.textContent =
       sectionLabel;

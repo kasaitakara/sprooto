@@ -3786,3 +3786,60 @@ input[type="radio"]:focus-visible {
     -webkit-text-fill-color:
         var(--selected-text);
 }
+
+/* =========================
+   Pattern / Fill edit toolbar
+========================= */
+
+.source-edit-toolbar {
+    display: grid;
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    align-items: center;
+
+    width: 100%;
+    height: 28px;
+
+    margin: 0 0 4px;
+    padding: 0;
+
+    gap: 5px;
+}
+
+.source-edit-toolbar button {
+    width: 100%;
+    height: 28px;
+
+    margin: 0;
+    padding: 0 2px;
+
+    border: 0;
+    background: transparent;
+
+    color: var(--text);
+    -webkit-text-fill-color:
+        var(--text);
+
+    font-size: var(--font-label);
+    line-height: 1;
+
+    text-transform: lowercase;
+}
+
+.source-edit-toolbar button:disabled {
+    color: var(--muted);
+    -webkit-text-fill-color:
+        var(--muted);
+
+    opacity: 0.45;
+}
+
+.source-edit-toolbar button:hover,
+.source-edit-toolbar button:focus-visible {
+    background: var(--selected-bg);
+
+    color: var(--selected-text);
+    -webkit-text-fill-color:
+        var(--selected-text);
+}

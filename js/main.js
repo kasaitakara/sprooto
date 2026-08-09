@@ -751,7 +751,25 @@ themeButton.addEventListener(
 
   }
 );
-themeSelector.addEventListener("change", () => { document.body.className = themeSelector.value; });
+themeSelector.addEventListener(
+  "change",
+  () => {
+    const themeClasses = [
+      "theme-sprooto",
+      "theme-kasai",
+      "theme-ryuichi",
+      "theme-aya"
+    ];
+
+    document.body.classList.remove(
+      ...themeClasses
+    );
+
+    document.body.classList.add(
+      themeSelector.value
+    );
+  }
+);
 
 undoButton.addEventListener("click", () => {
   if (!undo()) {

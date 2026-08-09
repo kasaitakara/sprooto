@@ -4047,3 +4047,20 @@ body.song-edit-mode .editor-section {
     height: 150px;
     overflow: hidden;
 }
+
+/* =========================
+   Empty Song Part
+========================= */
+
+/* 空Song枠の「・」 */
+.song-part-cell:not(.filled) {
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
+}
+
+/* Pattern / Fillが入っているSong枠 */
+.song-part-cell.filled {
+    background: var(--chip-bg);
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+}

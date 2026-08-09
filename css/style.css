@@ -3978,8 +3978,7 @@ input[type="radio"]:focus-visible {
     color: var(--chip-text);
 }
 
-.song-part-cell:focus-visible,
-.song-part-cell:hover {
+.song-part-cell:focus-visible {
     outline: 1px solid var(--text);
     outline-offset: -1px;
 }
@@ -4063,4 +4062,35 @@ body.song-edit-mode .editor-section {
     background: var(--chip-bg);
     color: var(--text);
     -webkit-text-fill-color: var(--text);
+}
+
+/* =========================
+   Song playback state
+========================= */
+
+/*
+ * Pattern / Fill / Sectionと同じく、
+ * 停止中の再生対象と再生中の現在位置は
+ * 強調色1つで表示する。
+ */
+.song-part-cell.filled.selected,
+.song-part-cell.filled.playing {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color:
+        var(--selected-text);
+}
+
+/*
+ * Song再生予約も既存Sourceと同じ点滅仕様。
+ * queuedはselected / playingより優先する。
+ */
+.song-part-cell.filled.queued,
+.song-part-cell.filled.selected.queued,
+.song-part-cell.filled.playing.queued {
+    animation:
+        source-queued-blink
+        500ms
+        steps(1, end)
+        infinite;
 }

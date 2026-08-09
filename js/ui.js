@@ -9,6 +9,8 @@ import {
   addSourceToSong,
   moveSongSource,
   removeSongSource,
+  selectSongPart,
+  queueSongPart,
   selectedTrack,
   parameterById,
   clamp,
@@ -7105,7 +7107,17 @@ function enableSongItemDrag(button, initialIndex) {
     ghostState = null;
     songGrid.classList.remove("delete-ready", "dragging");
 
-    renderSongGrid();
+    /*
+     * 単純タップ時はここで再描画しない。
+     *
+     * pointerup直後に発生するclickを
+     * 同じSongセルへ通すため。
+     * 並べ替え／削除を行った時だけ再描画する。
+     */
+    if (dragging) {
+      renderSongGrid();
+    }
+
     dragging = false;
   }
 
@@ -7160,12 +7172,63 @@ function renderSongGrid() {
 
     if (source) {
       cell.classList.add("filled");
+
+      cell.classList.toggle(
+        "selected",
+        !state.isPlaying &&
+        state.selectedPlaybackType ===
+          "song" &&
+        globalIndex ===
+          state.selectedSongPartIndex
+      );
+
+      cell.classList.toggle(
+        "playing",
+        state.isPlaying &&
+        state.selectedPlaybackType ===
+          "song" &&
+        globalIndex ===
+          state.playingSongPartIndex
+      );
+
+      cell.classList.toggle(
+        "queued",
+        state.queuedSongPartIndex ===
+          globalIndex
+      );
       cell.textContent = songPartLabel(source);
       cell.setAttribute(
         "aria-label",
         `song part ${globalIndex + 1}: ${source.type} ${songPartLabel(source)}`
       );
       enableSongItemDrag(cell, globalIndex);
+
+      cell.addEventListener(
+        "click",
+        () => {
+          if (state.isPlaying) {
+            queueSongPart(
+              globalIndex
+            );
+
+            /*
+             * Song予約でPattern / Fill / Section側の
+             * 既存予約表示が解除されるため両方更新する。
+             */
+            renderPatternManager();
+            renderSongGrid();
+
+            return;
+          }
+
+          selectSongPart(
+            globalIndex
+          );
+
+          renderPatternManager();
+          renderSongGrid();
+        }
+      );
     } else {
       cell.textContent = "・";
       cell.classList.add("empty");
@@ -7176,7 +7239,7 @@ function renderSongGrid() {
   }
 }
 
-function renderSongMode() {
+export function renderSongMode() {
   const enabled = Boolean(state.songMode);
 
   /*
@@ -7815,6 +7878,7 @@ if (
         );
 
         renderPatternManager();
+        renderSongGrid();
 
         restorePatternFocus(
           `fill-${slotIndex}`
@@ -7845,6 +7909,7 @@ if (
       );
 
       renderPatternManager();
+      renderSongGrid();
 
       restorePatternFocus(
         `pattern-${slotIndex}`
@@ -8074,6 +8139,8 @@ if (
  * 現在再生中のSection。
  */
 if (
+  state.selectedPlaybackType ===
+    "section" &&
   state.playingSectionIndex ===
     sectionIndex
 ) {
@@ -8130,6 +8197,7 @@ if (
       );
 
       renderPatternManager();
+      renderSongGrid();
 
       restorePatternFocus(
         `section-${sectionIndex}`

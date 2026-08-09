@@ -635,6 +635,15 @@ export const state = {
   songMode: false,
   songPage: 0,
 
+  /*
+   * Song再生開始位置と現在位置。
+   * selectedは停止中にタップした開始位置、
+   * playingは実際に再生中のSong枠。
+   */
+  selectedSongPartIndex: 0,
+  playingSongPartIndex: null,
+  queuedSongPartIndex: null,
+
   playingStepIndex: null,
 
 /*
@@ -819,6 +828,9 @@ export function clearQueuedSource() {
     null;
 
   state.queuedSectionIndex =
+    null;
+
+  state.queuedSongPartIndex =
     null;
 }
 
@@ -1041,7 +1053,351 @@ export function startSectionPlayback(
   return true;
 }
 
+
+function songPartIsPlayable(
+  songPartIndex
+) {
+  const part =
+    song.sequence[
+      songPartIndex
+    ];
+
+  if (!part) {
+    return false;
+  }
+
+  if (
+    part.type === "section"
+  ) {
+    return Boolean(
+      sections[
+        part.index
+      ]?.sequence?.length
+    );
+  }
+
+  return (
+    part.type === "pattern" ||
+    part.type === "fill"
+  );
+}
+
+function nextPlayableSongPartIndex(
+  startIndex
+) {
+  const minimumIndex =
+    Math.max(
+      0,
+      Math.round(
+        Number(startIndex) || 0
+      )
+    );
+
+  for (
+    let songPartIndex = minimumIndex;
+    songPartIndex < song.sequence.length;
+    songPartIndex++
+  ) {
+    if (
+      songPartIsPlayable(
+        songPartIndex
+      )
+    ) {
+      return songPartIndex;
+    }
+  }
+
+  return null;
+}
+
+export function selectSongPart(
+  songPartIndex
+) {
+  if (
+    !songPartIsPlayable(
+      songPartIndex
+    )
+  ) {
+    return false;
+  }
+
+  state.selectedPlaybackType =
+    "song";
+
+  state.selectedSongPartIndex =
+    songPartIndex;
+
+  return true;
+}
+
+export function queueSongPart(
+  songPartIndex
+) {
+  if (
+    !songPartIsPlayable(
+      songPartIndex
+    )
+  ) {
+    return false;
+  }
+
+  /*
+   * 同じSong枠を再選択したら予約解除。
+   */
+  if (
+    state.queuedSongPartIndex ===
+      songPartIndex
+  ) {
+    clearQueuedSource();
+
+    return true;
+  }
+
+  /*
+   * Pattern / Fill / Sectionを含め、
+   * 再生予約は常に1つだけ。
+   */
+  clearQueuedSource();
+
+  state.queuedSongPartIndex =
+    songPartIndex;
+
+  state.selectedSongPartIndex =
+    songPartIndex;
+
+  return true;
+}
+
+function activateSongPart(
+  songPartIndex
+) {
+  const part =
+    song.sequence[
+      songPartIndex
+    ];
+
+  if (
+    !part ||
+    !songPartIsPlayable(
+      songPartIndex
+    )
+  ) {
+    return false;
+  }
+
+  clearQueuedSource();
+  state.fillReturnTarget =
+    null;
+
+  state.selectedPlaybackType =
+    "song";
+
+  state.playingSongPartIndex =
+    songPartIndex;
+
+  state.selectedSongPartIndex =
+    songPartIndex;
+
+  state.songPage =
+    Math.floor(
+      songPartIndex / 32
+    );
+
+  if (
+    part.type === "section"
+  ) {
+    const section =
+      sections[
+        part.index
+      ];
+
+    const firstSource =
+      section.sequence[0];
+
+    if (
+      !firstSource ||
+      !activatePlayingSource(
+        firstSource.type,
+        firstSource.index
+      )
+    ) {
+      return false;
+    }
+
+    state.playingSectionIndex =
+      part.index;
+
+    state.playingSectionItemIndex =
+      0;
+
+    return true;
+  }
+
+  state.playingSectionIndex =
+    null;
+
+  state.playingSectionItemIndex =
+    null;
+
+  return activatePlayingSource(
+    part.type,
+    part.index
+  );
+}
+
+export function beginSongPlayback() {
+  if (
+    song.sequence.length === 0
+  ) {
+    state.playingSongPartIndex =
+      null;
+
+    return false;
+  }
+
+  const requestedIndex =
+    clamp(
+      Math.round(
+        Number(
+          state.selectedSongPartIndex
+        ) || 0
+      ),
+      0,
+      Math.max(
+        0,
+        song.sequence.length - 1
+      )
+    );
+
+  let startIndex =
+    nextPlayableSongPartIndex(
+      requestedIndex
+    );
+
+  if (
+    startIndex === null &&
+    requestedIndex > 0
+  ) {
+    startIndex =
+      nextPlayableSongPartIndex(
+        0
+      );
+  }
+
+  if (
+    startIndex === null
+  ) {
+    state.playingSongPartIndex =
+      null;
+
+    return false;
+  }
+
+  return activateSongPart(
+    startIndex
+  );
+}
+
+function advanceSongPlaybackSource() {
+  const songPartIndex =
+    state.playingSongPartIndex;
+
+  if (
+    songPartIndex === null
+  ) {
+    return false;
+  }
+
+  const part =
+    song.sequence[
+      songPartIndex
+    ];
+
+  if (
+    part?.type === "section" &&
+    state.playingSectionIndex !==
+      null
+  ) {
+    const section =
+      sections[
+        state.playingSectionIndex
+      ];
+
+    const currentItemIndex =
+      state.playingSectionItemIndex ??
+      0;
+
+    const nextItemIndex =
+      currentItemIndex + 1;
+
+    if (
+      section &&
+      nextItemIndex <
+        section.sequence.length
+    ) {
+      const nextSource =
+        section.sequence[
+          nextItemIndex
+        ];
+
+      const changed =
+        activatePlayingSource(
+          nextSource.type,
+          nextSource.index
+        );
+
+      if (!changed) {
+        return false;
+      }
+
+      state.playingSectionItemIndex =
+        nextItemIndex;
+
+      return true;
+    }
+  }
+
+  const nextSongPartIndex =
+    nextPlayableSongPartIndex(
+      songPartIndex + 1
+    );
+
+  if (
+    nextSongPartIndex === null
+  ) {
+    state.playingSongPartIndex =
+      null;
+
+    state.playingSectionIndex =
+      null;
+
+    state.playingSectionItemIndex =
+      null;
+
+    return false;
+  }
+
+  return activateSongPart(
+    nextSongPartIndex
+  );
+}
+
 export function beginSelectedPlayback() {
+  /*
+   * 停止中に最後に選ばれた再生対象を開始する。
+   * Song画面でもPattern / Fill / Section / Songを
+   * 同列の再生対象として扱う。
+   */
+  if (
+    state.selectedPlaybackType ===
+      "song"
+  ) {
+    return beginSongPlayback();
+  }
+
+  state.playingSongPartIndex =
+    null;
+
   /*
    * Sectionが選択されている場合。
    */
@@ -1342,6 +1698,110 @@ state.playingSectionItemIndex =
 }
 
 export function advancePlaybackSource() {
+  /*
+   * Song枠が予約されている場合。
+   *
+   * Pattern / Fill / Section / Songのどこを再生中でも、
+   * 現在Sourceの終端で予約したSong枠へ切り替える。
+   */
+  if (
+    state.queuedSongPartIndex !==
+      null
+  ) {
+    const songPartIndex =
+      state.queuedSongPartIndex;
+
+    return activateSongPart(
+      songPartIndex
+    );
+  }
+
+  /*
+   * Song再生中にPattern / Fill / Sectionが予約された場合。
+   *
+   * 現在のSongブロック終端でSong再生から完全に抜け、
+   * 予約先を通常再生へ切り替える。
+   * Songへは自動復帰しない。
+   */
+  if (
+    state.playingSongPartIndex !==
+      null &&
+    (
+      state.queuedSourceType ===
+        "pattern" ||
+      state.queuedSourceType ===
+        "fill" ||
+      state.queuedSectionIndex !==
+        null
+    )
+  ) {
+    const queuedSectionIndex =
+      state.queuedSectionIndex;
+
+    const queuedSourceType =
+      state.queuedSourceType;
+
+    state.playingSongPartIndex =
+      null;
+
+    state.playingSectionIndex =
+      null;
+
+    state.playingSectionItemIndex =
+      null;
+
+    state.fillReturnTarget =
+      null;
+
+    state.selectedPlaybackType =
+      "source";
+
+    /*
+     * Section予約なら通常のSectionループへ移行。
+     */
+    if (
+      queuedSectionIndex !==
+        null
+    ) {
+      clearQueuedSource();
+
+      return startSectionPlayback(
+        queuedSectionIndex
+      );
+    }
+
+    /*
+     * Fillへ抜ける時はSong内Sourceを戻り先にしない。
+     * これでFill終了後もSongへ自動復帰しない。
+     */
+    if (
+      queuedSourceType ===
+        "fill"
+    ) {
+      state.playingSourceType =
+        null;
+
+      state.playingPatternIndex =
+        null;
+
+      state.playingFillIndex =
+        null;
+    }
+
+    return applyQueuedSource();
+  }
+
+  /*
+   * Song再生中で予約がなければ、
+   * Songの次ブロックへ進む。
+   */
+  if (
+    state.playingSongPartIndex !==
+      null
+  ) {
+    return advanceSongPlaybackSource();
+  }
+
   /*
    * 単発Fillが終わり、
    * 別の予約操作がない場合は
@@ -2656,6 +3116,13 @@ function normalizeSnapshotData(
 
   snapshot.state.songMode = Boolean(snapshot.state.songMode);
   snapshot.state.songPage = clamp(Math.round(Number(snapshot.state.songPage) || 0), 0, 1);
+  snapshot.state.selectedSongPartIndex = clamp(
+    Math.round(Number(snapshot.state.selectedSongPartIndex) || 0),
+    0,
+    Math.max(0, snapshot.song.sequence.length - 1)
+  );
+  snapshot.state.playingSongPartIndex = null;
+  snapshot.state.queuedSongPartIndex = null;
 
   if (
     snapshot.state.selectedParameterId ===

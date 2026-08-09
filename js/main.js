@@ -22,7 +22,8 @@ import {
 import {
   render,
   updatePlayingStep,
-  renderPatternManager
+  renderPatternManager,
+  renderSongMode
 } from "./ui.js";
 
 import {
@@ -220,6 +221,52 @@ function playCurrentStep(
   });
 }
 
+
+function stopPlayback() {
+  state.isPlaying = false;
+
+  state.playingStepIndex =
+    null;
+
+  state.playbackTickIndex =
+    null;
+
+  state.playingSourceType =
+    null;
+
+  state.playingPatternIndex =
+    null;
+
+  state.playingFillIndex =
+    null;
+
+  state.playingSectionIndex =
+    null;
+
+  state.playingSectionItemIndex =
+    null;
+
+  state.playingSongPartIndex =
+    null;
+
+  state.fillReturnTarget =
+    null;
+
+  clearQueuedSource();
+
+  clearTimeout(timer);
+  timer = null;
+  nextTickTime = 0;
+
+  playButton.classList.remove(
+    "playing"
+  );
+
+  updatePlayingStep();
+  renderPatternManager();
+  renderSongMode();
+}
+
 function tick() {
   if (!state.isPlaying) {
     return;
@@ -241,6 +288,20 @@ function tick() {
  */
 const sourceChanged =
   advancePlaybackSource();
+
+/*
+ * Song末尾まで再生したら
+ * その場で自動停止する。
+ */
+if (
+  state.selectedPlaybackType ===
+    "song" &&
+  state.playingSongPartIndex ===
+    null
+) {
+  stopPlayback();
+  return;
+}
 
     state.playingStepIndex =
   0;
@@ -294,37 +355,7 @@ playCurrentStep(
 
 async function togglePlayback() {
   if (state.isPlaying) {
-    state.isPlaying = false;
-    state.playbackTickIndex =
-  null;
-    state.playingSourceType =
-  null;
-
-state.playingPatternIndex =
-  null;
-
-state.playingFillIndex =
-  null;
-
-state.playingSectionIndex =
-  null;
-
-state.playingSectionItemIndex =
-  null;
-
-state.fillReturnTarget =
-  null;
-
-clearQueuedSource();
-
-    clearTimeout(timer);
-    nextTickTime = 0;
-
-    playButton.classList.remove("playing");
-
-    updatePlayingStep();
-    renderPatternManager();
-
+    stopPlayback();
     return;
   }
 
@@ -338,7 +369,13 @@ state.playingStepIndex =
 state.playbackTickIndex =
   0;
 
-beginSelectedPlayback();
+const started =
+  beginSelectedPlayback();
+
+if (!started) {
+  stopPlayback();
+  return;
+}
 
 clearQueuedSource();
 
@@ -350,6 +387,7 @@ playButton.classList.add("playing");
  * playing表示も即反映する。
  */
 renderPatternManager();
+renderSongMode();
 
 updatePlayingStep();
 playCurrentStep();

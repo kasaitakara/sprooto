@@ -278,16 +278,16 @@ export const FACTORY_SOUND_PRESETS = [
   {
     id: "factory-kick-01",
     category: "kick",
-    name: "Kick 01",
+    name: "electoro kick",
 
     sound: sound({
-      note: -24,
+      note: -32,
 
       sineVolume: 100,
       noiseVolume: 0,
 
       attack: 1,
-      decay: 7,
+      decay: 10,
       sustain: 0,
       gate: 30,
 
@@ -298,7 +298,7 @@ export const FACTORY_SOUND_PRESETS = [
 
       lfo1Target: "pitch",
       lfo1Wave: "fall",
-      lfo1Depth: 50,
+      lfo1Depth: 70,
       lfo1Rate: 100
     })
   },
@@ -333,44 +333,48 @@ export const FACTORY_SOUND_PRESETS = [
   {
     id: "factory-snare-01",
     category: "snare",
-    name: "Snare 01",
+    name: "standard snare",
 
     sound: sound({
-      note: 0,
+      note: -1,
 
-      sineVolume: 30,
-      noiseVolume: 88,
-      noiseDecay: 12,
+      sineVolume: 100,
+      noiseVolume: 35,
+      noiseDecay: 60,
 
       attack: 1,
-      decay: 13,
+      decay: 3,
       sustain: 0,
-      gate: 8,
+      gate: 25,
 
-      filterCutoff: 18,
-      filterResonance: 8
+      filterCutoff: 70,
+      filterResonance: 20,
+      lfo1Target: "filterCutoff",
+      lfo1Wave: "rise",
+      lfo1Depth: 100,
+      lfo1Rate: 100
     })
   },
 
   {
     id: "factory-hh-01",
     category: "hh",
-    name: "HH Closed",
+    name: "electoro hh",
 
     sound: sound(
       {
         sineVolume: 0,
-
-        noiseVolume: 76,
-        noiseDecay: 2,
+        sineDecay:5,
+        noiseVolume: 80,
+        noiseDecay: 5,
 
         attack: 1,
-        decay: 3,
+        decay: 1,
         sustain: 0,
-        gate: 2,
+        gate: 30,
 
-        filterCutoff: 72,
-        filterResonance: 12
+        filterCutoff: 95,
+        filterResonance: 30
       },
       {
         oscSelectedId:
@@ -487,30 +491,30 @@ export const FACTORY_SOUND_PRESETS = [
   {
     id: "factory-lead-01",
     category: "lead",
-    name: "Lead 01",
+    name: "electric piano",
 
     sound: sound({
-      sineVolume: 92,
-      noiseVolume: 3,
+      sineVolume: 90,
+      sineDecay:50,
+      noiseVolume: 0,
 
-      attack: 2,
-      decay: 12,
-      sustain: 74,
-      gate: 46,
+      attack: 1,
+      decay: 40,
+      sustain: 1,
+      gate: 60,
 
-      fmDepth: 6,
-      fmRatio: 2,
-
-      filterCutoff: -8,
-
-      delay: 20,
-      delayTime: 5,
-      delayFeedback: 36,
+      fmDepth: 7,
+      fmRatio: 1,
 
       lfo1Target: "pitch",
       lfo1Wave: "sine",
-      lfo1Depth: 2,
-      lfo1Rate: 48
+      lfo1Depth: 1,
+      lfo1Rate: 25,
+
+      lfo2Target: "pan",
+      lfo2Wave: "sine",
+      lfo2Depth: 10,
+      lfo2Rate: 50
     })
   },
 

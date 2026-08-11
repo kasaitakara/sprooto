@@ -124,15 +124,15 @@ const SECTIONS_PER_PAGE = 8;
 
 const LFO_BPM_RATE_NAMES = [
   "1/64",
-  "1/32T",
+  "1/32t",
   "1/32",
-  "1/16T",
+  "1/16t",
   "1/16",
-  "1/8T",
+  "1/8t",
   "1/8",
-  "1/4T",
+  "1/4t",
   "1/4",
-  "1/2T",
+  "1/2t",
   "1/2",
   "1/1",
   "2/1",
@@ -693,14 +693,14 @@ const parameterMenuItems = [
   { label: "FILTER", parameterId: "filterCutoff", icon: "tone" },
   { label: "PAN", parameterId: "pan", icon: "pan" },
   { label: "LFO", parameterId: "lfo", icon: "lfo" },
-  { label: "FX", placeholderId: "fx", icon: "fx" },
-  { label: "FX1", parameterId: "delay", icon: "delay" },
-  { label: "FX2", placeholderId: "fx2", icon: "fx" },
-  { label: "FX3", placeholderId: "fx3", icon: "fx" },
-  { label: "FX4", placeholderId: "fx4", icon: "fx" },
-  { label: "FX5", placeholderId: "fx5", icon: "fx" },
-  { label: "PROB", parameterId: "probability", icon: "probability" },
-  { label: "SUB", placeholderId: "sub", icon: "sub" }
+  { label: "fx", placeholderId: "fx", icon: "fx" },
+  { label: "fx1", parameterId: "delay", icon: "delay" },
+  { label: "fx2", placeholderId: "fx2", icon: "fx" },
+  { label: "fx3", placeholderId: "fx3", icon: "fx" },
+  { label: "fx4", placeholderId: "fx4", icon: "fx" },
+  { label: "fx5", placeholderId: "fx5", icon: "fx" },
+  { label: "prob", parameterId: "probability", icon: "probability" },
+  { label: "sub", placeholderId: "sub", icon: "sub" }
 ];
 
 function editorParameterById(id) {
@@ -2640,14 +2640,14 @@ function displayBaseValue(parameter) {
 
   if (parameter.id === "pan") {
     if (value === 50) {
-      return "C";
+      return "c";
     }
 
     if (value < 50) {
-      return `L${50 - value}`;
+      return `l${50 - value}`;
     }
 
-    return `R${value - 50}`;
+    return `r${value - 50}`;
   }
 
   if (parameter.id === "probability") {
@@ -2656,12 +2656,12 @@ function displayBaseValue(parameter) {
 
   if (parameter.id === "filterCutoff") {
     if (value === 0) {
-      return "OFF";
+      return "off";
     }
 
     return value < 0
-      ? `LP${Math.abs(value)}`
-      : `HP${value}`;
+      ? `lp${Math.abs(value)}`
+      : `hp${value}`;
   }
 
   if (parameter.id === "delayTime") {
@@ -5019,12 +5019,12 @@ function displayStepValue(
       "filterCutoff"
   ) {
     if (result === 0) {
-      return "OFF";
+      return "off";
     }
 
     return result < 0
-      ? `LP${Math.abs(result)}`
-      : `HP${result}`;
+      ? `lp${Math.abs(result)}`
+      : `hp${result}`;
   }
 
   /*
@@ -5034,12 +5034,12 @@ function displayStepValue(
     parameter.id === "pan"
   ) {
     if (result === 50) {
-      return "C";
+      return "c";
     }
 
     return result < 50
-      ? `L${50 - result}`
-      : `R${result - 50}`;
+      ? `l${50 - result}`
+      : `r${result - 50}`;
   }
 
   /*
@@ -6371,7 +6371,7 @@ const activeParameter =
         activeView === "rate" && syncMode === "bpm"
           ? rateName(value)
           : activeView === "rate"
-            ? `${(Number(value) / 10).toFixed(1)}Hz`
+            ? `${(Number(value) / 10).toFixed(1)}hz`
             : String(value);
     };
     updateBaseValue();
@@ -6404,7 +6404,7 @@ function displayKeyboardValue() {
             Number(
               keyboardValue
             ) / 10
-          ).toFixed(1)}Hz`
+          ).toFixed(1)}hz`
         : String(
             keyboardValue
           );
@@ -9570,8 +9570,8 @@ function openSoundPresetModal() {
   const header = document.createElement("div");
   header.className = "sound-preset-header";
 
-  const factoryTab = createModalButton("Factory", "sound-preset-tab active");
-  const userTab = createModalButton("User", "sound-preset-tab");
+  const factoryTab = createModalButton("factory", "sound-preset-tab active");
+  const userTab = createModalButton("user", "sound-preset-tab");
   const actions = document.createElement("div");
   actions.className = "sound-preset-actions";
 
@@ -9867,7 +9867,7 @@ body.append(
 
     const selectedText = document.createElement("div");
     selectedText.className = "sound-preset-current";
-    selectedText.textContent = `current preset　${selected.name}${selected.type === "factory" ? "（Factory）" : selected.type === "user" ? "（User）" : ""}`;
+    selectedText.textContent = `current preset　${selected.name}${selected.type === "factory" ? "（factory）" : selected.type === "user" ? "（user）" : ""}`;
 
     const modeWrap =
   document.createElement("div");
@@ -10157,10 +10157,10 @@ modeWrap.appendChild(
         "sound-preset-dialog-buttons";
 
       const noButton =
-        createModalButton("No");
+        createModalButton("no");
 
       const yesButton =
-        createModalButton("Yes");
+        createModalButton("yes");
 
       noButton.type = "button";
       yesButton.type = "button";

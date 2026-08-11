@@ -4092,3 +4092,7 @@ body.song-edit-mode .editor-section {
         steps(1, end)
         infinite;
 }
+
+.offset-step.base-value-step {
+  opacity: 0.4;
+}

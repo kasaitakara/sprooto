@@ -4496,13 +4496,51 @@ if (
 }
 
       value.textContent =
-        displayValue();
+  displayValue();
 
-      if (editSelection.mode === "offset") {
-        document.querySelectorAll(".offset-step[data-step-index]").forEach(offsetButton => {
-          offsetButton.textContent = displayStepValue(parameterById(id) ?? { ...definition, id, offsetMode: "offset" }, Number(offsetButton.dataset.stepIndex));
-        });
-      }
+/*
+ * ベース値変更中も、
+ * 各ステップの実効値をリアルタイム更新する。
+ */
+document
+  .querySelectorAll(
+    ".offset-step[data-step-index]"
+  )
+  .forEach(
+    offsetButton => {
+      const stepIndex =
+        Number(
+          offsetButton.dataset
+            .stepIndex
+        );
+
+      const displayParameter =
+        parameterById(id) ??
+        {
+          ...definition,
+          id,
+          offsetMode: "offset"
+        };
+
+      offsetButton.textContent =
+        displayStepValue(
+          displayParameter,
+          stepIndex
+        );
+
+      const stepOffset =
+        Number(
+          track.offsets[id]?.[
+            stepIndex
+          ]
+        ) || 0;
+
+      offsetButton.classList.toggle(
+        "base-value-step",
+        stepOffset === 0
+      );
+    }
+  );
     },
 
     min: () =>
@@ -5062,6 +5100,17 @@ function renderOffsetGrid(parameter) {
         parameter,
         stepIndex
       );
+
+      button.classList.toggle(
+  "base-value-step",
+  (
+    Number(
+      track.offsets[
+        parameter.id
+      ]?.[stepIndex]
+    ) || 0
+  ) === 0
+);
 
     if (track.steps[stepIndex]) {
       button.classList.add(
@@ -6614,11 +6663,42 @@ if (
     correctedValue;
 }
         updateBaseValue();
-        if (editSelection.mode === "offset") {
-          document.querySelectorAll(".offset-step[data-step-index]").forEach(offsetButton => {
-            offsetButton.textContent = displayStepValue(activeParameter, Number(offsetButton.dataset.stepIndex));
-          });
-        }
+
+/*
+ * LFOのベース値変更中も、
+ * 各ステップの実効値をリアルタイム更新。
+ */
+document
+  .querySelectorAll(
+    ".offset-step[data-step-index]"
+  )
+  .forEach(
+    offsetButton => {
+      const stepIndex =
+        Number(
+          offsetButton.dataset
+            .stepIndex
+        );
+
+      offsetButton.textContent =
+        displayStepValue(
+          activeParameter,
+          stepIndex
+        );
+
+      const stepOffset =
+        Number(
+          track.offsets[
+            activeBaseId
+          ]?.[stepIndex]
+        ) || 0;
+
+      offsetButton.classList.toggle(
+        "base-value-step",
+        stepOffset === 0
+      );
+    }
+  );
       },
       min: () =>
   editSelection.mode ===

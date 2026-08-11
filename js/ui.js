@@ -6569,14 +6569,18 @@ function renderEdit(parameter) {
       item => item.id === activeId
     );
 
-  const hasOffsets =
-    !parameter.baseOnly &&
-    !activeChild?.baseOnly &&
-    Boolean(
-      selectedTrack().offsets[
-        parameter.id
-      ]
-    );
+  const activeOffsetId =
+  activeChild?.id ??
+  parameter.id;
+
+const hasOffsets =
+  !parameter.baseOnly &&
+  !activeChild?.baseOnly &&
+  Boolean(
+    selectedTrack().offsets[
+      activeOffsetId
+    ]
+  );
 
   if (hasOffsets) {
     enableDoubleTapAction({
@@ -6584,9 +6588,9 @@ function renderEdit(parameter) {
 
       onDoubleTap: () => {
         const cleared =
-          clearSelectedParameterOffsets(
-            parameter.id
-          );
+  clearSelectedParameterOffsets(
+    activeOffsetId
+  );
 
         if (!cleared) {
           return;
@@ -6619,13 +6623,27 @@ function renderEdit(parameter) {
     child?.baseOnly;
 
   if (
-    !baseOnly &&
-    selectedTrack().offsets[parameter.id]
-  ) {
-    editor.appendChild(
-      renderOffsetGrid(parameter)
-    );
-  }
+  !baseOnly &&
+  selectedTrack().offsets[
+    activeOffsetId
+  ]
+) {
+  const offsetParameter =
+    activeChild
+      ? {
+          ...parameter,
+          ...activeChild,
+          id: activeOffsetId,
+          offsetMode: "offset"
+        }
+      : parameter;
+
+  editor.appendChild(
+    renderOffsetGrid(
+      offsetParameter
+    )
+  );
+}
 }
 
 

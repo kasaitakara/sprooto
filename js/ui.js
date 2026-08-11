@@ -4889,34 +4889,136 @@ wrap.appendChild(compact);
 return wrap;
 }
 
-function displayStepValue(parameter, stepIndex) {
-  const track = selectedTrack();
-  const offset = track.offsets[parameter.id]?.[stepIndex] ?? 0;
-  const result = clamp(track.base[parameter.id] + offset, parameter.min, parameter.max);
-  if (parameter.id === "note") {
-    const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    const midi = 60 + result;
-    return `${names[(midi % 12 + 12) % 12]}${Math.floor(midi / 12) - 1}`;
-  }
-  if (parameter.id === "delayTime") {
-  const delayNames = [
-    "1/64",
-    "1/32T",
-    "1/32",
-    "1/16T",
-    "1/16",
-    "1/8T",
-    "1/8",
-    "1/4T",
-    "1/4",
-    "1/2T",
-    "1/2"
-  ];
+function displayStepValue(
+  parameter,
+  stepIndex
+) {
+  const track =
+    selectedTrack();
 
-  return delayNames[result] ?? "1/16";
-}
-  if (parameter.offsetMode === "result") return String(result);
-  return offset === 0 ? "·" : offset > 0 ? `+${offset}` : String(offset);
+  const offset =
+    track.offsets[
+      parameter.id
+    ]?.[stepIndex] ?? 0;
+
+  const result =
+    roundToStep(
+      clamp(
+        Number(
+          track.base[
+            parameter.id
+          ]
+        ) +
+          Number(offset),
+        parameter.min,
+        parameter.max
+      ),
+      parameter.step ?? 1
+    );
+
+  /*
+   * NOTEだけは従来どおり
+   * 実際の音名で表示する。
+   */
+  if (
+    parameter.id === "note"
+  ) {
+    const names = [
+      "C", "C#", "D", "D#",
+      "E", "F", "F#", "G",
+      "G#", "A", "A#", "B"
+    ];
+
+    const midi =
+      60 + result;
+
+    return `${
+      names[
+        (midi % 12 + 12) % 12
+      ]
+    }${
+      Math.floor(
+        midi / 12
+      ) - 1
+    }`;
+  }
+
+  /*
+   * Delay Timeは
+   * 実効値を音価で表示。
+   */
+  if (
+    parameter.id ===
+      "delayTime"
+  ) {
+    const delayNames = [
+      "1/64",
+      "1/32T",
+      "1/32",
+      "1/16T",
+      "1/16",
+      "1/8T",
+      "1/8",
+      "1/4T",
+      "1/4",
+      "1/2T",
+      "1/2"
+    ];
+
+    return (
+      delayNames[
+        Math.round(result)
+      ] ?? "1/16"
+    );
+  }
+
+  /*
+   * Filter Cutoffも
+   * ベース値表示と同じ形式。
+   */
+  if (
+    parameter.id ===
+      "filterCutoff"
+  ) {
+    if (result === 0) {
+      return "OFF";
+    }
+
+    return result < 0
+      ? `LP${Math.abs(result)}`
+      : `HP${result}`;
+  }
+
+  /*
+   * Panも実際の位置を表示。
+   */
+  if (
+    parameter.id === "pan"
+  ) {
+    if (result === 50) {
+      return "C";
+    }
+
+    return result < 50
+      ? `L${50 - result}`
+      : `R${result - 50}`;
+  }
+
+  /*
+   * Probabilityは実効値を％表示。
+   */
+  if (
+    parameter.id ===
+      "probability"
+  ) {
+    return `${result}%`;
+  }
+
+  /*
+   * その他はすべて
+   * base + offset の実効値を表示。
+   */
+  return String(result);
 }
 
 function renderOffsetGrid(parameter) {

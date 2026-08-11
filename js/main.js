@@ -361,7 +361,13 @@ async function togglePlayback() {
 
   await initializeAudio();
 
-  state.isPlaying = true;
+setMasterVolumeValue(
+  Number(
+    volumeInput.value
+  )
+);
+
+state.isPlaying = true;
 
 state.playingStepIndex =
   0;

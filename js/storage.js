@@ -15,6 +15,27 @@ function makeStoredSnapshot() {
   const snapshot =
     createSnapshot();
 
+  const bpmInput =
+    document.getElementById(
+      "bpm-input"
+    );
+
+  const masterVolumeInput =
+    document.getElementById(
+      "master-volume"
+    );
+
+  snapshot.appSettings = {
+    bpm:
+      Number(
+        bpmInput?.value
+      ) || 120,
+
+    masterVolume:
+      Number(
+        masterVolumeInput?.value
+      ) || 70
+  };
   /*
    * 再生中の状態は保存しない。
    * 復元時は必ず停止状態にする。
@@ -165,6 +186,76 @@ export function restoreAutosave() {
 restoreSnapshot(
   migratedSnapshot
 );
+
+const storedSettings =
+  migratedSnapshot.appSettings;
+
+if (storedSettings) {
+  const bpmInput =
+    document.getElementById(
+      "bpm-input"
+    );
+
+  const masterVolumeInput =
+    document.getElementById(
+      "master-volume"
+    );
+
+  const masterVolumeValue =
+    document.getElementById(
+      "master-volume-value"
+    );
+
+  if (bpmInput) {
+    const bpm =
+      Math.min(
+        300,
+        Math.max(
+          40,
+          Math.round(
+            Number(
+              storedSettings.bpm
+            ) || 120
+          )
+        )
+      );
+
+    bpmInput.value =
+      String(bpm);
+  }
+
+  if (masterVolumeInput) {
+    const masterVolume =
+      Math.min(
+        100,
+        Math.max(
+          0,
+          Math.round(
+            Number(
+              storedSettings.masterVolume
+            ) || 70
+          )
+        )
+      );
+
+    masterVolumeInput.value =
+      String(
+        masterVolume
+      );
+
+    if (masterVolumeValue) {
+      masterVolumeValue.value =
+        String(
+          masterVolume
+        );
+
+      masterVolumeValue.textContent =
+        String(
+          masterVolume
+        );
+    }
+  }
+}
 
     /*
      * 古い保存データなどに再生状態が

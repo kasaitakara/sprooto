@@ -453,7 +453,8 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
 .base-input { width:52px; height:28px; text-align:center; border:1px solid var(--selected-bg); background:var(--cell); font-size: 11px; }
 .offset-grid {
     display: grid;
-    grid-template-columns: repeat(8, 1fr);
+    grid-template-columns:
+        repeat(8, minmax(0, 1fr));
     grid-template-rows: repeat(4, 25px);
 
     column-gap: 5px;
@@ -464,15 +465,20 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
 
 .offset-step {
     width: 100%;
+    min-width: 0;
+
     height: 25px;
     min-height: 25px;
 
     border: 2px solid transparent;
     background: var(--cell);
 
-    font-size: var(--font-main);
+    font-size: var(--font-small);
     line-height: 1;
-    padding: 0;
+
+    padding: 0 1px;
+    overflow: hidden;
+    white-space: nowrap;
 }
 .offset-step.playing {
     background: color-mix(

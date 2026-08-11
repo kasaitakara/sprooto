@@ -784,8 +784,13 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .track-number {
+    width: 12px;
+    min-width: 12px;
+
     font-size: var(--font-main);
     line-height: 1;
+
+    text-align: center;
 }
 
 .offset-input {
@@ -4093,10 +4098,18 @@ body.song-edit-mode .editor-section {
         infinite;
 }
 
-.offset-step.base-value-step {
-  color: color-mix(
-    in srgb,
-    var(--text) 40%,
-    transparent
-  );
+.offset-step.base-value-step,
+.offset-step.note-on.base-value-step {
+    color: color-mix(
+        in srgb,
+        var(--text) 40%,
+        transparent
+    ) !important;
+
+    -webkit-text-fill-color:
+        color-mix(
+            in srgb,
+            var(--text) 40%,
+            transparent
+        ) !important;
 }

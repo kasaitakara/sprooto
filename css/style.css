@@ -4094,5 +4094,9 @@ body.song-edit-mode .editor-section {
 }
 
 .offset-step.base-value-step {
-  opacity: 0.4;
+  color: color-mix(
+    in srgb,
+    var(--text) 40%,
+    transparent
+  );
 }

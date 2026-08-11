@@ -316,7 +316,15 @@ export const fills =
  * 初期仕様は最大64パーツ。
  */
 export const song = {
-  sequence: []
+  sequence: [],
+
+  /* Song全体へ掛けるMaster Mix */
+  masterMix: {
+    eq: [0, 0, 0, 0, 0, 0, 0, 0],
+    volume: 100,
+    limiter: -1,
+    reverb: 0
+  }
 };
 /*
  * 現在の初期データは
@@ -3127,6 +3135,48 @@ function normalizeSnapshotData(
     snapshot.song = { sequence: [] };
   }
 
+  const masterMix =
+    snapshot.song.masterMix &&
+    typeof snapshot.song.masterMix === "object"
+      ? snapshot.song.masterMix
+      : {};
+
+  const eqValues =
+    Array.isArray(masterMix.eq)
+      ? masterMix.eq
+      : [];
+
+  snapshot.song.masterMix = {
+    eq: Array.from(
+      { length: 8 },
+      (_, index) =>
+        clamp(
+          Number(eqValues[index]) || 0,
+          -12,
+          12
+        )
+    ),
+    volume: clamp(
+      Number.isFinite(Number(masterMix.volume))
+        ? Number(masterMix.volume)
+        : 100,
+      0,
+      100
+    ),
+    limiter: clamp(
+      Number.isFinite(Number(masterMix.limiter))
+        ? Number(masterMix.limiter)
+        : -1,
+      -24,
+      0
+    ),
+    reverb: clamp(
+      Number(masterMix.reverb) || 0,
+      0,
+      100
+    )
+  };
+
   snapshot.song.sequence = snapshot.song.sequence
     .filter(item => {
       if (!item || typeof item !== "object") return false;
@@ -3204,6 +3254,15 @@ export function restoreSnapshot(
     ...structuredClone(
       snapshot.song?.sequence ?? []
     )
+  );
+
+  song.masterMix = structuredClone(
+    snapshot.song?.masterMix ?? {
+      eq: Array(8).fill(0),
+      volume: 100,
+      limiter: -1,
+      reverb: 0
+    }
   );
 
   Object.assign(

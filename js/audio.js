@@ -2,6 +2,29 @@ import { clamp } from "./sequencer.js";
 
 let context;
 let master;
+let mixInput;
+let mixGain;
+let limiter;
+let reverbConvolver;
+let reverbDryGain;
+let reverbWetGain;
+let spectrumAnalyser;
+let outputAnalyser;
+let eqNodes = [];
+let spectrumData;
+let outputTimeData;
+
+const EQ_FREQUENCIES = [
+  60, 120, 250, 500,
+  1000, 2000, 4000, 8000
+];
+
+const masterMixSettings = {
+  eq: Array(8).fill(0),
+  volume: 100,
+  limiter: -1,
+  reverb: 0
+};
 
 /*
  * Trackごとに最後に予約した発音の
@@ -38,7 +61,64 @@ export async function initializeAudio() {
     context = new AudioContextClass();
     master = context.createGain();
     master.gain.value = 0.7;
+
+    mixInput = context.createGain();
+
+    eqNodes = EQ_FREQUENCIES.map((frequency, index) => {
+      const filter = context.createBiquadFilter();
+      filter.type = index === 0
+        ? "lowshelf"
+        : index === EQ_FREQUENCIES.length - 1
+          ? "highshelf"
+          : "peaking";
+      filter.frequency.value = frequency;
+      filter.Q.value = 1;
+      filter.gain.value = masterMixSettings.eq[index];
+      return filter;
+    });
+
+    reverbConvolver = context.createConvolver();
+    reverbConvolver.buffer = createMasterReverbImpulse();
+
+    reverbDryGain = context.createGain();
+    reverbWetGain = context.createGain();
+
+    mixGain = context.createGain();
+    limiter = context.createDynamicsCompressor();
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.1;
+
+    let previousNode = mixInput;
+    eqNodes.forEach(filter => {
+      previousNode.connect(filter);
+      previousNode = filter;
+    });
+
+    spectrumAnalyser = context.createAnalyser();
+    spectrumAnalyser.fftSize = 2048;
+    spectrumAnalyser.smoothingTimeConstant = 0.72;
+    previousNode.connect(spectrumAnalyser);
+
+    previousNode.connect(reverbDryGain);
+    reverbDryGain.connect(mixGain);
+
+    previousNode.connect(reverbConvolver);
+    reverbConvolver.connect(reverbWetGain);
+    reverbWetGain.connect(mixGain);
+
+    mixGain.connect(limiter);
+
+    outputAnalyser = context.createAnalyser();
+    outputAnalyser.fftSize = 1024;
+    outputAnalyser.smoothingTimeConstant = 0.6;
+
+    limiter.connect(outputAnalyser);
+    outputAnalyser.connect(master);
     master.connect(context.destination);
+
+    applyMasterMixSettings();
     document.addEventListener(
   "visibilitychange",
   resumeAudioContext
@@ -60,6 +140,208 @@ window.addEventListener(
 export function setMasterVolume(value) {
   if (!master || !context) return;
   master.gain.setTargetAtTime(clamp(Number(value), 0, 1), context.currentTime, 0.01);
+}
+
+function createMasterReverbImpulse() {
+  const duration = 2.2;
+  const sampleRate = context.sampleRate;
+  const length = Math.max(1, Math.floor(sampleRate * duration));
+  const buffer = context.createBuffer(2, length, sampleRate);
+
+  for (let channel = 0; channel < 2; channel++) {
+    const data = buffer.getChannelData(channel);
+
+    for (let index = 0; index < length; index++) {
+      const progress = index / length;
+      const envelope = Math.pow(1 - progress, 2.6);
+      data[index] = (Math.random() * 2 - 1) * envelope;
+    }
+  }
+
+  return buffer;
+}
+
+function applyMasterMixSettings() {
+  if (!context) return;
+
+  const now = context.currentTime;
+
+  eqNodes.forEach((filter, index) => {
+    filter.gain.setTargetAtTime(
+      masterMixSettings.eq[index] ?? 0,
+      now,
+      0.01
+    );
+  });
+
+  mixGain?.gain.setTargetAtTime(
+    clamp(masterMixSettings.volume, 0, 100) / 100,
+    now,
+    0.01
+  );
+
+  if (limiter) {
+    limiter.threshold.setTargetAtTime(
+      clamp(masterMixSettings.limiter, -24, 0),
+      now,
+      0.01
+    );
+  }
+
+  const reverbAmount =
+    clamp(masterMixSettings.reverb, 0, 100) / 100;
+
+  reverbDryGain?.gain.setTargetAtTime(
+    1,
+    now,
+    0.01
+  );
+
+  reverbWetGain?.gain.setTargetAtTime(
+    reverbAmount,
+    now,
+    0.01
+  );
+}
+
+export function setMasterMixEqBand(index, value) {
+  if (index < 0 || index >= 8) return;
+  masterMixSettings.eq[index] = clamp(Number(value) || 0, -12, 12);
+  applyMasterMixSettings();
+}
+
+export function setMasterMixVolume(value) {
+  masterMixSettings.volume = clamp(Number(value) || 0, 0, 100);
+  applyMasterMixSettings();
+}
+
+export function setMasterLimiterThreshold(value) {
+  masterMixSettings.limiter = clamp(Number(value) || 0, -24, 0);
+  applyMasterMixSettings();
+}
+
+export function setMasterReverb(value) {
+  masterMixSettings.reverb = clamp(Number(value) || 0, 0, 100);
+  applyMasterMixSettings();
+}
+
+export function getMasterMixMeterData() {
+  if (!context || !spectrumAnalyser || !outputAnalyser) {
+    return {
+      bands: Array(8).fill(0),
+      level: 0,
+      limiterReduction: 0
+    };
+  }
+
+  if (
+    !spectrumData ||
+    spectrumData.length !== spectrumAnalyser.frequencyBinCount
+  ) {
+    spectrumData = new Uint8Array(
+      spectrumAnalyser.frequencyBinCount
+    );
+  }
+
+  if (
+    !outputTimeData ||
+    outputTimeData.length !== outputAnalyser.fftSize
+  ) {
+    outputTimeData = new Uint8Array(
+      outputAnalyser.fftSize
+    );
+  }
+
+  spectrumAnalyser.getByteFrequencyData(
+    spectrumData
+  );
+
+  outputAnalyser.getByteTimeDomainData(
+    outputTimeData
+  );
+
+  const nyquist = context.sampleRate / 2;
+  const binHz =
+    nyquist / spectrumAnalyser.frequencyBinCount;
+
+  const bandEdges = [
+    35, 85, 175, 350, 700,
+    1400, 2800, 5600, 12000
+  ];
+
+  const bands = EQ_FREQUENCIES.map(
+    (_, bandIndex) => {
+      const startBin = Math.max(
+        0,
+        Math.floor(
+          bandEdges[bandIndex] / binHz
+        )
+      );
+
+      const endBin = Math.min(
+        spectrumData.length - 1,
+        Math.ceil(
+          bandEdges[bandIndex + 1] / binHz
+        )
+      );
+
+      let peak = 0;
+      let sum = 0;
+      let count = 0;
+
+      for (
+        let binIndex = startBin;
+        binIndex <= endBin;
+        binIndex++
+      ) {
+        const normalized =
+          spectrumData[binIndex] / 255;
+
+        peak = Math.max(peak, normalized);
+        sum += normalized;
+        count += 1;
+      }
+
+      const average =
+        count > 0 ? sum / count : 0;
+
+      return clamp(
+        peak * 0.55 + average * 0.75,
+        0,
+        1
+      );
+    }
+  );
+
+  let sumSquares = 0;
+  let peak = 0;
+
+  for (const sample of outputTimeData) {
+    const value = (sample - 128) / 128;
+    const absolute = Math.abs(value);
+    peak = Math.max(peak, absolute);
+    sumSquares += value * value;
+  }
+
+  const rms = Math.sqrt(
+    sumSquares / Math.max(1, outputTimeData.length)
+  );
+
+  const level = clamp(
+    peak * 0.7 + rms * 1.1,
+    0,
+    1
+  );
+
+  const limiterReduction = limiter
+    ? Math.max(0, -(Number(limiter.reduction) || 0))
+    : 0;
+
+  return {
+    bands,
+    level,
+    limiterReduction
+  };
 }
 
 function frequency(note) {
@@ -1450,7 +1732,7 @@ mixGain
   /*
    * 原音は常にそのまま出力する。
    */
-  panner.connect(master);
+  panner.connect(mixInput);
 
   /*
    * クリーンなDelay。
@@ -1490,7 +1772,7 @@ mixGain
 
     delayNode
       .connect(wetGain)
-      .connect(master);
+      .connect(mixInput);
 
     delayNode
       .connect(feedbackGain)

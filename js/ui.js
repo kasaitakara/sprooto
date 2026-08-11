@@ -55,6 +55,14 @@ import {
   soundsEqual
 } from "./sound-preset-manager.js";
 
+import {
+  setMasterMixEqBand,
+  setMasterMixVolume,
+  setMasterLimiterThreshold,
+  setMasterReverb,
+  getMasterMixMeterData
+} from "./audio.js";
+
 const sequenceGrid = document.getElementById("sequence-grid");
 const sequencePageButton = document.getElementById("sequence-page-button");
 const patternLengthInput = document.getElementById("pattern-length-input");
@@ -7548,6 +7556,416 @@ function enableSongItemDrag(button, initialIndex) {
   );
 }
 
+const MASTER_EQ_LABELS = [
+  "60", "120", "250", "500",
+  "1k", "2k", "4k", "8k"
+];
+
+function ensureSongMasterMix() {
+  if (!song.masterMix || typeof song.masterMix !== "object") {
+    song.masterMix = {};
+  }
+
+  if (!Array.isArray(song.masterMix.eq)) {
+    song.masterMix.eq = Array(8).fill(0);
+  }
+
+  song.masterMix.eq = Array.from(
+    { length: 8 },
+    (_, index) => clamp(
+      Number(song.masterMix.eq[index]) || 0,
+      -12,
+      12
+    )
+  );
+
+  song.masterMix.volume = clamp(
+    Number.isFinite(Number(song.masterMix.volume))
+      ? Number(song.masterMix.volume)
+      : 100,
+    0,
+    100
+  );
+
+  song.masterMix.limiter = clamp(
+    Number.isFinite(Number(song.masterMix.limiter))
+      ? Number(song.masterMix.limiter)
+      : -1,
+    -24,
+    0
+  );
+
+  song.masterMix.reverb = clamp(
+    Number(song.masterMix.reverb) || 0,
+    0,
+    100
+  );
+
+  return song.masterMix;
+}
+
+function syncSongMasterMixAudio() {
+  const mix = ensureSongMasterMix();
+
+  mix.eq.forEach((value, index) => {
+    setMasterMixEqBand(index, value);
+  });
+
+  setMasterMixVolume(mix.volume);
+  setMasterLimiterThreshold(mix.limiter);
+  setMasterReverb(mix.reverb);
+}
+
+let masterMixMeterFrame = null;
+
+function stopMasterMixMeterAnimation() {
+  if (masterMixMeterFrame !== null) {
+    cancelAnimationFrame(masterMixMeterFrame);
+    masterMixMeterFrame = null;
+  }
+}
+
+function startMasterMixMeterAnimation() {
+  stopMasterMixMeterAnimation();
+
+  const animate = () => {
+    if (
+      !state.songMode ||
+      !songMasterMix?.isConnected
+    ) {
+      masterMixMeterFrame = null;
+      return;
+    }
+
+    const meter = getMasterMixMeterData();
+
+    songMasterMix
+      .querySelectorAll(".master-eq-gain[data-band-index]")
+      .forEach(element => {
+        const bandIndex = Number(
+          element.dataset.bandIndex
+        );
+
+        element.style.setProperty(
+          "--eq-meter",
+          String(meter.bands[bandIndex] ?? 0)
+        );
+      });
+
+    const volumeFader = songMasterMix.querySelector(
+      ".master-mix-fader[data-control-key=\"volume\"]"
+    );
+
+    volumeFader?.style.setProperty(
+      "--mix-meter",
+      String(meter.level)
+    );
+
+    const limiterFader = songMasterMix.querySelector(
+      '.master-mix-fader[data-control-key="limiter"]'
+    );
+
+    if (limiterFader) {
+      const reduction = clamp(
+        Number(meter.limiterReduction) || 0,
+        0,
+        24
+      );
+
+      limiterFader.style.setProperty(
+        "--mix-meter",
+        String(reduction / 24)
+      );
+    }
+
+    masterMixMeterFrame = requestAnimationFrame(animate);
+  };
+
+  masterMixMeterFrame = requestAnimationFrame(animate);
+}
+
+function renderSongMasterMix() {
+  if (!songMasterMix) return;
+
+  const mix = ensureSongMasterMix();
+  syncSongMasterMixAudio();
+
+  songMasterMix.innerHTML = "";
+
+  const title = document.createElement("div");
+  title.className = "song-master-mix-title";
+  title.textContent = "master mix";
+
+  const content = document.createElement("div");
+  content.className = "master-mix-content";
+
+  const eq = document.createElement("div");
+  eq.className = "master-eq";
+
+  mix.eq.forEach((gainValue, bandIndex) => {
+    const band = document.createElement("div");
+    band.className = "master-eq-band";
+
+    const gain = document.createElement("button");
+    gain.type = "button";
+    gain.className = "master-eq-gain";
+    gain.dataset.focusKey = `master-eq-${bandIndex}`;
+    gain.dataset.bandIndex = String(bandIndex);
+    gain.style.setProperty(
+      "--eq-position",
+      String((gainValue + 12) / 24)
+    );
+    gain.style.setProperty("--eq-meter", "0");
+
+    const meter = document.createElement("span");
+    meter.className = "master-eq-meter";
+
+    const marker = document.createElement("span");
+    marker.className = "master-eq-marker";
+
+    gain.append(meter, marker);
+
+    const footer = document.createElement("div");
+    footer.className = "master-mix-control-footer master-eq-footer";
+
+    const label = document.createElement("span");
+    label.className = "master-eq-label";
+    label.textContent = MASTER_EQ_LABELS[bandIndex];
+
+    const value = document.createElement("span");
+    value.className = "master-eq-value";
+    value.textContent =
+      gainValue > 0
+        ? `+${gainValue}`
+        : String(gainValue);
+
+    footer.append(label, value);
+
+    let historySaved = false;
+
+    enableVerticalSweep({
+      element: gain,
+      getValue: () => mix.eq[bandIndex],
+      setValue: nextValue => {
+        if (!historySaved) {
+          saveHistory();
+          historySaved = true;
+        }
+
+        const corrected = clamp(
+          Math.round(Number(nextValue) || 0),
+          -12,
+          12
+        );
+
+        mix.eq[bandIndex] = corrected;
+        setMasterMixEqBand(bandIndex, corrected);
+
+        gain.style.setProperty(
+          "--eq-position",
+          String((corrected + 12) / 24)
+        );
+
+        value.textContent =
+          corrected > 0
+            ? `+${corrected}`
+            : String(corrected);
+      },
+      min: -12,
+      max: 12,
+      step: 1,
+      pixelsPerStep: 6,
+      acceleration: false,
+      onCommit: () => {
+        historySaved = false;
+      }
+    });
+
+    gain.addEventListener("dblclick", event => {
+      event.preventDefault();
+      if (mix.eq[bandIndex] === 0) return;
+      saveHistory();
+      mix.eq[bandIndex] = 0;
+      setMasterMixEqBand(bandIndex, 0);
+      renderSongMasterMix();
+    });
+
+    band.append(gain, footer);
+    eq.appendChild(band);
+  });
+
+  const side = document.createElement("div");
+  side.className = "master-mix-side";
+
+  function createFaderControl({
+    labelText,
+    key,
+    min,
+    max,
+    format,
+    apply,
+    className = ""
+  }) {
+    const control = document.createElement("div");
+    control.className = `master-mix-fader-control ${className}`.trim();
+
+    const fader = document.createElement("button");
+    fader.type = "button";
+    fader.className = "master-mix-fader";
+    fader.dataset.controlKey = key;
+    fader.dataset.focusKey = `master-mix-${key}`;
+
+    const normalized =
+      (mix[key] - min) / Math.max(1, max - min);
+
+    fader.style.setProperty(
+      "--mix-position",
+      String(clamp(normalized, 0, 1))
+    );
+    fader.style.setProperty("--mix-meter", "0");
+
+    const meter = document.createElement("span");
+    meter.className = "master-mix-fader-meter";
+
+    const marker = document.createElement("span");
+    marker.className = "master-mix-fader-marker";
+
+    fader.append(meter, marker);
+
+    const footer = document.createElement("div");
+    footer.className = "master-mix-control-footer master-mix-fader-footer";
+
+    const label = document.createElement("span");
+    label.className = "master-mix-fader-label";
+    label.textContent = labelText;
+
+    const value = document.createElement("span");
+    value.className = "master-mix-fader-value";
+    value.textContent = format(mix[key]);
+
+    footer.append(label, value);
+
+    let historySaved = false;
+
+    enableVerticalSweep({
+      element: fader,
+      getValue: () => mix[key],
+      setValue: nextValue => {
+        if (!historySaved) {
+          saveHistory();
+          historySaved = true;
+        }
+
+        const corrected = clamp(
+          Math.round(Number(nextValue) || 0),
+          min,
+          max
+        );
+
+        mix[key] = corrected;
+        apply(corrected);
+
+        fader.style.setProperty(
+          "--mix-position",
+          String(
+            (corrected - min) /
+            Math.max(1, max - min)
+          )
+        );
+
+        value.textContent = format(corrected);
+      },
+      min,
+      max,
+      step: 1,
+      pixelsPerStep: 7,
+      acceleration: false,
+      onCommit: () => {
+        historySaved = false;
+      }
+    });
+
+    control.append(fader, footer);
+    return control;
+  }
+
+  side.appendChild(
+    createFaderControl({
+      labelText: "vol",
+      key: "volume",
+      min: 0,
+      max: 100,
+      format: value => String(value),
+      apply: setMasterMixVolume,
+      className: "master-volume-fader-control"
+    })
+  );
+
+  const limiterControl = createFaderControl({
+    labelText: "limit",
+    key: "limiter",
+    min: -24,
+    max: 0,
+    format: value => String(value),
+    apply: setMasterLimiterThreshold,
+    className: "master-limit-fader-control"
+  });
+
+  side.appendChild(limiterControl);
+
+  const reverb = document.createElement("div");
+  reverb.className = "master-reverb-control compact-value";
+
+  const reverbLabel = document.createElement("span");
+  reverbLabel.className = "compact-value-label";
+  reverbLabel.textContent = "rev";
+
+  const reverbValue = document.createElement("button");
+  reverbValue.type = "button";
+  reverbValue.className = "master-reverb-value";
+  reverbValue.dataset.focusKey = "master-mix-reverb";
+  reverbValue.textContent = String(mix.reverb);
+
+  let reverbHistorySaved = false;
+
+  enableVerticalSweep({
+    element: reverbValue,
+    getValue: () => mix.reverb,
+    setValue: nextValue => {
+      if (!reverbHistorySaved) {
+        saveHistory();
+        reverbHistorySaved = true;
+      }
+
+      const corrected = clamp(
+        Math.round(Number(nextValue) || 0),
+        0,
+        100
+      );
+
+      mix.reverb = corrected;
+      setMasterReverb(corrected);
+      reverbValue.textContent = String(corrected);
+    },
+    min: 0,
+    max: 100,
+    step: 1,
+    pixelsPerStep: 8,
+    acceleration: false,
+    onCommit: () => {
+      reverbHistorySaved = false;
+    }
+  });
+
+  reverb.append(reverbLabel, reverbValue);
+  side.appendChild(reverb);
+
+  content.append(eq, side);
+  songMasterMix.append(title, content);
+
+  startMasterMixMeterAnimation();
+}
+
 function renderSongGrid() {
   if (!songGrid) return;
 
@@ -7670,7 +8088,13 @@ export function renderSongMode() {
     );
   }
 
-  if (enabled) renderSongGrid();
+  if (enabled) {
+    renderSongMasterMix();
+    renderSongGrid();
+  } else {
+    stopMasterMixMeterAnimation();
+    syncSongMasterMixAudio();
+  }
 }
 
 songModeButton?.addEventListener("click", () => {

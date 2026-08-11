@@ -1886,13 +1886,18 @@ mixGain
     }
 
     const fmFeedbackNormalized =
-      clamp(
-        Number(
-          track.base.fmFeedback
-        ) || 0,
-        0,
-        50
-      ) / 50;
+  clamp(
+    (
+      Number(
+        track.base.fmFeedback
+      ) || 0
+    ) +
+      offset(
+        "fmFeedback"
+      ),
+    0,
+    50
+  ) / 50;
 
     const fmFeedbackStrength =
       Math.pow(
@@ -1901,12 +1906,18 @@ mixGain
       ) * 1.8;
 
     const fmRatio =
-      Math.max(
-        0.01,
-        Number(
-          track.base.fmRatio
-        ) || 1
-      );
+  clamp(
+    (
+      Number(
+        track.base.fmRatio
+      ) || 1
+    ) +
+      offset(
+        "fmRatio"
+      ),
+    0.25,
+    8
+  );
 
     const modulatorFrequency =
       carrierFrequency *

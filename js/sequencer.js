@@ -114,6 +114,12 @@ sineVolume:
   fmDepth:
     filled(0),
 
+    fmRatio:
+  filled(0),
+
+fmFeedback:
+  filled(0),
+
   filterCutoff:
     filled(0),
 
@@ -448,13 +454,15 @@ export const parameters = [
   children: [
     {
       id: "fmDepth",
-      label: "depth"
+      label: "depth",
+      min: 0,
+      max: 20,
+      step: 1
     },
 
     {
       id: "fmRatio",
       label: "ratio",
-      baseOnly: true,
       min: 0.25,
       max: 8,
       step: 0.25
@@ -463,7 +471,6 @@ export const parameters = [
     {
       id: "fmFeedback",
       label: "feedback",
-      baseOnly: true,
       min: 0,
       max: 50,
       step: 1
@@ -2675,6 +2682,24 @@ track.base.fmFeedback =
     0,
     100
   );
+
+  if (
+  !Array.isArray(
+    track.offsets.fmRatio
+  )
+) {
+  track.offsets.fmRatio =
+    filled(0);
+}
+
+if (
+  !Array.isArray(
+    track.offsets.fmFeedback
+  )
+) {
+  track.offsets.fmFeedback =
+    filled(0);
+}
 
   if (typeof track.soundName !== "string" || !track.soundName.trim()) {
     track.soundName = `sound ${String(track.id ?? 1).padStart(2, "0")}`;

@@ -34,7 +34,8 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
 export const SOUND_OFFSET_IDS = Object.freeze([
   "note", "velocity", "attack", "decay", "sustain", "gate",
   "sineVolume", "sineDecay", "noiseVolume", "noiseDecay",
-  "fmDepth", "filterCutoff", "filterResonance", "pan",
+  "fmDepth", "fmRatio", "fmFeedback",
+"filterCutoff", "filterResonance", "pan",
   "delay", "delayTime", "delayFeedback", "probability",
   "lfo1Depth", "lfo1Rate", "lfo2Depth", "lfo2Rate"
 ]);

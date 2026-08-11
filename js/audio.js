@@ -251,15 +251,6 @@ export async function playTrackStep(
 ) {
   await initializeAudio();
 
-  console.log(
-  "playTrackStep",
-  {
-    trackId: track.id,
-    stepIndex: stepIndex + 1,
-    time: context.currentTime
-  }
-);
-
   /*
  * Oscillator、Envelope、FM変調を
  * 必ず同じ未来時刻から開始する。
@@ -278,7 +269,7 @@ const requestedStartTime =
 
 const minimumStartTime =
   context.currentTime +
-  0.008;
+  0.03;
 
 const now =
   Math.max(

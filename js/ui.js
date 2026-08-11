@@ -1901,51 +1901,87 @@ function enableSelectionPointer({
 
 function applyOffsetDeltaToSelection(
   parameter,
-  delta
+  delta,
+  startValues
 ) {
   if (
-    editSelection.mode !== "offset" ||
-    !delta ||
-    editSelection.selected.size === 0
+    editSelection.mode !==
+      "offset" ||
+    editSelection.selected.size ===
+      0 ||
+    !(startValues instanceof Map)
   ) {
     return false;
   }
 
-  const track = selectedTrack();
-  const values = track.offsets[parameter.id];
+  const track =
+    selectedTrack();
+
+  const values =
+    track.offsets[
+      parameter.id
+    ];
 
   if (!Array.isArray(values)) {
     return false;
   }
 
+  const baseValue =
+    Number(
+      track.base[
+        parameter.id
+      ]
+    );
+
+  const minOffset =
+    parameter.min -
+    baseValue;
+
+  const maxOffset =
+    parameter.max -
+    baseValue;
+
   selectedKeysSorted()
-    .forEach(({ trackIndex, stepIndex }) => {
-      if (
-        trackIndex !==
-        state.selectedTrackIndex
-      ) {
-        return;
+    .forEach(
+      ({
+        trackIndex,
+        stepIndex
+      }) => {
+        if (
+          trackIndex !==
+          state.selectedTrackIndex
+        ) {
+          return;
+        }
+
+        const key =
+          selectionKey(
+            trackIndex,
+            stepIndex
+          );
+
+        const startOffset =
+          Number(
+            startValues.get(
+              key
+            )
+          ) || 0;
+
+        values[
+          stepIndex
+        ] =
+          roundToStep(
+            clamp(
+              startOffset +
+                delta,
+              minOffset,
+              maxOffset
+            ),
+            parameter.step ??
+              1
+          );
       }
-
-      const minOffset =
-        parameter.min -
-        Number(track.base[parameter.id]);
-
-      const maxOffset =
-        parameter.max -
-        Number(track.base[parameter.id]);
-
-      values[stepIndex] =
-        roundToStep(
-          clamp(
-            (Number(values[stepIndex]) || 0) +
-              delta,
-            minOffset,
-            maxOffset
-          ),
-          parameter.step ?? 1
-        );
-    });
+    );
 
   return true;
 }
@@ -4324,23 +4360,72 @@ const definition = {
    * ベース値上下スイープ。
    */
   let sweepHistorySaved = false;
-  let offsetSelectionAppliedDelta = 0;
+let offsetSelectionStartValues =
+  null;
 
-  value.addEventListener(
-    "pointerdown",
-    () => {
-      offsetSelectionAppliedDelta = 0;
+value.addEventListener(
+  "pointerdown",
+  () => {
+    offsetSelectionStartValues =
+      null;
+
+    if (
+      editSelection.mode !==
+        "offset" ||
+      !Array.isArray(
+        track.offsets[id]
+      )
+    ) {
+      return;
     }
-  );
+
+    offsetSelectionStartValues =
+      new Map();
+
+    selectedKeysSorted()
+      .forEach(
+        ({
+          trackIndex,
+          stepIndex
+        }) => {
+          if (
+            trackIndex !==
+            state.selectedTrackIndex
+          ) {
+            return;
+          }
+
+          offsetSelectionStartValues.set(
+            selectionKey(
+              trackIndex,
+              stepIndex
+            ),
+            Number(
+              track.offsets[id][
+                stepIndex
+              ]
+            ) || 0
+          );
+        }
+      );
+  }
+);
 
   enableVerticalSweep({
-    element: value,
+  element: value,
 
-    getValue: () => {
-      return Number(
-        track.base[id]
-      );
-    },
+  getValue: () => {
+    if (
+      editSelection.mode ===
+        "offset"
+    ) {
+      return 0;
+    }
+
+    return Number(
+      track.base[id]
+    );
+  },
 
     setValue: nextValue => {
       if (!sweepHistorySaved) {
@@ -4351,48 +4436,53 @@ const definition = {
       }
 
       const finiteValue =
-  Number.isFinite(Number(nextValue))
+  Number.isFinite(
+    Number(nextValue)
+  )
     ? Number(nextValue)
-    : definition.min;
-
-const clampedValue =
-  clamp(
-    finiteValue,
-    definition.min,
-    definition.max
-  );
-
-const correctedValue =
-  id === "delayTime"
-    ? Math.round(clampedValue)
-    : roundToStep(
-        clampedValue,
-        definition.step
-      );
+    : 0;
 
 if (
-  editSelection.mode === "offset" &&
-  Array.isArray(track.offsets[id])
+  editSelection.mode ===
+    "offset" &&
+  Array.isArray(
+    track.offsets[id]
+  )
 ) {
-  const currentBase =
-    Number(track.base[id]);
-
-  const totalDelta =
-    correctedValue - currentBase;
-
-  const incrementalDelta =
-    totalDelta -
-    offsetSelectionAppliedDelta;
+  const delta =
+    roundToStep(
+      finiteValue,
+      definition.step
+    );
 
   applyOffsetDeltaToSelection(
-    { ...definition, id },
-    incrementalDelta
+    {
+      ...definition,
+      id
+    },
+    delta,
+    offsetSelectionStartValues
   );
-
-  offsetSelectionAppliedDelta =
-    totalDelta;
 } else {
-  track.base[id] = correctedValue;
+  const clampedValue =
+    clamp(
+      finiteValue,
+      definition.min,
+      definition.max
+    );
+
+  const correctedValue =
+    id === "delayTime"
+      ? Math.round(
+          clampedValue
+        )
+      : roundToStep(
+          clampedValue,
+          definition.step
+        );
+
+  track.base[id] =
+    correctedValue;
 }
 
       value.textContent =
@@ -4405,9 +4495,20 @@ if (
       }
     },
 
-    min: definition.min,
-    max: definition.max,
-    step: definition.step,
+    min:
+  editSelection.mode ===
+    "offset"
+    ? -10000
+    : definition.min,
+
+max:
+  editSelection.mode ===
+    "offset"
+    ? 10000
+    : definition.max,
+
+step:
+  definition.step,
 
     /*
      * Delay Timeは選択肢が
@@ -4434,7 +4535,8 @@ if (
       sweepHistorySaved =
         false;
 
-      offsetSelectionAppliedDelta = 0;
+      offsetSelectionStartValues =
+  null;
 
       if (changed) {
         renderEditorAndRestore(
@@ -6282,52 +6384,123 @@ baseValue.addEventListener(
 );
 
     let sweepHistorySaved = false;
-    let offsetSelectionAppliedDelta = 0;
+let offsetSelectionStartValues =
+  null;
 
-    baseValue.addEventListener(
-      "pointerdown",
-      () => {
-        offsetSelectionAppliedDelta = 0;
-      }
-    );
+baseValue.addEventListener(
+  "pointerdown",
+  () => {
+    offsetSelectionStartValues =
+      null;
+
+    if (
+      editSelection.mode !==
+        "offset" ||
+      !Array.isArray(
+        track.offsets[
+          activeBaseId
+        ]
+      )
+    ) {
+      return;
+    }
+
+    offsetSelectionStartValues =
+      new Map();
+
+    selectedKeysSorted()
+      .forEach(
+        ({
+          trackIndex,
+          stepIndex
+        }) => {
+          if (
+            trackIndex !==
+            state.selectedTrackIndex
+          ) {
+            return;
+          }
+
+          offsetSelectionStartValues.set(
+            selectionKey(
+              trackIndex,
+              stepIndex
+            ),
+            Number(
+              track.offsets[
+                activeBaseId
+              ][stepIndex]
+            ) || 0
+          );
+        }
+      );
+  }
+);
 
     enableVerticalSweep({
       element: baseValue,
-      getValue: () => Number(track.base[activeBaseId]),
+      getValue: () => {
+  if (
+    editSelection.mode ===
+      "offset"
+  ) {
+    return 0;
+  }
+
+  return Number(
+    track.base[
+      activeBaseId
+    ]
+  );
+},
       setValue: nextValue => {
         if (!sweepHistorySaved) {
           saveHistory();
           sweepHistorySaved = true;
         }
-        const correctedValue = roundToStep(
-          clamp(Number(nextValue), activeParameter.min, activeParameter.max),
-          activeParameter.step ?? 1
-        );
-        if (editSelection.mode === "offset") {
-          const totalDelta =
-            correctedValue -
-            Number(
-              track.base[activeBaseId]
-            );
+        const finiteValue =
+  Number.isFinite(
+    Number(nextValue)
+  )
+    ? Number(nextValue)
+    : 0;
 
-          const incrementalDelta =
-            totalDelta -
-            offsetSelectionAppliedDelta;
+if (
+  editSelection.mode ===
+    "offset"
+) {
+  const delta =
+    roundToStep(
+      finiteValue,
+      activeParameter.step ??
+        1
+    );
 
-          applyOffsetDeltaToSelection(
-            {
-              ...activeParameter,
-              id: activeBaseId
-            },
-            incrementalDelta
-          );
+  applyOffsetDeltaToSelection(
+    {
+      ...activeParameter,
+      id: activeBaseId
+    },
+    delta,
+    offsetSelectionStartValues
+  );
+} else {
+  const correctedValue =
+    roundToStep(
+      clamp(
+        finiteValue,
+        activeParameter.min,
+        activeParameter.max
+      ),
+      activeParameter.step ??
+        1
+    );
 
-          offsetSelectionAppliedDelta =
-            totalDelta;
-        } else {
-          track.base[activeBaseId] =
-            correctedValue;
-        }
+  track.base[
+    activeBaseId
+  ] =
+    correctedValue;
+}
         updateBaseValue();
         if (editSelection.mode === "offset") {
           document.querySelectorAll(".offset-step[data-step-index]").forEach(offsetButton => {
@@ -6335,12 +6508,24 @@ baseValue.addEventListener(
           });
         }
       },
-      min: activeParameter.min,
-      max: activeParameter.max,
-      step: activeParameter.step ?? 1,
+      min:
+  editSelection.mode ===
+    "offset"
+    ? -10000
+    : activeParameter.min,
+
+max:
+  editSelection.mode ===
+    "offset"
+    ? 10000
+    : activeParameter.max,
+
+step:
+  activeParameter.step ?? 1,
       onCommit: (startValue, currentValue, changed) => {
         sweepHistorySaved = false;
-        offsetSelectionAppliedDelta = 0;
+        offsetSelectionStartValues =
+  null;
 
         if (changed) {
           renderEditorAndRestore(

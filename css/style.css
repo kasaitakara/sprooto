@@ -1,7 +1,7 @@
 @font-face {
-    font-family: "IBM Plex Mono";
-    src: url("../fonts/IBMPlexMono-Regular.ttf") format("truetype");
-    font-weight: 400;
+    font-family: "Saira";
+    src: url("../fonts/Saira-VariableFont_wdth,wght.ttf") format("truetype");
+    font-weight: 100 900;
     font-style: normal;
     font-display: swap;
 }
@@ -192,10 +192,8 @@ body {
     background: var(--bg);
 color: var(--text);
 
- font-family: "IBM Plex Mono", monospace;
-    font-weight: 400;
-
-    font-feature-settings: "ss03" 1;
+ font-family: "Saira", sans-serif;
+font-weight: 400;
 }
 
 /* フォーム部品もテーマ色を継承 */

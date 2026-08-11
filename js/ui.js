@@ -4329,12 +4329,12 @@ const definition = {
         Number(track.base[id]) || 0;
 
       if (cutoffValue === 0) {
-        return "OFF";
+        return "off";
       }
 
       return cutoffValue < 0
-        ? `LP${Math.abs(cutoffValue)}`
-        : `HP${cutoffValue}`;
+        ? `lp${Math.abs(cutoffValue)}`
+        : `hp${cutoffValue}`;
     }
 
     return String(

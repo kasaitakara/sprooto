@@ -434,7 +434,16 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
 .parameter-icon { font-size: var(--font-main); }
 .edit-icon { min-width:28px; text-align:center; }
 .child-tabs { display:flex; gap:4px; }
-.child-tabs button { height:28px; border:0; background:var(--cell); padding:0 9px; font-size: var(--font-main); }
+.child-tabs button {
+    height: 28px;
+    border: 0;
+    background: var(--cell);
+    padding: 0 9px;
+
+    font-size: var(--font-label);
+    line-height: 1;
+    text-transform: lowercase;
+}
 .child-tabs button.active {
     background: var(--selected-bg);
     color: var(--selected-text);

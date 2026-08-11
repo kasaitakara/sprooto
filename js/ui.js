@@ -959,16 +959,26 @@ function enableVerticalSweep({
           acceleratedStepCount
         );
 
-      const nextValue =
-        roundToStep(
-          clamp(
-            startValue +
-              stepCount * step,
-            min,
-            max
-          ),
-          step
-        );
+      const currentMin =
+  typeof min === "function"
+    ? min()
+    : min;
+
+const currentMax =
+  typeof max === "function"
+    ? max()
+    : max;
+
+const nextValue =
+  roundToStep(
+    clamp(
+      startValue +
+        stepCount * step,
+      currentMin,
+      currentMax
+    ),
+    step
+  );
 
       if (nextValue === currentValue) {
         return;
@@ -4495,13 +4505,13 @@ if (
       }
     },
 
-    min:
+    min: () =>
   editSelection.mode ===
     "offset"
     ? -10000
     : definition.min,
 
-max:
+max: () =>
   editSelection.mode ===
     "offset"
     ? 10000
@@ -6508,13 +6518,13 @@ if (
           });
         }
       },
-      min:
+      min: () =>
   editSelection.mode ===
     "offset"
     ? -10000
     : activeParameter.min,
 
-max:
+max: () =>
   editSelection.mode ===
     "offset"
     ? 10000

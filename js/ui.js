@@ -7664,12 +7664,72 @@ function cacheMasterMixMeterElements() {
     return;
   }
 
+  /*
+   * EQメーターはCanvasで描画。
+   * サイズ・色・contextはここで1回だけ取得する。
+   */
   masterMixMeterElements.eq =
     Array.from(
       songMasterMix.querySelectorAll(
-        ".master-eq-gain[data-band-index]"
+        ".master-eq-meter-canvas[data-band-index]"
       )
-    );
+    ).map(canvas => {
+      const width =
+        Math.max(
+          1,
+          canvas.clientWidth
+        );
+
+      const height =
+        Math.max(
+          1,
+          canvas.clientHeight
+        );
+
+      const pixelRatio =
+        Math.min(
+          window.devicePixelRatio || 1,
+          2
+        );
+
+      canvas.width =
+        Math.round(
+          width * pixelRatio
+        );
+
+      canvas.height =
+        Math.round(
+          height * pixelRatio
+        );
+
+      const context =
+        canvas.getContext(
+          "2d",
+          {
+            alpha: true
+          }
+        );
+
+      context?.setTransform(
+        pixelRatio,
+        0,
+        0,
+        pixelRatio,
+        0,
+        0
+      );
+
+      return {
+        canvas,
+        context,
+        width,
+        height,
+        color:
+          getComputedStyle(
+            canvas
+          ).color
+      };
+    });
 
   masterMixMeterElements.volume =
     songMasterMix.querySelector(
@@ -7682,6 +7742,56 @@ function cacheMasterMixMeterElements() {
     );
 }
 
+function drawEqMeterCanvas(
+  meterElement,
+  value
+) {
+  if (
+    !meterElement?.context
+  ) {
+    return;
+  }
+
+  const {
+    context,
+    width,
+    height,
+    color
+  } = meterElement;
+
+  const normalized =
+    clamp(
+      Number(value) || 0,
+      0,
+      1
+    );
+
+  context.clearRect(
+    0,
+    0,
+    width,
+    height
+  );
+
+  if (
+    normalized <= 0
+  ) {
+    return;
+  }
+
+  const meterHeight =
+    height * normalized;
+
+  context.fillStyle =
+    color;
+
+  context.fillRect(
+    0,
+    height - meterHeight,
+    width,
+    meterHeight
+  );
+}
 
 /*
  * 上がる時は素早く、
@@ -7818,7 +7928,6 @@ function startMasterMixMeterAnimation() {
      *
      * 音には一切影響しない。
      */
-    if (false) {
     for (
       let bandIndex = 0;
       bandIndex < 8;
@@ -7869,24 +7978,18 @@ function startMasterMixMeterAnimation() {
           displayedValue
         )
       ) {
-        masterMixMeterElements
-          .eq[
-            bandIndex
-          ]
-          ?.style
-          .setProperty(
-            "--eq-meter",
-            displayedValue.toFixed(
-              3
-            )
-          );
+        drawEqMeterCanvas(
+  masterMixMeterElements.eq[
+    bandIndex
+  ],
+  displayedValue
+);
 
         masterMixMeterWritten.eq[
           bandIndex
         ] =
           displayedValue;
       }
-    }
     }
 
 
@@ -8021,13 +8124,54 @@ function renderSongMasterMix() {
     );
     gain.style.setProperty("--eq-meter", "0");
 
-    const meter = document.createElement("span");
-    meter.className = "master-eq-meter";
+    const meter =
+  document.createElement(
+    "canvas"
+  );
 
-    const marker = document.createElement("span");
-    marker.className = "master-eq-marker";
+meter.className =
+  "master-eq-meter-canvas";
 
-    gain.append(meter, marker);
+meter.dataset.bandIndex =
+  String(bandIndex);
+
+meter.style.position =
+  "absolute";
+
+meter.style.inset =
+  "0";
+
+meter.style.width =
+  "100%";
+
+meter.style.height =
+  "100%";
+
+meter.style.pointerEvents =
+  "none";
+
+meter.style.zIndex =
+  "0";
+
+gain.style.position =
+  "relative";
+
+
+const marker =
+  document.createElement(
+    "span"
+  );
+
+marker.className =
+  "master-eq-marker";
+
+marker.style.zIndex =
+  "1";
+
+gain.append(
+  meter,
+  marker
+);
 
     const footer = document.createElement("div");
     footer.className = "master-mix-control-footer master-eq-footer";

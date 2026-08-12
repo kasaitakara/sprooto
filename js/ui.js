@@ -7616,72 +7616,374 @@ function syncSongMasterMixAudio() {
   setMasterReverb(mix.reverb);
 }
 
+/* =========================
+ * Master Mix meter
+ * lightweight realtime update
+ * ========================= */
+
 let masterMixMeterFrame = null;
 
-function stopMasterMixMeterAnimation() {
-  if (masterMixMeterFrame !== null) {
-    cancelAnimationFrame(masterMixMeterFrame);
-    masterMixMeterFrame = null;
+const MASTER_MIX_METER_INTERVAL_MS = 50;
+// 約20fps。
+// ミキサーメーターとしては十分滑らかで、
+// 60fps更新よりiPhone負荷を大幅に下げる。
+
+let masterMixMeterLastTime = 0;
+
+let masterMixMeterElements = {
+  eq: [],
+  volume: null,
+  limiter: null
+};
+
+const masterMixMeterDisplay = {
+  eq: Array(8).fill(0),
+  volume: 0,
+  limiter: 0
+};
+
+const masterMixMeterWritten = {
+  eq: Array(8).fill(-1),
+  volume: -1,
+  limiter: -1
+};
+
+
+/*
+ * renderSongMasterMix() 後に1回だけ呼ぶ。
+ * 毎フレームquerySelectorしない。
+ */
+function cacheMasterMixMeterElements() {
+  if (!songMasterMix) {
+    masterMixMeterElements = {
+      eq: [],
+      volume: null,
+      limiter: null
+    };
+
+    return;
   }
+
+  masterMixMeterElements.eq =
+    Array.from(
+      songMasterMix.querySelectorAll(
+        ".master-eq-gain[data-band-index]"
+      )
+    );
+
+  masterMixMeterElements.volume =
+    songMasterMix.querySelector(
+      '.master-mix-fader[data-control-key="volume"]'
+    );
+
+  masterMixMeterElements.limiter =
+    songMasterMix.querySelector(
+      '.master-mix-fader[data-control-key="limiter"]'
+    );
 }
+
+
+/*
+ * 上がる時は素早く、
+ * 下がる時だけゆっくり落とす。
+ */
+function smoothMeterValue(
+  currentValue,
+  targetValue,
+  releaseRate
+) {
+  const current =
+    clamp(
+      Number(currentValue) || 0,
+      0,
+      1
+    );
+
+  const target =
+    clamp(
+      Number(targetValue) || 0,
+      0,
+      1
+    );
+
+  if (target >= current) {
+    return target;
+  }
+
+  return (
+    current +
+    (target - current) *
+      releaseRate
+  );
+}
+
+
+/*
+ * CSS更新差分が小さい場合は
+ * style.setProperty自体を行わない。
+ */
+function meterValueChanged(
+  previousValue,
+  nextValue
+) {
+  return (
+    Math.abs(
+      nextValue -
+      previousValue
+    ) >= 0.008
+  );
+}
+
+
+function stopMasterMixMeterAnimation() {
+  if (
+    masterMixMeterFrame !==
+    null
+  ) {
+    cancelAnimationFrame(
+      masterMixMeterFrame
+    );
+
+    masterMixMeterFrame =
+      null;
+  }
+
+  masterMixMeterLastTime =
+    0;
+}
+
 
 function startMasterMixMeterAnimation() {
   stopMasterMixMeterAnimation();
 
-  const animate = () => {
+  cacheMasterMixMeterElements();
+
+  /*
+   * 表示状態を初期化。
+   */
+  masterMixMeterDisplay.eq.fill(0);
+  masterMixMeterDisplay.volume = 0;
+  masterMixMeterDisplay.limiter = 0;
+
+  masterMixMeterWritten.eq.fill(-1);
+  masterMixMeterWritten.volume = -1;
+  masterMixMeterWritten.limiter = -1;
+
+  const animate = timestamp => {
+    /*
+     * Song画面を抜けたら
+     * 次フレームを予約せず完全終了。
+     */
     if (
       !state.songMode ||
       !songMasterMix?.isConnected
     ) {
-      masterMixMeterFrame = null;
+      masterMixMeterFrame =
+        null;
+
       return;
     }
 
-    const meter = getMasterMixMeterData();
-
-    songMasterMix
-      .querySelectorAll(".master-eq-gain[data-band-index]")
-      .forEach(element => {
-        const bandIndex = Number(
-          element.dataset.bandIndex
+    /*
+     * requestAnimationFrame自体は
+     * ブラウザに任せつつ、
+     * 実処理は約20fpsに制限する。
+     */
+    if (
+      masterMixMeterLastTime !== 0 &&
+      timestamp -
+        masterMixMeterLastTime <
+        MASTER_MIX_METER_INTERVAL_MS
+    ) {
+      masterMixMeterFrame =
+        requestAnimationFrame(
+          animate
         );
 
-        element.style.setProperty(
-          "--eq-meter",
-          String(meter.bands[bandIndex] ?? 0)
-        );
-      });
-
-    const volumeFader = songMasterMix.querySelector(
-      ".master-mix-fader[data-control-key=\"volume\"]"
-    );
-
-    volumeFader?.style.setProperty(
-      "--mix-meter",
-      String(meter.level)
-    );
-
-    const limiterFader = songMasterMix.querySelector(
-      '.master-mix-fader[data-control-key="limiter"]'
-    );
-
-    if (limiterFader) {
-      const reduction = clamp(
-        Number(meter.limiterReduction) || 0,
-        0,
-        24
-      );
-
-      limiterFader.style.setProperty(
-        "--mix-meter",
-        String(reduction / 24)
-      );
+      return;
     }
 
-    masterMixMeterFrame = requestAnimationFrame(animate);
+    masterMixMeterLastTime =
+      timestamp;
+
+    const meter =
+      getMasterMixMeterData();
+
+    /*
+     * EQは感度を少し下げる。
+     *
+     * 以前は低域が簡単に100%へ
+     * 張り付いていたので、
+     * 表示用だけ約72%へ圧縮。
+     *
+     * 音には一切影響しない。
+     */
+    for (
+      let bandIndex = 0;
+      bandIndex < 8;
+      bandIndex++
+    ) {
+      const rawValue =
+        clamp(
+          Number(
+            meter.bands[
+              bandIndex
+            ]
+          ) || 0,
+          0,
+          1
+        );
+
+      const targetValue =
+        clamp(
+          rawValue * 0.72,
+          0,
+          1
+        );
+
+      /*
+       * EQは下降をほどほどに残す。
+       */
+      const displayedValue =
+        smoothMeterValue(
+          masterMixMeterDisplay
+            .eq[
+              bandIndex
+            ],
+          targetValue,
+          0.28
+        );
+
+      masterMixMeterDisplay.eq[
+        bandIndex
+      ] =
+        displayedValue;
+
+      if (
+        meterValueChanged(
+          masterMixMeterWritten
+            .eq[
+              bandIndex
+            ],
+          displayedValue
+        )
+      ) {
+        masterMixMeterElements
+          .eq[
+            bandIndex
+          ]
+          ?.style
+          .setProperty(
+            "--eq-meter",
+            displayedValue.toFixed(
+              3
+            )
+          );
+
+        masterMixMeterWritten.eq[
+          bandIndex
+        ] =
+          displayedValue;
+      }
+    }
+
+
+    /*
+     * VOLはEQよりゆっくり下降。
+     * ピークを目で追いやすくする。
+     */
+    const volumeTarget =
+      clamp(
+        Number(meter.level) || 0,
+        0,
+        1
+      );
+
+    const volumeDisplayed =
+      smoothMeterValue(
+        masterMixMeterDisplay.volume,
+        volumeTarget,
+        0.16
+      );
+
+    masterMixMeterDisplay.volume =
+      volumeDisplayed;
+
+    if (
+      meterValueChanged(
+        masterMixMeterWritten.volume,
+        volumeDisplayed
+      )
+    ) {
+      masterMixMeterElements
+        .volume
+        ?.style
+        .setProperty(
+          "--mix-meter",
+          volumeDisplayed.toFixed(
+            3
+          )
+        );
+
+      masterMixMeterWritten.volume =
+        volumeDisplayed;
+    }
+
+
+    /*
+     * LimiterはReduction量。
+     * 0〜24dBを0〜1へ正規化。
+     */
+    const limiterTarget =
+      clamp(
+        Number(
+          meter.limiterReduction
+        ) || 0,
+        0,
+        24
+      ) /
+      24;
+
+    const limiterDisplayed =
+      smoothMeterValue(
+        masterMixMeterDisplay.limiter,
+        limiterTarget,
+        0.22
+      );
+
+    masterMixMeterDisplay.limiter =
+      limiterDisplayed;
+
+    if (
+      meterValueChanged(
+        masterMixMeterWritten.limiter,
+        limiterDisplayed
+      )
+    ) {
+      masterMixMeterElements
+        .limiter
+        ?.style
+        .setProperty(
+          "--mix-meter",
+          limiterDisplayed.toFixed(
+            3
+          )
+        );
+
+      masterMixMeterWritten.limiter =
+        limiterDisplayed;
+    }
+
+    masterMixMeterFrame =
+      requestAnimationFrame(
+        animate
+      );
   };
 
-  masterMixMeterFrame = requestAnimationFrame(animate);
+  masterMixMeterFrame =
+    requestAnimationFrame(
+      animate
+    );
 }
 
 function renderSongMasterMix() {

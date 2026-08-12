@@ -36,6 +36,70 @@ import "./keyboard-navigation.js";
 
 let timer = null;
 let nextTickTime = 0;
+/* =========================
+ * Screen Wake Lock
+ * 再生中だけ画面スリープを抑止
+ * ========================= */
+
+let screenWakeLock = null;
+
+async function requestScreenWakeLock() {
+  if (
+    !("wakeLock" in navigator) ||
+    document.visibilityState !== "visible" ||
+    !state.isPlaying
+  ) {
+    return;
+  }
+
+  // すでに取得済みなら重複取得しない
+  if (
+    screenWakeLock &&
+    !screenWakeLock.released
+  ) {
+    return;
+  }
+
+  try {
+    screenWakeLock =
+      await navigator.wakeLock.request(
+        "screen"
+      );
+
+    screenWakeLock.addEventListener(
+      "release",
+      () => {
+        screenWakeLock = null;
+      },
+      { once: true }
+    );
+  } catch (error) {
+    // Wake Lockが使えなくても
+    // sprootoの再生自体は止めない
+    screenWakeLock = null;
+
+    console.warn(
+      "Screen Wake Lock unavailable:",
+      error
+    );
+  }
+}
+
+async function releaseScreenWakeLock() {
+  const lock = screenWakeLock;
+
+  screenWakeLock = null;
+
+  if (!lock) {
+    return;
+  }
+
+  try {
+    await lock.release();
+  } catch {
+    // すでに解除済みなら何もしない
+  }
+}
 /*
  * 発音時刻より少し前にtickを実行し、
  * Web Audioへ先行予約する。
@@ -225,6 +289,8 @@ function playCurrentStep(
 function stopPlayback() {
   state.isPlaying = false;
 
+  releaseScreenWakeLock();
+
   state.playingStepIndex =
     null;
 
@@ -384,6 +450,8 @@ if (!started) {
 }
 
 clearQueuedSource();
+
+requestScreenWakeLock();
 
 playButton.classList.add("playing");
 
@@ -847,7 +915,22 @@ window.addEventListener(
 
 document.addEventListener(
   "visibilitychange",
-  resumeAudio
+  () => {
+    resumeAudio();
+
+    /*
+     * iPhone等では一度バックグラウンドへ
+     * 入るとWake Lockが解除されることがある。
+     * 再生中に画面へ戻ったら再取得する。
+     */
+    if (
+      document.visibilityState ===
+        "visible" &&
+      state.isPlaying
+    ) {
+      requestScreenWakeLock();
+    }
+  }
 );
 
 window.addEventListener(

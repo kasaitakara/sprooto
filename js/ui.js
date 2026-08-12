@@ -7807,7 +7807,19 @@ function startMasterMixMeterAnimation() {
       timestamp;
 
     const meter =
-      getMasterMixMeterData();
+  getMasterMixMeterData();
+
+/*
+ * DEBUG:
+ * Analyser処理だけ動かして、
+ * ミキサーのDOM描画は止める。
+ */
+masterMixMeterFrame =
+  requestAnimationFrame(
+    animate
+  );
+
+return;
 
     /*
      * EQは感度を少し下げる。

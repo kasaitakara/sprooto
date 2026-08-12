@@ -7809,18 +7809,6 @@ function startMasterMixMeterAnimation() {
     const meter =
   getMasterMixMeterData();
 
-/*
- * DEBUG:
- * Analyser処理だけ動かして、
- * ミキサーのDOM描画は止める。
- */
-masterMixMeterFrame =
-  requestAnimationFrame(
-    animate
-  );
-
-return;
-
     /*
      * EQは感度を少し下げる。
      *
@@ -7830,6 +7818,7 @@ return;
      *
      * 音には一切影響しない。
      */
+    if (false) {
     for (
       let bandIndex = 0;
       bandIndex < 8;
@@ -7897,6 +7886,7 @@ return;
         ] =
           displayedValue;
       }
+    }
     }
 
 

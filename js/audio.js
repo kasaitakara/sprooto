@@ -19,6 +19,21 @@ const EQ_FREQUENCIES = [
   1000, 2000, 4000, 8000
 ];
 
+const EQ_BAND_EDGES = [
+  35, 85, 175, 350, 700,
+  1400, 2800, 5600, 12000
+];
+
+/*
+ * Master Mix meter用の値は
+ * 毎回新規生成せず、同じ領域を再利用する。
+ */
+const masterMixMeterData = {
+  bands: new Float32Array(8),
+  level: 0,
+  limiterReduction: 0
+};
+
 const masterMixSettings = {
   eq: Array(8).fill(0),
   volume: 100,
@@ -226,30 +241,46 @@ export function setMasterReverb(value) {
 }
 
 export function getMasterMixMeterData() {
-  if (!context || !spectrumAnalyser || !outputAnalyser) {
-    return {
-      bands: Array(8).fill(0),
-      level: 0,
-      limiterReduction: 0
-    };
+  /*
+   * Audio初期化前も新しいObjectを作らず、
+   * 同じmeterデータを0にして返す。
+   */
+  if (
+    !context ||
+    !spectrumAnalyser ||
+    !outputAnalyser
+  ) {
+    masterMixMeterData.bands.fill(0);
+    masterMixMeterData.level = 0;
+    masterMixMeterData.limiterReduction = 0;
+
+    return masterMixMeterData;
   }
 
+  /*
+   * Analyserサイズが変わった時だけ確保。
+   * 通常再生中は同じ配列を使い続ける。
+   */
   if (
     !spectrumData ||
-    spectrumData.length !== spectrumAnalyser.frequencyBinCount
-  ) {
-    spectrumData = new Uint8Array(
+    spectrumData.length !==
       spectrumAnalyser.frequencyBinCount
-    );
+  ) {
+    spectrumData =
+      new Uint8Array(
+        spectrumAnalyser.frequencyBinCount
+      );
   }
 
   if (
     !outputTimeData ||
-    outputTimeData.length !== outputAnalyser.fftSize
-  ) {
-    outputTimeData = new Uint8Array(
+    outputTimeData.length !==
       outputAnalyser.fftSize
-    );
+  ) {
+    outputTimeData =
+      new Uint8Array(
+        outputAnalyser.fftSize
+      );
   }
 
   spectrumAnalyser.getByteFrequencyData(
@@ -260,88 +291,137 @@ export function getMasterMixMeterData() {
     outputTimeData
   );
 
-  const nyquist = context.sampleRate / 2;
+  const nyquist =
+    context.sampleRate / 2;
+
   const binHz =
-    nyquist / spectrumAnalyser.frequencyBinCount;
+    nyquist /
+    spectrumAnalyser.frequencyBinCount;
 
-  const bandEdges = [
-    35, 85, 175, 350, 700,
-    1400, 2800, 5600, 12000
-  ];
-
-  const bands = EQ_FREQUENCIES.map(
-    (_, bandIndex) => {
-      const startBin = Math.max(
+  /*
+   * 8バンドを既存のFloat32Arrayへ直接書く。
+   * map()による新規Array生成を行わない。
+   */
+  for (
+    let bandIndex = 0;
+    bandIndex < 8;
+    bandIndex++
+  ) {
+    const startBin =
+      Math.max(
         0,
         Math.floor(
-          bandEdges[bandIndex] / binHz
+          EQ_BAND_EDGES[bandIndex] /
+            binHz
         )
       );
 
-      const endBin = Math.min(
+    const endBin =
+      Math.min(
         spectrumData.length - 1,
         Math.ceil(
-          bandEdges[bandIndex + 1] / binHz
+          EQ_BAND_EDGES[
+            bandIndex + 1
+          ] /
+            binHz
         )
       );
 
-      let peak = 0;
-      let sum = 0;
-      let count = 0;
+    let bandPeak = 0;
+    let sum = 0;
+    let count = 0;
 
-      for (
-        let binIndex = startBin;
-        binIndex <= endBin;
-        binIndex++
-      ) {
-        const normalized =
-          spectrumData[binIndex] / 255;
+    for (
+      let binIndex = startBin;
+      binIndex <= endBin;
+      binIndex++
+    ) {
+      const normalized =
+        spectrumData[binIndex] / 255;
 
-        peak = Math.max(peak, normalized);
-        sum += normalized;
-        count += 1;
+      if (normalized > bandPeak) {
+        bandPeak = normalized;
       }
 
-      const average =
-        count > 0 ? sum / count : 0;
+      sum += normalized;
+      count++;
+    }
 
-      return clamp(
-        peak * 0.55 + average * 0.75,
+    const average =
+      count > 0
+        ? sum / count
+        : 0;
+
+    masterMixMeterData.bands[
+      bandIndex
+    ] =
+      clamp(
+        bandPeak * 0.55 +
+          average * 0.75,
         0,
         1
       );
-    }
-  );
-
-  let sumSquares = 0;
-  let peak = 0;
-
-  for (const sample of outputTimeData) {
-    const value = (sample - 128) / 128;
-    const absolute = Math.abs(value);
-    peak = Math.max(peak, absolute);
-    sumSquares += value * value;
   }
 
-  const rms = Math.sqrt(
-    sumSquares / Math.max(1, outputTimeData.length)
-  );
+  /*
+   * Master output level
+   */
+  let sumSquares = 0;
+  let outputPeak = 0;
 
-  const level = clamp(
-    peak * 0.7 + rms * 1.1,
-    0,
-    1
-  );
+  for (
+    let index = 0;
+    index < outputTimeData.length;
+    index++
+  ) {
+    const value =
+      (
+        outputTimeData[index] -
+        128
+      ) /
+      128;
 
-  const limiterReduction = limiter
-    ? Math.max(0, -(Number(limiter.reduction) || 0))
-    : 0;
+    const absolute =
+      Math.abs(value);
 
-  return {
-    bands,
-    level,
-    limiterReduction
-  };
+    if (absolute > outputPeak) {
+      outputPeak = absolute;
+    }
+
+    sumSquares +=
+      value * value;
+  }
+
+  const rms =
+    Math.sqrt(
+      sumSquares /
+        Math.max(
+          1,
+          outputTimeData.length
+        )
+    );
+
+  masterMixMeterData.level =
+    clamp(
+      outputPeak * 0.7 +
+        rms * 1.1,
+      0,
+      1
+    );
+
+  masterMixMeterData.limiterReduction =
+    limiter
+      ? Math.max(
+          0,
+          -(
+            Number(
+              limiter.reduction
+            ) || 0
+          )
+        )
+      : 0;
+
+  return masterMixMeterData;
 }
 
 function frequency(note) {

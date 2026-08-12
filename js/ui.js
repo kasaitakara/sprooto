@@ -8046,7 +8046,7 @@ function startMasterMixMeterAnimation() {
               bandIndex
             ],
           targetValue,
-          0.77
+          0.99
         );
 
       masterMixMeterDisplay.eq[
@@ -8184,9 +8184,108 @@ function renderSongMasterMix() {
 
   songMasterMix.innerHTML = "";
 
-  const title = document.createElement("div");
-  title.className = "song-master-mix-title";
-  title.textContent = "master mix";
+  const title =
+  document.createElement("div");
+
+title.className =
+  "song-master-mix-title";
+
+const titleLabel =
+  document.createElement("span");
+
+titleLabel.textContent =
+  "master mix";
+
+const reverbHeader =
+  document.createElement("div");
+
+reverbHeader.className =
+  "master-reverb-control compact-value";
+
+const reverbLabel =
+  document.createElement("span");
+
+reverbLabel.className =
+  "compact-value-label";
+
+reverbLabel.textContent =
+  "rev";
+
+const reverbValue =
+  document.createElement("button");
+
+reverbValue.type =
+  "button";
+
+reverbValue.className =
+  "master-reverb-value";
+
+reverbValue.dataset.focusKey =
+  "master-mix-reverb";
+
+reverbValue.textContent =
+  String(mix.reverb);
+
+let reverbHistorySaved = false;
+
+enableVerticalSweep({
+  element: reverbValue,
+
+  getValue: () =>
+    mix.reverb,
+
+  setValue: nextValue => {
+    if (!reverbHistorySaved) {
+      saveHistory();
+
+      reverbHistorySaved = true;
+    }
+
+    const corrected =
+      clamp(
+        Math.round(
+          Number(nextValue) || 0
+        ),
+        0,
+        100
+      );
+
+    mix.reverb = corrected;
+
+    setMasterReverb(
+      corrected
+    );
+
+    reverbValue.textContent =
+      String(corrected);
+  },
+
+  min: 0,
+  max: 100,
+  step: 1,
+
+  pixelsPerStep: 8,
+  acceleration: false,
+
+  onCommit: () => {
+    reverbHistorySaved = false;
+  }
+});
+
+reverbHeader.append(
+  reverbLabel,
+  reverbValue
+);
+
+title.append(
+  titleLabel,
+  reverbHeader
+);
+
+title.append(
+  titleLabel,
+  reverbHeader
+);
 
   const content = document.createElement("div");
   content.className = "master-mix-content";
@@ -8405,53 +8504,6 @@ function renderSongMasterMix() {
   });
 
   side.appendChild(limiterControl);
-
-  const reverb = document.createElement("div");
-  reverb.className = "master-reverb-control compact-value";
-
-  const reverbLabel = document.createElement("span");
-  reverbLabel.className = "compact-value-label";
-  reverbLabel.textContent = "rev";
-
-  const reverbValue = document.createElement("button");
-  reverbValue.type = "button";
-  reverbValue.className = "master-reverb-value";
-  reverbValue.dataset.focusKey = "master-mix-reverb";
-  reverbValue.textContent = String(mix.reverb);
-
-  let reverbHistorySaved = false;
-
-  enableVerticalSweep({
-    element: reverbValue,
-    getValue: () => mix.reverb,
-    setValue: nextValue => {
-      if (!reverbHistorySaved) {
-        saveHistory();
-        reverbHistorySaved = true;
-      }
-
-      const corrected = clamp(
-        Math.round(Number(nextValue) || 0),
-        0,
-        100
-      );
-
-      mix.reverb = corrected;
-      setMasterReverb(corrected);
-      reverbValue.textContent = String(corrected);
-    },
-    min: 0,
-    max: 100,
-    step: 1,
-    pixelsPerStep: 8,
-    acceleration: false,
-    onCommit: () => {
-      reverbHistorySaved = false;
-    }
-  });
-
-  reverb.append(reverbLabel, reverbValue);
-  side.appendChild(reverb);
 
   content.append(eq, side);
   songMasterMix.append(title, content);

@@ -174,6 +174,7 @@
   ></div>
 
   <div class="sequence-toolbar-controls">
+    
     <button
       id="sequence-page-button"
       class="sequence-page-button"
@@ -198,12 +199,39 @@
         aria-label="パターンのステップ数"
       >
     </label>
+    <button
+  id="sequence-view-toggle"
+  class="view-toggle-button"
+  type="button"
+  aria-label="ミキサーへ切り替え"
+  title="mixer"
+>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M5 4v16"></path>
+    <path d="M12 4v16"></path>
+    <path d="M19 4v16"></path>
+
+    <rect x="3" y="7" width="4" height="4"></rect>
+    <rect x="10" y="13" width="4" height="4"></rect>
+    <rect x="17" y="6" width="4" height="4"></rect>
+  </svg>
+</button>
   </div>
 </div>
       <div id="sequence-grid" class="sequence-grid"></div>
 
       <div id="song-master-mix" class="song-master-mix" hidden>
-        <div class="song-master-mix-title">master mix</div>
+  <div class="song-master-mix-title">
+    <span>master mix</span>
+  </div>
         <div class="song-master-mix-placeholder" aria-label="Song Master Mix reserved area"></div>
       </div>
     </section>
@@ -212,63 +240,127 @@
       <div id="editor"></div>
 
       <div id="song-parts" class="song-parts" hidden>
-        <div class="song-parts-toolbar">
-          <span class="song-parts-title">song</span>
-          <button
-            id="song-page-button"
-            class="song-page-button"
-            type="button"
-            aria-label="Song 1～32を表示中。33～64へ切り替え"
-          >◧</button>
-        </div>
-        <div id="song-grid" class="song-grid" aria-label="song parts"></div>
-      </div>
+  <div class="song-parts-toolbar">
+    <span
+  class="area-title-icon"
+  aria-label="song"
+  title="song"
+>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M5 3h11l3 3v15H5z"></path>
+    <path d="M16 3v4h4"></path>
+
+    <path d="M14 9v7"></path>
+    <path d="M14 10l4-1v6"></path>
+
+    <circle cx="11.5" cy="16" r="1.5"></circle>
+    <circle cx="17.5" cy="15" r="1.5"></circle>
+  </svg>
+</span>
+
+    <div class="song-parts-toolbar-controls">
+      <button
+        id="song-page-button"
+        class="song-page-button"
+        type="button"
+        aria-label="Song 1～32を表示中。33～64へ切り替え"
+      >
+        ◧
+      </button>
+
+      <button
+        id="song-editor-view-toggle"
+        class="view-toggle-button"
+        type="button"
+        aria-label="エディターへ切り替え"
+        title="editor"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect
+            x="3"
+            y="5"
+            width="18"
+            height="14"
+            rx="1.5"
+          ></rect>
+
+          <circle
+            cx="8"
+            cy="12"
+            r="2"
+          ></circle>
+
+          <circle
+            cx="16"
+            cy="12"
+            r="2"
+          ></circle>
+
+          <path d="M10 12h4"></path>
+          <path d="M6 16h12"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div
+    id="song-grid"
+    class="song-grid"
+    aria-label="song parts"
+  ></div>
+</div>
     </section>
 
     <section class="pattern-section" aria-label="pattern manager">
-  <div class="pattern-section-header">
-    <button
-      id="pattern-page-button"
-      class="pattern-page-button"
-      type="button"
-      aria-label="パターン1～12、フィル1～4、セクションA～Hを表示中"
-    >
-      ◧
-    </button>
+    <div class="pattern-section-header">
 
-    <span class="pattern-section-label">
-      pattern
-    </span>
-
-    <span
-      class="fill-column-label"
-      aria-label="fill"
+  <span
+    class="area-title-icon parts-area-icon"
+    aria-label="parts"
+    title="parts"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
     >
-      F
-    </span>
+      <rect x="4" y="4" width="6" height="6"></rect>
+      <rect x="14" y="4" width="6" height="6"></rect>
+      <rect x="4" y="14" width="6" height="6"></rect>
+      <rect x="14" y="14" width="6" height="6"></rect>
+    </svg>
+  </span>
 
-    <button
-      id="song-mode-button"
-      class="song-mode-button"
-      type="button"
-      aria-label="Song編集へ切り替え"
-      title="song"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M4 6h4v4H4z"></path>
-        <path d="M10 6h10"></path>
-        <path d="M4 14h4v4H4z"></path>
-        <path d="M10 14h10"></path>
-      </svg>
-    </button>
+  <button
+    id="pattern-page-button"
+    class="pattern-page-button"
+    type="button"
+    aria-label="パターン1～12、フィル1～4、セクションA～Hを表示中"
+  >
+    ◧
+  </button>
+
+</div>
   </div>
 
   <div

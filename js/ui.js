@@ -72,7 +72,19 @@ const songMasterMix = document.getElementById("song-master-mix");
 const songParts = document.getElementById("song-parts");
 const songGrid = document.getElementById("song-grid");
 const songPageButton = document.getElementById("song-page-button");
-const songModeButton = document.getElementById("song-mode-button");
+const sequenceViewToggle =
+  document.getElementById(
+    "sequence-view-toggle"
+  );
+
+const songEditorViewToggle =
+  document.getElementById(
+    "song-editor-view-toggle"
+  );
+
+  let mixerView = false;
+let songEditorView = false;
+
 const patternGrid =
   document.getElementById(
     "pattern-grid"
@@ -2145,36 +2157,12 @@ function renderCurrentSourceDisplay() {
         stroke-linejoin="round"
       >
         <rect
-          x="4"
-          y="4"
-          width="6"
-          height="6"
-          rx="1"
-        ></rect>
-
-        <rect
-          x="14"
-          y="4"
-          width="6"
-          height="6"
-          rx="1"
-        ></rect>
-
-        <rect
-          x="4"
-          y="14"
-          width="6"
-          height="6"
-          rx="1"
-        ></rect>
-
-        <rect
-          x="14"
-          y="14"
-          width="6"
-          height="6"
-          rx="1"
-        ></rect>
+  x="5"
+  y="5"
+  width="14"
+  height="14"
+  rx="1"
+></rect>
       </svg>
     </span>
 
@@ -4008,6 +3996,56 @@ function renderMenu() {
   topRow.appendChild(
     createTrackVolumeControl()
   );
+
+  const songEditorToggle =
+  document.createElement("button");
+
+songEditorToggle.type =
+  "button";
+
+songEditorToggle.className =
+  "view-toggle-button editor-view-toggle";
+
+songEditorToggle.dataset.focusKey =
+  "editor-view-toggle";
+
+songEditorToggle.setAttribute(
+  "aria-label",
+  "Song編集へ切り替え"
+);
+
+songEditorToggle.innerHTML = `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M5 3h11l3 3v15H5z"></path>
+    <path d="M16 3v4h4"></path>
+
+    <path d="M14 9v7"></path>
+    <path d="M14 10l4-1v6"></path>
+
+    <circle cx="11.5" cy="16" r="1.5"></circle>
+    <circle cx="17.5" cy="15" r="1.5"></circle>
+  </svg>
+`;
+
+songEditorToggle.addEventListener(
+  "click",
+  () => {
+    songEditorView = true;
+    renderSongMode();
+  }
+);
+
+topRow.appendChild(
+  songEditorToggle
+);
 
   const bottomRow =
     document.createElement("div");
@@ -7262,7 +7300,7 @@ function songInsertIndexFromPoint(clientX, clientY) {
 }
 
 function pointerInsideSongGrid(event) {
-  if (!songGrid || !state.songMode) return false;
+  if (!songGrid || !songEditorView) return false;
   const rect = songGrid.getBoundingClientRect();
   return (
     event.clientX >= rect.left &&
@@ -7391,7 +7429,7 @@ function enableExternalSourceDragToSong(
   }
 
   button.addEventListener("pointerdown", event => {
-    if (!state.songMode) return;
+    if (!songEditorView) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
 
     pointerId = event.pointerId;
@@ -7970,9 +8008,9 @@ function startMasterMixMeterAnimation() {
      * 次フレームを予約せず完全終了。
      */
     if (
-      !state.songMode ||
-      !songMasterMix?.isConnected
-    ) {
+  !mixerView ||
+  !songMasterMix?.isConnected
+) {
       masterMixMeterFrame =
         null;
 
@@ -8193,8 +8231,92 @@ title.className =
 const titleLabel =
   document.createElement("span");
 
-titleLabel.textContent =
-  "master mix";
+titleLabel.className =
+  "area-title-icon";
+
+titleLabel.setAttribute(
+  "aria-label",
+  "mixer"
+);
+
+titleLabel.title =
+  "mixer";
+
+titleLabel.innerHTML = `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M5 4v16"></path>
+    <path d="M12 4v16"></path>
+    <path d="M19 4v16"></path>
+
+    <rect
+      x="3"
+      y="7"
+      width="4"
+      height="4"
+    ></rect>
+
+    <rect
+      x="10"
+      y="13"
+      width="4"
+      height="4"
+    ></rect>
+
+    <rect
+      x="17"
+      y="6"
+      width="4"
+      height="4"
+    ></rect>
+  </svg>
+`;
+
+  const mixerBackButton =
+  document.createElement("button");
+
+mixerBackButton.type =
+  "button";
+
+mixerBackButton.className =
+  "view-toggle-button";
+
+mixerBackButton.setAttribute(
+  "aria-label",
+  "シーケンサーへ切り替え"
+);
+
+mixerBackButton.innerHTML = `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="4" y="4" width="6" height="6"></rect>
+    <rect x="14" y="4" width="6" height="6"></rect>
+    <rect x="4" y="14" width="6" height="6"></rect>
+    <rect x="14" y="14" width="6" height="6"></rect>
+  </svg>
+`;
+
+mixerBackButton.addEventListener(
+  "click",
+  () => {
+    mixerView = false;
+    renderSongMode();
+  }
+);
 
 const reverbHeader =
   document.createElement("div");
@@ -8279,12 +8401,8 @@ reverbHeader.append(
 
 title.append(
   titleLabel,
-  reverbHeader
-);
-
-title.append(
-  titleLabel,
-  reverbHeader
+  reverbHeader,
+  mixerBackButton
 );
 
   const content = document.createElement("div");
@@ -8598,33 +8716,48 @@ function renderSongGrid() {
 }
 
 export function renderSongMode() {
-  const enabled = Boolean(state.songMode);
+  /*
+   * 上段
+   * Sequencer / Mixer
+   */
+  sequenceGrid.hidden =
+    mixerView;
+
+  document
+    .querySelector(
+      ".sequence-toolbar"
+    )
+    ?.toggleAttribute(
+      "hidden",
+      mixerView
+    );
+
+  if (songMasterMix) {
+    songMasterMix.hidden =
+      !mixerView;
+  }
 
   /*
-   * Song編集では中央2領域を完全に差し替える。
-   * hidden属性だけだと既存CSSのdisplay指定に負ける環境があるため、
-   * body classでも表示状態を固定する。
+   * 下段
+   * Editor / Song Editor
    */
-  document.body.classList.toggle(
-    "song-edit-mode",
-    enabled
-  );
+  editor.hidden =
+    songEditorView;
 
-  sequenceGrid.hidden = enabled;
-  document.querySelector(".sequence-toolbar")?.toggleAttribute("hidden", enabled);
-  editor.hidden = enabled;
+  if (songParts) {
+    songParts.hidden =
+      !songEditorView;
+  }
 
-  if (songMasterMix) songMasterMix.hidden = !enabled;
-  if (songParts) songParts.hidden = !enabled;
-
-  songModeButton?.classList.toggle("active", enabled);
-  songModeButton?.setAttribute(
-    "aria-label",
-    enabled ? "通常編集へ切り替え" : "Song編集へ切り替え"
-  );
-
+  /*
+   * Songページ表示。
+   */
   if (songPageButton) {
-    songPageButton.textContent = state.songPage === 0 ? "◧" : "◨";
+    songPageButton.textContent =
+      state.songPage === 0
+        ? "◧"
+        : "◨";
+
     songPageButton.setAttribute(
       "aria-label",
       state.songPage === 0
@@ -8633,19 +8766,42 @@ export function renderSongMode() {
     );
   }
 
-  if (enabled) {
+  /*
+   * Mixer表示中だけ
+   * メーターを動かす。
+   */
+  if (mixerView) {
     renderSongMasterMix();
-    renderSongGrid();
   } else {
     stopMasterMixMeterAnimation();
     syncSongMasterMixAudio();
   }
+
+  /*
+   * Song Editor表示中だけ
+   * Song Partsを描画。
+   */
+  if (songEditorView) {
+    renderSongGrid();
+  }
 }
 
-songModeButton?.addEventListener("click", () => {
-  state.songMode = !state.songMode;
-  renderSongMode();
-});
+sequenceViewToggle?.addEventListener(
+  "click",
+  () => {
+    mixerView = true;
+    renderSongMode();
+  }
+);
+
+songEditorViewToggle?.addEventListener(
+  "click",
+  () => {
+    songEditorView = false;
+    renderSongMode();
+    renderEditor();
+  }
+);
 
 songPageButton?.addEventListener("click", () => {
   state.songPage = (state.songPage + 1) % SONG_PAGE_COUNT;

@@ -1401,6 +1401,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     width: 24px;
     height: 22px;
 
+    margin-left: auto;
+
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -4029,42 +4031,6 @@ input[type="radio"]:focus-visible {
     transform: scale(0.92);
 }
 
-
-/* =========================
-   Song mode display override
-   hidden属性と既存display指定の競合を防止
-========================= */
-body.song-edit-mode .sequence-toolbar,
-body.song-edit-mode .sequence-grid,
-body.song-edit-mode #editor {
-    display: none !important;
-}
-
-body.song-edit-mode .song-master-mix {
-    display: block !important;
-}
-
-body.song-edit-mode .song-parts {
-    display: block !important;
-}
-
-body:not(.song-edit-mode) .song-master-mix,
-body:not(.song-edit-mode) .song-parts {
-    display: none !important;
-}
-
-/* Song Master Mixは旧Sequence領域をそのまま使う */
-body.song-edit-mode .sequence-section {
-    height: 209px;
-    min-height: 209px;
-}
-
-/* Song Partsは旧Editor領域をそのまま使う */
-body.song-edit-mode .editor-section {
-    height: 150px;
-    overflow: hidden;
-}
-
 /* =========================
    Empty Song Part
 ========================= */
@@ -4132,8 +4098,8 @@ body.song-edit-mode .editor-section {
    Song Master Mix
 ========================= */
 .song-master-mix {
-    height: 203px;
-    min-height: 203px;
+    height: 209px;
+    min-height: 209px;
     padding-top: 0;
     overflow: hidden;
 }
@@ -4151,9 +4117,11 @@ body.song-edit-mode .editor-section {
 .master-mix-content {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 78px;
+
     gap: 5px;
+
     height: 177px;
-    margin-top: 2px;
+    margin-top: 4px;
 }
 
 .master-eq {
@@ -4372,11 +4340,11 @@ body.song-edit-mode .editor-section {
  * 右上へ重ねて配置する。
  */
 .song-master-mix-title {
-    height: 22px;
+    height: 28px;
+    min-height: 28px;
 
     display: flex;
     align-items: center;
-    justify-content: space-between;
 
     font-size: var(--font-label);
     line-height: 1;
@@ -4442,4 +4410,96 @@ body.song-edit-mode .editor-section {
     display: block;
 
     pointer-events: none;
+}
+
+/* =========================
+   Independent view toggles
+========================= */
+
+.view-toggle-button {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+
+    margin: 0;
+    padding: 4px;
+
+    border: 0;
+    background: transparent;
+
+    color: var(--text);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    flex: 0 0 28px;
+}
+
+.view-toggle-button svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+.editor-view-toggle {
+    margin-left: auto;
+}
+
+.song-parts-toolbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.song-master-mix-title
+.view-toggle-button {
+    margin-left: 4px;
+}
+
+/*
+ * hiddenを最優先。
+ * 旧song-edit-modeクラスには依存しない。
+ */
+.sequence-toolbar[hidden],
+.sequence-grid[hidden],
+#editor[hidden],
+.song-master-mix[hidden],
+.song-parts[hidden] {
+    display: none !important;
+}
+
+/* =========================
+   Sequence / Mixer
+   fixed area height
+========================= */
+
+.sequence-section {
+    height: 209px;
+    min-height: 209px;
+    overflow: hidden;
+}
+
+/* =========================
+   Area title icons
+========================= */
+
+.area-title-icon {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    color: var(--text);
+
+    flex: 0 0 28px;
+}
+
+.area-title-icon svg {
+    display: block;
+    width: 18px;
+    height: 18px;
 }

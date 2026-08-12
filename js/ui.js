@@ -7648,7 +7648,6 @@ const masterMixMeterWritten = {
   limiter: -1
 };
 
-
 /*
  * renderSongMasterMix() 後に1回だけ呼ぶ。
  * 毎フレームquerySelectorしない。
@@ -7719,15 +7718,22 @@ function cacheMasterMixMeterElements() {
         0
       );
 
+      const style =
+        getComputedStyle(
+          canvas
+        );
+
       return {
         canvas,
         context,
         width,
         height,
+        pixelRatio,
         color:
-          getComputedStyle(
-            canvas
-          ).color
+  style.getPropertyValue(
+    "--selected-bg"
+  ).trim() ||
+  style.color
       };
     });
 
@@ -7742,59 +7748,59 @@ function cacheMasterMixMeterElements() {
     );
 }
 
-function drawEqMeterCanvas(
-  canvas,
-  value
-) {
-  if (!canvas) return;
+export function refreshMasterMixMeterColor() {
+  const selectedColor =
+    getComputedStyle(
+      document.body
+    )
+      .getPropertyValue(
+        "--selected-bg"
+      )
+      .trim();
 
-  const rect =
-    canvas.getBoundingClientRect();
-
-  const width =
-    Math.max(1, rect.width);
-
-  const height =
-    Math.max(1, rect.height);
-
-  const dpr =
-    Math.min(
-      window.devicePixelRatio || 1,
-      2
-    );
-
-  const pixelWidth =
-    Math.round(width * dpr);
-
-  const pixelHeight =
-    Math.round(height * dpr);
-
-  if (
-    canvas.width !== pixelWidth ||
-    canvas.height !== pixelHeight
-  ) {
-    canvas.width = pixelWidth;
-    canvas.height = pixelHeight;
+  if (!selectedColor) {
+    return;
   }
 
-  const context =
-    canvas.getContext(
-      "2d",
-      {
-        alpha: true
+  masterMixMeterElements.eq
+    .forEach(
+      (entry, index) => {
+        if (!entry) {
+          return;
+        }
+
+        entry.color =
+          selectedColor;
+
+        /*
+         * 色変更をその場で反映。
+         * メーター値が変わるまで
+         * 待たなくていいように再描画する。
+         */
+        drawEqMeterCanvas(
+          entry,
+          masterMixMeterDisplay.eq[
+            index
+          ]
+        );
       }
     );
+}
+
+function drawEqMeterCanvas(
+  meterEntry,
+  value
+) {
+  if (!meterEntry) return;
+
+  const {
+    context,
+    width,
+    height,
+    color
+  } = meterEntry;
 
   if (!context) return;
-
-  context.setTransform(
-    dpr,
-    0,
-    0,
-    dpr,
-    0,
-    0
-  );
 
   context.clearRect(
     0,
@@ -7837,8 +7843,7 @@ function drawEqMeterCanvas(
   const maxMeterHeight =
     Math.max(
       0,
-      height -
-      12
+      height - 12
     );
 
   const meterHeight =
@@ -7848,14 +7853,6 @@ function drawEqMeterCanvas(
     height -
     meterBottom -
     meterHeight;
-
-  const style =
-    getComputedStyle(canvas);
-
-  const selectedColor =
-    style.getPropertyValue(
-      "--selected-bg"
-    ).trim();
 
   /*
    * 旧CSSの
@@ -7868,7 +7865,7 @@ function drawEqMeterCanvas(
    */
   context.globalAlpha = 0.42;
   context.fillStyle =
-    selectedColor ||
+    color ||
     "#ffffff";
 
   context.fillRect(
@@ -8049,7 +8046,7 @@ function startMasterMixMeterAnimation() {
               bandIndex
             ],
           targetValue,
-          0.28
+          0.77
         );
 
       masterMixMeterDisplay.eq[

@@ -23,7 +23,8 @@ import {
   render,
   updatePlayingStep,
   renderPatternManager,
-  renderSongMode
+  renderSongMode,
+  refreshMasterMixMeterColor
 } from "./ui.js";
 
 import {
@@ -880,6 +881,8 @@ themeSelector.addEventListener(
     document.body.classList.add(
       themeSelector.value
     );
+
+    refreshMasterMixMeterColor();
   }
 );
 

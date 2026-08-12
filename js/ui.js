@@ -7743,28 +7743,58 @@ function cacheMasterMixMeterElements() {
 }
 
 function drawEqMeterCanvas(
-  meterElement,
+  canvas,
   value
 ) {
+  if (!canvas) return;
+
+  const rect =
+    canvas.getBoundingClientRect();
+
+  const width =
+    Math.max(1, rect.width);
+
+  const height =
+    Math.max(1, rect.height);
+
+  const dpr =
+    Math.min(
+      window.devicePixelRatio || 1,
+      2
+    );
+
+  const pixelWidth =
+    Math.round(width * dpr);
+
+  const pixelHeight =
+    Math.round(height * dpr);
+
   if (
-    !meterElement?.context
+    canvas.width !== pixelWidth ||
+    canvas.height !== pixelHeight
   ) {
-    return;
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
   }
 
-  const {
-    context,
-    width,
-    height,
-    color
-  } = meterElement;
-
-  const normalized =
-    clamp(
-      Number(value) || 0,
-      0,
-      1
+  const context =
+    canvas.getContext(
+      "2d",
+      {
+        alpha: true
+      }
     );
+
+  if (!context) return;
+
+  context.setTransform(
+    dpr,
+    0,
+    0,
+    dpr,
+    0,
+    0
+  );
 
   context.clearRect(
     0,
@@ -7773,24 +7803,82 @@ function drawEqMeterCanvas(
     height
   );
 
-  if (
-    normalized <= 0
-  ) {
+  const level =
+    clamp(
+      Number(value) || 0,
+      0,
+      1
+    );
+
+  if (level <= 0) {
     return;
   }
 
-  const meterHeight =
-    height * normalized;
+  /*
+   * 旧DOM版EQメーターと同じ寸法。
+   *
+   * CSS:
+   * left/right 4px
+   * bottom 4px
+   * 最大高 141px
+   */
+  const meterLeft = 4;
+  const meterRight = 4;
+  const meterBottom = 4;
 
+  const meterWidth =
+    Math.max(
+      0,
+      width -
+      meterLeft -
+      meterRight
+    );
+
+  const maxMeterHeight =
+    Math.max(
+      0,
+      height -
+      12
+    );
+
+  const meterHeight =
+    maxMeterHeight * level;
+
+  const meterTop =
+    height -
+    meterBottom -
+    meterHeight;
+
+  const style =
+    getComputedStyle(canvas);
+
+  const selectedColor =
+    style.getPropertyValue(
+      "--selected-bg"
+    ).trim();
+
+  /*
+   * 旧CSSの
+   * color-mix(
+   *   in srgb,
+   *   var(--selected-bg) 42%,
+   *   transparent
+   * )
+   * と同等の透明度。
+   */
+  context.globalAlpha = 0.42;
   context.fillStyle =
-    color;
+    selectedColor ||
+    "#ffffff";
 
   context.fillRect(
-    0,
-    height - meterHeight,
-    width,
+    meterLeft,
+    meterTop,
+    meterWidth,
     meterHeight
   );
+
+  context.globalAlpha = 1;
 }
 
 /*
@@ -8110,68 +8198,28 @@ function renderSongMasterMix() {
   eq.className = "master-eq";
 
   mix.eq.forEach((gainValue, bandIndex) => {
-    const band = document.createElement("div");
-    band.className = "master-eq-band";
+  const band = document.createElement("div");
+  band.className = "master-eq-band";
 
-    const gain = document.createElement("button");
-    gain.type = "button";
-    gain.className = "master-eq-gain";
-    gain.dataset.focusKey = `master-eq-${bandIndex}`;
-    gain.dataset.bandIndex = String(bandIndex);
-    gain.style.setProperty(
-      "--eq-position",
-      String((gainValue + 12) / 24)
-    );
-    gain.style.setProperty("--eq-meter", "0");
+  const gain = document.createElement("button");
+  gain.type = "button";
+  gain.className = "master-eq-gain";
+  gain.dataset.focusKey = `master-eq-${bandIndex}`;
+  gain.dataset.bandIndex = String(bandIndex);
 
-    const meter =
-  document.createElement(
-    "canvas"
+  gain.style.setProperty(
+    "--eq-position",
+    String((gainValue + 12) / 24)
   );
 
-meter.className =
-  "master-eq-meter-canvas";
+  const meter = document.createElement("canvas");
+  meter.className = "master-eq-meter-canvas";
+  meter.dataset.bandIndex = String(bandIndex);
 
-meter.dataset.bandIndex =
-  String(bandIndex);
+  const marker = document.createElement("span");
+  marker.className = "master-eq-marker";
 
-meter.style.position =
-  "absolute";
-
-meter.style.inset =
-  "0";
-
-meter.style.width =
-  "100%";
-
-meter.style.height =
-  "100%";
-
-meter.style.pointerEvents =
-  "none";
-
-meter.style.zIndex =
-  "0";
-
-gain.style.position =
-  "relative";
-
-
-const marker =
-  document.createElement(
-    "span"
-  );
-
-marker.className =
-  "master-eq-marker";
-
-marker.style.zIndex =
-  "1";
-
-gain.append(
-  meter,
-  marker
-);
+  gain.append(meter, marker);
 
     const footer = document.createElement("div");
     footer.className = "master-mix-control-footer master-eq-footer";

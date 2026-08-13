@@ -86,6 +86,7 @@ const songEditorViewToggle =
 let songEditorView = false;
 
 let pinPlacementMode = false;
+let pinModeEnabled = false;
 let pinEditSlot = null;
 
 const PIN_SOUND_KEYS = new Set([
@@ -145,6 +146,19 @@ function setPinEditSlot(slot) {
     "pin-sound-edit-mode",
     Boolean(pinEditSlot)
   );
+}
+
+function setPinModeEnabled(enabled) {
+  pinModeEnabled = Boolean(enabled);
+  pinPlacementMode = false;
+
+  if (pinModeEnabled) {
+    setPinEditSlot(
+      pinEditSlot || "a"
+    );
+  } else {
+    setPinEditSlot(null);
+  }
 }
 
 const patternGrid =
@@ -4237,13 +4251,13 @@ topRow.appendChild(
 
     pinLongPressTimer = window.setTimeout(() => {
       pinLongPressTriggered = true;
-      pinPlacementMode = false;
 
-      if (pinEditSlot) {
-        setPinEditSlot(null);
-      } else {
-        setPinEditSlot("a");
-      }
+      setPinModeEnabled(
+        !pinModeEnabled
+      );
+
+      state.selectedParameterId = null;
+      state.selectedChildId = null;
 
       renderEditorAndRestore("menu-pin");
     }, LONG_PRESS_MS);
@@ -4267,6 +4281,10 @@ topRow.appendChild(
       return;
     }
 
+    if (!pinModeEnabled) {
+      return;
+    }
+
     pinPlacementMode = true;
     renderEditor();
   });
@@ -4275,7 +4293,7 @@ topRow.appendChild(
     document.createElement("div");
 
   pinTabs.className = "pin-sound-tabs";
-  pinTabs.hidden = !pinEditSlot;
+  pinTabs.hidden = !pinModeEnabled;
 
   ["a", "b", "c"].forEach(slot => {
     const button =

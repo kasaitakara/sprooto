@@ -4253,6 +4253,11 @@ topRow.appendChild(
   const pinEnabled =
     isPinModeEnabled();
 
+  bottomRow.classList.toggle(
+    "pin-mode-enabled-row",
+    pinEnabled
+  );
+
   pinButton.classList.toggle(
     "active",
     pinEnabled

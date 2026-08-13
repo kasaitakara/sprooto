@@ -4590,26 +4590,47 @@ input[type="radio"]:focus-visible {
     );
 }
 
+/* =========================
+   Pin mode layout adjustment
+========================= */
+
 /*
- * PinモードON中は、編集対象が「・ / a / b / c」の
- * どれでも2行目の配置を固定する。
- * 「・」選択時だけ位置が戻るのを防ぐ。
+ * PinモードONでも、
+ * sound / sw / stepの既存配置は崩さない。
  */
 .editor-header-secondary.pin-mode-enabled-row {
-    gap: 4px;
+    gap: 8px;
 }
 
-.editor-header-secondary.pin-mode-enabled-row .track-sound-name {
-    width: 96px;
-    min-width: 96px;
-    flex: 0 0 96px;
+/*
+ * sound名は従来どおり余白を受け持つ。
+ * 固定幅にはしない。
+ */
+.editor-header-secondary.pin-mode-enabled-row
+.track-sound-name {
+    min-width: 0;
+    flex: 1 1 auto;
+
     transform: translateX(6px);
 }
 
 /*
- * 「・」の開始位置をTrack Volumeバー左端付近へ寄せる。
- * a / b / cとの間隔にも少し余裕を持たせる。
+ * ・ a b c だけ少しゆったり配置。
  */
-.editor-header-secondary.pin-mode-enabled-row .pin-sound-tabs {
-    margin-left: 10px;
+.editor-header-secondary.pin-mode-enabled-row
+.pin-sound-tabs {
+    gap: 10px;
+
+    flex: 0 0 auto;
+}
+
+/*
+ * sw / stepはPinモードでも
+ * 元の右側配置を維持。
+ */
+.editor-header-secondary.pin-mode-enabled-row
+.track-swing-control,
+.editor-header-secondary.pin-mode-enabled-row
+.track-step-control {
+    flex: 0 0 auto;
 }

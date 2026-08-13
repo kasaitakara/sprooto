@@ -86,7 +86,6 @@ const songEditorViewToggle =
 let songEditorView = false;
 
 let pinPlacementMode = false;
-let pinModeEnabled = false;
 let pinEditSlot = null;
 
 const PIN_SOUND_KEYS = new Set([
@@ -99,8 +98,19 @@ const PIN_SOUND_KEYS = new Set([
   "soundName"
 ]);
 
+function isPinModeEnabled(
+  track = mainSelectedTrack()
+) {
+  return Boolean(
+    track?.pinEnabled
+  );
+}
+
 function currentPinSound(track = mainSelectedTrack()) {
-  if (!pinEditSlot) {
+  if (
+    !isPinModeEnabled(track) ||
+    !pinEditSlot
+  ) {
     return null;
   }
 
@@ -149,16 +159,23 @@ function setPinEditSlot(slot) {
 }
 
 function setPinModeEnabled(enabled) {
-  pinModeEnabled = Boolean(enabled);
+  const track =
+    mainSelectedTrack();
+
+  if (!track) {
+    return;
+  }
+
+  track.pinEnabled =
+    Boolean(enabled);
+
   pinPlacementMode = false;
 
-  if (pinModeEnabled) {
-    setPinEditSlot(
-      pinEditSlot || "a"
-    );
-  } else {
-    setPinEditSlot(null);
-  }
+  /*
+   * ON直後はMain Sound（・）を編集対象にする。
+   * OFF時もMainへ戻す。
+   */
+  setPinEditSlot(null);
 }
 
 const patternGrid =
@@ -4232,11 +4249,22 @@ topRow.appendChild(
   pinButton.className = "mini-button pin-button";
   pinButton.dataset.focusKey = "menu-pin";
   pinButton.innerHTML = getParameterIcon("pin");
+
+  const pinEnabled =
+    isPinModeEnabled();
+
+  pinButton.classList.toggle(
+    "active",
+    pinEnabled
+  );
+
   pinButton.setAttribute(
     "aria-label",
-    pinEditSlot
-      ? `pin ${pinEditSlot} editing`
-      : "pin"
+    pinEnabled
+      ? pinEditSlot
+        ? `pin ${pinEditSlot} editing`
+        : "pin main editing"
+      : "pin off"
   );
 
   let pinLongPressTimer = null;
@@ -4252,8 +4280,10 @@ topRow.appendChild(
     pinLongPressTimer = window.setTimeout(() => {
       pinLongPressTriggered = true;
 
+      saveHistory();
+
       setPinModeEnabled(
-        !pinModeEnabled
+        !isPinModeEnabled()
       );
 
       state.selectedParameterId = null;
@@ -4281,7 +4311,7 @@ topRow.appendChild(
       return;
     }
 
-    if (!pinModeEnabled) {
+    if (!isPinModeEnabled()) {
       return;
     }
 
@@ -4293,17 +4323,20 @@ topRow.appendChild(
     document.createElement("div");
 
   pinTabs.className = "pin-sound-tabs";
-  pinTabs.hidden = !pinModeEnabled;
+  pinTabs.hidden = !pinEnabled;
 
-  ["a", "b", "c"].forEach(slot => {
+  [null, "a", "b", "c"].forEach(slot => {
     const button =
       document.createElement("button");
 
     button.type = "button";
-    button.textContent = slot;
+    button.textContent = slot ?? "・";
     button.className = "pin-sound-tab";
     button.classList.toggle("active", pinEditSlot === slot);
-    button.setAttribute("aria-label", `pin ${slot}`);
+    button.setAttribute(
+      "aria-label",
+      slot ? `pin ${slot}` : "main sound"
+    );
 
     button.addEventListener("click", () => {
       setPinEditSlot(slot);
@@ -11786,9 +11819,20 @@ function renderPinPlacementScreen() {
 export function renderEditor() {
   editor.innerHTML = "";
 
+  const pinEnabled =
+    isPinModeEnabled();
+
+  if (
+    pinPlacementMode &&
+    !pinEnabled
+  ) {
+    pinPlacementMode = false;
+  }
+
   document.body.classList.toggle(
     "pin-sound-edit-mode",
-    Boolean(pinEditSlot)
+    pinEnabled &&
+      Boolean(pinEditSlot)
   );
 
   document.body.classList.toggle(

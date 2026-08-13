@@ -4525,8 +4525,7 @@ input[type="radio"]:focus-visible {
     height: 18px;
 }
 
-.pin-button.active,
-.pin-sound-edit-mode .editor-header-secondary .pin-button {
+.pin-button.active {
     background: var(--selected-bg);
     color: var(--selected-text);
 }

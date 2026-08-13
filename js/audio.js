@@ -655,8 +655,32 @@ const now =
       document.getElementById("bpm-input")?.value
     ) || 120;
 
-  const offset = id =>
-    soundTrack.offsets[id]?.[stepIndex] ?? 0;
+  const usingPin =
+    soundTrack !== track;
+
+  const offset = id => {
+    /*
+     * Main Sound：従来どおり全Offsetを使用。
+     * Pin Sound ：原則Offset無効。
+     *              ただしTrack Volume（velocity）だけは
+     *              Main側Step Offsetを共通で使用する。
+     */
+    if (usingPin) {
+      if (id === "velocity") {
+        return (
+          track.offsets.velocity?.[stepIndex] ??
+          0
+        );
+      }
+
+      return 0;
+    }
+
+    return (
+      track.offsets[id]?.[stepIndex] ??
+      0
+    );
+  };
 
   const note =
     60 +

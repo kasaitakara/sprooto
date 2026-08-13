@@ -4634,3 +4634,30 @@ input[type="radio"]:focus-visible {
 .track-step-control {
     flex: 0 0 auto;
 }
+
+/* =========================
+   NOTE / Chord
+========================= */
+.child-tabs .chord-inactive,
+.base-value.chord-inactive {
+    color: var(--muted);
+    opacity: 0.48;
+}
+
+.note-edit-toolbar {
+    gap: 4px;
+}
+.note-edit-toolbar .child-tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 2px;
+}
+.note-edit-toolbar .child-tabs button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 2px;
+    font-size: calc(var(--font-label) - 1px);
+}
+.note-edit-toolbar .value-control {
+    flex: 0 0 auto;
+}

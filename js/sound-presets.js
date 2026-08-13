@@ -30,6 +30,9 @@ import {
  *     // ====================
  *
  *     note: 0,
+ *     chord: 0,      // 0=off, 1=maj ...
+ *     voices: 4,
+ *     inversion: 0,  // 0=R, 1〜3=転回
  *     velocity: 100,
  *     pan: 50,
  *

@@ -125,6 +125,16 @@ function migrateSnapshot(snapshot) {
         track.offsets = {};
       }
 
+      const chordDefaults = { chord: 0, voices: 4, inversion: 0, };
+      Object.entries(chordDefaults).forEach(([id, defaultValue]) => {
+        if (typeof track.base[id] !== "number") {
+          track.base[id] = defaultValue;
+        }
+        if (!Array.isArray(track.offsets[id])) {
+          track.offsets[id] = Array(64).fill(0);
+        }
+      });
+
       if (
         typeof track.base.attack !==
         "number"

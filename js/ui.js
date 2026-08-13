@@ -1,6 +1,7 @@
 import {
   STEP_COUNT,
   PAGE_STEP_COUNT,
+  CHORD_NAMES,
   tracks,
   parameters,
   state,
@@ -738,6 +739,18 @@ trash: `
 }
 
 
+const noteParameter = {
+  id: "note",
+  label: "NOTE",
+  icon: "note",
+  children: [
+    { id: "note", label: "note", min: -60, max: 67, step: 1, offsetMode: "result" },
+    { id: "chord", label: "chord", min: 0, max: CHORD_NAMES.length - 1, step: 1, offsetMode: "result" },
+    { id: "voices", label: "voices", min: 1, max: 4, step: 1, offsetMode: "result" },
+    { id: "inversion", label: "inv", min: 0, max: 3, step: 1, offsetMode: "result" },
+  ]
+};
+
 const oscParameter = {
   id: "osc",
   label: "OSC",
@@ -815,7 +828,7 @@ const envelopeParameter = {
 
 const parameterMenuItems = [
   { label: "OSC", parameter: oscParameter, icon: "sine" },
-  { label: "NOTE", parameterId: "note", icon: "note" },
+  { label: "NOTE", parameter: noteParameter, icon: "note" },
   { label: "ENV", parameter: envelopeParameter, icon: "decay" },
   { label: "FM", parameterId: "fmDepth", icon: "fm" },
   { label: "FILTER", parameterId: "filterCutoff", icon: "tone" },
@@ -832,6 +845,10 @@ const parameterMenuItems = [
 ];
 
 function editorParameterById(id) {
+  if (id === "note") {
+    return noteParameter;
+  }
+
   if (id === "osc") {
     return oscParameter;
   }
@@ -4575,6 +4592,14 @@ const definition = {
   value.type = "button";
   value.className = "base-value";
 
+  if (
+    parameter.id === "note" &&
+    Number(track.base.chord) === 0 &&
+    ["voices", "inversion",].includes(id)
+  ) {
+    value.classList.add("chord-inactive");
+  }
+
   value.dataset.focusKey =
     valueKey;
 
@@ -4596,6 +4621,15 @@ const definition = {
   ];
 
   function displayValue() {
+    if (id === "chord") {
+      return CHORD_NAMES[clamp(Math.round(Number(track.base[id]) || 0), 0, CHORD_NAMES.length - 1)] ?? "off";
+    }
+
+    if (id === "inversion") {
+      const inversion = clamp(Math.round(Number(track.base[id]) || 0), 0, 3);
+      return inversion === 0 ? "R" : String(inversion);
+    }
+
     if (id === "delayTime") {
       return (
         delayNames[
@@ -4801,7 +4835,7 @@ document
         {
           ...definition,
           id,
-          offsetMode: "offset"
+          offsetMode: activeChild.offsetMode ?? parameter.offsetMode ?? "offset"
         };
 
       offsetButton.textContent =
@@ -5261,6 +5295,15 @@ function displayStepValue(
         midi / 12
       ) - 1
     }`;
+  }
+
+  if (parameter.id === "chord") {
+    return CHORD_NAMES[clamp(Math.round(result), 0, CHORD_NAMES.length - 1)] ?? "off";
+  }
+
+  if (parameter.id === "inversion") {
+    const inversion = clamp(Math.round(result), 0, 3);
+    return inversion === 0 ? "R" : String(inversion);
   }
 
   /*
@@ -7122,6 +7165,9 @@ editor.append(
 function renderEdit(parameter) {
   const header = document.createElement("div");
   header.className = "edit-toolbar";
+  if (parameter.id === "note") {
+    header.classList.add("note-edit-toolbar");
+  }
 
   const back = document.createElement("button");
   back.type = "button";
@@ -7185,6 +7231,14 @@ function renderEdit(parameter) {
 
       if (state.selectedChildId === child.id) {
         tab.classList.add("active");
+      }
+
+      if (
+        parameter.id === "note" &&
+        Number(editorTrack().base.chord) === 0 &&
+        ["voices", "inversion",].includes(child.id)
+      ) {
+        tab.classList.add("chord-inactive");
       }
 
       tab.addEventListener("click", () => {

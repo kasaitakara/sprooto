@@ -1,4 +1,4 @@
-import { clamp, resolveStepSound } from "./sequencer.js";
+import { clamp, resolveStepSound, resolveChordNoteOffsets, CHORD_NAMES } from "./sequencer.js";
 
 let context;
 let master;
@@ -686,6 +686,41 @@ const now =
     60 +
     soundTrack.base.note +
     offset("note");
+
+  const chordIndex = clamp(
+    Math.round((soundTrack.base.chord ?? 0) + offset("chord")),
+    0,
+    CHORD_NAMES.length - 1
+  );
+
+  const chordVoices = clamp(
+    Math.round((soundTrack.base.voices ?? 4) + offset("voices")),
+    1,
+    4
+  );
+
+  const chordInversion = clamp(
+    Math.round((soundTrack.base.inversion ?? 0) + offset("inversion")),
+    0,
+    3
+  );
+
+  const chordNoteOffsets = resolveChordNoteOffsets(
+    chordIndex,
+    chordVoices,
+    chordInversion,
+  );
+
+  let chordNotes = chordNoteOffsets.map(interval => note + interval);
+
+  /* MIDI域を外れる場合は、構成音間隔を保ったままコード全体をoctave移動する。 */
+  while (Math.max(...chordNotes) > 127) {
+    chordNotes = chordNotes.map(value => value - 12);
+  }
+
+  while (Math.min(...chordNotes) < 0) {
+    chordNotes = chordNotes.map(value => value + 12);
+  }
 
   const velocity =
     clamp(
@@ -1999,6 +2034,9 @@ mixGain
 }
 
   if (sineVolume > 0) {
+    const voiceGainScale = 1 / Math.sqrt(Math.max(1, chordNotes.length));
+
+    for (const voiceNote of chordNotes) {
     const sineSource =
       context.createBufferSource();
 
@@ -2006,7 +2044,7 @@ mixGain
       context.createGain();
 
     const carrierFrequency =
-      frequency(note);
+      frequency(voiceNote);
 
     const sineStopAt =
       releaseEnd + 0.01;
@@ -2524,7 +2562,7 @@ mixGain
     sineGain.gain.setValueAtTime(
       Math.max(
         0.0001,
-        sineVolume
+        sineVolume * voiceGainScale
       ),
       now
     );
@@ -2535,6 +2573,7 @@ mixGain
 
     sineSource.start(now);
     sineSource.stop(sineStopAt);
+    }
   }
 
   if (noiseVolume > 0) {

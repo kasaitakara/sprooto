@@ -12,6 +12,105 @@ export const SONG_PART_COUNT = 64;
 const filled = value =>
   Array(STEP_COUNT).fill(value);
 
+
+export const CHORD_NAMES = Object.freeze([
+  "off", "maj", "min", "dim", "aug", "sus2", "sus4",
+  "6", "m6", "7", "maj7", "m7", "mMaj7", "m7♭5", "dim7",
+  "add9", "madd9", "9", "maj9", "m9", "7♭9", "7♯9", "7♯11", "7♭13"
+]);
+
+const CHORD_DEFINITIONS = Object.freeze([
+  { intervals: [0] },
+  { intervals: [0, 4, 7] },
+  { intervals: [0, 3, 7] },
+  { intervals: [0, 3, 6], protected: [6] },
+  { intervals: [0, 4, 8], protected: [8] },
+  { intervals: [0, 2, 7], protected: [2, 7] },
+  { intervals: [0, 5, 7], protected: [5, 7] },
+  { intervals: [0, 4, 7, 9] },
+  { intervals: [0, 3, 7, 9] },
+  { intervals: [0, 4, 7, 10] },
+  { intervals: [0, 4, 7, 11] },
+  { intervals: [0, 3, 7, 10] },
+  { intervals: [0, 3, 7, 11] },
+  { intervals: [0, 3, 6, 10], protected: [6] },
+  { intervals: [0, 3, 6, 9], protected: [6] },
+  { intervals: [0, 4, 7, 14] },
+  { intervals: [0, 3, 7, 14] },
+  { intervals: [0, 4, 7, 10, 14] },
+  { intervals: [0, 4, 7, 11, 14] },
+  { intervals: [0, 3, 7, 10, 14] },
+  { intervals: [0, 4, 7, 10, 13] },
+  { intervals: [0, 4, 7, 10, 15] },
+  { intervals: [0, 4, 7, 10, 18] },
+  { intervals: [0, 4, 7, 10, 20] }
+]);
+
+export function resolveChordNoteOffsets(
+  chordIndex,
+  voices = 4,
+  inversion = 0,
+) {
+  const safeChordIndex = clamp(
+    Math.round(Number(chordIndex) || 0),
+    0,
+    CHORD_DEFINITIONS.length - 1
+  );
+
+  if (safeChordIndex === 0) {
+    return [0];
+  }
+
+  const definition = CHORD_DEFINITIONS[safeChordIndex];
+  let intervals = [...definition.intervals];
+  const targetVoices = clamp(Math.round(Number(voices) || 1), 1, 4);
+
+  /*
+   * 省略は基本的に5th → Root。
+   * dim / aug / sus等、5th側がキャラクターになるコードは protected で守る。
+   */
+  while (intervals.length > targetVoices) {
+    let removeIndex = intervals.findIndex((interval, index) =>
+      index > 0 &&
+      interval % 12 === 7 &&
+      !definition.protected?.includes(interval)
+    );
+
+    if (removeIndex < 0 && intervals.length > 3) {
+      removeIndex = intervals.findIndex(interval => interval === 0);
+    }
+
+    if (removeIndex < 0) {
+      /* それでも多い場合は内声側から省略し、最上位のテンションを残す。 */
+      removeIndex = Math.max(1, intervals.length - 2);
+    }
+
+    intervals.splice(removeIndex, 1);
+  }
+
+  /* トライアド等で4 voicesを選んだ場合はRootを1oct上へ重ねる。 */
+  while (intervals.length < targetVoices) {
+    intervals.push(12);
+  }
+
+  intervals.sort((a, b) => a - b);
+
+  const safeInversion = clamp(
+    Math.round(Number(inversion) || 0),
+    0,
+    Math.min(3, intervals.length - 1)
+  );
+
+  for (let index = 0; index < safeInversion; index++) {
+    const lowest = intervals.shift();
+    intervals.push(lowest + 12);
+    intervals.sort((a, b) => a - b);
+  }
+
+  return intervals
+  .sort((a, b) => a - b);
+}
+
 function makePinSound(slot) {
   const sound = createDefaultSound();
 
@@ -78,6 +177,9 @@ fxMuted: false,
 
     base: {
   note: 0,
+  chord: 0,
+  voices: 4,
+  inversion: 0,
   sineVolume: 100,
   sineDecay: 5,
   noiseVolume: 0,
@@ -113,6 +215,15 @@ filterCutoff: 0,
 
     offsets: {
   note:
+    filled(0),
+
+  chord:
+    filled(0),
+
+  voices:
+    filled(0),
+
+  inversion:
     filled(0),
 
   velocity:
@@ -381,14 +492,26 @@ export const parameters = [
     id: "note",
     label: "note",
     icon: "note",
-    /*
-     * MIDI 0〜127を、C4基準の相対値で保持する。
-     * 表示範囲：C-1〜G9
-     */
     min: -60,
     max: 67,
     step: 1,
-    offsetMode: "result"
+    offsetMode: "result",
+    children: [
+      { id: "note", label: "note", min: -60, max: 67, step: 1, offsetMode: "result" },
+      { id: "chord", label: "chord", min: 0, max: 23, step: 1, offsetMode: "result" },
+      { id: "voices", label: "voices", min: 1, max: 4, step: 1, offsetMode: "result" },
+      { id: "inversion", label: "inv", min: 0, max: 3, step: 1, offsetMode: "result" },
+    ]
+  },
+
+  {
+    id: "chord", label: "chord", icon: "note", min: 0, max: 23, step: 1, offsetMode: "result"
+  },
+  {
+    id: "voices", label: "voices", icon: "note", min: 1, max: 4, step: 1, offsetMode: "result"
+  },
+  {
+    id: "inversion", label: "inversion", icon: "note", min: 0, max: 3, step: 1, offsetMode: "result"
   },
 
   {
@@ -2739,6 +2862,19 @@ function normalizeTrackData(track) {
 
   track.base ??= {};
   track.offsets ??= {};
+
+  const chordDefaults = { chord: 0, voices: 4, inversion: 0 };
+  Object.entries(chordDefaults).forEach(([id, defaultValue]) => {
+    if (typeof track.base[id] !== "number") {
+      track.base[id] = defaultValue;
+    }
+    if (!Array.isArray(track.offsets[id])) {
+      track.offsets[id] = filled(0);
+    }
+  });
+  track.base.chord = clamp(Math.round(track.base.chord), 0, CHORD_NAMES.length - 1);
+  track.base.voices = clamp(Math.round(track.base.voices), 1, 4);
+  track.base.inversion = clamp(Math.round(track.base.inversion), 0, 3);
 
   track.pinEnabled =
     Boolean(track.pinEnabled);

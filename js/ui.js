@@ -700,19 +700,19 @@ trash: `
     `,
 
     pin: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M12 21s6-6.2 6-11a6 6 0 1 0-12 0c0 4.8 6 11 6 11Z"></path>
-        <circle cx="12" cy="10" r="2"></circle>
-      </svg>
-    `,
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="6" r="3"></circle>
+    <path d="M12 9V21"></path>
+  </svg>
+`,
 
     probability: `
       <svg

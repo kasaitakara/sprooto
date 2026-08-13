@@ -9,7 +9,8 @@ import {
   canRedo,
   beginSelectedPlayback,
 advancePlaybackSource,
-clearQueuedSource
+clearQueuedSource,
+resolveStepSound
 } from "./sequencer.js";
 
 import {
@@ -260,11 +261,17 @@ function playCurrentStep(
       return;
     }
 
+    const soundTrack =
+      resolveStepSound(
+        track,
+        trackStepIndex
+      );
+
     const probability = clamp(
-      track.base.probability +
-        track.offsets.probability[
+      (soundTrack.base.probability ?? 100) +
+        (soundTrack.offsets.probability?.[
           trackStepIndex
-        ],
+        ] ?? 0),
       0,
       100
     );

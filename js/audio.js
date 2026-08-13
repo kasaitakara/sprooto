@@ -1,4 +1,4 @@
-import { clamp } from "./sequencer.js";
+import { clamp, resolveStepSound } from "./sequencer.js";
 
 let context;
 let master;
@@ -614,6 +614,17 @@ export async function playTrackStep(
   await initializeAudio();
 
   /*
+   * Pin指定があるStepだけ、Sound一式をPinへ完全置換する。
+   * Main Trackのstep/length/mute等はそのまま使い、
+   * 音色データだけを差し替える。
+   */
+  const soundTrack =
+    resolveStepSound(
+      track,
+      stepIndex
+    );
+
+  /*
  * Oscillator、Envelope、FM変調を
  * 必ず同じ未来時刻から開始する。
  *
@@ -645,16 +656,16 @@ const now =
     ) || 120;
 
   const offset = id =>
-    track.offsets[id]?.[stepIndex] ?? 0;
+    soundTrack.offsets[id]?.[stepIndex] ?? 0;
 
   const note =
     60 +
-    track.base.note +
+    soundTrack.base.note +
     offset("note");
 
   const velocity =
     clamp(
-      track.base.velocity +
+      soundTrack.base.velocity +
       offset("velocity"),
       0,
       100
@@ -736,7 +747,7 @@ const now =
           `lfo${lfoNumber}`;
 
         if (
-          track.base[
+          soundTrack.base[
             `${prefix}Target`
           ] !== targetId
         ) {
@@ -746,7 +757,7 @@ const now =
         const depth =
           clamp(
             (
-              track.base[
+              soundTrack.base[
                 `${prefix}Depth`
               ] ?? 0
             ) +
@@ -762,7 +773,7 @@ const now =
         }
 
         const syncMode =
-          track.base[
+          soundTrack.base[
             `${prefix}SyncMode`
           ] === "bpm"
             ? "bpm"
@@ -771,7 +782,7 @@ const now =
         const rateValue =
           clamp(
             (
-              track.base[
+              soundTrack.base[
                 `${prefix}Rate`
               ] ??
               (
@@ -799,7 +810,7 @@ const now =
           );
 
         const wave =
-          track.base[
+          soundTrack.base[
             `${prefix}Wave`
           ] ?? "sine";
 
@@ -826,7 +837,7 @@ const now =
   const attackValue =
     envelopeLfoValue(
       "attack",
-      (track.base.attack ?? 1) +
+      (soundTrack.base.attack ?? 1) +
         offset("attack"),
       1,
       50
@@ -841,7 +852,7 @@ const now =
   const decayValue =
     envelopeLfoValue(
       "decay",
-      (track.base.decay ?? 5) +
+      (soundTrack.base.decay ?? 5) +
         offset("decay"),
       1,
       100
@@ -855,7 +866,7 @@ const now =
 
   const sustain =
     clamp(
-      (track.base.sustain ?? 0) +
+      (soundTrack.base.sustain ?? 0) +
         offset("sustain"),
       0,
       100
@@ -863,7 +874,7 @@ const now =
 
   const gateValue =
   clamp(
-    (track.base.gate ?? 5) +
+    (soundTrack.base.gate ?? 5) +
       offset("gate"),
     1,
     100
@@ -886,7 +897,7 @@ const gate =
 
   const sineVolume =
     clamp(
-      (track.base.sineVolume ?? 100) +
+      (soundTrack.base.sineVolume ?? 100) +
         offset("sineVolume"),
       0,
       100
@@ -896,7 +907,7 @@ const gate =
     Math.max(
       0.03,
       clamp(
-        (track.base.sineDecay ?? 5) +
+        (soundTrack.base.sineDecay ?? 5) +
           offset("sineDecay"),
         1,
         100
@@ -905,7 +916,7 @@ const gate =
 
   const noiseVolume =
     clamp(
-      (track.base.noiseVolume ?? 0) +
+      (soundTrack.base.noiseVolume ?? 0) +
         offset("noiseVolume"),
       0,
       100
@@ -915,7 +926,7 @@ const gate =
     Math.max(
       0.03,
       clamp(
-        (track.base.noiseDecay ?? 5) +
+        (soundTrack.base.noiseDecay ?? 5) +
           offset("noiseDecay"),
         1,
         100
@@ -934,7 +945,7 @@ const gate =
 
   const depth =
     clamp(
-      track.base.fmDepth +
+      soundTrack.base.fmDepth +
       offset("fmDepth"),
       0,
       20
@@ -942,7 +953,7 @@ const gate =
 
   const filterCutoff =
     clamp(
-      (track.base.filterCutoff ?? 0) +
+      (soundTrack.base.filterCutoff ?? 0) +
         offset("filterCutoff"),
       -100,
       100
@@ -950,7 +961,7 @@ const gate =
 
   const filterResonance =
     clamp(
-      (track.base.filterResonance ?? 0) +
+      (soundTrack.base.filterResonance ?? 0) +
         offset("filterResonance"),
       0,
       100
@@ -959,7 +970,7 @@ const gate =
   const panValue =
     (
       clamp(
-        track.base.pan +
+        soundTrack.base.pan +
         offset("pan"),
         0,
         100
@@ -973,10 +984,10 @@ const gate =
  * Delay処理だけを停止する。
  */
 const delayLevel =
-  track.fxMuted
+  soundTrack.fxMuted
     ? 0
     : clamp(
-        (track.base.delay ?? 0) +
+        (soundTrack.base.delay ?? 0) +
           offset("delay"),
         0,
         100
@@ -988,7 +999,7 @@ const delayLevel =
    */
   const delayTimeIndex =
   clamp(
-    (track.base.delayTime ?? 4) +
+    (soundTrack.base.delayTime ?? 4) +
       offset("delayTime"),
     0,
     10
@@ -1014,7 +1025,7 @@ const delayTime =
 
   const delayFeedback =
   clamp(
-    (track.base.delayFeedback ?? 35) +
+    (soundTrack.base.delayFeedback ?? 35) +
       offset("delayFeedback"),
     0,
     95
@@ -1068,7 +1079,7 @@ function connectPanLfo(
     `lfo${lfoNumber}`;
 
   const target =
-    track.base[
+    soundTrack.base[
       `${prefix}Target`
     ];
 
@@ -1079,7 +1090,7 @@ function connectPanLfo(
   const lfoDepth =
     clamp(
       (
-        track.base[
+        soundTrack.base[
           `${prefix}Depth`
         ] ?? 0
       ) +
@@ -1095,7 +1106,7 @@ function connectPanLfo(
   }
 
   const syncMode =
-  track.base[
+  soundTrack.base[
     `${prefix}SyncMode`
   ] === "bpm"
     ? "bpm"
@@ -1104,7 +1115,7 @@ function connectPanLfo(
 const lfoRate =
   clamp(
     (
-      track.base[
+      soundTrack.base[
         `${prefix}Rate`
       ] ??
       (
@@ -1125,7 +1136,7 @@ const lfoRate =
   );
 
   const lfoWave =
-  track.base[
+  soundTrack.base[
     `${prefix}Wave`
   ] ?? "sine";
 
@@ -1365,7 +1376,7 @@ connectPanLfo(2);
       `lfo${lfoNumber}`;
 
     if (
-      track.base[
+      soundTrack.base[
         `${prefix}Target`
       ] !== "filterCutoff"
     ) {
@@ -1375,7 +1386,7 @@ connectPanLfo(2);
     const lfoDepth =
       clamp(
         (
-          track.base[
+          soundTrack.base[
             `${prefix}Depth`
           ] ?? 0
         ) +
@@ -1391,7 +1402,7 @@ connectPanLfo(2);
     }
 
     const syncMode =
-      track.base[
+      soundTrack.base[
         `${prefix}SyncMode`
       ] === "bpm"
         ? "bpm"
@@ -1400,7 +1411,7 @@ connectPanLfo(2);
     const lfoRate =
       clamp(
         (
-          track.base[
+          soundTrack.base[
             `${prefix}Rate`
           ] ??
           (
@@ -1421,7 +1432,7 @@ connectPanLfo(2);
       );
 
     const lfoWave =
-      track.base[
+      soundTrack.base[
         `${prefix}Wave`
       ] ?? "sine";
 
@@ -2009,7 +2020,7 @@ mixGain
         `lfo${lfoNumber}`;
 
       if (
-        track.base[
+        soundTrack.base[
           `${prefix}Target`
         ] !== target
       ) {
@@ -2019,7 +2030,7 @@ mixGain
       const lfoDepth =
         clamp(
           (
-            track.base[
+            soundTrack.base[
               `${prefix}Depth`
             ] ?? 0
           ) +
@@ -2035,7 +2046,7 @@ mixGain
       }
 
       const syncMode =
-        track.base[
+        soundTrack.base[
           `${prefix}SyncMode`
         ] === "bpm"
           ? "bpm"
@@ -2044,7 +2055,7 @@ mixGain
       const rateValue =
         clamp(
           (
-            track.base[
+            soundTrack.base[
               `${prefix}Rate`
             ] ??
             (
@@ -2073,7 +2084,7 @@ mixGain
             bpm
           ),
         wave:
-          track.base[
+          soundTrack.base[
             `${prefix}Wave`
           ] ?? "sine"
       };
@@ -2251,7 +2262,7 @@ mixGain
   clamp(
     (
       Number(
-        track.base.fmFeedback
+        soundTrack.base.fmFeedback
       ) || 0
     ) +
       offset(
@@ -2271,7 +2282,7 @@ mixGain
   clamp(
     (
       Number(
-        track.base.fmRatio
+        soundTrack.base.fmRatio
       ) || 1
     ) +
       offset(

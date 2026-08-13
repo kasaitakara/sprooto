@@ -1,3 +1,5 @@
+import { createDefaultSound, normalizeSound } from "./sound-defaults.js";
+
 export const STEP_COUNT = 64;
 export const PAGE_STEP_COUNT = 32;
 export const TRACK_COUNT = 4;
@@ -9,6 +11,23 @@ export const SONG_PART_COUNT = 64;
 
 const filled = value =>
   Array(STEP_COUNT).fill(value);
+
+function makePinSound(slot) {
+  const sound = createDefaultSound();
+
+  return {
+    ...sound,
+    soundName: `pin ${slot}`
+  };
+}
+
+function makePinSounds() {
+  return {
+    a: makePinSound("a"),
+    b: makePinSound("b"),
+    c: makePinSound("c")
+  };
+}
 
 function makeTrack(id) {
   return {
@@ -26,6 +45,12 @@ function makeTrack(id) {
      * 将来のサウンドプリセット表示用。
      */
     soundName: `sound ${String(id).padStart(2, "0")}`,
+
+    /* StepごとのPin Sound指定。nullはMain。 */
+    pins: filled(null),
+
+    /* Track内で共有する3つの独立Pin Sound。 */
+    pinSounds: makePinSounds(),
 
     /* ENV親枠へ最後に表示した子パラメーター */
     envelopeSelectedId: "decay",
@@ -756,6 +781,23 @@ queuedSectionIndex:
 fillReturnTarget:
   null
 };
+
+export function resolveStepSound(
+  track,
+  stepIndex
+) {
+  const slot =
+    track?.pins?.[stepIndex];
+
+  if (
+    (slot === "a" || slot === "b" || slot === "c") &&
+    track?.pinSounds?.[slot]
+  ) {
+    return track.pinSounds[slot];
+  }
+
+  return track;
+}
 
 function sourceData(
   type,
@@ -2369,6 +2411,19 @@ export function sourceHasData(
         return true;
       }
 
+      if (track.pins?.some(Boolean)) {
+        return true;
+      }
+
+      const pinSoundChanged = ["a", "b", "c"].some(slot => {
+        return JSON.stringify(track.pinSounds?.[slot]) !==
+          JSON.stringify(initial.pinSounds?.[slot]);
+      });
+
+      if (pinSoundChanged) {
+        return true;
+      }
+
       return false;
     }
   );
@@ -2670,6 +2725,35 @@ function normalizeTrackData(track) {
 
   track.base ??= {};
   track.offsets ??= {};
+
+  if (!Array.isArray(track.pins)) {
+    track.pins = filled(null);
+  } else {
+    track.pins = Array.from(
+      { length: STEP_COUNT },
+      (_, index) => {
+        const value = track.pins[index];
+        return value === "a" || value === "b" || value === "c"
+          ? value
+          : null;
+      }
+    );
+  }
+
+  track.pinSounds ??= {};
+
+  ["a", "b", "c"].forEach(slot => {
+    const source = track.pinSounds[slot];
+    const normalized = normalizeSound(source);
+
+    track.pinSounds[slot] = {
+      ...normalized,
+      soundName:
+        typeof source?.soundName === "string" && source.soundName.trim()
+          ? source.soundName
+          : `pin ${slot}`
+    };
+  });
 
   /*
  * FM Feedback実装前の保存データへ
@@ -3521,12 +3605,19 @@ export function clearSelectedTrackSequence() {
   const hasActiveStep =
     track.steps.some(Boolean);
 
-  if (!hasActiveStep) {
+  const hasPin =
+    track.pins?.some(Boolean);
+
+  if (!hasActiveStep && !hasPin) {
     return false;
   }
 
   saveHistory();
   track.steps.fill(false);
+
+  if (Array.isArray(track.pins)) {
+    track.pins.fill(null);
+  }
 
   return true;
 }

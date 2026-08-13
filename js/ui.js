@@ -11,7 +11,7 @@ import {
   removeSongSource,
   selectSongPart,
   queueSongPart,
-  selectedTrack,
+  selectedTrack as mainSelectedTrack,
   parameterById,
   clamp,
   getMaxTrackLength,
@@ -84,6 +84,68 @@ const songEditorViewToggle =
 
   let mixerView = false;
 let songEditorView = false;
+
+let pinPlacementMode = false;
+let pinEditSlot = null;
+
+const PIN_SOUND_KEYS = new Set([
+  "base",
+  "offsets",
+  "fxMuted",
+  "envelopeSelectedId",
+  "oscSelectedId",
+  "lfoSelected",
+  "soundName"
+]);
+
+function currentPinSound(track = mainSelectedTrack()) {
+  if (!pinEditSlot) {
+    return null;
+  }
+
+  return track?.pinSounds?.[pinEditSlot] ?? null;
+}
+
+function editorTrack() {
+  const track = mainSelectedTrack();
+  const pinSound = currentPinSound(track);
+
+  if (!pinSound) {
+    return track;
+  }
+
+  return new Proxy(track, {
+    get(target, property) {
+      if (PIN_SOUND_KEYS.has(property)) {
+        return pinSound[property];
+      }
+
+      return target[property];
+    },
+
+    set(target, property, value) {
+      if (PIN_SOUND_KEYS.has(property)) {
+        pinSound[property] = value;
+        return true;
+      }
+
+      target[property] = value;
+      return true;
+    }
+  });
+}
+
+function setPinEditSlot(slot) {
+  pinEditSlot =
+    slot === "a" || slot === "b" || slot === "c"
+      ? slot
+      : null;
+
+  document.body.classList.toggle(
+    "pin-sound-edit-mode",
+    Boolean(pinEditSlot)
+  );
+}
 
 const patternGrid =
   document.getElementById(
@@ -603,6 +665,21 @@ trash: `
       >
         <path d="M3 12h4"></path>
         <path d="M7 12c2-7 4-7 6 0s4 7 8 0"></path>
+      </svg>
+    `,
+
+    pin: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 21s6-6.2 6-11a6 6 0 1 0-12 0c0 4.8 6 11 6 11Z"></path>
+        <circle cx="12" cy="10" r="2"></circle>
       </svg>
     `,
 
@@ -1367,6 +1444,8 @@ function captureClipboard() {
             stepIndex - minStep,
           stepOn:
             Boolean(track.steps[stepIndex]),
+          pin:
+            track.pins?.[stepIndex] ?? null,
           offsets:
             Object.fromEntries(
               Object.entries(track.offsets)
@@ -1398,6 +1477,10 @@ function deleteSelectedSequenceCells({ save = true } = {}) {
     const track = tracks[trackIndex];
 
     track.steps[stepIndex] = false;
+
+    if (Array.isArray(track.pins)) {
+      track.pins[stepIndex] = null;
+    }
 
     Object.values(track.offsets)
       .forEach(values => {
@@ -1450,6 +1533,13 @@ function pasteClipboardAt(targetStepIndex) {
 
     track.steps[stepIndex] =
       cell.stepOn;
+
+    if (Array.isArray(track.pins)) {
+      track.pins[stepIndex] =
+        cell.pin === "a" || cell.pin === "b" || cell.pin === "c"
+          ? cell.pin
+          : null;
+    }
 
     Object.entries(cell.offsets)
       .forEach(([id, value]) => {
@@ -1945,7 +2035,7 @@ function applyOffsetDeltaToSelection(
   }
 
   const track =
-    selectedTrack();
+    editorTrack();
 
   const values =
     track.offsets[
@@ -2615,7 +2705,7 @@ function changeTrack(amount) {
 }
 
 function displayBaseValue(parameter) {
-  const track = selectedTrack();
+  const track = editorTrack();
   const value = track.base[parameter.id];
 
   if (parameter.id === "note") {
@@ -2686,7 +2776,7 @@ function displayBaseValue(parameter) {
 }
 
 function currentParentParameter(menuItem) {
-  const track = selectedTrack();
+  const track = editorTrack();
 
   // ENV
   if (menuItem.parameter?.id === "envelope") {
@@ -2720,22 +2810,22 @@ function parameterButton(menuItem) {
   const parentSweepParameter =
   parameter?.id === "lfo"
     ? parameterById(
-        selectedTrack().lfoSelected === 2
+        editorTrack().lfoSelected === 2
           ? "lfo2Depth"
           : "lfo1Depth"
       )
     : parameter?.id === "osc"
       ? parameterById(
-          selectedTrack().oscSelectedId ===
+          editorTrack().oscSelectedId ===
             "noiseVolume" ||
-          selectedTrack().oscSelectedId ===
+          editorTrack().oscSelectedId ===
             "noiseDecay"
             ? "noiseVolume"
             : "sineVolume"
         )
       : parameter?.id === "envelope"
         ? parameterById(
-            selectedTrack().envelopeSelectedId ??
+            editorTrack().envelopeSelectedId ??
             "decay"
           )
         : parameter;
@@ -2763,9 +2853,9 @@ function parameterButton(menuItem) {
           envelopeParameter.children.some(
             child =>
               child.id ===
-              selectedTrack().envelopeSelectedId
+              editorTrack().envelopeSelectedId
           )
-            ? selectedTrack().envelopeSelectedId
+            ? editorTrack().envelopeSelectedId
             : "decay"
         )
       : null;
@@ -2809,7 +2899,7 @@ function parameterButton(menuItem) {
       ${getParameterIcon(displayedIcon)}
       ${
         parameter?.id === "lfo"
-          ? `<span class="lfo-menu-number">${selectedTrack().lfoSelected === 2 ? "2" : "1"}</span>`
+          ? `<span class="lfo-menu-number">${editorTrack().lfoSelected === 2 ? "2" : "1"}</span>`
           : ""
       }
     </span>
@@ -2836,7 +2926,7 @@ function parameterButton(menuItem) {
 
     button.setAttribute(
       "aria-label",
-      selectedTrack().fxMuted
+      editorTrack().fxMuted
         ? "全FXミュートを解除"
         : "ダブルタップで全FXをミュート"
     );
@@ -2863,7 +2953,7 @@ function parameterButton(menuItem) {
         event.preventDefault();
 
         const track =
-          selectedTrack();
+          editorTrack();
 
         /*
          * ミュート中は
@@ -2958,7 +3048,7 @@ if (parentSweepParameter) {
 
     getValue: () => {
       return Number(
-        selectedTrack().base[
+        editorTrack().base[
           parentSweepParameter.id
         ]
       );
@@ -2982,7 +3072,7 @@ if (parentSweepParameter) {
           parentSweepParameter.step ?? 1
         );
 
-      selectedTrack().base[
+      editorTrack().base[
         parentSweepParameter.id
       ] = correctedValue;
 
@@ -3067,9 +3157,9 @@ button.addEventListener(
             envelopeParameter.children.some(
               child =>
                 child.id ===
-                selectedTrack().envelopeSelectedId
+                editorTrack().envelopeSelectedId
             )
-              ? selectedTrack().envelopeSelectedId
+              ? editorTrack().envelopeSelectedId
               : "decay"
           )
         : parameter.id === "osc"
@@ -3077,9 +3167,9 @@ button.addEventListener(
               oscParameter.children.some(
                 child =>
                   child.id ===
-                  selectedTrack().oscSelectedId
+                  editorTrack().oscSelectedId
               )
-                ? selectedTrack().oscSelectedId
+                ? editorTrack().oscSelectedId
                 : "sineVolume"
             )
           : parameter.id === "lfo"
@@ -3104,7 +3194,7 @@ return button;
 }
 
 function createTrackLengthInput(focusKey) {
-  const track = selectedTrack();
+  const track = editorTrack();
 
   const button =
     document.createElement("button");
@@ -3361,7 +3451,7 @@ function createCompactValue({
 }
 
 function createSwingControl(focusKey) {
-  const track = selectedTrack();
+  const track = editorTrack();
 
   const button =
     document.createElement("button");
@@ -3566,7 +3656,7 @@ if (isTouchInput) {
 
 function createTrackVolumeControl() {
   const track =
-    selectedTrack();
+    editorTrack();
 
   const parameter =
     parameterById(
@@ -3970,14 +4060,14 @@ function renderMenu() {
       </span>
 
       <span class="track-number">
-        ${selectedTrack().id}
+        ${editorTrack().id}
       </span>
     </button>
 
     <div class="editor-header-spacer"></div>
 
     <button
-      class="mini-button mute ${selectedTrack().muted ? "active" : ""}"
+      class="mini-button mute ${editorTrack().muted ? "active" : ""}"
       type="button"
       data-focus-key="menu-mute"
     >
@@ -3985,7 +4075,7 @@ function renderMenu() {
     </button>
 
     <button
-      class="mini-button solo ${selectedTrack().solo ? "active" : ""}"
+      class="mini-button solo ${editorTrack().solo ? "active" : ""}"
       type="button"
       data-focus-key="menu-solo"
     >
@@ -3995,6 +4085,50 @@ function renderMenu() {
 
   topRow.appendChild(
     createTrackVolumeControl()
+  );
+
+  const sequenceEraseButton =
+    document.createElement("button");
+
+  sequenceEraseButton.type =
+    "button";
+
+  sequenceEraseButton.className =
+    "mini-button erase-button";
+
+  sequenceEraseButton.dataset.focusKey =
+    "menu-sequence-erase";
+
+  sequenceEraseButton.setAttribute(
+    "aria-label",
+    "現在のトラックのシーケンスをダブルタップで全消去"
+  );
+
+  sequenceEraseButton.innerHTML =
+    getParameterIcon("erase");
+
+  enableDoubleTapAction({
+    element:
+      sequenceEraseButton,
+
+    onDoubleTap: () => {
+      const cleared =
+        clearSelectedTrackSequence();
+
+      if (!cleared) {
+        return;
+      }
+
+      renderSequence();
+
+      renderEditorAndRestore(
+        "menu-sequence-erase"
+      );
+    }
+  });
+
+  topRow.appendChild(
+    sequenceEraseButton
   );
 
   const songEditorToggle =
@@ -4064,8 +4198,8 @@ topRow.appendChild(
     "track-sound-name";
 
   soundName.textContent =
-    selectedTrack().soundName ||
-    `sound ${String(selectedTrack().id).padStart(2, "0")}`;
+    editorTrack().soundName ||
+    `sound ${String(editorTrack().id).padStart(2, "0")}`;
 
   soundName.setAttribute(
     "aria-label",
@@ -4077,44 +4211,89 @@ topRow.appendChild(
     openSoundPresetModal
   );
 
-  const sequenceEraseButton =
+  const pinButton =
     document.createElement("button");
 
-  sequenceEraseButton.type =
-    "button";
-
-  sequenceEraseButton.className =
-    "mini-button erase-button";
-
-  sequenceEraseButton.dataset.focusKey =
-    "menu-sequence-erase";
-
-  sequenceEraseButton.setAttribute(
+  pinButton.type = "button";
+  pinButton.className = "mini-button pin-button";
+  pinButton.dataset.focusKey = "menu-pin";
+  pinButton.innerHTML = getParameterIcon("pin");
+  pinButton.setAttribute(
     "aria-label",
-    "現在のトラックのシーケンスをダブルタップで全消去"
+    pinEditSlot
+      ? `pin ${pinEditSlot} editing`
+      : "pin"
   );
 
-  sequenceEraseButton.innerHTML =
-    getParameterIcon("erase");
+  let pinLongPressTimer = null;
+  let pinLongPressTriggered = false;
 
-  enableDoubleTapAction({
-    element:
-      sequenceEraseButton,
+  pinButton.addEventListener("pointerdown", event => {
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
 
-    onDoubleTap: () => {
-      const cleared =
-        clearSelectedTrackSequence();
+    pinLongPressTriggered = false;
 
-      if (!cleared) {
-        return;
+    pinLongPressTimer = window.setTimeout(() => {
+      pinLongPressTriggered = true;
+      pinPlacementMode = false;
+
+      if (pinEditSlot) {
+        setPinEditSlot(null);
+      } else {
+        setPinEditSlot("a");
       }
 
-      renderSequence();
+      renderEditorAndRestore("menu-pin");
+    }, LONG_PRESS_MS);
+  });
 
-      renderEditorAndRestore(
-        "menu-sequence-erase"
-      );
+  function clearPinLongPress() {
+    if (pinLongPressTimer !== null) {
+      clearTimeout(pinLongPressTimer);
+      pinLongPressTimer = null;
     }
+  }
+
+  pinButton.addEventListener("pointerup", clearPinLongPress);
+  pinButton.addEventListener("pointercancel", clearPinLongPress);
+  pinButton.addEventListener("pointerleave", clearPinLongPress);
+
+  pinButton.addEventListener("click", event => {
+    if (pinLongPressTriggered) {
+      event.preventDefault();
+      pinLongPressTriggered = false;
+      return;
+    }
+
+    pinPlacementMode = true;
+    renderEditor();
+  });
+
+  const pinTabs =
+    document.createElement("div");
+
+  pinTabs.className = "pin-sound-tabs";
+  pinTabs.hidden = !pinEditSlot;
+
+  ["a", "b", "c"].forEach(slot => {
+    const button =
+      document.createElement("button");
+
+    button.type = "button";
+    button.textContent = slot;
+    button.className = "pin-sound-tab";
+    button.classList.toggle("active", pinEditSlot === slot);
+    button.setAttribute("aria-label", `pin ${slot}`);
+
+    button.addEventListener("click", () => {
+      setPinEditSlot(slot);
+      state.selectedParameterId = null;
+      renderEditor();
+    });
+
+    pinTabs.appendChild(button);
   });
 
   const swingControl =
@@ -4141,7 +4320,8 @@ topRow.appendChild(
 
   bottomRow.append(
     soundName,
-    sequenceEraseButton,
+    pinTabs,
+    pinButton,
     swingControl,
     trackLengthControl
   );
@@ -4193,8 +4373,8 @@ topRow.appendChild(
     .addEventListener(
       "click",
       () => {
-        selectedTrack().muted =
-          !selectedTrack().muted;
+        editorTrack().muted =
+          !editorTrack().muted;
 
         renderEditorAndRestore(
           "menu-mute"
@@ -4209,8 +4389,8 @@ topRow.appendChild(
     .addEventListener(
       "click",
       () => {
-        selectedTrack().solo =
-          !selectedTrack().solo;
+        editorTrack().solo =
+          !editorTrack().solo;
 
         renderEditorAndRestore(
           "menu-solo"
@@ -4253,7 +4433,7 @@ const fxRack =
   document.createElement("div");
 
 fxRack.className =
-  selectedTrack().fxMuted
+  editorTrack().fxMuted
     ? "fx-parameter-rack fx-muted"
     : "fx-parameter-rack";
 
@@ -4294,7 +4474,7 @@ function makeAdjustButton(text, action) {
 }
 
 function editValueControl(parameter, id) {
-  const track = selectedTrack();
+  const track = editorTrack();
 
   const childDefinition =
   parameter.children?.find(
@@ -4978,7 +5158,7 @@ function displayStepValue(
   stepIndex
 ) {
   const track =
-    selectedTrack();
+    editorTrack();
 
   const offset =
     track.offsets[
@@ -5118,7 +5298,7 @@ function renderOffsetGrid(parameter) {
   const lastStepIndex = Math.min(
     firstStepIndex +
       PAGE_STEP_COUNT,
-    selectedTrack().stepLength
+    editorTrack().stepLength
   );
 
   for (
@@ -5126,7 +5306,7 @@ function renderOffsetGrid(parameter) {
     stepIndex < lastStepIndex;
     stepIndex++
   ) {
-    const track = selectedTrack();
+    const track = editorTrack();
 
     const focusKey =
       `offset-${parameter.id}-${stepIndex}`;
@@ -5461,7 +5641,7 @@ function renderOffsetGrid(parameter) {
 
 
 function renderOscEdit() {
-  const track = selectedTrack();
+  const track = editorTrack();
 
   const activeId =
   oscParameter.children.some(
@@ -5770,7 +5950,7 @@ parentButton.innerHTML =
 
 function renderEnvelopeEdit() {
   const track =
-    selectedTrack();
+    editorTrack();
 
   const activeId =
     envelopeParameter.children.some(
@@ -6008,7 +6188,7 @@ function renderEnvelopeEdit() {
 }
 
 function renderFilterEdit() {
-  const track = selectedTrack();
+  const track = editorTrack();
 
   const filterChildren = [
     {
@@ -6200,7 +6380,7 @@ function renderFilterEdit() {
 }
 
 function renderLfoEdit() {
-  const track = selectedTrack();
+  const track = editorTrack();
   const activeLfo = track.lfoSelected === 2 ? 2 : 1;
   const activeView =
     state.selectedChildId === "depth" ||
@@ -6898,7 +7078,7 @@ function renderEdit(parameter) {
     </span>
 
     <span class="track-number">
-      ${selectedTrack().id}
+      ${editorTrack().id}
     </span>
   `;
 
@@ -7000,7 +7180,7 @@ const hasOffsets =
   !parameter.baseOnly &&
   !activeChild?.baseOnly &&
   Boolean(
-    selectedTrack().offsets[
+    editorTrack().offsets[
       activeOffsetId
     ]
   );
@@ -7047,7 +7227,7 @@ const hasOffsets =
 
   if (
   !baseOnly &&
-  selectedTrack().offsets[
+  editorTrack().offsets[
     activeOffsetId
   ]
 ) {
@@ -10675,7 +10855,7 @@ function createModalButton(label, className = "") {
 function openSoundPresetModal() {
   if (soundPresetModal) return;
 
-  const track = selectedTrack();
+  const track = editorTrack();
   const openingSnapshot = createSnapshot();
   const nowSound = captureTrackSound(track);
   const nowName = track.soundName || `sound ${String(track.id).padStart(2, "0")}`;
@@ -11402,13 +11582,13 @@ function renderStepEditScreen() {
       ${getParameterIcon("track")}
     </span>
     <span class="track-number">
-      ${selectedTrack().id}
+      ${editorTrack().id}
     </span>
   `;
 
   trackButton.setAttribute(
     "aria-label",
-    `track ${selectedTrack().id}`
+    `track ${editorTrack().id}`
   );
 
   trackButton.addEventListener(
@@ -11446,7 +11626,7 @@ function renderStepEditScreen() {
 
   const lastStepIndex = Math.min(
     firstStepIndex + PAGE_STEP_COUNT,
-    selectedTrack().stepLength
+    editorTrack().stepLength
   );
 
   for (
@@ -11465,7 +11645,7 @@ function renderStepEditScreen() {
       `step-edit-${stepIndex}`;
     button.setAttribute(
       "aria-label",
-      `track ${selectedTrack().id} step ${stepIndex + 1}`
+      `track ${editorTrack().id} step ${stepIndex + 1}`
     );
 
     enableSelectionPointer({
@@ -11498,8 +11678,110 @@ function renderStepEditScreen() {
   );
 }
 
+function renderPinPlacementScreen() {
+  const track = mainSelectedTrack();
+
+  const header = document.createElement("div");
+  header.className = "edit-toolbar pin-placement-toolbar";
+
+  const trackButton = document.createElement("button");
+  trackButton.type = "button";
+  trackButton.className = "track-cycle";
+  trackButton.innerHTML = `
+    <span class="track-icon">${getParameterIcon("track")}</span>
+    <span class="track-number">${track.id}</span>
+  `;
+
+  trackButton.addEventListener("click", () => {
+    state.selectedTrackIndex =
+      (state.selectedTrackIndex + 1) % tracks.length;
+    renderSequence();
+    renderEditor();
+  });
+
+  const pinBack = document.createElement("button");
+  pinBack.type = "button";
+  pinBack.className = "edit-icon pin-button active";
+  pinBack.innerHTML = getParameterIcon("pin");
+  pinBack.setAttribute("aria-label", "pin selector close");
+  pinBack.addEventListener("click", () => {
+    pinPlacementMode = false;
+    renderEditor();
+  });
+
+  const label = document.createElement("span");
+  label.className = "pin-placement-label";
+  label.textContent = "pin";
+
+  header.append(trackButton, pinBack, label);
+
+  const grid = document.createElement("div");
+  grid.className = "offset-grid pin-selector-grid";
+
+  const firstStepIndex = state.sequencePage * PAGE_STEP_COUNT;
+  const lastStepIndex = Math.min(
+    firstStepIndex + PAGE_STEP_COUNT,
+    track.stepLength
+  );
+
+  const values = [null, "a", "b", "c"];
+
+  for (let stepIndex = firstStepIndex; stepIndex < lastStepIndex; stepIndex++) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "offset-step pin-selector-step";
+    button.dataset.stepIndex = String(stepIndex);
+
+    const value = track.pins?.[stepIndex] ?? null;
+    button.textContent = value ?? "・";
+    button.classList.toggle("base-value-step", value === null);
+
+    if (track.steps[stepIndex]) {
+      button.classList.add("note-on");
+    }
+
+    if (
+      state.playbackTickIndex !== null &&
+      stepIndex === state.playbackTickIndex % track.stepLength
+    ) {
+      button.classList.add("playing");
+    }
+
+    button.addEventListener("click", () => {
+      saveHistory();
+
+      const current = track.pins?.[stepIndex] ?? null;
+      const currentIndex = values.indexOf(current);
+      const next = values[(currentIndex + 1) % values.length];
+
+      track.pins[stepIndex] = next;
+      button.textContent = next ?? "・";
+      button.classList.toggle("base-value-step", next === null);
+    });
+
+    grid.appendChild(button);
+  }
+
+  editor.append(header, grid);
+}
+
 export function renderEditor() {
   editor.innerHTML = "";
+
+  document.body.classList.toggle(
+    "pin-sound-edit-mode",
+    Boolean(pinEditSlot)
+  );
+
+  document.body.classList.toggle(
+    "pin-placement-mode",
+    pinPlacementMode
+  );
+
+  if (pinPlacementMode) {
+    renderPinPlacementScreen();
+    return;
+  }
 
   if (!state.selectedParameterId) {
     renderMenu();
@@ -11577,7 +11859,7 @@ export function updatePlayingStep() {
   state.playbackTickIndex === null
     ? -1
     : state.playbackTickIndex %
-      selectedTrack().stepLength;
+      editorTrack().stepLength;
 
       button.classList.toggle(
         "playing",

@@ -22,6 +22,9 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
   delayTime: 4,
   delayFeedback: 35,
   probability: 100,
+  subPattern: -1,
+  subCrescendo: 0,
+  subProbability: 100,
   lfo1Target: "pitch",
   lfo1Wave: "sine",
   lfo1Depth: 0,
@@ -40,6 +43,7 @@ export const SOUND_OFFSET_IDS = Object.freeze([
   "fmDepth", "fmRatio", "fmFeedback",
 "filterCutoff", "filterResonance", "pan",
   "delay", "delayTime", "delayFeedback", "probability",
+  "subPattern", "subCrescendo", "subProbability",
   "lfo1Depth", "lfo1Rate", "lfo2Depth", "lfo2Rate"
 ]);
 

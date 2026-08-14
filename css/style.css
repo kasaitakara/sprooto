@@ -4661,3 +4661,61 @@ input[type="radio"]:focus-visible {
 .note-edit-toolbar .value-control {
     flex: 0 0 auto;
 }
+
+
+/* =========================
+   SUB pattern figure
+========================= */
+.sub-pattern-figure {
+    --sub-divisions: 2;
+
+    width: 28px;
+    height: 10px;
+
+    display: grid;
+    grid-template-columns: repeat(var(--sub-divisions), minmax(0, 1fr));
+    gap: 2px;
+
+    align-items: stretch;
+    flex: 0 0 28px;
+}
+
+.sub-pattern-cell {
+    display: block;
+    min-width: 0;
+    height: 100%;
+
+    background: currentColor;
+    opacity: 0.16;
+}
+
+.sub-pattern-cell.active {
+    opacity: 0.9;
+}
+
+.sub-pattern-off {
+    width: 28px;
+    display: inline-block;
+    text-align: center;
+    color: var(--muted);
+}
+
+.parameter-value .sub-pattern-figure,
+.base-value .sub-pattern-figure,
+.offset-step .sub-pattern-figure {
+    margin: 0 auto;
+}
+
+.base-value:has(.sub-pattern-figure) {
+    min-width: 32px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.offset-step:has(.sub-pattern-figure) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

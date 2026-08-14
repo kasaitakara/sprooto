@@ -187,6 +187,106 @@ function audible(track) {
   return !track.muted && (!hasSolo || track.solo);
 }
 
+const SUB_PATTERNS = Object.freeze([
+  { divisions: 2, hits: [0, 1] },
+  { divisions: 2, hits: [1] },
+  { divisions: 3, hits: [0, 1, 2] },
+  { divisions: 4, hits: [0, 1, 2, 3] },
+  { divisions: 4, hits: [0, 2] },
+  { divisions: 4, hits: [0, 1] },
+  { divisions: 6, hits: [0, 1, 2, 3, 4, 5] }
+]);
+
+function resolvedSoundValue(soundTrack, track, stepIndex, id, min, max) {
+  const usingPin = soundTrack !== track;
+  const offset = usingPin
+    ? 0
+    : Number(track.offsets[id]?.[stepIndex]) || 0;
+
+  return clamp(
+    Number(soundTrack.base[id]) + offset,
+    min,
+    max
+  );
+}
+
+function subVelocityScale(crescendo, hitIndex, hitCount) {
+  const amount = clamp(Math.round(Number(crescendo) || 0), -3, 3);
+
+  if (amount === 0 || hitCount <= 1) {
+    return 1;
+  }
+
+  const progress = hitIndex / (hitCount - 1);
+  const depth = Math.abs(amount) * 0.25;
+
+  return amount > 0
+    ? 1 - depth * (1 - progress)
+    : 1 - depth * progress;
+}
+
+function scheduleSubStep(
+  track,
+  soundTrack,
+  stepIndex,
+  baseDelaySeconds
+) {
+  const patternIndex = Math.round(
+    resolvedSoundValue(
+      soundTrack, track, stepIndex,
+      "subPattern", -1, 6
+    )
+  );
+
+  if (patternIndex < 0) {
+    playTrackStep(
+      track,
+      stepIndex,
+      baseDelaySeconds
+    );
+    return;
+  }
+
+  const pattern = SUB_PATTERNS[patternIndex];
+
+  if (!pattern) {
+    return;
+  }
+
+  const subProbability = resolvedSoundValue(
+    soundTrack, track, stepIndex,
+    "subProbability", 0, 100
+  );
+
+  const crescendo = resolvedSoundValue(
+    soundTrack, track, stepIndex,
+    "subCrescendo", -3, 3
+  );
+
+  const stepSeconds = duration() / 1000;
+
+  pattern.hits.forEach((subIndex, hitIndex) => {
+    if (Math.random() * 100 >= subProbability) {
+      return;
+    }
+
+    playTrackStep(
+      track,
+      stepIndex,
+      baseDelaySeconds +
+        stepSeconds *
+          (subIndex / pattern.divisions),
+      {
+        velocityScale: subVelocityScale(
+          crescendo,
+          hitIndex,
+          pattern.hits.length
+        )
+      }
+    );
+  });
+}
+
 function swingDelaySeconds(track, stepIndex) {
   /*
    * 1表示単位 = 0.25 T64。
@@ -280,15 +380,16 @@ function playCurrentStep(
       Math.random() * 100 <
       probability
     ) {
-      playTrackStep(
-  track,
-  trackStepIndex,
-  scheduleDelaySeconds +
-    swingDelaySeconds(
-      track,
-      trackStepIndex
-    )
-);
+      scheduleSubStep(
+        track,
+        soundTrack,
+        trackStepIndex,
+        scheduleDelaySeconds +
+          swingDelaySeconds(
+            track,
+            trackStepIndex
+          )
+      );
     }
   });
 }

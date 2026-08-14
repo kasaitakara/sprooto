@@ -609,7 +609,8 @@ function createSampleAndHoldLfo({
 export async function playTrackStep(
   track,
   stepIndex,
-  delaySeconds = 0
+  delaySeconds = 0,
+  options = {}
 ) {
   await initializeAudio();
 
@@ -722,13 +723,23 @@ const now =
     chordNotes = chordNotes.map(value => value + 12);
   }
 
-  const velocity =
+  const velocityScale =
     clamp(
-      soundTrack.base.velocity +
-      offset("velocity"),
+      Number(options.velocityScale) || 1,
       0,
-      100
-    ) / 100;
+      1
+    );
+
+  const velocity =
+    (
+      clamp(
+        soundTrack.base.velocity +
+        offset("velocity"),
+        0,
+        100
+      ) / 100
+    ) *
+    velocityScale;
 
   /*
    * Attack / Decay LFO

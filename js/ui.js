@@ -826,6 +826,63 @@ const envelopeParameter = {
   ]
 };
 
+const subParameter = {
+  id: "sub",
+  label: "SUB",
+  icon: "sub",
+  children: [
+    { id: "subPattern", label: "pattern", min: -1, max: 6, step: 1, offsetMode: "result" },
+    { id: "subCrescendo", label: "cres.", min: -3, max: 3, step: 1, offsetMode: "result" },
+    { id: "subProbability", label: "prob", min: 0, max: 100, step: 1, offsetMode: "result" }
+  ]
+};
+
+const SUB_PATTERN_FIGURES = Object.freeze([
+  { label: "32", divisions: 2, active: [0, 1] },
+  { label: "32 back", divisions: 2, active: [1] },
+  { label: "32T", divisions: 3, active: [0, 1, 2] },
+  { label: "64", divisions: 4, active: [0, 1, 2, 3] },
+  { label: "64 odd", divisions: 4, active: [0, 2] },
+  { label: "64 front", divisions: 4, active: [0, 1] },
+  { label: "64T", divisions: 6, active: [0, 1, 2, 3, 4, 5] }
+]);
+
+function subPatternLabel(value) {
+  const index = Math.round(Number(value));
+  return index < 0
+    ? "off"
+    : SUB_PATTERN_FIGURES[index]?.label ?? "off";
+}
+
+function subPatternFigureHtml(value) {
+  const index = Math.round(Number(value));
+
+  if (index < 0) {
+    return `<span class="sub-pattern-off">off</span>`;
+  }
+
+  const figure = SUB_PATTERN_FIGURES[index];
+
+  if (!figure) {
+    return `<span class="sub-pattern-off">off</span>`;
+  }
+
+  const active = new Set(figure.active);
+  const cells = Array.from(
+    { length: figure.divisions },
+    (_, cellIndex) =>
+      `<span class="sub-pattern-cell${active.has(cellIndex) ? " active" : ""}"></span>`
+  ).join("");
+
+  return `
+    <span
+      class="sub-pattern-figure"
+      style="--sub-divisions:${figure.divisions}"
+      aria-label="${figure.label}"
+    >${cells}</span>
+  `;
+}
+
 const parameterMenuItems = [
   { label: "OSC", parameter: oscParameter, icon: "sine" },
   { label: "NOTE", parameter: noteParameter, icon: "note" },
@@ -841,7 +898,7 @@ const parameterMenuItems = [
   { label: "fx4", placeholderId: "fx4", icon: "fx" },
   { label: "fx5", placeholderId: "fx5", icon: "fx" },
   { label: "prob", parameterId: "probability", icon: "probability" },
-  { label: "sub", placeholderId: "sub", icon: "sub" }
+  { label: "sub", parameter: subParameter, icon: "sub" }
 ];
 
 function editorParameterById(id) {
@@ -855,6 +912,10 @@ function editorParameterById(id) {
 
   if (id === "envelope") {
     return envelopeParameter;
+  }
+
+  if (id === "sub") {
+    return subParameter;
   }
 
   return parameterById(id);
@@ -2784,8 +2845,17 @@ function displayBaseValue(parameter) {
     return `r${value - 50}`;
   }
 
-  if (parameter.id === "probability") {
+  if (parameter.id === "probability" || parameter.id === "subProbability") {
     return `${value}%`;
+  }
+
+  if (parameter.id === "subPattern") {
+    return subPatternLabel(value);
+  }
+
+  if (parameter.id === "subCrescendo") {
+    const amount = Math.round(Number(value) || 0);
+    return amount > 0 ? `+${amount}` : String(amount);
   }
 
   if (parameter.id === "filterCutoff") {
@@ -2856,7 +2926,9 @@ function parameterButton(menuItem) {
   parameterById(menuItem.parameterId);
 
   const parentSweepParameter =
-  parameter?.id === "lfo"
+  parameter?.id === "sub"
+    ? parameterById("subPattern")
+    : parameter?.id === "lfo"
     ? parameterById(
         editorTrack().lfoSelected === 2
           ? "lfo2Depth"
@@ -2953,7 +3025,11 @@ function parameterButton(menuItem) {
     </span>
 
     <span class="parameter-value">
-      ${valueText}
+      ${
+        parameter?.id === "sub"
+          ? subPatternFigureHtml(editorTrack().base.subPattern ?? -1)
+          : valueText
+      }
     </span>
   `;
 
@@ -3130,10 +3206,17 @@ if (parentSweepParameter) {
         );
 
       if (valueElement) {
-        valueElement.textContent =
-          displayBaseValue(
-            parentSweepParameter
-          );
+        if (parameter?.id === "sub") {
+          valueElement.innerHTML =
+            subPatternFigureHtml(
+              editorTrack().base.subPattern ?? -1
+            );
+        } else {
+          valueElement.textContent =
+            displayBaseValue(
+              parentSweepParameter
+            );
+        }
       }
 
       button.setAttribute(
@@ -4630,6 +4713,19 @@ const definition = {
       return inversion === 0 ? "R" : String(inversion);
     }
 
+    if (id === "subPattern") {
+      return subPatternLabel(track.base[id]);
+    }
+
+    if (id === "subCrescendo") {
+      const amount = Math.round(Number(track.base[id]) || 0);
+      return amount > 0 ? `+${amount}` : String(amount);
+    }
+
+    if (id === "subProbability") {
+      return `${Math.round(Number(track.base[id]) || 0)}%`;
+    }
+
     if (id === "delayTime") {
       return (
         delayNames[
@@ -4658,8 +4754,18 @@ const definition = {
     );
   }
 
-  value.textContent =
-    displayValue();
+  if (id === "subPattern") {
+    value.innerHTML =
+      subPatternFigureHtml(track.base[id]);
+
+    value.setAttribute(
+      "aria-label",
+      `base ${subPatternLabel(track.base[id])}`
+    );
+  } else {
+    value.textContent =
+      displayValue();
+  }
 
   /*
    * 最後に使用した入力機器を記録。
@@ -4811,8 +4917,18 @@ if (
     correctedValue;
 }
 
-      value.textContent =
-  displayValue();
+      if (id === "subPattern") {
+        value.innerHTML =
+          subPatternFigureHtml(track.base[id]);
+
+        value.setAttribute(
+          "aria-label",
+          `base ${subPatternLabel(track.base[id])}`
+        );
+      } else {
+        value.textContent =
+          displayValue();
+      }
 
 /*
  * ベース値変更中も、
@@ -4838,11 +4954,30 @@ document
           offsetMode: activeChild.offsetMode ?? parameter.offsetMode ?? "offset"
         };
 
-      offsetButton.textContent =
-        displayStepValue(
-          displayParameter,
-          stepIndex
+      if (id === "subPattern") {
+        const result = clamp(
+          Math.round(
+            Number(track.base.subPattern) +
+            Number(track.offsets.subPattern?.[stepIndex] ?? 0)
+          ),
+          -1,
+          6
         );
+
+        offsetButton.innerHTML =
+          subPatternFigureHtml(result);
+
+        offsetButton.setAttribute(
+          "aria-label",
+          subPatternLabel(result)
+        );
+      } else {
+        offsetButton.textContent =
+          displayStepValue(
+            displayParameter,
+            stepIndex
+          );
+      }
 
       const stepOffset =
         Number(
@@ -5370,9 +5505,18 @@ function displayStepValue(
   /*
    * Probabilityは実効値を％表示。
    */
+  if (parameter.id === "subPattern") {
+    return subPatternLabel(result);
+  }
+
+  if (parameter.id === "subCrescendo") {
+    const amount = Math.round(Number(result) || 0);
+    return amount > 0 ? `+${amount}` : String(amount);
+  }
+
   if (
-    parameter.id ===
-      "probability"
+    parameter.id === "probability" ||
+    parameter.id === "subProbability"
   ) {
     return `${result}%`;
   }
@@ -5420,11 +5564,30 @@ function renderOffsetGrid(parameter) {
     button.dataset.focusKey =
       focusKey;
 
-    button.textContent =
-      displayStepValue(
-        parameter,
-        stepIndex
+    if (parameter.id === "subPattern") {
+      const result = clamp(
+        Math.round(
+          Number(track.base.subPattern) +
+          Number(track.offsets.subPattern?.[stepIndex] ?? 0)
+        ),
+        -1,
+        6
       );
+
+      button.innerHTML =
+        subPatternFigureHtml(result);
+
+      button.setAttribute(
+        "aria-label",
+        subPatternLabel(result)
+      );
+    } else {
+      button.textContent =
+        displayStepValue(
+          parameter,
+          stepIndex
+        );
+    }
 
       button.classList.toggle(
   "base-value-step",
@@ -5522,11 +5685,30 @@ function renderOffsetGrid(parameter) {
         ][stepIndex] =
           nextOffset;
 
-        button.textContent =
-          displayStepValue(
-            parameter,
-            stepIndex
+        if (parameter.id === "subPattern") {
+          const result = clamp(
+            Math.round(
+              Number(track.base.subPattern) +
+              Number(track.offsets.subPattern?.[stepIndex] ?? 0)
+            ),
+            -1,
+            6
           );
+
+          button.innerHTML =
+            subPatternFigureHtml(result);
+
+          button.setAttribute(
+            "aria-label",
+            subPatternLabel(result)
+          );
+        } else {
+          button.textContent =
+            displayStepValue(
+              parameter,
+              stepIndex
+            );
+        }
       },
 
       min:

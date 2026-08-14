@@ -199,6 +199,9 @@ filterCutoff: 0,
       delayTime: 4,
       delayFeedback: 35,
       probability: 100,
+      subPattern: -1,
+      subCrescendo: 0,
+      subProbability: 100,
 
       lfo1Target: "pitch",
       lfo1Wave: "sine",
@@ -281,6 +284,15 @@ fmFeedback:
     filled(0),
 
   probability:
+    filled(0),
+
+  subPattern:
+    filled(0),
+
+  subCrescendo:
+    filled(0),
+
+  subProbability:
     filled(0),
 
   lfo1Depth:
@@ -784,6 +796,36 @@ export const parameters = [
     id: "probability",
     label: "prob",
     icon: "probability",
+    min: 0,
+    max: 100,
+    step: 1,
+    offsetMode: "result"
+  },
+
+  {
+    id: "subPattern",
+    label: "pattern",
+    icon: "sub",
+    min: -1,
+    max: 6,
+    step: 1,
+    offsetMode: "result"
+  },
+
+  {
+    id: "subCrescendo",
+    label: "cres.",
+    icon: "sub",
+    min: -3,
+    max: 3,
+    step: 1,
+    offsetMode: "result"
+  },
+
+  {
+    id: "subProbability",
+    label: "prob",
+    icon: "sub",
     min: 0,
     max: 100,
     step: 1,
@@ -2875,6 +2917,26 @@ function normalizeTrackData(track) {
   track.base.chord = clamp(Math.round(track.base.chord), 0, CHORD_NAMES.length - 1);
   track.base.voices = clamp(Math.round(track.base.voices), 1, 4);
   track.base.inversion = clamp(Math.round(track.base.inversion), 0, 3);
+
+  const subDefaults = {
+    subPattern: -1,
+    subCrescendo: 0,
+    subProbability: 100
+  };
+
+  Object.entries(subDefaults).forEach(([id, defaultValue]) => {
+    if (typeof track.base[id] !== "number") {
+      track.base[id] = defaultValue;
+    }
+
+    if (!Array.isArray(track.offsets[id])) {
+      track.offsets[id] = filled(0);
+    }
+  });
+
+  track.base.subPattern = clamp(Math.round(track.base.subPattern), -1, 6);
+  track.base.subCrescendo = clamp(Math.round(track.base.subCrescendo), -3, 3);
+  track.base.subProbability = clamp(Math.round(track.base.subProbability), 0, 100);
 
   track.pinEnabled =
     Boolean(track.pinEnabled);

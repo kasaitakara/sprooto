@@ -308,8 +308,13 @@ function swingDelaySeconds(track, stepIndex) {
   const swingUnitSeconds =
     quarterSeconds / 64;
 
+  /*
+   * Swingは最大-8、nudgeは最大-4。
+   * 両方が最速側へ加算されても未来予約できるよう、
+   * 12単位ぶんを全Track共通の予約余白として置く。
+   */
   const maximumAdvanceSeconds =
-    swingUnitSeconds * 8;
+    swingUnitSeconds * 12;
 
   const swingValue =
     clamp(
@@ -321,6 +326,17 @@ function swingDelaySeconds(track, stepIndex) {
   const isOffbeat =
     stepIndex % 2 === 1;
 
+  const nudgeValue =
+    clamp(
+      Math.round(
+        Number(
+          track.offsets.nudge?.[stepIndex]
+        ) || 0
+      ),
+      -4,
+      4
+    );
+
   return (
     maximumAdvanceSeconds +
     (
@@ -328,7 +344,9 @@ function swingDelaySeconds(track, stepIndex) {
         ? swingValue *
           swingUnitSeconds
         : 0
-    )
+    ) +
+    nudgeValue *
+      swingUnitSeconds
   );
 }
 

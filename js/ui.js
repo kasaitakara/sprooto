@@ -95,6 +95,7 @@ const PIN_SOUND_KEYS = new Set([
   "fxMuted",
   "envelopeSelectedId",
   "oscSelectedId",
+  "articulationSelectedId",
   "lfoSelected",
   "soundName"
 ]);
@@ -685,7 +686,7 @@ trash: `
 </svg>
     `,
 
-    sub: `
+    articulation: `
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -697,6 +698,23 @@ trash: `
       >
         <path d="M3 12h4"></path>
         <path d="M7 12c2-7 4-7 6 0s4 7 8 0"></path>
+      </svg>
+    `,
+
+    sub: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M5 5v14"></path>
+        <path d="M10 5v14"></path>
+        <path d="M15 5v14"></path>
+        <path d="M20 5v14"></path>
       </svg>
     `,
 
@@ -826,6 +844,17 @@ const envelopeParameter = {
   ]
 };
 
+const articulationParameter = {
+  id: "articulation",
+  label: "ART",
+  icon: "articulation",
+  children: [
+    { id: "glide", label: "glide", min: 0, max: 8, step: 1, offsetMode: "result" },
+    { id: "nudge", label: "nudge", min: -4, max: 4, step: 1, offsetMode: "result", stepOnly: true },
+    { id: "strum", label: "strum", min: -3, max: 3, step: 1, offsetMode: "result" }
+  ]
+};
+
 const subParameter = {
   id: "sub",
   label: "SUB",
@@ -891,6 +920,7 @@ const parameterMenuItems = [
   { label: "FILTER", parameterId: "filterCutoff", icon: "tone" },
   { label: "PAN", parameterId: "pan", icon: "pan" },
   { label: "LFO", parameterId: "lfo", icon: "lfo" },
+  { label: "art", parameter: articulationParameter, icon: "articulation" },
   { label: "fx", placeholderId: "fx", icon: "fx" },
   { label: "fx1", parameterId: "delay", icon: "delay" },
   { label: "fx2", placeholderId: "fx2", icon: "fx" },
@@ -916,6 +946,10 @@ function editorParameterById(id) {
 
   if (id === "sub") {
     return subParameter;
+  }
+
+  if (id === "articulation") {
+    return articulationParameter;
   }
 
   return parameterById(id);
@@ -2858,6 +2892,16 @@ function displayBaseValue(parameter) {
     return amount > 0 ? `+${amount}` : String(amount);
   }
 
+  if (parameter.id === "glide") {
+    const amount = Math.round(Number(value) || 0);
+    return amount === 0 ? "off" : String(amount);
+  }
+
+  if (parameter.id === "nudge" || parameter.id === "strum") {
+    const amount = Math.round(Number(value) || 0);
+    return amount > 0 ? `+${amount}` : String(amount);
+  }
+
   if (parameter.id === "filterCutoff") {
     if (value === 0) {
       return "off";
@@ -2925,9 +2969,22 @@ function parameterButton(menuItem) {
   menuItem.parameter ??
   parameterById(menuItem.parameterId);
 
+  const articulationSelectedId =
+    articulationParameter.children.some(
+      child => child.id === editorTrack().articulationSelectedId
+    )
+      ? editorTrack().articulationSelectedId
+      : "glide";
+
   const parentSweepParameter =
   parameter?.id === "sub"
     ? parameterById("subPattern")
+    : parameter?.id === "articulation"
+      ? (
+          articulationSelectedId === "nudge"
+            ? null
+            : parameterById(articulationSelectedId)
+        )
     : parameter?.id === "lfo"
     ? parameterById(
         editorTrack().lfoSelected === 2
@@ -2989,6 +3046,8 @@ function parameterButton(menuItem) {
       ? parameterById(
           envelopeChildId
         )
+    : parameter?.id === "articulation"
+      ? parameterById(articulationSelectedId)
       : parameter;
 
   const displayedIcon =
@@ -3028,7 +3087,9 @@ function parameterButton(menuItem) {
       ${
         parameter?.id === "sub"
           ? subPatternFigureHtml(editorTrack().base.subPattern ?? -1)
-          : valueText
+          : parameter?.id === "articulation" && articulationSelectedId === "nudge"
+            ? "nudge"
+            : valueText
       }
     </span>
   `;
@@ -3305,6 +3366,8 @@ button.addEventListener(
             )
           : parameter.id === "lfo"
             ? "settings"
+          : parameter.id === "articulation"
+            ? articulationSelectedId
             : (
                 parameter.children?.[0]?.id ??
                 parameter.id
@@ -4565,13 +4628,13 @@ topRow.appendChild(
  * 主音 / FXラック / 発音条件に分けて配置する。
  */
 const soundParameterItems =
-  parameterMenuItems.slice(0, 7);
+  parameterMenuItems.slice(0, 8);
 
 const fxParameterItems =
-  parameterMenuItems.slice(7, 13);
+  parameterMenuItems.slice(8, 14);
 
 const timingParameterItems =
-  parameterMenuItems.slice(13, 15);
+  parameterMenuItems.slice(14, 16);
 
 /*
  * 1行目：主音パラメーター
@@ -5500,6 +5563,16 @@ function displayStepValue(
     return result < 50
       ? `l${50 - result}`
       : `r${result - 50}`;
+  }
+
+  if (parameter.id === "glide") {
+    const amount = Math.round(Number(result) || 0);
+    return amount === 0 ? "off" : String(amount);
+  }
+
+  if (parameter.id === "nudge" || parameter.id === "strum") {
+    const amount = Math.round(Number(result) || 0);
+    return amount > 0 ? `+${amount}` : String(amount);
   }
 
   /*
@@ -7351,6 +7424,20 @@ function renderEdit(parameter) {
     header.classList.add("note-edit-toolbar");
   }
 
+  if (parameter.id === "articulation") {
+    header.classList.add("articulation-edit-toolbar");
+
+    const selectedId =
+      articulationParameter.children.some(
+        child => child.id === editorTrack().articulationSelectedId
+      )
+        ? editorTrack().articulationSelectedId
+        : "glide";
+
+    editorTrack().articulationSelectedId = selectedId;
+    state.selectedChildId = selectedId;
+  }
+
   const back = document.createElement("button");
   back.type = "button";
   back.className = "track-cycle";
@@ -7425,6 +7512,10 @@ function renderEdit(parameter) {
 
       tab.addEventListener("click", () => {
         state.selectedChildId = child.id;
+
+        if (parameter.id === "articulation") {
+          editorTrack().articulationSelectedId = child.id;
+        }
 
         renderEditorAndRestore(
           `base-value-${child.id}`
@@ -7502,9 +7593,11 @@ const hasOffsets =
     );
   }
 
-  header.appendChild(
-    editValueControl(parameter, activeId)
-  );
+  if (!activeChild?.stepOnly) {
+    header.appendChild(
+      editValueControl(parameter, activeId)
+    );
+  }
 
   editor.appendChild(header);
 
@@ -7529,7 +7622,7 @@ const hasOffsets =
           ...parameter,
           ...activeChild,
           id: activeOffsetId,
-          offsetMode: "offset"
+          offsetMode: activeChild.offsetMode ?? parameter.offsetMode ?? "offset"
         }
       : parameter;
 

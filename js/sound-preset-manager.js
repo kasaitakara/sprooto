@@ -86,6 +86,7 @@ export function captureTrackSound(track) {
     fxMuted: track.fxMuted,
     envelopeSelectedId: track.envelopeSelectedId,
     oscSelectedId: track.oscSelectedId,
+    articulationSelectedId: track.articulationSelectedId,
     lfoSelected: track.lfoSelected
   });
 }
@@ -96,6 +97,7 @@ export function applyTrackSound(track, sound, soundName) {
   track.fxMuted = normalized.fxMuted;
   track.envelopeSelectedId = normalized.envelopeSelectedId;
   track.oscSelectedId = normalized.oscSelectedId;
+  track.articulationSelectedId = normalized.articulationSelectedId;
   track.lfoSelected = normalized.lfoSelected;
   track.soundName = String(soundName || "sound");
 }

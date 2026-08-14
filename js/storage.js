@@ -125,6 +125,44 @@ function migrateSnapshot(snapshot) {
         track.offsets = {};
       }
 
+      const migratedSounds = [
+        track,
+        track?.pinSounds?.a,
+        track?.pinSounds?.b,
+        track?.pinSounds?.c
+      ].filter(Boolean);
+
+      migratedSounds.forEach(sound => {
+        if (!sound.base) {
+          sound.base = {};
+        }
+
+        if (!sound.offsets) {
+          sound.offsets = {};
+        }
+
+        const articulationDefaults = {
+          glide: 0,
+          nudge: 0,
+          strum: 0
+        };
+
+        Object.entries(articulationDefaults)
+          .forEach(([id, defaultValue]) => {
+            if (typeof sound.base[id] !== "number") {
+              sound.base[id] = defaultValue;
+            }
+
+            if (!Array.isArray(sound.offsets[id])) {
+              sound.offsets[id] = Array(64).fill(0);
+            }
+          });
+
+        if (!["glide", "nudge", "strum"].includes(sound.articulationSelectedId)) {
+          sound.articulationSelectedId = "glide";
+        }
+      });
+
       const chordDefaults = { chord: 0, voices: 4, inversion: 0, };
       Object.entries(chordDefaults).forEach(([id, defaultValue]) => {
         if (typeof track.base[id] !== "number") {

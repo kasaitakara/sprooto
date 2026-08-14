@@ -160,6 +160,7 @@ function makeTrack(id) {
     /* ENV親枠へ最後に表示した子パラメーター */
     envelopeSelectedId: "decay",
     oscSelectedId: "sineVolume",
+    articulationSelectedId: "glide",
 
     /* LFO編集画面で最後に選択していた系統 */
     lfoSelected: 1,
@@ -202,6 +203,9 @@ filterCutoff: 0,
       subPattern: -1,
       subCrescendo: 0,
       subProbability: 100,
+      glide: 0,
+      nudge: 0,
+      strum: 0,
 
       lfo1Target: "pitch",
       lfo1Wave: "sine",
@@ -293,6 +297,15 @@ fmFeedback:
     filled(0),
 
   subProbability:
+    filled(0),
+
+  glide:
+    filled(0),
+
+  nudge:
+    filled(0),
+
+  strum:
     filled(0),
 
   lfo1Depth:
@@ -798,6 +811,37 @@ export const parameters = [
     icon: "probability",
     min: 0,
     max: 100,
+    step: 1,
+    offsetMode: "result"
+  },
+
+
+  {
+    id: "glide",
+    label: "glide",
+    icon: "articulation",
+    min: 0,
+    max: 8,
+    step: 1,
+    offsetMode: "result"
+  },
+
+  {
+    id: "nudge",
+    label: "nudge",
+    icon: "articulation",
+    min: -4,
+    max: 4,
+    step: 1,
+    offsetMode: "result"
+  },
+
+  {
+    id: "strum",
+    label: "strum",
+    icon: "articulation",
+    min: -3,
+    max: 3,
     step: 1,
     offsetMode: "result"
   },
@@ -2937,6 +2981,31 @@ function normalizeTrackData(track) {
   track.base.subPattern = clamp(Math.round(track.base.subPattern), -1, 6);
   track.base.subCrescendo = clamp(Math.round(track.base.subCrescendo), -3, 3);
   track.base.subProbability = clamp(Math.round(track.base.subProbability), 0, 100);
+
+  const articulationDefaults = {
+    glide: 0,
+    nudge: 0,
+    strum: 0
+  };
+
+  Object.entries(articulationDefaults).forEach(([id, defaultValue]) => {
+    if (typeof track.base[id] !== "number") {
+      track.base[id] = defaultValue;
+    }
+
+    if (!Array.isArray(track.offsets[id])) {
+      track.offsets[id] = filled(0);
+    }
+  });
+
+  track.base.glide = clamp(Math.round(track.base.glide), 0, 8);
+  /* nudgeは内部Baseを互換用に保持するが、再生時はStep値だけを使う。 */
+  track.base.nudge = 0;
+  track.base.strum = clamp(Math.round(track.base.strum), -3, 3);
+
+  if (!["glide", "nudge", "strum"].includes(track.articulationSelectedId)) {
+    track.articulationSelectedId = "glide";
+  }
 
   track.pinEnabled =
     Boolean(track.pinEnabled);

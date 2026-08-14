@@ -25,6 +25,9 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
   subPattern: -1,
   subCrescendo: 0,
   subProbability: 100,
+  glide: 0,
+  nudge: 0,
+  strum: 0,
   lfo1Target: "pitch",
   lfo1Wave: "sine",
   lfo1Depth: 0,
@@ -44,6 +47,7 @@ export const SOUND_OFFSET_IDS = Object.freeze([
 "filterCutoff", "filterResonance", "pan",
   "delay", "delayTime", "delayFeedback", "probability",
   "subPattern", "subCrescendo", "subProbability",
+  "glide", "nudge", "strum",
   "lfo1Depth", "lfo1Rate", "lfo2Depth", "lfo2Rate"
 ]);
 
@@ -62,6 +66,7 @@ export function createDefaultSound() {
     fxMuted: false,
     envelopeSelectedId: "decay",
     oscSelectedId: "sineVolume",
+    articulationSelectedId: "glide",
     lfoSelected: 1
   };
 }
@@ -93,6 +98,10 @@ export function normalizeSound(sound) {
 
   if (["sineVolume", "sineDecay", "noiseVolume", "noiseDecay"].includes(source.oscSelectedId)) {
     normalized.oscSelectedId = source.oscSelectedId;
+  }
+
+  if (["glide", "nudge", "strum"].includes(source.articulationSelectedId)) {
+    normalized.articulationSelectedId = source.articulationSelectedId;
   }
 
   normalized.lfoSelected = source.lfoSelected === 2 ? 2 : 1;

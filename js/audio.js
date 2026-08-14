@@ -723,6 +723,127 @@ const now =
     chordNotes = chordNotes.map(value => value + 12);
   }
 
+  /* =========================
+   * Articulation
+   * ========================= */
+  const glideValue = clamp(
+    Math.round(
+      (soundTrack.base.glide ?? 0) +
+      offset("glide")
+    ),
+    0,
+    8
+  );
+
+  const strumValue = clamp(
+    Math.round(
+      (soundTrack.base.strum ?? 0) +
+      offset("strum")
+    ),
+    -3,
+    3
+  );
+
+  const stepSeconds =
+    (60 / Math.max(1, bpm)) / 4;
+
+  const glideStepRatios = [
+    0, 0.125, 0.25, 0.5,
+    0.75, 1, 1.5, 2, 3
+  ];
+
+  const glideDuration =
+    glideValue > 0
+      ? stepSeconds *
+        glideStepRatios[glideValue]
+      : 0;
+
+  const strumGapSeconds =
+    Math.abs(strumValue) *
+    ((60 / Math.max(1, bpm)) / 64);
+
+  const maximumStrumDelay =
+    chordNotes.length > 1
+      ? (chordNotes.length - 1) *
+        strumGapSeconds
+      : 0;
+
+  const previousVoice =
+    activeTrackVoices.get(track.id);
+
+  function previousPitchAt(trajectory, time) {
+    if (!trajectory) {
+      return null;
+    }
+
+    const startNote =
+      Number(trajectory.startNote);
+    const targetNote =
+      Number(trajectory.targetNote);
+
+    if (!Number.isFinite(startNote) || !Number.isFinite(targetNote)) {
+      return null;
+    }
+
+    const startTime =
+      Number(trajectory.startTime) || 0;
+    const endTime =
+      Number(trajectory.endTime) || startTime;
+
+    if (time <= startTime || endTime <= startTime) {
+      return startNote;
+    }
+
+    if (time >= endTime) {
+      return targetNote;
+    }
+
+    const progress =
+      clamp(
+        (time - startTime) /
+          (endTime - startTime),
+        0,
+        1
+      );
+
+    return startNote +
+      (targetNote - startNote) *
+      progress;
+  }
+
+  const previousTrajectories =
+    previousVoice?.endTime > now &&
+    Array.isArray(previousVoice.pitchTrajectories)
+      ? previousVoice.pitchTrajectories
+      : [];
+
+  const glideStartNotes =
+    chordNotes.map((targetNote, voiceIndex) => {
+      if (
+        glideValue <= 0 ||
+        previousTrajectories.length === 0
+      ) {
+        return targetNote;
+      }
+
+      /*
+       * 実音を低い順に並べ、高音側を優先して対応。
+       * voice数が変化した場合も上側の対応を維持する。
+       */
+      const previousIndex = clamp(
+        voiceIndex +
+          previousTrajectories.length -
+          chordNotes.length,
+        0,
+        previousTrajectories.length - 1
+      );
+
+      return previousPitchAt(
+        previousTrajectories[previousIndex],
+        now
+      ) ?? targetNote;
+    });
+
   const velocityScale =
     clamp(
       Number(options.velocityScale) || 1,
@@ -1111,7 +1232,7 @@ const filter2 =
   context.createBiquadFilter();
 
 const gateEnd =
-  now + gate;
+  now + gate + maximumStrumDelay;
 
   /*
  * クリック防止用のRelease。
@@ -1753,11 +1874,6 @@ const mixGain =
  * 新旧Voiceを重ねないことで、
  * FM波形同士の位相干渉を防ぐ。
  */
-const previousVoice =
-  activeTrackVoices.get(
-    track.id
-  );
-
 if (
   previousVoice?.gainNode
 ) {
@@ -1881,7 +1997,36 @@ activeTrackVoices.set(
   {
     gainNode: mixGain,
     startTime: now,
-    endTime: releaseEnd
+    endTime: releaseEnd,
+    pitchTrajectories:
+      sineVolume > 0
+        ? chordNotes.map(
+            (targetNote, voiceIndex) => {
+              const strumVoiceIndex =
+                strumValue < 0
+                  ? chordNotes.length - 1 - voiceIndex
+                  : voiceIndex;
+
+              const voiceDelay =
+                chordNotes.length > 1
+                  ? strumVoiceIndex * strumGapSeconds
+                  : 0;
+
+              const trajectoryStart =
+                now + voiceDelay;
+
+              return {
+                startNote: glideStartNotes[voiceIndex] ?? targetNote,
+                targetNote,
+                startTime: trajectoryStart,
+                endTime:
+                  glideDuration > 0
+                    ? trajectoryStart + glideDuration
+                    : trajectoryStart
+              };
+            }
+          )
+        : []
   }
 );
 
@@ -2047,7 +2192,32 @@ mixGain
   if (sineVolume > 0) {
     const voiceGainScale = 1 / Math.sqrt(Math.max(1, chordNotes.length));
 
-    for (const voiceNote of chordNotes) {
+    for (
+      let voiceIndex = 0;
+      voiceIndex < chordNotes.length;
+      voiceIndex++
+    ) {
+    const voiceNote =
+      chordNotes[voiceIndex];
+
+    const glideStartNote =
+      glideStartNotes[voiceIndex] ??
+      voiceNote;
+
+    const strumVoiceIndex =
+      strumValue < 0
+        ? chordNotes.length - 1 - voiceIndex
+        : voiceIndex;
+
+    const voiceStartDelay =
+      chordNotes.length > 1
+        ? strumVoiceIndex *
+          strumGapSeconds
+        : 0;
+
+    const voiceStartTime =
+      now + voiceStartDelay;
+
     const sineSource =
       context.createBufferSource();
 
@@ -2382,7 +2552,10 @@ mixGain
       baseFmAmount,
       fmFeedbackStrength,
       pitchLfos,
-      fmDepthLfos
+      fmDepthLfos,
+      glideStartNote,
+      glideTargetNote: voiceNote,
+      glideDuration
     };
 
     const cacheKey =
@@ -2448,8 +2621,26 @@ mixGain
           }
         );
 
+        const glideProgress =
+          glideDuration > 0
+            ? clamp(
+                elapsedSeconds /
+                  glideDuration,
+                0,
+                1
+              )
+            : 1;
+
+        const currentBaseNote =
+          glideStartNote +
+          (voiceNote - glideStartNote) *
+          glideProgress;
+
+        const currentBaseFrequency =
+          frequency(currentBaseNote);
+
         const currentCarrierFrequency =
-          carrierFrequency *
+          currentBaseFrequency *
           Math.pow(
             2,
             pitchCents / 1200
@@ -2522,7 +2713,7 @@ mixGain
         modulatorPhase +=
           2 *
           Math.PI *
-          modulatorFrequency /
+          (currentBaseFrequency * fmRatio) /
           sampleRate;
 
         /*
@@ -2575,15 +2766,17 @@ mixGain
         0.0001,
         sineVolume * voiceGainScale
       ),
-      now
+      voiceStartTime
     );
 
     sineSource
       .connect(sineGain)
       .connect(mixGain);
 
-    sineSource.start(now);
-    sineSource.stop(sineStopAt);
+    sineSource.start(voiceStartTime);
+    sineSource.stop(
+      sineStopAt + voiceStartDelay
+    );
     }
   }
 

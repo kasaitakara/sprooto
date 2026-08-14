@@ -4719,3 +4719,14 @@ input[type="radio"]:focus-visible {
     align-items: center;
     justify-content: center;
 }
+
+/* =========================
+   iPad scale up
+========================= */
+
+@media (min-width: 700px) and (pointer: coarse) {
+    .app {
+        transform: scale(1.65);
+        transform-origin: center center;
+    }
+}

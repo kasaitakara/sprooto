@@ -2925,7 +2925,7 @@ export function currentSourceLabel() {
   );
 }
 
-const HISTORY_LIMIT = 100;
+const HISTORY_LIMIT = 10;
 
 const undoStack = [];
 const redoStack = [];

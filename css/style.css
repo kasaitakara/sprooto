@@ -169,13 +169,13 @@ body.theme-aya {
 
 body.theme-tobokegao {
     --bg: #ffffff;
-    --text: #1164a4;
+    --text: #116ea4;
     --muted: #000000;
-    --line: #1164a4;
+    --line: #116ea4;
 
     --cell: #f4f4f4;
     --off: #f4f4f4;
-    --on: #1164a4;
+    --on: #116ea4;
     --play-control: #ffcc00;
     --play: #ffcc00;
 

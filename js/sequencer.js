@@ -199,6 +199,9 @@ filterCutoff: 0,
       delay: 0,
       delayTime: 4,
       delayFeedback: 35,
+      crushLevel: 0,
+      crushBit: 8,
+      crushRate: 4,
       probability: 100,
       subPattern: -1,
       subCrescendo: 0,
@@ -285,6 +288,15 @@ fmFeedback:
     filled(0),
 
   delayFeedback:
+    filled(0),
+
+  crushLevel:
+    filled(0),
+
+  crushBit:
+    filled(0),
+
+  crushRate:
     filled(0),
 
   probability:
@@ -802,6 +814,36 @@ export const parameters = [
   max: 95,
   step: 1
 }
+    ]
+  },
+
+
+  {
+    id: "crushLevel",
+    label: "crush",
+    icon: "crush",
+    min: 0,
+    max: 100,
+    step: 1,
+    offsetMode: "result",
+
+    children: [
+      {
+        id: "crushBit",
+        label: "bit",
+        min: 1,
+        max: 16,
+        step: 1,
+        offsetMode: "result"
+      },
+      {
+        id: "crushRate",
+        label: "rate",
+        min: 1,
+        max: 32,
+        step: 1,
+        offsetMode: "result"
+      }
     ]
   },
 
@@ -3005,6 +3047,36 @@ function normalizeTrackData(track) {
 
   if (!["glide", "nudge", "strum"].includes(track.articulationSelectedId)) {
     track.articulationSelectedId = "glide";
+  }
+
+  const crushDefaults = {
+    crushLevel: 0,
+    crushBit: 8,
+    crushRate: 4
+  };
+
+  Object.entries(crushDefaults).forEach(([id, defaultValue]) => {
+    if (typeof track.base[id] !== "number") {
+      track.base[id] = defaultValue;
+    }
+
+    if (!Array.isArray(track.offsets[id])) {
+      track.offsets[id] = filled(0);
+    }
+  });
+
+  track.base.crushLevel = clamp(Math.round(track.base.crushLevel), 0, 100);
+  track.base.crushBit = clamp(Math.round(track.base.crushBit), 1, 16);
+  {
+    const crushRateValues = [1, 2, 4, 8, 16, 32];
+    track.base.crushRate = crushRateValues.reduce(
+      (bestValue, value) =>
+        Math.abs(value - track.base.crushRate) <
+        Math.abs(bestValue - track.base.crushRate)
+          ? value
+          : bestValue,
+      crushRateValues[0]
+    );
   }
 
   track.pinEnabled =

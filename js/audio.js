@@ -13,6 +13,7 @@ let outputAnalyser;
 let eqNodes = [];
 let spectrumData;
 let outputTimeData;
+let bitCrusherWorkletReady = null;
 
 const EQ_FREQUENCIES = [
   60, 120, 250, 500,
@@ -68,6 +69,114 @@ function resumeAudioContext() {
   ) {
     context.resume().catch(() => {});
   }
+}
+
+async function initializeBitCrusherWorklet() {
+  if (!context?.audioWorklet) {
+    return false;
+  }
+
+  if (!bitCrusherWorkletReady) {
+    const processorSource = `
+      class SprootoBitCrusherProcessor extends AudioWorkletProcessor {
+        static get parameterDescriptors() {
+          return [
+            {
+              name: "bitDepth",
+              defaultValue: 8,
+              minValue: 1,
+              maxValue: 16,
+              automationRate: "k-rate"
+            },
+            {
+              name: "rateReduction",
+              defaultValue: 4,
+              minValue: 1,
+              maxValue: 32,
+              automationRate: "k-rate"
+            }
+          ];
+        }
+
+        constructor() {
+          super();
+          this.phase = 0;
+          this.held = [];
+        }
+
+        process(inputs, outputs, parameters) {
+          const input = inputs[0];
+          const output = outputs[0];
+
+          if (!input || input.length === 0) {
+            return true;
+          }
+
+          const bitDepth = Math.max(
+            1,
+            Math.min(16, Math.round(parameters.bitDepth[0] || 8))
+          );
+
+          const rateReduction = Math.max(
+            1,
+            Math.min(32, Math.round(parameters.rateReduction[0] || 4))
+          );
+
+          const quantizer = Math.max(1, Math.pow(2, bitDepth - 1) - 1);
+          const frameCount = output[0]?.length || 0;
+
+          for (let frame = 0; frame < frameCount; frame++) {
+            const capture = this.phase === 0;
+
+            for (let channel = 0; channel < output.length; channel++) {
+              const source = input[channel] || input[0];
+              const destination = output[channel];
+
+              if (!source || !destination) {
+                continue;
+              }
+
+              if (capture || this.held[channel] === undefined) {
+                const sample = source[frame] || 0;
+                this.held[channel] = Math.round(sample * quantizer) / quantizer;
+              }
+
+              destination[frame] = this.held[channel];
+            }
+
+            this.phase = (this.phase + 1) % rateReduction;
+          }
+
+          return true;
+        }
+      }
+
+      registerProcessor(
+        "sprooto-bit-crusher",
+        SprootoBitCrusherProcessor
+      );
+    `;
+
+    const blob = new Blob(
+      [processorSource],
+      { type: "application/javascript" }
+    );
+
+    const url = URL.createObjectURL(blob);
+
+    bitCrusherWorkletReady = context.audioWorklet
+      .addModule(url)
+      .then(() => true)
+      .catch(error => {
+        console.warn("Bit crusher AudioWorklet unavailable:", error);
+        return false;
+      })
+      .finally(() => {
+        URL.revokeObjectURL(url);
+      });
+  }
+
+  return bitCrusherWorkletReady;
 }
 
 export async function initializeAudio() {
@@ -149,6 +258,9 @@ window.addEventListener(
   resumeAudioContext
 );
   }
+
+  await initializeBitCrusherWorklet();
+
   if (context.state === "suspended") await context.resume();
 }
 
@@ -1222,6 +1334,51 @@ const delayTime =
     95
   ) / 100;
 
+  const crushLevel =
+    soundTrack.fxMuted
+      ? 0
+      : clamp(
+          (soundTrack.base.crushLevel ?? 0) +
+            offset("crushLevel"),
+          0,
+          100
+        ) / 100;
+
+  const crushBit = clamp(
+    Math.round(
+      (soundTrack.base.crushBit ?? 8) +
+        offset("crushBit")
+    ),
+    1,
+    16
+  );
+
+  const crushRateValues = [
+    1, 2, 4, 8, 16, 32
+  ];
+
+  const crushRateBaseIndex =
+    crushRateValues.reduce(
+      (bestIndex, value, index) =>
+        Math.abs(value - (soundTrack.base.crushRate ?? 4)) <
+        Math.abs(crushRateValues[bestIndex] - (soundTrack.base.crushRate ?? 4))
+          ? index
+          : bestIndex,
+      0
+    );
+
+  const crushRateIndex = clamp(
+    crushRateBaseIndex +
+      Math.round(offset("crushRate")),
+    0,
+    crushRateValues.length - 1
+  );
+
+  const crushRate =
+    crushRateValues[
+      crushRateIndex
+    ];
+
   const panner =
   context.createStereoPanner();
 
@@ -2036,9 +2193,13 @@ mixGain
   .connect(panner);
 
   /*
-   * 原音は常にそのまま出力する。
+   * FX1 Delay → FX2 CRUSH の順で処理するため、
+   * まずPan後の信号をFXバスへまとめる。
    */
-  panner.connect(mixInput);
+  const fxInput =
+    context.createGain();
+
+  panner.connect(fxInput);
 
   /*
    * クリーンなDelay。
@@ -2078,7 +2239,7 @@ mixGain
 
     delayNode
       .connect(wetGain)
-      .connect(mixInput);
+      .connect(fxInput);
 
     delayNode
       .connect(feedbackGain)
@@ -2129,6 +2290,78 @@ mixGain
         cleanupSeconds * 1000
       )
     );
+  }
+
+  /*
+   * FX2：Bit Crusher
+   *
+   * BIT / RATEで完成したWet音を作り、
+   * CRUSH LEVELでDry/Wetを混ぜる。
+   * LEVEL 0は完全Dry、100は完全Wet。
+   */
+  if (crushLevel > 0 && bitCrusherWorkletReady) {
+    const dryGain =
+      context.createGain();
+
+    const wetGain =
+      context.createGain();
+
+    let crusherNode = null;
+
+    try {
+      crusherNode =
+        new AudioWorkletNode(
+          context,
+          "sprooto-bit-crusher",
+          {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            outputChannelCount: [2]
+          }
+        );
+
+      crusherNode.parameters
+        .get("bitDepth")
+        ?.setValueAtTime(
+          crushBit,
+          now
+        );
+
+      crusherNode.parameters
+        .get("rateReduction")
+        ?.setValueAtTime(
+          crushRate,
+          now
+        );
+
+      dryGain.gain.setValueAtTime(
+        1 - crushLevel,
+        now
+      );
+
+      wetGain.gain.setValueAtTime(
+        crushLevel,
+        now
+      );
+
+      fxInput
+        .connect(dryGain)
+        .connect(mixInput);
+
+      fxInput
+        .connect(crusherNode)
+        .connect(wetGain)
+        .connect(mixInput);
+    } catch (error) {
+      console.warn(
+        "Bit crusher node unavailable:",
+        error
+      );
+
+      fxInput.connect(mixInput);
+    }
+  } else {
+    fxInput.connect(mixInput);
   }
 
   function scheduleSourceEnvelope(

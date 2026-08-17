@@ -161,6 +161,23 @@ function migrateSnapshot(snapshot) {
         if (!["glide", "nudge", "strum"].includes(sound.articulationSelectedId)) {
           sound.articulationSelectedId = "glide";
         }
+
+        const crushDefaults = {
+          crushLevel: 0,
+          crushBit: 8,
+          crushRate: 4
+        };
+
+        Object.entries(crushDefaults)
+          .forEach(([id, defaultValue]) => {
+            if (typeof sound.base[id] !== "number") {
+              sound.base[id] = defaultValue;
+            }
+
+            if (!Array.isArray(sound.offsets[id])) {
+              sound.offsets[id] = Array(64).fill(0);
+            }
+          });
       });
 
       const chordDefaults = { chord: 0, voices: 4, inversion: 0, };

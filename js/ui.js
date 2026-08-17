@@ -733,6 +733,97 @@ trash: `
   </svg>
 `,
 
+    crush: `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <!-- head + claw -->
+    <path
+      fill="currentColor"
+      stroke="none"
+      d="
+        M4.2 7.2
+        L7.1 4.3
+        L9.2 5.4
+        L13.8 2.4
+        L17.4 1.7
+        L17.8 3.5
+        L14.8 6.1
+        L13.3 8.3
+        L15.1 10.1
+        L12.8 11.9
+        L10.1 8.8
+        L7.7 10.5
+        Z
+      "
+    ></path>
+
+    <!-- striking face -->
+    <path
+      fill="currentColor"
+      stroke="none"
+      d="
+        M3.1 7.6
+        L6.2 10.7
+        L4.2 12.7
+        L1.3 9.8
+        Z
+      "
+    ></path>
+
+    <!-- metal shaft -->
+    <path
+      fill="currentColor"
+      stroke="none"
+      d="
+        M10.1 9.1
+        L11.8 8.0
+        L17.0 15.6
+        L15.3 16.8
+        Z
+      "
+    ></path>
+
+    <!-- grip -->
+    <path
+      fill="currentColor"
+      stroke="none"
+      d="
+        M14.8 15.5
+        L17.4 13.8
+        L22.1 18.5
+        Q23.0 19.5 22.2 20.5
+        L19.4 23
+        Q18.6 23.7 17.7 22.8
+        L13.5 18.2
+        Z
+      "
+    ></path>
+
+    <!-- grip grooves -->
+    <path
+      d="M15.3 18.2l2.1-1.4"
+      stroke="var(--bg)"
+      stroke-width="0.9"
+    ></path>
+    <path
+      d="M16.4 19.5l2.1-1.4"
+      stroke="var(--bg)"
+      stroke-width="0.9"
+    ></path>
+    <path
+      d="M17.5 20.7l2.1-1.4"
+      stroke="var(--bg)"
+      stroke-width="0.9"
+    ></path>
+  </svg>
+`,
+
     probability: `
       <svg
         viewBox="0 0 24 24"
@@ -866,6 +957,45 @@ const subParameter = {
   ]
 };
 
+
+const crushParameter = {
+  id: "crush",
+  label: "FX2",
+  icon: "crush",
+  children: [
+    { id: "crushLevel", label: "level", min: 0, max: 100, step: 1, offsetMode: "result" },
+    { id: "crushBit", label: "bit", min: 1, max: 16, step: 1, offsetMode: "result" },
+    { id: "crushRate", label: "rate", min: 1, max: 32, step: 1, offsetMode: "result" }
+  ]
+};
+
+const CRUSH_RATE_VALUES = Object.freeze([
+  1, 2, 4, 8, 16, 32
+]);
+
+function crushRateIndex(value) {
+  const numericValue = Number(value) || 1;
+
+  return CRUSH_RATE_VALUES.reduce(
+    (bestIndex, candidate, index) =>
+      Math.abs(candidate - numericValue) <
+      Math.abs(CRUSH_RATE_VALUES[bestIndex] - numericValue)
+        ? index
+        : bestIndex,
+    0
+  );
+}
+
+function crushRateValue(index) {
+  return CRUSH_RATE_VALUES[
+    clamp(
+      Math.round(Number(index) || 0),
+      0,
+      CRUSH_RATE_VALUES.length - 1
+    )
+  ];
+}
+
 const SUB_PATTERN_FIGURES = Object.freeze([
   { label: "32", divisions: 2, active: [0, 1] },
   { label: "32 back", divisions: 2, active: [1] },
@@ -923,7 +1053,7 @@ const parameterMenuItems = [
   { label: "art", parameter: articulationParameter, icon: "articulation" },
   { label: "fx", placeholderId: "fx", icon: "fx" },
   { label: "fx1", parameterId: "delay", icon: "delay" },
-  { label: "fx2", placeholderId: "fx2", icon: "fx" },
+  { label: "fx2", parameter: crushParameter, icon: "crush" },
   { label: "fx3", placeholderId: "fx3", icon: "fx" },
   { label: "fx4", placeholderId: "fx4", icon: "fx" },
   { label: "fx5", placeholderId: "fx5", icon: "fx" },
@@ -950,6 +1080,10 @@ function editorParameterById(id) {
 
   if (id === "articulation") {
     return articulationParameter;
+  }
+
+  if (id === "crush") {
+    return crushParameter;
   }
 
   return parameterById(id);
@@ -2196,13 +2330,22 @@ function applyOffsetDeltaToSelection(
       ]
     );
 
+  const baseIndex =
+    parameter.id === "crushRate"
+      ? crushRateIndex(baseValue)
+      : null;
+
   const minOffset =
-    parameter.min -
-    baseValue;
+    parameter.id === "crushRate"
+      ? -baseIndex
+      : parameter.min -
+        baseValue;
 
   const maxOffset =
-    parameter.max -
-    baseValue;
+    parameter.id === "crushRate"
+      ? CRUSH_RATE_VALUES.length - 1 - baseIndex
+      : parameter.max -
+        baseValue;
 
   selectedKeysSorted()
     .forEach(
@@ -2879,8 +3022,23 @@ function displayBaseValue(parameter) {
     return `r${value - 50}`;
   }
 
-  if (parameter.id === "probability" || parameter.id === "subProbability") {
-    return `${value}%`;
+  if (
+  parameter.id === "probability" ||
+  parameter.id === "subProbability"
+) {
+  return `${value}%`;
+}
+
+if (parameter.id === "crushLevel") {
+  return String(value);
+}
+
+  if (parameter.id === "crushBit") {
+    return `${Math.round(Number(value) || 1)}bit`;
+  }
+
+  if (parameter.id === "crushRate") {
+    return `x${crushRateValue(crushRateIndex(value))}`;
   }
 
   if (parameter.id === "subPattern") {
@@ -2977,7 +3135,9 @@ function parameterButton(menuItem) {
       : "glide";
 
   const parentSweepParameter =
-  parameter?.id === "sub"
+  parameter?.id === "crush"
+    ? parameterById("crushLevel")
+    : parameter?.id === "sub"
     ? parameterById("subPattern")
     : parameter?.id === "articulation"
       ? (
@@ -3048,6 +3208,8 @@ function parameterButton(menuItem) {
         )
     : parameter?.id === "articulation"
       ? parameterById(articulationSelectedId)
+    : parameter?.id === "crush"
+      ? parameterById("crushLevel")
       : parameter;
 
   const displayedIcon =
@@ -4799,6 +4961,10 @@ const definition = {
       );
     }
 
+    if (id === "crushRate") {
+      return `x${crushRateValue(crushRateIndex(track.base[id]))}`;
+    }
+
     if (id === "filterCutoff") {
       const cutoffValue =
         Number(track.base[id]) || 0;
@@ -4917,6 +5083,12 @@ value.addEventListener(
       return 0;
     }
 
+    if (id === "crushRate") {
+      return crushRateIndex(
+        track.base[id]
+      );
+    }
+
     return Number(
       track.base[id]
     );
@@ -4959,25 +5131,32 @@ if (
     offsetSelectionStartValues
   );
 } else {
-  const clampedValue =
-    clamp(
-      finiteValue,
-      definition.min,
-      definition.max
-    );
+  if (id === "crushRate") {
+    track.base[id] =
+      crushRateValue(
+        finiteValue
+      );
+  } else {
+    const clampedValue =
+      clamp(
+        finiteValue,
+        definition.min,
+        definition.max
+      );
 
-  const correctedValue =
-    id === "delayTime"
-      ? Math.round(
-          clampedValue
-        )
-      : roundToStep(
-          clampedValue,
-          definition.step
-        );
+    const correctedValue =
+      id === "delayTime"
+        ? Math.round(
+            clampedValue
+          )
+        : roundToStep(
+            clampedValue,
+            definition.step
+          );
 
-  track.base[id] =
-    correctedValue;
+    track.base[id] =
+      correctedValue;
+  }
 }
 
       if (id === "subPattern") {
@@ -5061,23 +5240,30 @@ document
   editSelection.mode ===
     "offset"
     ? -10000
-    : definition.min,
+    : id === "crushRate"
+      ? 0
+      : definition.min,
 
 max: () =>
   editSelection.mode ===
     "offset"
     ? 10000
-    : definition.max,
+    : id === "crushRate"
+      ? CRUSH_RATE_VALUES.length - 1
+      : definition.max,
 
 step:
-  definition.step,
+  id === "crushRate"
+    ? 1
+    : definition.step,
 
     /*
      * Delay Timeは選択肢が
      * 11段階だけなので加速しない。
      */
     acceleration:
-      id !== "delayTime",
+      id !== "delayTime" &&
+      id !== "crushRate",
 
     accelerationStart:
       id === "note"
@@ -5290,6 +5476,133 @@ step:
   return;
 }
 
+      if (id === "crushRate") {
+        const input =
+          document.createElement(
+            "input"
+          );
+
+        input.type = "text";
+        input.readOnly = true;
+        input.className = "base-input";
+        input.dataset.focusKey = valueKey;
+        input.dataset.keyboardEditing = "true";
+
+        let currentIndex =
+          crushRateIndex(
+            track.base[id]
+          );
+
+        const startIndex =
+          currentIndex;
+
+        input.value =
+          `x${crushRateValue(currentIndex)}`;
+
+        value.replaceWith(input);
+        input.focus();
+        input.select();
+
+        let finished = false;
+
+        const finish =
+          shouldCommit => {
+            if (finished) return;
+            finished = true;
+
+            if (shouldCommit) {
+              const previousIndex =
+                crushRateIndex(
+                  track.base[id]
+                );
+
+              if (
+                currentIndex !==
+                previousIndex
+              ) {
+                saveHistory();
+
+                if (
+                  editSelection.mode === "offset" &&
+                  Array.isArray(track.offsets[id])
+                ) {
+                  applyOffsetDeltaToSelection(
+                    { ...definition, id },
+                    currentIndex - previousIndex
+                  );
+                } else {
+                  track.base[id] =
+                    crushRateValue(currentIndex);
+                }
+              }
+            } else {
+              currentIndex = startIndex;
+            }
+
+            renderEditorAndRestore(
+              valueKey
+            );
+          };
+
+        input.addEventListener(
+          "keydown",
+          event => {
+            if (
+              event.key === "ArrowUp" ||
+              event.key === "ArrowRight"
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              currentIndex = clamp(
+                currentIndex + 1,
+                0,
+                CRUSH_RATE_VALUES.length - 1
+              );
+              input.value = `x${crushRateValue(currentIndex)}`;
+              input.select();
+              return;
+            }
+
+            if (
+              event.key === "ArrowDown" ||
+              event.key === "ArrowLeft"
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              currentIndex = clamp(
+                currentIndex - 1,
+                0,
+                CRUSH_RATE_VALUES.length - 1
+              );
+              input.value = `x${crushRateValue(currentIndex)}`;
+              input.select();
+              return;
+            }
+
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+              finish(true);
+              return;
+            }
+
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              finish(false);
+            }
+          }
+        );
+
+        input.addEventListener(
+          "blur",
+          () => finish(true),
+          { once: true }
+        );
+
+        return;
+      }
+
       /*
        * Delay Time以外は
        * 従来どおり数値入力。
@@ -5454,19 +5767,28 @@ function displayStepValue(
     ]?.[stepIndex] ?? 0;
 
   const result =
-    roundToStep(
-      clamp(
-        Number(
-          track.base[
-            parameter.id
-          ]
-        ) +
-          Number(offset),
-        parameter.min,
-        parameter.max
-      ),
-      parameter.step ?? 1
-    );
+    parameter.id === "crushRate"
+      ? crushRateValue(
+          crushRateIndex(
+            track.base.crushRate
+          ) +
+          Math.round(
+            Number(offset) || 0
+          )
+        )
+      : roundToStep(
+          clamp(
+            Number(
+              track.base[
+                parameter.id
+              ]
+            ) +
+              Number(offset),
+            parameter.min,
+            parameter.max
+          ),
+          parameter.step ?? 1
+        );
 
   /*
    * NOTEだけは従来どおり
@@ -5573,6 +5895,10 @@ function displayStepValue(
   if (parameter.id === "nudge" || parameter.id === "strum") {
     const amount = Math.round(Number(result) || 0);
     return amount > 0 ? `+${amount}` : String(amount);
+  }
+
+  if (parameter.id === "crushRate") {
+    return `x${result}`;
   }
 
   /*
@@ -5785,23 +6111,35 @@ function renderOffsetGrid(parameter) {
       },
 
       min:
-        parameter.min -
-        Number(
-          track.base[
-            parameter.id
-          ]
-        ),
+        parameter.id === "crushRate"
+          ? -crushRateIndex(
+              track.base.crushRate
+            )
+          : parameter.min -
+            Number(
+              track.base[
+                parameter.id
+              ]
+            ),
 
       max:
-        parameter.max -
-        Number(
-          track.base[
-            parameter.id
-          ]
-        ),
+        parameter.id === "crushRate"
+          ? CRUSH_RATE_VALUES.length - 1 -
+            crushRateIndex(
+              track.base.crushRate
+            )
+          : parameter.max -
+            Number(
+              track.base[
+                parameter.id
+              ]
+            ),
 
       step:
         parameter.step ?? 1,
+
+      acceleration:
+        parameter.id !== "crushRate",
 
       accelerationStart:
         parameter.id === "note"
@@ -5854,20 +6192,29 @@ function renderOffsetGrid(parameter) {
           ]?.[stepIndex] ?? 0;
 
         const minimumOffset =
-          parameter.min -
-          Number(
-            track.base[
-              parameter.id
-            ]
-          );
+          parameter.id === "crushRate"
+            ? -crushRateIndex(
+                track.base.crushRate
+              )
+            : parameter.min -
+              Number(
+                track.base[
+                  parameter.id
+                ]
+              );
 
         const maximumOffset =
-          parameter.max -
-          Number(
-            track.base[
-              parameter.id
-            ]
-          );
+          parameter.id === "crushRate"
+            ? CRUSH_RATE_VALUES.length - 1 -
+              crushRateIndex(
+                track.base.crushRate
+              )
+            : parameter.max -
+              Number(
+                track.base[
+                  parameter.id
+                ]
+              );
 
         const offsetStep =
           parameter.step ?? 1;

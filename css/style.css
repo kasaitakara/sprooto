@@ -166,6 +166,37 @@ body.theme-aya {
 
     --queued: #be9cd7;
 }
+
+body.theme-tobokegao {
+    --bg: #ffffff;
+    --text: #1164a4;
+    --muted: #000000;
+    --line: #1164a4;
+
+    --cell: #f4f4f4;
+    --off: #f4f4f4;
+    --on: #1164a4;
+    --play-control: #ffcc00;
+    --play: #ffcc00;
+
+    --selected-bg: #ffcc00;
+    --selected-text: #000000;
+
+    --fill-bg: #bdd9ef;
+    --fill-text: #ffffff;
+
+    --edit-bg: #ffcc00;
+    --edit-text: #000000;
+
+    --chip-bg: #bdd9ef;
+    --chip-text: #ffffff;
+
+    --hover-bg: #ffcc00;
+    --hover-text: #000000;
+
+    --queued: #be9cd7;
+}
+
 * { box-sizing:border-box; }
 html {
     width: 100%;

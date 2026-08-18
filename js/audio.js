@@ -1,5 +1,6 @@
 import { clamp, resolveStepSound, resolveChordNoteOffsets, CHORD_NAMES } from "./sequencer.js";
 
+
 let context;
 let master;
 let mixInput;
@@ -14,6 +15,7 @@ let eqNodes = [];
 let spectrumData;
 let outputTimeData;
 let bitCrusherWorkletReady = null;
+let fmVoiceWorkletReady = null;
 let audioClockReady = false;
 let audioClockReadyPromise = null;
 
@@ -53,16 +55,6 @@ const masterMixSettings = {
  */
 const activeTrackVoices =
   new Map();
-
-/*
- * 位相固定FM波形のキャッシュ。
- * Random LFOを含まない同一条件の発音は
- * 生成済みAudioBufferを再利用する。
- */
-const fmBufferCache =
-  new Map();
-
-const FM_BUFFER_CACHE_LIMIT = 64;
 
 async function ensureAudioClockReady() {
   if (!context) {
@@ -125,6 +117,159 @@ function resumeAudioContext() {
       )
       .catch(() => {});
   }
+}
+
+async function initializeFmVoiceWorklet() {
+  if (!context?.audioWorklet) {
+    return false;
+  }
+
+  if (!fmVoiceWorkletReady) {
+    const processorSource = `
+      class SprootoFmVoiceProcessor extends AudioWorkletProcessor {
+        constructor(options) {
+          super();
+          const p = options.processorOptions || {};
+          this.startTime = Number(p.startTime) || 0;
+          this.stopTime = Number(p.stopTime) || this.startTime;
+          this.startNote = Number(p.startNote) || 60;
+          this.targetNote = Number(p.targetNote) || this.startNote;
+          this.glideDuration = Math.max(0, Number(p.glideDuration) || 0);
+          this.fmDepth = Math.max(0, Number(p.fmDepth) || 0);
+          this.fmRatio = Math.max(0.25, Number(p.fmRatio) || 1);
+          this.fmFeedbackStrength = Math.max(0, Number(p.fmFeedbackStrength) || 0);
+          this.pitchLfos = Array.isArray(p.pitchLfos) ? p.pitchLfos : [];
+          this.fmDepthLfos = Array.isArray(p.fmDepthLfos) ? p.fmDepthLfos : [];
+          this.carrierPhase = 0;
+          this.modulatorPhase = 0;
+          this.pitchRandomStates = this.pitchLfos.map(config => this.makeRandomState(config));
+          this.fmRandomStates = this.fmDepthLfos.map(config => this.makeRandomState(config));
+        }
+
+        frequency(note) {
+          return 440 * Math.pow(2, (note - 69) / 12);
+        }
+
+        clamp(value, min, max) {
+          return Math.min(max, Math.max(min, value));
+        }
+
+        makeRandomState(config) {
+          if (config.wave !== "random") return null;
+          return {
+            interval: 1 / Math.max(0.001, Number(config.rateHz) || 1),
+            nextTime: 0,
+            value: Math.random() * 2 - 1
+          };
+        }
+
+        lfoWaveValue(config, elapsedSeconds, randomState) {
+          const wave = config.wave;
+          const rateHz = Math.max(0.001, Number(config.rateHz) || 1);
+
+          if (wave === "random") {
+            while (elapsedSeconds >= randomState.nextTime) {
+              randomState.value = Math.random() * 2 - 1;
+              randomState.nextTime += randomState.interval;
+            }
+            return randomState.value;
+          }
+
+          if (wave === "rise" || wave === "fall") {
+            const progress = this.clamp(elapsedSeconds * rateHz, 0, 1);
+            const startValue = wave === "fall" ? 1 : -1;
+            return startValue * (1 - progress);
+          }
+
+          const phase = 2 * Math.PI * rateHz * elapsedSeconds;
+          switch (wave) {
+            case "triangle": return (2 / Math.PI) * Math.asin(Math.sin(phase));
+            case "square": return Math.sin(phase) >= 0 ? 1 : -1;
+            case "sawUp": return ((elapsedSeconds * rateHz) % 1) * 2 - 1;
+            case "sawDown": return 1 - ((elapsedSeconds * rateHz) % 1) * 2;
+            default: return Math.sin(phase);
+          }
+        }
+
+        pitchDepthToCents(config) {
+          const depth = this.clamp(Number(config.depth) || 0, 0, 100);
+          return (config.wave === "rise" || config.wave === "fall")
+            ? depth * 36
+            : depth * 12;
+        }
+
+        process(inputs, outputs) {
+          const output = outputs[0];
+          const channel = output?.[0];
+          if (!channel) return true;
+
+          const blockStart = currentTime;
+          if (blockStart >= this.stopTime) return false;
+
+          for (let i = 0; i < channel.length; i++) {
+            const sampleTime = blockStart + i / sampleRate;
+            if (sampleTime < this.startTime || sampleTime >= this.stopTime) {
+              channel[i] = 0;
+              continue;
+            }
+
+            const elapsed = sampleTime - this.startTime;
+            let pitchCents = 0;
+            for (let n = 0; n < this.pitchLfos.length; n++) {
+              const config = this.pitchLfos[n];
+              pitchCents += this.lfoWaveValue(config, elapsed, this.pitchRandomStates[n]) * this.pitchDepthToCents(config);
+            }
+
+            const glideProgress = this.glideDuration > 0
+              ? this.clamp(elapsed / this.glideDuration, 0, 1)
+              : 1;
+            const currentNote = this.startNote + (this.targetNote - this.startNote) * glideProgress;
+            const baseFrequency = this.frequency(currentNote);
+            const carrierFrequency = baseFrequency * Math.pow(2, pitchCents / 1200);
+            const baseFmAmount = carrierFrequency * this.fmDepth * 0.1;
+            let fmAmount = baseFmAmount;
+
+            for (let n = 0; n < this.fmDepthLfos.length; n++) {
+              const config = this.fmDepthLfos[n];
+              fmAmount += this.lfoWaveValue(config, elapsed, this.fmRandomStates[n]) * baseFmAmount * ((Number(config.depth) || 0) / 100);
+            }
+            fmAmount = this.clamp(fmAmount, 0, baseFmAmount * 2);
+
+            let modulatorValue = Math.sin(this.modulatorPhase);
+            if (this.fmFeedbackStrength > 0) {
+              for (let harmonic = 2; harmonic <= 12; harmonic++) {
+                modulatorValue += (this.fmFeedbackStrength / harmonic) * Math.sin(this.modulatorPhase * harmonic);
+              }
+            }
+
+            const instantaneousFrequency = carrierFrequency + modulatorValue * fmAmount;
+            channel[i] = Math.sin(this.carrierPhase);
+            this.carrierPhase += 2 * Math.PI * instantaneousFrequency / sampleRate;
+            this.modulatorPhase += 2 * Math.PI * (baseFrequency * this.fmRatio) / sampleRate;
+
+            if (this.carrierPhase > Math.PI * 2) this.carrierPhase %= Math.PI * 2;
+            if (this.modulatorPhase > Math.PI * 2) this.modulatorPhase %= Math.PI * 2;
+          }
+          return true;
+        }
+      }
+
+      registerProcessor("sprooto-fm-voice", SprootoFmVoiceProcessor);
+    `;
+
+    const blob = new Blob([processorSource], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    fmVoiceWorkletReady = context.audioWorklet
+      .addModule(url)
+      .then(() => true)
+      .catch(error => {
+        console.warn("FM AudioWorklet unavailable:", error);
+        return false;
+      })
+      .finally(() => URL.revokeObjectURL(url));
+  }
+
+  return fmVoiceWorkletReady;
 }
 
 async function initializeBitCrusherWorklet() {
@@ -317,7 +462,10 @@ window.addEventListener(
 );
   }
 
-  await initializeBitCrusherWorklet();
+  await Promise.all([
+    initializeBitCrusherWorklet(),
+    initializeFmVoiceWorklet()
+  ]);
 
   if (context.state === "suspended") {
     audioClockReady = false;
@@ -2486,594 +2634,104 @@ mixGain
   }
 }
 
-  if (sineVolume > 0) {
+  if (sineVolume > 0 && fmVoiceWorkletReady) {
     const voiceGainScale = 1 / Math.sqrt(Math.max(1, chordNotes.length));
 
-    for (
-      let voiceIndex = 0;
-      voiceIndex < chordNotes.length;
-      voiceIndex++
-    ) {
-    const voiceNote =
-      chordNotes[voiceIndex];
+    function workletLfoConfig(lfoNumber, target) {
+      const prefix = `lfo${lfoNumber}`;
+      if (soundTrack.base[`${prefix}Target`] !== target) return null;
 
-    const glideStartNote =
-      glideStartNotes[voiceIndex] ??
-      voiceNote;
-
-    const strumVoiceIndex =
-      strumValue < 0
-        ? chordNotes.length - 1 - voiceIndex
-        : voiceIndex;
-
-    const voiceStartDelay =
-      chordNotes.length > 1
-        ? strumVoiceIndex *
-          strumGapSeconds
-        : 0;
-
-    const voiceStartTime =
-      now + voiceStartDelay;
-
-    const sineSource =
-      context.createBufferSource();
-
-    const sineGain =
-      context.createGain();
-
-    const carrierFrequency =
-      frequency(voiceNote);
-
-    const sineStopAt =
-      releaseEnd + 0.01;
-
-    const bufferDuration =
-      Math.max(
-        0.001,
-        sineStopAt - now
+      const lfoDepth = clamp(
+        (soundTrack.base[`${prefix}Depth`] ?? 0) + offset(`${prefix}Depth`),
+        0,
+        100
       );
+      if (lfoDepth <= 0) return null;
 
-    const sampleRate =
-      context.sampleRate;
-
-    const sampleCount =
-      Math.max(
-        1,
-        Math.ceil(
-          bufferDuration *
-          sampleRate
-        )
+      const syncMode = soundTrack.base[`${prefix}SyncMode`] === "bpm" ? "bpm" : "free";
+      const rateValue = clamp(
+        (soundTrack.base[`${prefix}Rate`] ?? (syncMode === "bpm" ? 8 : 25)) + offset(`${prefix}Rate`),
+        syncMode === "bpm" ? 0 : 1,
+        syncMode === "bpm" ? 13 : 100
       );
-
-    /*
-     * Pitch / FM Depth LFOを
-     * AudioBuffer生成時に同じ時間軸へ統合する。
-     *
-     * 周期波形は毎トリガー位相0から開始し、
-     * Randomだけは発音ごとに変化する。
-     */
-    function bufferLfoConfig(
-      lfoNumber,
-      target
-    ) {
-      const prefix =
-        `lfo${lfoNumber}`;
-
-      if (
-        soundTrack.base[
-          `${prefix}Target`
-        ] !== target
-      ) {
-        return null;
-      }
-
-      const lfoDepth =
-        clamp(
-          (
-            soundTrack.base[
-              `${prefix}Depth`
-            ] ?? 0
-          ) +
-            offset(
-              `${prefix}Depth`
-            ),
-          0,
-          100
-        );
-
-      if (lfoDepth <= 0) {
-        return null;
-      }
-
-      const syncMode =
-        soundTrack.base[
-          `${prefix}SyncMode`
-        ] === "bpm"
-          ? "bpm"
-          : "free";
-
-      const rateValue =
-        clamp(
-          (
-            soundTrack.base[
-              `${prefix}Rate`
-            ] ??
-            (
-              syncMode === "bpm"
-                ? 8
-                : 25
-            )
-          ) +
-            offset(
-              `${prefix}Rate`
-            ),
-          syncMode === "bpm"
-            ? 0
-            : 1,
-          syncMode === "bpm"
-            ? 13
-            : 100
-        );
 
       return {
         depth: lfoDepth,
-        rateHz:
-          lfoRateToHz(
-            rateValue,
-            syncMode,
-            bpm
-          ),
-        wave:
-          soundTrack.base[
-            `${prefix}Wave`
-          ] ?? "sine"
+        rateHz: lfoRateToHz(rateValue, syncMode, bpm),
+        wave: soundTrack.base[`${prefix}Wave`] ?? "sine"
       };
     }
 
-    const pitchLfos =
-      [1, 2]
-        .map(lfoNumber =>
-          bufferLfoConfig(
-            lfoNumber,
-            "pitch"
-          )
-        )
-        .filter(Boolean);
+    const pitchLfos = [1, 2]
+      .map(lfoNumber => workletLfoConfig(lfoNumber, "pitch"))
+      .filter(Boolean);
 
-    const fmDepthLfos =
-      [1, 2]
-        .map(lfoNumber =>
-          bufferLfoConfig(
-            lfoNumber,
-            "fmDepth"
-          )
-        )
-        .filter(Boolean);
+    const fmDepthLfos = [1, 2]
+      .map(lfoNumber => workletLfoConfig(lfoNumber, "fmDepth"))
+      .filter(Boolean);
 
-    const hasRandomLfo =
-      [
-        ...pitchLfos,
-        ...fmDepthLfos
-      ].some(
-        config =>
-          config.wave === "random"
-      );
+    const fmFeedbackNormalized = clamp(
+      (Number(soundTrack.base.fmFeedback) || 0) + offset("fmFeedback"),
+      0,
+      50
+    ) / 50;
 
-    function makeRandomState(
-      config
-    ) {
-      if (
-        config.wave !== "random"
-      ) {
-        return null;
-      }
-
-      return {
-        interval:
-          1 /
-          Math.max(
-            0.001,
-            config.rateHz
-          ),
-        nextTime: 0,
-        value:
-          Math.random() * 2 - 1
-      };
-    }
-
-    const pitchRandomStates =
-      pitchLfos.map(
-        makeRandomState
-      );
-
-    const fmRandomStates =
-      fmDepthLfos.map(
-        makeRandomState
-      );
-
-    function lfoWaveValue(
-      config,
-      elapsedSeconds,
-      randomState
-    ) {
-      const wave =
-        config.wave;
-
-      if (
-        wave === "random"
-      ) {
-        while (
-          elapsedSeconds >=
-          randomState.nextTime
-        ) {
-          randomState.value =
-            Math.random() * 2 - 1;
-
-          randomState.nextTime +=
-            randomState.interval;
-        }
-
-        return randomState.value;
-      }
-
-      const rateHz =
-        Math.max(
-          0.001,
-          config.rateHz
-        );
-
-      if (
-        wave === "rise" ||
-        wave === "fall"
-      ) {
-        const progress =
-          clamp(
-            elapsedSeconds *
-              rateHz,
-            0,
-            1
-          );
-
-        const startValue =
-          wave === "fall"
-            ? 1
-            : -1;
-
-        return (
-          startValue *
-          (1 - progress)
-        );
-      }
-
-      const phase =
-        2 *
-        Math.PI *
-        rateHz *
-        elapsedSeconds;
-
-      switch (wave) {
-        case "triangle":
-          return (
-            2 /
-            Math.PI
-          ) *
-            Math.asin(
-              Math.sin(phase)
-            );
-
-        case "square":
-          return (
-            Math.sin(phase) >= 0
-              ? 1
-              : -1
-          );
-
-        case "sawUp": {
-          const cyclePosition =
-            (
-              elapsedSeconds *
-              rateHz
-            ) % 1;
-
-          return (
-            cyclePosition * 2 - 1
-          );
-        }
-
-        case "sawDown": {
-          const cyclePosition =
-            (
-              elapsedSeconds *
-              rateHz
-            ) % 1;
-
-          return (
-            1 - cyclePosition * 2
-          );
-        }
-
-        case "sine":
-        default:
-          return Math.sin(phase);
-      }
-    }
-
-    const fmFeedbackNormalized =
-  clamp(
-    (
-      Number(
-        soundTrack.base.fmFeedback
-      ) || 0
-    ) +
-      offset(
-        "fmFeedback"
-      ),
-    0,
-    50
-  ) / 50;
-
-    const fmFeedbackStrength =
-      Math.pow(
-        fmFeedbackNormalized,
-        1.2
-      ) * 1.8;
-
-    const fmRatio =
-  clamp(
-    (
-      Number(
-        soundTrack.base.fmRatio
-      ) || 1
-    ) +
-      offset(
-        "fmRatio"
-      ),
-    0.25,
-    8
-  );
-
-    const modulatorFrequency =
-      carrierFrequency *
-      fmRatio;
-
-    const baseFmAmount =
-      carrierFrequency *
-      depth *
-      0.1;
-
-    const cacheDescriptor = {
-      sampleRate,
-      sampleCount,
-      carrierFrequency,
-      modulatorFrequency,
-      baseFmAmount,
-      fmFeedbackStrength,
-      pitchLfos,
-      fmDepthLfos,
-      glideStartNote,
-      glideTargetNote: voiceNote,
-      glideDuration
-    };
-
-    const cacheKey =
-      hasRandomLfo
-        ? null
-        : JSON.stringify(
-            cacheDescriptor
-          );
-
-    let sineBuffer =
-      cacheKey
-        ? fmBufferCache.get(
-            cacheKey
-          )
-        : null;
-
-    if (!sineBuffer) {
-      sineBuffer =
-        context.createBuffer(
-          1,
-          sampleCount,
-          sampleRate
-        );
-
-      const samples =
-        sineBuffer.getChannelData(0);
-
-      let carrierPhase = 0;
-      let modulatorPhase = 0;
-
-      for (
-        let sampleIndex = 0;
-        sampleIndex < sampleCount;
-        sampleIndex++
-      ) {
-        const elapsedSeconds =
-          sampleIndex /
-          sampleRate;
-
-        let pitchCents = 0;
-
-        pitchLfos.forEach(
-          (config, index) => {
-            const amountCents =
-              (
-                config.wave === "rise" ||
-                config.wave === "fall"
-                  ? oneShotPitchDepthToCents(
-                      config.depth
-                    )
-                  : lfoDepthToCents(
-                      config.depth
-                    )
-              );
-
-            pitchCents +=
-              lfoWaveValue(
-                config,
-                elapsedSeconds,
-                pitchRandomStates[index]
-              ) *
-              amountCents;
-          }
-        );
-
-        const glideProgress =
-          glideDuration > 0
-            ? clamp(
-                elapsedSeconds /
-                  glideDuration,
-                0,
-                1
-              )
-            : 1;
-
-        const currentBaseNote =
-          glideStartNote +
-          (voiceNote - glideStartNote) *
-          glideProgress;
-
-        const currentBaseFrequency =
-          frequency(currentBaseNote);
-
-        const currentCarrierFrequency =
-          currentBaseFrequency *
-          Math.pow(
-            2,
-            pitchCents / 1200
-          );
-
-        let fmAmount =
-          baseFmAmount;
-
-        fmDepthLfos.forEach(
-          (config, index) => {
-            fmAmount +=
-              lfoWaveValue(
-                config,
-                elapsedSeconds,
-                fmRandomStates[index]
-              ) *
-              baseFmAmount *
-              (config.depth / 100);
-          }
-        );
-
-        fmAmount =
-          clamp(
-            fmAmount,
-            0,
-            baseFmAmount * 2
-          );
-
-        let modulatorValue =
-          Math.sin(
-            modulatorPhase
-          );
-
-        if (
-          fmFeedbackStrength > 0
-        ) {
-          for (
-            let harmonic = 2;
-            harmonic <= 12;
-            harmonic++
-          ) {
-            modulatorValue +=
-              (
-                fmFeedbackStrength /
-                harmonic
-              ) *
-              Math.sin(
-                modulatorPhase *
-                harmonic
-              );
-          }
-        }
-
-        const instantaneousFrequency =
-          currentCarrierFrequency +
-          modulatorValue *
-          fmAmount;
-
-        samples[sampleIndex] =
-          Math.sin(
-            carrierPhase
-          );
-
-        carrierPhase +=
-          2 *
-          Math.PI *
-          instantaneousFrequency /
-          sampleRate;
-
-        modulatorPhase +=
-          2 *
-          Math.PI *
-          (currentBaseFrequency * fmRatio) /
-          sampleRate;
-
-        /*
-         * 長時間発音でも数値が巨大化しないよう、
-         * 位相を定期的に1周期内へ戻す。
-         */
-        if (
-          carrierPhase >
-          Math.PI * 2
-        ) {
-          carrierPhase %=
-            Math.PI * 2;
-        }
-
-        if (
-          modulatorPhase >
-          Math.PI * 2
-        ) {
-          modulatorPhase %=
-            Math.PI * 2;
-        }
-      }
-
-      if (cacheKey) {
-        fmBufferCache.set(
-          cacheKey,
-          sineBuffer
-        );
-
-        if (
-          fmBufferCache.size >
-          FM_BUFFER_CACHE_LIMIT
-        ) {
-          const oldestKey =
-            fmBufferCache.keys()
-              .next().value;
-
-          fmBufferCache.delete(
-            oldestKey
-          );
-        }
-      }
-    }
-
-    sineSource.buffer =
-      sineBuffer;
-
-    sineGain.gain.setValueAtTime(
-      Math.max(
-        0.0001,
-        sineVolume * voiceGainScale
-      ),
-      voiceStartTime
+    const fmFeedbackStrength = Math.pow(fmFeedbackNormalized, 1.2) * 1.8;
+    const fmRatio = clamp(
+      (Number(soundTrack.base.fmRatio) || 1) + offset("fmRatio"),
+      0.25,
+      8
     );
+    const fmDepth = clamp(soundTrack.base.fmDepth + offset("fmDepth"), 0, 20);
 
-    sineSource
-      .connect(sineGain)
-      .connect(mixGain);
+    for (let voiceIndex = 0; voiceIndex < chordNotes.length; voiceIndex++) {
+      const voiceNote = chordNotes[voiceIndex];
+      const glideStartNote = glideStartNotes[voiceIndex] ?? voiceNote;
+      const strumVoiceIndex = strumValue < 0
+        ? chordNotes.length - 1 - voiceIndex
+        : voiceIndex;
+      const voiceStartDelay = chordNotes.length > 1
+        ? strumVoiceIndex * strumGapSeconds
+        : 0;
+      const voiceStartTime = now + voiceStartDelay;
+      const sineStopAt = releaseEnd + 0.01 + voiceStartDelay;
 
-    sineSource.start(voiceStartTime);
-    sineSource.stop(
-      sineStopAt + voiceStartDelay
-    );
+      const fmVoice = new AudioWorkletNode(
+        context,
+        "sprooto-fm-voice",
+        {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [1],
+          processorOptions: {
+            startTime: voiceStartTime,
+            stopTime: sineStopAt,
+            startNote: glideStartNote,
+            targetNote: voiceNote,
+            glideDuration,
+            fmDepth,
+            fmRatio,
+            fmFeedbackStrength,
+            pitchLfos,
+            fmDepthLfos
+          }
+        }
+      );
+
+      const sineGain = context.createGain();
+      sineGain.gain.setValueAtTime(
+        Math.max(0.0001, sineVolume * voiceGainScale),
+        voiceStartTime
+      );
+
+      fmVoice.connect(sineGain).connect(mixGain);
+
+      window.setTimeout(() => {
+        try {
+          fmVoice.disconnect();
+          sineGain.disconnect();
+        } catch {}
+      }, Math.max(50, (sineStopAt - context.currentTime + 0.05) * 1000));
     }
   }
 

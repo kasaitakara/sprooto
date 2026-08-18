@@ -1,5 +1,14 @@
 import { createDefaultSound, normalizeSound } from "./sound-defaults.js";
 
+const PERF_PATTERN_DEBUG = true;
+function perfPatternLog(label, startedAt, detail = {}) {
+  if (!PERF_PATTERN_DEBUG) return;
+  const ms = performance.now() - startedAt;
+  if (ms >= 0.5) {
+    console.log(`[PERF ${label}]`, { ms: Number(ms.toFixed(3)), ...detail });
+  }
+}
+
 export const STEP_COUNT = 64;
 export const PAGE_STEP_COUNT = 32;
 export const TRACK_COUNT = 4;
@@ -1087,6 +1096,7 @@ function loadSourceTracks(
   type,
   index
 ) {
+  const perfStartedAt = performance.now();
   const data =
     sourceData(
       type,
@@ -1104,6 +1114,12 @@ function loadSourceTracks(
   );
 
   syncPatternLength();
+
+  perfPatternLog(
+    "LOAD_SOURCE",
+    perfStartedAt,
+    { type, index: index + 1, patternLength: state.patternLength }
+  );
 
   return true;
 }

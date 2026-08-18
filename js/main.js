@@ -111,6 +111,16 @@ async function releaseScreenWakeLock() {
  */
 const AUDIO_LOOKAHEAD_MS = 45;
 const playButton = document.getElementById("play-button");
+
+const PERF_MAIN_DEBUG = true;
+function perfMainLog(label, startedAt, detail = {}) {
+  if (!PERF_MAIN_DEBUG) return;
+  const ms = performance.now() - startedAt;
+  if (ms >= 0.5) {
+    console.log(`[PERF ${label}]`, { ms: Number(ms.toFixed(3)), ...detail });
+  }
+}
+
 const bpmInput = document.getElementById("bpm-input");
 const volumeInput = document.getElementById("master-volume");
 const volumeValue = document.getElementById("master-volume-value");
@@ -419,6 +429,7 @@ function playCurrentStep(
   plannedPerformanceTime =
     performance.now()
 ) {
+  const perfStartedAt = performance.now();
   /*
    * AudioContextへ渡す、
    * 現在から発音予定時刻までの待ち時間。
@@ -475,6 +486,14 @@ function playCurrentStep(
       );
     }
   });
+  perfMainLog(
+    "PLAY_CURRENT_STEP",
+    perfStartedAt,
+    {
+      tick: state.playbackTickIndex,
+      pattern: (state.playingPatternIndex ?? state.selectedPatternIndex ?? 0) + 1
+    }
+  );
 }
 
 
@@ -544,8 +563,27 @@ function tick() {
  * Pattern／Fill終端で、
  * 予約切替またはSection進行を行う。
  */
+const perfSwitchStartedAt = performance.now();
+const beforeSource = {
+  type: state.playingSourceType,
+  pattern: state.playingPatternIndex,
+  fill: state.playingFillIndex
+};
 const sourceChanged =
   advancePlaybackSource();
+perfMainLog(
+  "SOURCE_SWITCH",
+  perfSwitchStartedAt,
+  {
+    changed: sourceChanged,
+    before: beforeSource,
+    after: {
+      type: state.playingSourceType,
+      pattern: state.playingPatternIndex,
+      fill: state.playingFillIndex
+    }
+  }
+);
 
 /*
  * Song末尾まで再生したら

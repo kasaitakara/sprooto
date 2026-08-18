@@ -67,14 +67,6 @@ import {
 } from "./audio.js";
 
 
-const PERF_UI_DEBUG = true;
-function perfUiLog(label, startedAt, detail = {}) {
-  if (!PERF_UI_DEBUG) return;
-  const ms = performance.now() - startedAt;
-  if (ms >= 0.8) {
-    console.log(`[PERF ${label}]`, { ms: Number(ms.toFixed(3)), ...detail });
-  }
-}
 
 const sequenceGrid = document.getElementById("sequence-grid");
 const sequencePageButton = document.getElementById("sequence-page-button");
@@ -1744,7 +1736,6 @@ function beginStepEditMode(stepIndex) {
   renderSequence();
   renderEditor();
   updateSelectionClasses();
-  perfUiLog("RENDER_ALL", perfStartedAt, { selectedPattern: state.selectedPatternIndex + 1 });
 }
 
 function beginOffsetSelectionMode(stepIndex) {
@@ -2724,7 +2715,6 @@ if (sourceDisplay) {
 }
 
 export function renderSequence() {
-  const perfStartedAt = performance.now();
   sequenceGrid.innerHTML = "";
   renderEditActionToolbar();
 
@@ -2775,7 +2765,6 @@ export function renderSequence() {
   );
 
   renderStepEditScopeControl();
-  perfUiLog("RENDER_SEQUENCE", perfStartedAt, { page: state.sequencePage });
 }
 
 
@@ -9832,7 +9821,6 @@ songPageButton?.addEventListener("click", () => {
 
 
 export function renderPatternManager() {
-  const perfStartedAt = performance.now();
   if (!patternGrid || !sectionList) {
     return;
   }
@@ -12606,11 +12594,9 @@ function renderPinPlacementScreen() {
   }
 
   editor.append(header, grid);
-  perfUiLog("RENDER_PATTERN_MANAGER", perfStartedAt, { selectedPattern: state.selectedPatternIndex + 1 });
 }
 
 export function renderEditor() {
-  const perfStartedAt = performance.now();
   editor.innerHTML = "";
 
   const pinEnabled =
@@ -12636,13 +12622,11 @@ export function renderEditor() {
 
   if (pinPlacementMode) {
     renderPinPlacementScreen();
-    perfUiLog("RENDER_EDITOR", perfStartedAt, { parameter: "pin" });
     return;
   }
 
   if (!state.selectedParameterId) {
     renderMenu();
-    perfUiLog("RENDER_EDITOR", perfStartedAt, { parameter: "menu" });
     return;
   }
 
@@ -12651,7 +12635,6 @@ export function renderEditor() {
       "osc"
   ) {
     renderOscEdit();
-    perfUiLog("RENDER_EDITOR", perfStartedAt, { parameter: "osc" });
     return;
   }
 
@@ -12660,7 +12643,6 @@ export function renderEditor() {
       "envelope"
   ) {
     renderEnvelopeEdit();
-    perfUiLog("RENDER_EDITOR", perfStartedAt, { parameter: "envelope" });
     return;
   }
 
@@ -12669,7 +12651,6 @@ export function renderEditor() {
       "filterCutoff"
   ) {
     renderFilterEdit();
-    perfUiLog("RENDER_EDITOR", perfStartedAt, { parameter: "filter" });
     return;
   }
 
@@ -12678,7 +12659,6 @@ export function renderEditor() {
     "lfo"
 ) {
   renderLfoEdit();
-  perfUiLog("RENDER_EDITOR", perfStartedAt, { parameter: "lfo" });
   return;
 }
 
@@ -12687,7 +12667,6 @@ export function renderEditor() {
       state.selectedParameterId
     )
   );
-  perfUiLog("RENDER_EDITOR", perfStartedAt, { parameter: state.selectedParameterId });
 }
 
 export function updatePlayingStep() {
@@ -12733,7 +12712,6 @@ export function updatePlayingStep() {
 }
 
 export function render() {
-  const perfStartedAt = performance.now();
   renderCurrentSourceDisplay();
   renderSequence();
   renderEditor();

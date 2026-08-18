@@ -687,19 +687,71 @@ trash: `
     `,
 
     articulation: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M3 12h4"></path>
-        <path d="M7 12c2-7 4-7 6 0s4 7 8 0"></path>
-      </svg>
-    `,
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3 12h4"></path>
+    <path d="M7 12c2-7 4-7 6 0s4 7 8 0"></path>
+  </svg>
+`,
+
+    glide: `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3 12h4"></path>
+    <path d="M7 12c2-7 4-7 6 0s4 7 8 0"></path>
+  </svg>
+`,
+
+nudge: `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 12h6"></path>
+    <path d="M6.5 9.5L4 12l2.5 2.5"></path>
+
+    <path d="M14 12h6"></path>
+    <path d="M17.5 9.5L20 12l-2.5 2.5"></path>
+
+    <path d="M12 6v12"></path>
+  </svg>
+`,
+
+strum: `
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M4 17h5"></path>
+    <path d="M7 13h5"></path>
+    <path d="M10 9h5"></path>
+    <path d="M13 5h5"></path>
+  </svg>
+`,
 
     sub: `
       <svg
@@ -938,11 +990,35 @@ const envelopeParameter = {
 const articulationParameter = {
   id: "articulation",
   label: "ART",
-  icon: "articulation",
+  icon: "glide",
   children: [
-    { id: "glide", label: "glide", min: 0, max: 8, step: 1, offsetMode: "result" },
-    { id: "nudge", label: "nudge", min: -4, max: 4, step: 1, offsetMode: "result", stepOnly: true },
-    { id: "strum", label: "strum", min: -3, max: 3, step: 1, offsetMode: "result" }
+    {
+      id: "glide",
+      label: "glide",
+      icon: "glide",
+      min: 0,
+      max: 8,
+      step: 1,
+      offsetMode: "result"
+    },
+    {
+      id: "nudge",
+      label: "nudge",
+      icon: "nudge",
+      min: -4,
+      max: 4,
+      step: 1,
+      offsetMode: "result"
+    },
+    {
+      id: "strum",
+      label: "strum",
+      icon: "strum",
+      min: -3,
+      max: 3,
+      step: 1,
+      offsetMode: "result"
+    }
   ]
 };
 
@@ -3026,7 +3102,7 @@ function displayBaseValue(parameter) {
   parameter.id === "probability" ||
   parameter.id === "subProbability"
 ) {
-  return `${value}%`;
+  return `${value}`;
 }
 
 if (parameter.id === "crushLevel") {
@@ -3140,11 +3216,9 @@ function parameterButton(menuItem) {
     : parameter?.id === "sub"
     ? parameterById("subPattern")
     : parameter?.id === "articulation"
-      ? (
-          articulationSelectedId === "nudge"
-            ? null
-            : parameterById(articulationSelectedId)
-        )
+  ? parameterById(
+      articulationSelectedId
+    )
     : parameter?.id === "lfo"
     ? parameterById(
         editorTrack().lfoSelected === 2
@@ -3226,6 +3300,12 @@ function parameterButton(menuItem) {
             child.id ===
             envelopeChildId
         )?.icon ?? "decay"
+    : parameter?.id === "articulation"
+      ? articulationParameter.children.find(
+          child =>
+            child.id ===
+            articulationSelectedId
+        )?.icon ?? "glide"
       : menuItem.icon;
 
   const valueText =
@@ -3246,14 +3326,14 @@ function parameterButton(menuItem) {
     </span>
 
     <span class="parameter-value">
-      ${
-        parameter?.id === "sub"
-          ? subPatternFigureHtml(editorTrack().base.subPattern ?? -1)
-          : parameter?.id === "articulation" && articulationSelectedId === "nudge"
-            ? "nudge"
-            : valueText
-      }
-    </span>
+  ${
+    parameter?.id === "sub"
+      ? subPatternFigureHtml(
+          editorTrack().base.subPattern ?? -1
+        )
+      : valueText
+  }
+</span>
   `;
 
   if (!parameter) {
@@ -4948,7 +5028,7 @@ const definition = {
     }
 
     if (id === "subProbability") {
-      return `${Math.round(Number(track.base[id]) || 0)}%`;
+      return `${Math.round(Number(track.base[id]) || 0)}`;
     }
 
     if (id === "delayTime") {
@@ -4970,7 +5050,7 @@ const definition = {
         Number(track.base[id]) || 0;
 
       if (cutoffValue === 0) {
-        return "off";
+        return "0";
       }
 
       return cutoffValue < 0
@@ -5864,7 +5944,7 @@ function displayStepValue(
       "filterCutoff"
   ) {
     if (result === 0) {
-      return "off";
+      return "0";
     }
 
     return result < 0
@@ -5902,7 +5982,7 @@ function displayStepValue(
   }
 
   /*
-   * Probabilityは実効値を％表示。
+   * Probabilityは実効値を表示。
    */
   if (parameter.id === "subPattern") {
     return subPatternLabel(result);
@@ -5917,7 +5997,7 @@ function displayStepValue(
     parameter.id === "probability" ||
     parameter.id === "subProbability"
   ) {
-    return `${result}%`;
+    return `${result}`;
   }
 
   /*
@@ -7730,7 +7810,7 @@ editor.append(
       rise: `<path d="M2 23 C10 23 14 18 20 12 S34 4 50 4 S66 4 74 4"/>`,
       fall: `<path d="M2 4 C10 4 14 9 20 15 S34 23 50 23 S66 23 74 23"/>`,
     };
-    return `<svg viewBox="0 0 76 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[waveId] ?? paths.sine}</svg>`;
+    return `<svg viewBox="0 0 76 28" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[waveId] ?? paths.sine}</svg>`;
   }
 
   const waveGrid = document.createElement("div");
@@ -7817,8 +7897,19 @@ function renderEdit(parameter) {
   icon.className = "edit-icon";
   icon.dataset.focusKey = `edit-parameter-${parameter.id}`;
 
-  icon.innerHTML =
-    getParameterIcon(parameter.icon);
+  const editIconId =
+  parameter.id === "articulation"
+    ? (
+        articulationParameter.children.find(
+          child =>
+            child.id ===
+            editorTrack().articulationSelectedId
+        )?.icon ?? "glide"
+      )
+    : parameter.icon;
+
+icon.innerHTML =
+  getParameterIcon(editIconId);
 
   icon.addEventListener("click", () => {
     state.selectedParameterId = null;
@@ -7843,7 +7934,8 @@ function renderEdit(parameter) {
         `child-${child.id}`;
 
       tab.type = "button";
-      tab.textContent = child.label;
+      tab.textContent =
+  child.label;
 
       if (state.selectedChildId === child.id) {
         tab.classList.add("active");
@@ -9207,19 +9299,22 @@ mixerBackButton.setAttribute(
 
 mixerBackButton.innerHTML = `
   <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <rect x="4" y="4" width="6" height="6"></rect>
-    <rect x="14" y="4" width="6" height="6"></rect>
-    <rect x="4" y="14" width="6" height="6"></rect>
-    <rect x="14" y="14" width="6" height="6"></rect>
-  </svg>
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect
+  x="5"
+  y="5"
+  width="14"
+  height="14"
+  rx="1"
+></rect>
+      </svg>
+    </span>
 `;
 
 mixerBackButton.addEventListener(

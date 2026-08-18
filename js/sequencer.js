@@ -3040,10 +3040,23 @@ function normalizeTrackData(track) {
     }
   });
 
-  track.base.glide = clamp(Math.round(track.base.glide), 0, 8);
-  /* nudgeは内部Baseを互換用に保持するが、再生時はStep値だけを使う。 */
-  track.base.nudge = 0;
-  track.base.strum = clamp(Math.round(track.base.strum), -3, 3);
+  track.base.glide = clamp(
+  Math.round(track.base.glide),
+  0,
+  8
+);
+
+track.base.nudge = clamp(
+  Math.round(track.base.nudge),
+  -4,
+  4
+);
+
+track.base.strum = clamp(
+  Math.round(track.base.strum),
+  -3,
+  3
+);
 
   if (!["glide", "nudge", "strum"].includes(track.articulationSelectedId)) {
     track.articulationSelectedId = "glide";

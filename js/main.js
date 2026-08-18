@@ -327,15 +327,24 @@ function swingDelaySeconds(track, stepIndex) {
     stepIndex % 2 === 1;
 
   const nudgeValue =
-    clamp(
-      Math.round(
+  clamp(
+    Math.round(
+      (
         Number(
-          track.offsets.nudge?.[stepIndex]
+          track.base.nudge
         ) || 0
-      ),
-      -4,
-      4
-    );
+      ) +
+      (
+        Number(
+          track.offsets.nudge?.[
+            stepIndex
+          ]
+        ) || 0
+      )
+    ),
+    -4,
+    4
+  );
 
   return (
     maximumAdvanceSeconds +
@@ -997,7 +1006,8 @@ themeSelector.addEventListener(
       "theme-sprooto",
       "theme-kasai",
       "theme-ryuichi",
-      "theme-aya"
+      "theme-aya",
+      "theme-tobokegao"
     ];
 
     document.body.classList.remove(

@@ -4761,3 +4761,16 @@ input[type="radio"]:focus-visible {
         transform-origin: center center;
     }
 }
+
+.articulation-edit-toolbar
+.child-tabs button {
+    min-width: 36px;
+    padding: 0 6px;
+}
+
+.articulation-edit-toolbar
+.child-tabs button svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+}

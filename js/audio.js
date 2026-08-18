@@ -14,6 +14,8 @@ let eqNodes = [];
 let spectrumData;
 let outputTimeData;
 let bitCrusherWorkletReady = null;
+let audioClockReady = false;
+let audioClockReadyPromise = null;
 
 const EQ_FREQUENCIES = [
   60, 120, 250, 500,
@@ -62,12 +64,66 @@ const fmBufferCache =
 
 const FM_BUFFER_CACHE_LIMIT = 64;
 
+async function ensureAudioClockReady() {
+  if (!context) {
+    return;
+  }
+
+  if (audioClockReady) {
+    return;
+  }
+
+  if (!audioClockReadyPromise) {
+    audioClockReadyPromise =
+      new Promise(resolve => {
+        const startAudioTime =
+          context.currentTime;
+
+        const checkClock = () => {
+          if (!context) {
+            audioClockReadyPromise = null;
+            resolve();
+            return;
+          }
+
+          if (
+            context.state === "running" &&
+            context.currentTime -
+              startAudioTime >= 0.03
+          ) {
+            audioClockReady = true;
+            audioClockReadyPromise = null;
+            resolve();
+            return;
+          }
+
+          window.setTimeout(
+            checkClock,
+            4
+          );
+        };
+
+        checkClock();
+      });
+  }
+
+  await audioClockReadyPromise;
+}
+
 function resumeAudioContext() {
   if (
     context &&
     context.state === "suspended"
   ) {
-    context.resume().catch(() => {});
+    audioClockReady = false;
+    audioClockReadyPromise = null;
+
+    context
+      .resume()
+      .then(() =>
+        ensureAudioClockReady()
+      )
+      .catch(() => {});
   }
 }
 
@@ -183,6 +239,8 @@ export async function initializeAudio() {
   if (!context) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     context = new AudioContextClass();
+    audioClockReady = false;
+    audioClockReadyPromise = null;
     master = context.createGain();
     master.gain.value = 0.7;
 
@@ -261,7 +319,13 @@ window.addEventListener(
 
   await initializeBitCrusherWorklet();
 
-  if (context.state === "suspended") await context.resume();
+  if (context.state === "suspended") {
+    audioClockReady = false;
+    audioClockReadyPromise = null;
+    await context.resume();
+  }
+
+  await ensureAudioClockReady();
 }
 
 export function setMasterVolume(value) {

@@ -18,6 +18,8 @@ import {
   getMaxTrackLength,
   syncPatternLength,
   saveHistory,
+  saveTrackHistory,
+  saveMasterMixHistory,
   saveHistorySnapshot,
   createSnapshot,
   selectPattern,
@@ -2558,7 +2560,7 @@ if (
         return;
       }
 
-      saveHistory();
+      saveTrackHistory();
 
       track.steps[stepIndex] =
         !track.steps[stepIndex];
@@ -3387,7 +3389,7 @@ function parameterButton(menuItem) {
          * シングルタップで即解除。
          */
         if (track.fxMuted) {
-          saveHistory();
+          saveTrackHistory();
 
           track.fxMuted = false;
 
@@ -3412,7 +3414,7 @@ function parameterButton(menuItem) {
           now - firstTapTime <=
             DELETE_DOUBLE_TAP_INTERVAL
         ) {
-          saveHistory();
+          saveTrackHistory();
 
           track.fxMuted = true;
 
@@ -3483,7 +3485,7 @@ if (parentSweepParameter) {
 
     setValue: nextValue => {
       if (!parentSweepHistorySaved) {
-        saveHistory();
+        saveTrackHistory();
 
         parentSweepHistorySaved =
           true;
@@ -3679,7 +3681,7 @@ function createTrackLengthInput(focusKey) {
 
     setValue: nextLength => {
       if (!sweepHistorySaved) {
-        saveHistory();
+        saveTrackHistory();
         sweepHistorySaved = true;
       }
 
@@ -3791,7 +3793,7 @@ if (isTouchInput) {
               nextLength !==
               previousLength
             ) {
-              saveHistory();
+              saveTrackHistory();
 
               track.stepLength =
                 nextLength;
@@ -3928,7 +3930,7 @@ function createSwingControl(focusKey) {
 
     setValue: nextValue => {
       if (!sweepHistorySaved) {
-        saveHistory();
+        saveTrackHistory();
         sweepHistorySaved = true;
       }
 
@@ -4043,7 +4045,7 @@ if (isTouchInput) {
               nextValue !==
               previousValue
             ) {
-              saveHistory();
+              saveTrackHistory();
 
               track.swing =
                 nextValue;
@@ -4241,7 +4243,7 @@ function createTrackVolumeControl() {
     }
 
     if (!historySaved) {
-      saveHistory();
+      saveTrackHistory();
 
       historySaved =
         true;
@@ -4443,7 +4445,7 @@ function createTrackVolumeControl() {
         return;
       }
 
-      saveHistory();
+      saveTrackHistory();
 
       track.base.velocity =
         nextValue;
@@ -4690,7 +4692,7 @@ topRow.appendChild(
     pinLongPressTimer = window.setTimeout(() => {
       pinLongPressTriggered = true;
 
-      saveHistory();
+      saveTrackHistory();
 
       setPinModeEnabled(
         !isPinModeEnabled()
@@ -5176,7 +5178,7 @@ value.addEventListener(
 
     setValue: nextValue => {
       if (!sweepHistorySaved) {
-        saveHistory();
+        saveTrackHistory();
 
         sweepHistorySaved =
           true;
@@ -5458,7 +5460,7 @@ step:
           currentIndex !==
           previousValue
         ) {
-          saveHistory();
+          saveTrackHistory();
 
           if (
             editSelection.mode === "offset" &&
@@ -5600,7 +5602,7 @@ step:
                 currentIndex !==
                 previousIndex
               ) {
-                saveHistory();
+                saveTrackHistory();
 
                 if (
                   editSelection.mode === "offset" &&
@@ -5755,7 +5757,7 @@ step:
               nextValue !==
               previousValue
             ) {
-              saveHistory();
+              saveTrackHistory();
 
               if (
                 editSelection.mode === "offset" &&
@@ -6155,7 +6157,7 @@ function renderOffsetGrid(parameter) {
          * 1回のスイープにつき1回だけ保存。
          */
         if (!sweepHistorySaved) {
-          saveHistory();
+          saveTrackHistory();
           sweepHistorySaved = true;
         }
 
@@ -6369,7 +6371,7 @@ function renderOffsetGrid(parameter) {
                 nextOffset !==
                 previousOffset
               ) {
-                saveHistory();
+                saveTrackHistory();
 
                 track.offsets[
                   parameter.id
@@ -7273,7 +7275,7 @@ function renderLfoEdit() {
     syncButton.addEventListener(
   "click",
   () => {
-    saveHistory();
+    saveTrackHistory();
 
     const rateId =
       parameterKeys.rate;
@@ -7434,7 +7436,7 @@ function finishKeyboardEdit(
     keyboardValue !==
       keyboardStartValue
   ) {
-    saveHistory();
+    saveTrackHistory();
 
     if (editSelection.mode === "offset") {
       applyOffsetDeltaToSelection(
@@ -7623,7 +7625,7 @@ baseValue.addEventListener(
 },
       setValue: nextValue => {
         if (!sweepHistorySaved) {
-          saveHistory();
+          saveTrackHistory();
           sweepHistorySaved = true;
         }
         const finiteValue =
@@ -7767,7 +7769,7 @@ editor.append(
   };
   const setLfoOption = (baseId, value, focusKey) => {
     if (track.base[baseId] === value) return;
-    saveHistory();
+    saveTrackHistory();
     track.base[baseId] = value;
     renderEditorAndRestore(focusKey);
   };
@@ -9365,7 +9367,7 @@ enableVerticalSweep({
 
   setValue: nextValue => {
     if (!reverbHistorySaved) {
-      saveHistory();
+      saveMasterMixHistory();
 
       reverbHistorySaved = true;
     }
@@ -9465,7 +9467,7 @@ title.append(
       getValue: () => mix.eq[bandIndex],
       setValue: nextValue => {
         if (!historySaved) {
-          saveHistory();
+          saveMasterMixHistory();
           historySaved = true;
         }
 
@@ -9501,7 +9503,7 @@ title.append(
     gain.addEventListener("dblclick", event => {
       event.preventDefault();
       if (mix.eq[bandIndex] === 0) return;
-      saveHistory();
+      saveMasterMixHistory();
       mix.eq[bandIndex] = 0;
       setMasterMixEqBand(bandIndex, 0);
       renderSongMasterMix();
@@ -9569,7 +9571,7 @@ title.append(
       getValue: () => mix[key],
       setValue: nextValue => {
         if (!historySaved) {
-          saveHistory();
+          saveMasterMixHistory();
           historySaved = true;
         }
 
@@ -12575,7 +12577,7 @@ function renderPinPlacementScreen() {
     }
 
     button.addEventListener("click", () => {
-      saveHistory();
+      saveTrackHistory();
 
       const current = track.pins?.[stepIndex] ?? null;
       const currentIndex = values.indexOf(current);

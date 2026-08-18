@@ -656,9 +656,19 @@ renderPatternManager();
 renderSongMode();
 
 updatePlayingStep();
-playCurrentStep();
 
-  nextTickTime = performance.now();
+/*
+ * 再生開始時点で基準時刻を先に固定し、
+ * Step 1から以後のStepまで
+ * 同じperformance.now()基準で予約する。
+ */
+nextTickTime =
+  performance.now();
+
+playCurrentStep(
+  nextTickTime
+);
+
 scheduleNextTick();
 }
 

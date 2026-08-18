@@ -3741,19 +3741,36 @@ export function restoreSnapshot(
   }
 }
 
-export function saveHistorySnapshot(snapshot) {
-  if (!snapshot) {
+function trimHistoryStack(stack) {
+  if (stack.length > HISTORY_LIMIT) {
+    stack.splice(
+      0,
+      stack.length - HISTORY_LIMIT
+    );
+  }
+}
+
+function selectedSourceIdentity() {
+  if (state.selectedSourceType === "fill") {
+    return {
+      sourceType: "fill",
+      sourceIndex: state.selectedFillIndex ?? 0
+    };
+  }
+
+  return {
+    sourceType: "pattern",
+    sourceIndex: state.selectedPatternIndex ?? 0
+  };
+}
+
+function pushUndoEntry(entry) {
+  if (!entry) {
     return false;
   }
 
-  undoStack.push(
-    structuredClone(snapshot)
-  );
-
-  if (undoStack.length > HISTORY_LIMIT) {
-    undoStack.shift();
-  }
-
+  undoStack.push(entry);
+  trimHistoryStack(undoStack);
   redoStack.length = 0;
 
   window.dispatchEvent(
@@ -3763,25 +3780,65 @@ export function saveHistorySnapshot(snapshot) {
   return true;
 }
 
-export function saveHistory() {
-  undoStack.push(
-    createSnapshot()
-  );
-
-  if (
-    undoStack.length >
-    HISTORY_LIMIT
-  ) {
-    undoStack.shift();
+export function saveHistorySnapshot(snapshot) {
+  if (!snapshot) {
+    return false;
   }
 
-  redoStack.length = 0;
+  return pushUndoEntry({
+    kind: "full",
+    snapshot: structuredClone(snapshot)
+  });
+}
 
-  window.dispatchEvent(
-    new Event(
-      "historychange"
-    )
+export function saveHistory() {
+  return pushUndoEntry({
+    kind: "full",
+    snapshot: createSnapshot()
+  });
+}
+
+/*
+ * 頻繁なTrack編集用の軽量履歴。
+ * Pattern / Fill全体ではなく、変更対象Trackだけを保存する。
+ */
+export function saveTrackHistory(
+  trackIndex = state.selectedTrackIndex
+) {
+  const { sourceType, sourceIndex } =
+    selectedSourceIdentity();
+
+  const source = sourceData(
+    sourceType,
+    sourceIndex
   );
+
+  const track =
+    source?.tracks?.[trackIndex];
+
+  if (!track) {
+    return false;
+  }
+
+  return pushUndoEntry({
+    kind: "track",
+    sourceType,
+    sourceIndex,
+    trackIndex,
+    snapshot: structuredClone(track)
+  });
+}
+
+/*
+ * Mixer操作用の軽量履歴。
+ */
+export function saveMasterMixHistory() {
+  return pushUndoEntry({
+    kind: "masterMix",
+    snapshot: structuredClone(
+      song.masterMix
+    )
+  });
 }
 
 function capturePerformanceFlags() {
@@ -3847,55 +3904,152 @@ function restoreHistorySnapshot(snapshot) {
   );
 }
 
-export function undo() {
-  if (
-    undoStack.length === 0
-  ) {
+function currentEntryFor(entry) {
+  if (!entry) {
+    return null;
+  }
+
+  if (entry.kind === "track") {
+    const source = sourceData(
+      entry.sourceType,
+      entry.sourceIndex
+    );
+
+    const track =
+      source?.tracks?.[entry.trackIndex];
+
+    if (!track) {
+      return null;
+    }
+
+    return {
+      ...entry,
+      snapshot: structuredClone(track)
+    };
+  }
+
+  if (entry.kind === "masterMix") {
+    return {
+      kind: "masterMix",
+      snapshot: structuredClone(
+        song.masterMix
+      )
+    };
+  }
+
+  return {
+    kind: "full",
+    snapshot: createSnapshot()
+  };
+}
+
+function restoreHistoryEntry(entry) {
+  if (!entry) {
     return false;
   }
 
-  redoStack.push(
-    createSnapshot()
-  );
+  if (entry.kind === "track") {
+    const source = sourceData(
+      entry.sourceType,
+      entry.sourceIndex
+    );
 
-  const snapshot =
-    undoStack.pop();
+    if (!source?.tracks?.[entry.trackIndex]) {
+      return false;
+    }
+
+    const restoredTrack =
+      structuredClone(entry.snapshot);
+
+    normalizeTrackData(restoredTrack);
+
+    source.tracks[entry.trackIndex] =
+      restoredTrack;
+
+    const selectedIdentity =
+      selectedSourceIdentity();
+
+    if (
+      selectedIdentity.sourceType ===
+        entry.sourceType &&
+      selectedIdentity.sourceIndex ===
+        entry.sourceIndex
+    ) {
+      tracks[entry.trackIndex] =
+        restoredTrack;
+
+      syncPatternLength();
+    }
+
+    return true;
+  }
+
+  if (entry.kind === "masterMix") {
+    song.masterMix = structuredClone(
+      entry.snapshot
+    );
+
+    return true;
+  }
 
   restoreHistorySnapshot(
-    snapshot
+    entry.snapshot
   );
 
+  return true;
+}
+
+export function undo() {
+  if (undoStack.length === 0) {
+    return false;
+  }
+
+  const entry = undoStack.pop();
+  const inverseEntry =
+    currentEntryFor(entry);
+
+  if (!inverseEntry) {
+    return false;
+  }
+
+  redoStack.push(inverseEntry);
+  trimHistoryStack(redoStack);
+
+  if (!restoreHistoryEntry(entry)) {
+    redoStack.pop();
+    return false;
+  }
+
   window.dispatchEvent(
-    new Event(
-      "historychange"
-    )
+    new Event("historychange")
   );
 
   return true;
 }
 
 export function redo() {
-  if (
-    redoStack.length === 0
-  ) {
+  if (redoStack.length === 0) {
     return false;
   }
 
-  undoStack.push(
-    createSnapshot()
-  );
+  const entry = redoStack.pop();
+  const inverseEntry =
+    currentEntryFor(entry);
 
-  const snapshot =
-    redoStack.pop();
+  if (!inverseEntry) {
+    return false;
+  }
 
-  restoreHistorySnapshot(
-    snapshot
-  );
+  undoStack.push(inverseEntry);
+  trimHistoryStack(undoStack);
+
+  if (!restoreHistoryEntry(entry)) {
+    undoStack.pop();
+    return false;
+  }
 
   window.dispatchEvent(
-    new Event(
-      "historychange"
-    )
+    new Event("historychange")
   );
 
   return true;
@@ -3981,7 +4135,7 @@ export function clearSelectedTrackSequence() {
     return false;
   }
 
-  saveHistory();
+  saveTrackHistory();
   track.steps.fill(false);
 
   if (Array.isArray(track.pins)) {
@@ -4011,7 +4165,7 @@ export function clearSelectedParameterOffsets(
     return false;
   }
 
-  saveHistory();
+  saveTrackHistory();
   offsets.fill(0);
 
   return true;

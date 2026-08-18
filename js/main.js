@@ -233,58 +233,114 @@ function scheduleSubStep(
 ) {
   const patternIndex = Math.round(
     resolvedSoundValue(
-      soundTrack, track, stepIndex,
-      "subPattern", -1, 6
+      soundTrack,
+      track,
+      stepIndex,
+      "subPattern",
+      -1,
+      6
     )
   );
 
+  /*
+   * SUB OFFなら通常発音。
+   */
   if (patternIndex < 0) {
     playTrackStep(
       track,
       stepIndex,
       baseDelaySeconds
     );
+
     return;
   }
 
-  const pattern = SUB_PATTERNS[patternIndex];
+  const pattern =
+    SUB_PATTERNS[patternIndex];
 
   if (!pattern) {
-    return;
-  }
-
-  const subProbability = resolvedSoundValue(
-    soundTrack, track, stepIndex,
-    "subProbability", 0, 100
-  );
-
-  const crescendo = resolvedSoundValue(
-    soundTrack, track, stepIndex,
-    "subCrescendo", -3, 3
-  );
-
-  const stepSeconds = duration() / 1000;
-
-  pattern.hits.forEach((subIndex, hitIndex) => {
-    if (Math.random() * 100 >= subProbability) {
-      return;
-    }
-
     playTrackStep(
       track,
       stepIndex,
-      baseDelaySeconds +
-        stepSeconds *
-          (subIndex / pattern.divisions),
-      {
-        velocityScale: subVelocityScale(
-          crescendo,
-          hitIndex,
-          pattern.hits.length
-        )
-      }
+      baseDelaySeconds
     );
-  });
+
+    return;
+  }
+
+  const subProbability =
+    resolvedSoundValue(
+      soundTrack,
+      track,
+      stepIndex,
+      "subProbability",
+      0,
+      100
+    );
+
+  const crescendo =
+    resolvedSoundValue(
+      soundTrack,
+      track,
+      stepIndex,
+      "subCrescendo",
+      -3,
+      3
+    );
+
+  /*
+   * SUB PROBは
+   * 「SUBパターン全体が発動する確率」。
+   *
+   * 判定はStepごとに1回だけ行う。
+   */
+  const subTriggered =
+    Math.random() * 100 <
+    subProbability;
+
+  /*
+   * SUBが外れた場合は、
+   * SUBなしの通常発音へ戻す。
+   */
+  if (!subTriggered) {
+    playTrackStep(
+      track,
+      stepIndex,
+      baseDelaySeconds
+    );
+
+    return;
+  }
+
+  /*
+   * SUBが当たった場合は、
+   * Pattern内の全Hitを必ず発音する。
+   */
+  const stepSeconds =
+    duration() / 1000;
+
+  pattern.hits.forEach(
+    (subIndex, hitIndex) => {
+      playTrackStep(
+        track,
+        stepIndex,
+        baseDelaySeconds +
+          stepSeconds *
+            (
+              subIndex /
+              pattern.divisions
+            ),
+        {
+          velocityScale:
+            subVelocityScale(
+              crescendo,
+              hitIndex,
+              pattern.hits.length
+            )
+        }
+      );
+    }
+  );
 }
 
 function swingDelaySeconds(track, stepIndex) {

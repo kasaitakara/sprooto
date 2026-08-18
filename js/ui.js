@@ -12361,6 +12361,11 @@ modeWrap.appendChild(
     }
   );
   closeButton.addEventListener("click", closeModal);
+  overlay.addEventListener("click", event => {
+  if (event.target === overlay) {
+    closeModal();
+  }
+});
   list.addEventListener(
   "scroll",
   () => {

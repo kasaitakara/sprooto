@@ -1,5 +1,14 @@
 import { createDefaultSound, normalizeSound } from "./sound-defaults.js";
 
+const PERF_PATTERN_DEBUG = false;
+function perfPatternLog(label, startedAt, detail = {}) {
+  if (!PERF_PATTERN_DEBUG) return;
+  const ms = performance.now() - startedAt;
+  if (ms >= 0.5) {
+    console.log(`[PERF ${label}]`, { ms: Number(ms.toFixed(3)), ...detail });
+  }
+}
+
 export const STEP_COUNT = 64;
 export const PAGE_STEP_COUNT = 32;
 export const TRACK_COUNT = 4;
@@ -202,6 +211,8 @@ filterCutoff: 0,
       crushLevel: 0,
       crushBit: 8,
       crushRate: 4,
+      reverbSend: 0,
+      reverbSize: 50,
       probability: 100,
       subPattern: -1,
       subCrescendo: 0,
@@ -297,6 +308,12 @@ fmFeedback:
     filled(0),
 
   crushRate:
+    filled(0),
+
+  reverbSend:
+    filled(0),
+
+  reverbSize:
     filled(0),
 
   probability:
@@ -848,6 +865,35 @@ export const parameters = [
   },
 
   {
+    id: "reverbSend",
+    label: "reverb",
+    icon: "reverb",
+    min: 0,
+    max: 100,
+    step: 1,
+    offsetMode: "result",
+
+    children: [
+      {
+        id: "reverbSend",
+        label: "send",
+        min: 0,
+        max: 100,
+        step: 1,
+        offsetMode: "result"
+      },
+      {
+        id: "reverbSize",
+        label: "size",
+        min: 0,
+        max: 100,
+        step: 1,
+        offsetMode: "result"
+      }
+    ]
+  },
+
+  {
     id: "probability",
     label: "prob",
     icon: "probability",
@@ -1039,10 +1085,68 @@ fillReturnTarget:
   null
 };
 
+function ensureReverbSoundState(
+  sound
+) {
+  if (!sound || typeof sound !== "object") {
+    return;
+  }
+
+  if (!sound.base || typeof sound.base !== "object") {
+    sound.base = {};
+  }
+
+  if (!sound.offsets || typeof sound.offsets !== "object") {
+    sound.offsets = {};
+  }
+
+  if (typeof sound.base.reverbSend !== "number") {
+    sound.base.reverbSend = 0;
+  }
+
+  if (typeof sound.base.reverbSize !== "number") {
+    sound.base.reverbSize = 50;
+  }
+
+  if (!Array.isArray(sound.offsets.reverbSend)) {
+    sound.offsets.reverbSend =
+      Array(STEP_COUNT).fill(0);
+  }
+
+  if (!Array.isArray(sound.offsets.reverbSize)) {
+    sound.offsets.reverbSize =
+      Array(STEP_COUNT).fill(0);
+  }
+}
+
+function ensureTrackReverbState(
+  track
+) {
+  if (!track || typeof track !== "object") {
+    return track;
+  }
+
+  ensureReverbSoundState(track);
+
+  ["a", "b", "c"].forEach(
+    slot => {
+      ensureReverbSoundState(
+        track.pinSounds?.[slot]
+      );
+    }
+  );
+
+  return track;
+}
+
 export function resolveStepSound(
   track,
   stepIndex
 ) {
+  ensureTrackReverbState(
+    track
+  );
+
   /*
    * PinモードOFF中は、Stepにa/b/cの配置情報が残っていても
    * 完全に無視してMain Soundを使う。
@@ -1087,6 +1191,7 @@ function loadSourceTracks(
   type,
   index
 ) {
+  const perfStartedAt = performance.now();
   const data =
     sourceData(
       type,
@@ -1103,7 +1208,17 @@ function loadSourceTracks(
     ...data.tracks
   );
 
+  tracks.forEach(
+    ensureTrackReverbState
+  );
+
   syncPatternLength();
+
+  perfPatternLog(
+    "LOAD_SOURCE",
+    perfStartedAt,
+    { type, index: index + 1, patternLength: state.patternLength }
+  );
 
   return true;
 }
@@ -4104,9 +4219,11 @@ export function syncPatternLength() {
 }
 
 export function selectedTrack() {
-  return tracks[
-    state.selectedTrackIndex
-  ];
+  return ensureTrackReverbState(
+    tracks[
+      state.selectedTrackIndex
+    ]
+  );
 }
 
 export function parameterById(

@@ -110,7 +110,38 @@ async function releaseScreenWakeLock() {
  * それを超えない45msとする。
  */
 const AUDIO_LOOKAHEAD_MS = 45;
+
+/*
+ * Audio先読み時間。
+ *
+ * UI / VS / ブラウザ切替などでMain Threadが一瞬止まっても、
+ * すでにWeb Audioへ予約済みの音は正確な時刻で鳴る。
+ *
+ * ただしPattern / Fill / Section / SongのSource境界は越えて
+ * 先読みしない。リアルタイム編集や予約切替への追従性を
+ * 保つため、先読みは最大250msに限定する。
+ */
+const AUDIO_PREBUFFER_MS = 250;
+
+/*
+ * 現在Source内で、どの連続Playback Tickまで
+ * Audio予約済みかを保持する。
+ *
+ * Source切替時は0起点へ戻るため、そこでリセットする。
+ */
+let audioScheduledThroughTick = null;
+
 const playButton = document.getElementById("play-button");
+
+const PERF_MAIN_DEBUG = false;
+function perfMainLog(label, startedAt, detail = {}) {
+  if (!PERF_MAIN_DEBUG) return;
+  const ms = performance.now() - startedAt;
+  if (ms >= 0.5) {
+    console.log(`[PERF ${label}]`, { ms: Number(ms.toFixed(3)), ...detail });
+  }
+}
+
 const bpmInput = document.getElementById("bpm-input");
 const volumeInput = document.getElementById("master-volume");
 const volumeValue = document.getElementById("master-volume-value");
@@ -415,10 +446,13 @@ function swingDelaySeconds(track, stepIndex) {
   );
 }
 
-function playCurrentStep(
+function playStepAtTick(
+  playbackTickIndex,
   plannedPerformanceTime =
     performance.now()
 ) {
+  const perfStartedAt = performance.now();
+
   /*
    * AudioContextへ渡す、
    * 現在から発音予定時刻までの待ち時間。
@@ -434,8 +468,8 @@ function playCurrentStep(
 
   tracks.forEach(track => {
     const trackStepIndex =
-  state.playbackTickIndex %
-  track.stepLength;
+      playbackTickIndex %
+      track.stepLength;
 
     if (
       !audible(track) ||
@@ -475,8 +509,97 @@ function playCurrentStep(
       );
     }
   });
+
+  perfMainLog(
+    "PLAY_STEP_AT_TICK",
+    perfStartedAt,
+    {
+      tick: playbackTickIndex,
+      pattern:
+        (
+          state.playingPatternIndex ??
+          state.selectedPatternIndex ??
+          0
+        ) + 1
+    }
+  );
 }
 
+/*
+ * 現在位置から最大AUDIO_PREBUFFER_MS先まで、
+ * 同じSource内のAudioだけをWeb Audioへ先行予約する。
+ *
+ * UI stateは進めないため、
+ * 画面表示・編集位置・Pattern予約操作は従来どおり。
+ *
+ * Source境界は越えない。
+ */
+function scheduleAudioAhead(
+  currentPlaybackTickIndex,
+  currentPlayingStepIndex,
+  currentPlannedPerformanceTime
+) {
+  if (
+    !state.isPlaying ||
+    currentPlaybackTickIndex === null ||
+    currentPlayingStepIndex === null
+  ) {
+    return;
+  }
+
+  const stepDurationMs =
+    duration();
+
+  const remainingSteps =
+    Math.max(
+      0,
+      state.patternLength -
+        1 -
+        currentPlayingStepIndex
+    );
+
+  const maximumAheadSteps =
+    Math.min(
+      remainingSteps,
+      Math.floor(
+        AUDIO_PREBUFFER_MS /
+          Math.max(
+            1,
+            stepDurationMs
+          )
+      )
+    );
+
+  for (
+    let ahead = 0;
+    ahead <= maximumAheadSteps;
+    ahead++
+  ) {
+    const playbackTickIndex =
+      currentPlaybackTickIndex +
+      ahead;
+
+    if (
+      audioScheduledThroughTick !== null &&
+      playbackTickIndex <=
+        audioScheduledThroughTick
+    ) {
+      continue;
+    }
+
+    const plannedPerformanceTime =
+      currentPlannedPerformanceTime +
+      stepDurationMs * ahead;
+
+    playStepAtTick(
+      playbackTickIndex,
+      plannedPerformanceTime
+    );
+
+    audioScheduledThroughTick =
+      playbackTickIndex;
+  }
+}
 
 function stopPlayback() {
   state.isPlaying = false;
@@ -515,6 +638,7 @@ function stopPlayback() {
   clearTimeout(timer);
   timer = null;
   nextTickTime = 0;
+  audioScheduledThroughTick = null;
 
   playButton.classList.remove(
     "playing"
@@ -544,8 +668,27 @@ function tick() {
  * Pattern／Fill終端で、
  * 予約切替またはSection進行を行う。
  */
+const perfSwitchStartedAt = performance.now();
+const beforeSource = {
+  type: state.playingSourceType,
+  pattern: state.playingPatternIndex,
+  fill: state.playingFillIndex
+};
 const sourceChanged =
   advancePlaybackSource();
+perfMainLog(
+  "SOURCE_SWITCH",
+  perfSwitchStartedAt,
+  {
+    changed: sourceChanged,
+    before: beforeSource,
+    after: {
+      type: state.playingSourceType,
+      pattern: state.playingPatternIndex,
+      fill: state.playingFillIndex
+    }
+  }
+);
 
 /*
  * Song末尾まで再生したら
@@ -580,20 +723,26 @@ if (sourceChanged) {
 }
 
     /*
-     * Pattern切替時は
-     * Sequence／Editor／Pattern表示も更新。
-     */
-    if (sourceChanged) {
+ * Source切替後のStep 1も
+ * UI描画より先に予約する。
+ */
+if (sourceChanged) {
+  audioScheduledThroughTick = null;
+}
+
+scheduleAudioAhead(
+  state.playbackTickIndex,
+  state.playingStepIndex,
+  nextTickTime
+);
+
+scheduleNextTick();
+
+if (sourceChanged) {
   preserveFocusDuringRender();
 } else {
   updatePlayingStep();
 }
-
-    playCurrentStep(
-  nextTickTime
-);
-
-    scheduleNextTick();
 
     return;
   }
@@ -603,12 +752,23 @@ if (sourceChanged) {
 
 state.playbackTickIndex += 1;
 
-updatePlayingStep();
-playCurrentStep(
+/*
+ * UI描画より先に
+ * 次StepをAudioContextへ予約する。
+ */
+scheduleAudioAhead(
+  state.playbackTickIndex,
+  state.playingStepIndex,
   nextTickTime
 );
 
-  scheduleNextTick();
+scheduleNextTick();
+
+/*
+ * 発音予約後に
+ * 再生位置表示を更新する。
+ */
+updatePlayingStep();
 }
 
 async function togglePlayback() {
@@ -665,7 +825,12 @@ updatePlayingStep();
 nextTickTime =
   performance.now();
 
-playCurrentStep(
+audioScheduledThroughTick =
+  null;
+
+scheduleAudioAhead(
+  state.playbackTickIndex,
+  state.playingStepIndex,
   nextTickTime
 );
 

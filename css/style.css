@@ -4774,3 +4774,49 @@ input[type="radio"]:focus-visible {
     width: 18px;
     height: 18px;
 }
+
+/* =========================
+   Sound preset modal
+   layout adjustment
+========================= */
+
+/* 背景は完全透明。
+   overlay自体は枠外タップ判定用に残す。 */
+.sound-preset-overlay {
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+/* 文字拡大に合わせて少しだけ広げる */
+.sound-preset-modal {
+    width: min(
+        280px,
+        calc(100vw - 40px)
+    );
+
+    height: min(
+        340px,
+        calc(100dvh - 80px)
+    );
+}
+
+/* factory / user */
+.sound-preset-tab {
+    font-size: var(--font-small);
+}
+
+/* 左側カテゴリ */
+.sound-preset-category {
+    font-size: var(--font-small);
+}
+
+/* カテゴリ見出し */
+.sound-preset-category-heading {
+    font-size: var(--font-small);
+}
+
+/* プリセット名 */
+.sound-preset-item {
+    font-size: var(--font-small);
+}

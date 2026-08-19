@@ -66,6 +66,8 @@ import {
   getMasterMixMeterData
 } from "./audio.js";
 
+
+
 const sequenceGrid = document.getElementById("sequence-grid");
 const sequencePageButton = document.getElementById("sequence-page-button");
 const patternLengthInput = document.getElementById("pattern-length-input");
@@ -787,6 +789,23 @@ strum: `
   </svg>
 `,
 
+    reverb: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="5" cy="12" r="1.5"></circle>
+        <path d="M9 8.5c2 1.7 2 5.3 0 7"></path>
+        <path d="M13 6c3.5 3 3.5 9 0 12"></path>
+        <path d="M17 3.5c5 4.5 5 12.5 0 17"></path>
+      </svg>
+    `,
+
     crush: `
   <svg
     viewBox="0 0 24 24"
@@ -1036,6 +1055,16 @@ const subParameter = {
 };
 
 
+const reverbParameter = {
+  id: "reverb",
+  label: "FX3",
+  icon: "reverb",
+  children: [
+    { id: "reverbSend", label: "send", min: 0, max: 100, step: 1, offsetMode: "result" },
+    { id: "reverbSize", label: "size", min: 0, max: 100, step: 1, offsetMode: "result" }
+  ]
+};
+
 const crushParameter = {
   id: "crush",
   label: "FX2",
@@ -1132,7 +1161,7 @@ const parameterMenuItems = [
   { label: "fx", placeholderId: "fx", icon: "fx" },
   { label: "fx1", parameterId: "delay", icon: "delay" },
   { label: "fx2", parameter: crushParameter, icon: "crush" },
-  { label: "fx3", placeholderId: "fx3", icon: "fx" },
+  { label: "fx3", parameter: reverbParameter, icon: "reverb" },
   { label: "fx4", placeholderId: "fx4", icon: "fx" },
   { label: "fx5", placeholderId: "fx5", icon: "fx" },
   { label: "prob", parameterId: "probability", icon: "probability" },
@@ -1162,6 +1191,10 @@ function editorParameterById(id) {
 
   if (id === "crush") {
     return crushParameter;
+  }
+
+  if (id === "reverb") {
+    return reverbParameter;
   }
 
   return parameterById(id);
@@ -3215,6 +3248,8 @@ function parameterButton(menuItem) {
   const parentSweepParameter =
   parameter?.id === "crush"
     ? parameterById("crushLevel")
+    : parameter?.id === "reverb"
+    ? parameterById("reverbSend")
     : parameter?.id === "sub"
     ? parameterById("subPattern")
     : parameter?.id === "articulation"
@@ -3286,6 +3321,8 @@ function parameterButton(menuItem) {
       ? parameterById(articulationSelectedId)
     : parameter?.id === "crush"
       ? parameterById("crushLevel")
+    : parameter?.id === "reverb"
+      ? parameterById("reverbSend")
       : parameter;
 
   const displayedIcon =
@@ -3612,6 +3649,8 @@ button.addEventListener(
             ? "settings"
           : parameter.id === "articulation"
             ? articulationSelectedId
+          : parameter.id === "reverb"
+            ? "reverbSend"
             : (
                 parameter.children?.[0]?.id ??
                 parameter.id
@@ -7969,8 +8008,16 @@ icon.innerHTML =
     header.appendChild(tabs);
 
     activeId =
-      state.selectedChildId ||
-      parameter.children[0].id;
+      parameter.children.some(
+        child =>
+          child.id ===
+          state.selectedChildId
+      )
+        ? state.selectedChildId
+        : parameter.children[0].id;
+
+    state.selectedChildId =
+      activeId;
   }
 
   const offsetEraseButton =
@@ -12359,6 +12406,11 @@ modeWrap.appendChild(
     }
   );
   closeButton.addEventListener("click", closeModal);
+  overlay.addEventListener("click", event => {
+  if (event.target === overlay) {
+    closeModal();
+  }
+});
   list.addEventListener(
   "scroll",
   () => {

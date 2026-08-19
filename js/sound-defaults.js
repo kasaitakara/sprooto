@@ -24,6 +24,8 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
   crushLevel: 0,
   crushBit: 8,
   crushRate: 4,
+  reverbSend: 0,
+  reverbSize: 50,
   probability: 100,
   subPattern: -1,
   subCrescendo: 0,
@@ -49,7 +51,8 @@ export const SOUND_OFFSET_IDS = Object.freeze([
   "fmDepth", "fmRatio", "fmFeedback",
 "filterCutoff", "filterResonance", "pan",
   "delay", "delayTime", "delayFeedback",
-  "crushLevel", "crushBit", "crushRate", "probability",
+  "crushLevel", "crushBit", "crushRate",
+  "reverbSend", "reverbSize", "probability",
   "subPattern", "subCrescendo", "subProbability",
   "glide", "nudge", "strum",
   "lfo1Depth", "lfo1Rate", "lfo2Depth", "lfo2Rate"

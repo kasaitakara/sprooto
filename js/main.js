@@ -452,7 +452,6 @@ function playStepAtTick(
     performance.now()
 ) {
   const perfStartedAt = performance.now();
-
   /*
    * AudioContextへ渡す、
    * 現在から発音予定時刻までの待ち時間。

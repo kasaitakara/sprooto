@@ -15,7 +15,15 @@
 <body class="theme-sprooto">
   <main class="app">
     <header class="app-header">
-      <h1>sprooto</h1>
+      <div class="project-title-row">
+        <div
+          id="current-project-name"
+          class="current-project-name"
+          aria-label="current project"
+        >project</div>
+      </div>
+
+      <div class="header-controls">
       <button
   id="theme-button"
   class="theme-button"
@@ -48,6 +56,28 @@
     <circle cx="11" cy="7" r="1"></circle>
     <circle cx="15" cy="8" r="1"></circle>
     <circle cx="16" cy="12" r="1"></circle>
+  </svg>
+</button>
+
+
+<button
+  id="project-button"
+  class="icon-button project-button"
+  type="button"
+  aria-label="project"
+  title="project"
+>
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3.5 6.5h6l2 2h9v10h-17z"></path>
+    <path d="M3.5 6.5v-2h6l2 2"></path>
   </svg>
 </button>
 
@@ -164,6 +194,7 @@
     aria-label="bpm"
   >
 </label>
+      </div>
     </header>
 
     <section class="sequence-section" aria-label="sequence">

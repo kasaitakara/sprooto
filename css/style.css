@@ -4839,3 +4839,233 @@ input[type="radio"]:focus-visible {
 .sound-preset-item {
     font-size: var(--font-small);
 }
+
+/* =========================
+   Project header / manager
+========================= */
+.app-header {
+    display: block;
+    padding-bottom: 8px;
+}
+
+.project-title-row {
+    width: 100%;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    margin-bottom: 2px;
+}
+
+.current-project-name {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
+    font-size: var(--font-small);
+    line-height: 1;
+}
+
+.header-controls {
+    display: grid;
+    align-items: center;
+    grid-template-columns:
+        28px
+        28px
+        28px
+        28px
+        28px
+        minmax(80px, 1fr)
+        58px;
+    gap: 3px;
+    width: 100%;
+    min-width: 0;
+}
+
+.project-button {
+    width: 28px;
+    height: 28px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+}
+
+.project-button svg {
+    display: block;
+    width: 19px;
+    height: 19px;
+}
+
+.project-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10020;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: transparent;
+}
+
+.project-modal {
+    position: relative;
+    width: min(280px, calc(100vw - 40px));
+    height: min(340px, calc(100dvh - 80px));
+    min-height: 260px;
+    display: grid;
+    grid-template-rows: 34px 60px minmax(0, 1fr);
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 10px 30px rgb(0 0 0 / 24%);
+}
+
+.project-modal-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 30px;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+}
+
+.project-modal-title {
+    min-width: 0;
+    padding: 0 9px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-small);
+}
+
+.project-modal-close {
+    width: 30px;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 16px;
+}
+
+.project-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2px;
+    padding: 3px 4px;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
+}
+
+.project-actions button {
+    min-width: 0;
+    height: 27px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    font-size: var(--font-label);
+    line-height: 1;
+    text-transform: lowercase;
+}
+
+.project-list {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px 8px 14px;
+    scrollbar-width: none;
+}
+.project-list::-webkit-scrollbar { display: none; }
+
+.project-list-item {
+    width: 100%;
+    min-height: 32px;
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    font-size: var(--font-small);
+}
+
+.project-list-item.active {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color: var(--selected-text);
+}
+
+.project-dialog-shade {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+}
+
+.project-dialog {
+    width: min(220px, 100%);
+    padding: 10px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+}
+
+.project-dialog-title {
+    margin-bottom: 8px;
+    overflow-wrap: anywhere;
+    font-size: var(--font-label);
+}
+
+.project-name-input {
+    width: 100%;
+    height: 28px;
+    padding: 3px 5px;
+    border: 1px solid var(--line);
+    background: var(--cell);
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: auto;
+    caret-color: var(--text);
+    font-size: var(--font-label);
+}
+
+.project-dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.project-dialog-buttons button {
+    min-width: 52px;
+    height: 26px;
+    padding: 0 6px;
+    border: 0;
+    background: var(--cell);
+    font-size: var(--font-label);
+}
+
+.project-dialog-buttons button[type="submit"],
+.project-dialog-buttons button.danger {
+    background: var(--selected-bg);
+    color: var(--selected-text);
+    -webkit-text-fill-color: var(--selected-text);
+}
+
+/* Step edit中は従来どおりヘッダー全体を編集操作へ置換する。 */
+.app-header.editing-actions-visible .project-title-row,
+.app-header.editing-actions-visible .header-controls {
+    display: none;
+}
+
+.app-header.editing-actions-visible {
+    display: block;
+}

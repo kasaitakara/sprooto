@@ -1,20 +1,349 @@
 import {
-  createSnapshot,
+  createProjectSnapshot,
+  createNewProjectSnapshot,
+  restoreProjectSnapshot,
   restoreSnapshot,
-  state
+  clearHistory
 } from "./sequencer.js";
 
-const STORAGE_KEY =
+/*
+ * 旧localStorage autosave。
+ * IndexedDB移行後も当面は削除せず、安全用バックアップとして残す。
+ */
+const LEGACY_STORAGE_KEY =
   "sprooto-autosave-v1";
 
+/*
+ * Project本体はIndexedDBへ保存する。
+ * localStorageには小さい管理情報だけを置く。
+ */
+const DB_NAME =
+  "sprooto-projects-v1";
+
+const DB_VERSION = 2;
+const PROJECT_STORE =
+  "projects";
+const RECOVERY_STORE = "recoveries";
+
+const CURRENT_PROJECT_ID_KEY =
+  "sprooto-current-project-id-v1";
+
+/*
+ * 旧autosaveを一度Project化したことを示す。
+ * 旧autosave自体は残すが、二重Importはしない。
+ */
+const PROJECT_MIGRATION_KEY =
+  "sprooto-project-migration-idb-v1";
+
+const PROJECT_SCHEMA_VERSION = 1;
 const AUTOSAVE_DELAY = 500;
 
 let autosaveTimer = null;
+let databasePromise = null;
+let dirty = false;
 
-function makeStoredSnapshot() {
-  const snapshot =
-    createSnapshot();
+function requestToPromise(request) {
+  return new Promise((resolve, reject) => {
+    request.addEventListener(
+      "success",
+      () => resolve(request.result),
+      { once: true }
+    );
 
+    request.addEventListener(
+      "error",
+      () => reject(request.error),
+      { once: true }
+    );
+  });
+}
+
+function transactionToPromise(transaction) {
+  return new Promise((resolve, reject) => {
+    transaction.addEventListener(
+      "complete",
+      () => resolve(true),
+      { once: true }
+    );
+
+    transaction.addEventListener(
+      "abort",
+      () => reject(transaction.error),
+      { once: true }
+    );
+
+    transaction.addEventListener(
+      "error",
+      () => reject(transaction.error),
+      { once: true }
+    );
+  });
+}
+
+function openProjectDatabase() {
+  if (databasePromise) {
+    return databasePromise;
+  }
+
+  databasePromise =
+    new Promise((resolve, reject) => {
+      const request =
+        indexedDB.open(
+          DB_NAME,
+          DB_VERSION
+        );
+
+      request.addEventListener(
+        "upgradeneeded",
+        () => {
+          const database =
+            request.result;
+
+          if (
+            !database.objectStoreNames.contains(
+              PROJECT_STORE
+            )
+          ) {
+            const store =
+              database.createObjectStore(
+                PROJECT_STORE,
+                {
+                  keyPath: "id"
+                }
+              );
+
+            store.createIndex(
+              "createdAt",
+              "createdAt",
+              { unique: false }
+            );
+
+            store.createIndex(
+              "updatedAt",
+              "updatedAt",
+              { unique: false }
+            );
+          }
+
+
+          if (!database.objectStoreNames.contains(RECOVERY_STORE)) {
+            database.createObjectStore(RECOVERY_STORE, { keyPath: "id" });
+          }        }
+      );
+
+      request.addEventListener(
+        "success",
+        () => resolve(request.result),
+        { once: true }
+      );
+
+      request.addEventListener(
+        "error",
+        () => reject(request.error),
+        { once: true }
+      );
+
+      request.addEventListener(
+        "blocked",
+        () => {
+          console.warn(
+            "sprooto IndexedDB open blocked"
+          );
+        }
+      );
+    });
+
+  return databasePromise;
+}
+
+async function readRecoveryRecord(id) {
+  if (!id) return null;
+  const db = await openProjectDatabase();
+  const tx = db.transaction(RECOVERY_STORE, "readonly");
+  return (await requestToPromise(tx.objectStore(RECOVERY_STORE).get(id))) ?? null;
+}
+async function writeRecoveryRecord(record) {
+  const db = await openProjectDatabase();
+  const tx = db.transaction(RECOVERY_STORE, "readwrite");
+  tx.objectStore(RECOVERY_STORE).put(record);
+  await transactionToPromise(tx);
+}
+async function removeRecoveryRecord(id) {
+  if (!id) return;
+  const db = await openProjectDatabase();
+  const tx = db.transaction(RECOVERY_STORE, "readwrite");
+  tx.objectStore(RECOVERY_STORE).delete(id);
+  await transactionToPromise(tx);
+}
+
+async function readProjectRecord(
+  projectId
+) {
+  if (!projectId) {
+    return null;
+  }
+
+  const database =
+    await openProjectDatabase();
+
+  const transaction =
+    database.transaction(
+      PROJECT_STORE,
+      "readonly"
+    );
+
+  const request =
+    transaction
+      .objectStore(PROJECT_STORE)
+      .get(projectId);
+
+  const result =
+    await requestToPromise(request);
+
+  return result ?? null;
+}
+
+async function writeProjectRecord(
+  record
+) {
+  const database =
+    await openProjectDatabase();
+
+  const transaction =
+    database.transaction(
+      PROJECT_STORE,
+      "readwrite"
+    );
+
+  transaction
+    .objectStore(PROJECT_STORE)
+    .put(record);
+
+  await transactionToPromise(
+    transaction
+  );
+
+  return record;
+}
+
+async function removeProjectRecord(
+  projectId
+) {
+  const database =
+    await openProjectDatabase();
+
+  const transaction =
+    database.transaction(
+      PROJECT_STORE,
+      "readwrite"
+    );
+
+  transaction
+    .objectStore(PROJECT_STORE)
+    .delete(projectId);
+
+  await transactionToPromise(
+    transaction
+  );
+}
+
+async function readAllProjectRecords() {
+  const database =
+    await openProjectDatabase();
+
+  const transaction =
+    database.transaction(
+      PROJECT_STORE,
+      "readonly"
+    );
+
+  const request =
+    transaction
+      .objectStore(PROJECT_STORE)
+      .getAll();
+
+  const result =
+    await requestToPromise(request);
+
+  return Array.isArray(result)
+    ? result
+    : [];
+}
+
+function makeProjectId() {
+  if (
+    globalThis.crypto?.randomUUID
+  ) {
+    return `pj_${crypto.randomUUID()}`;
+  }
+
+  return (
+    "pj_" +
+    Date.now().toString(36) +
+    "_" +
+    Math.random()
+      .toString(36)
+      .slice(2, 10)
+  );
+}
+
+function localDateCode(
+  date = new Date()
+) {
+  const year =
+    date.getFullYear();
+
+  const month =
+    String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+
+  const day =
+    String(
+      date.getDate()
+    ).padStart(2, "0");
+
+  return `${year}${month}${day}`;
+}
+
+async function makeAutomaticProjectName() {
+  const records =
+    await readAllProjectRecords();
+
+  const todayCode =
+    localDateCode();
+
+  const usedNumbers =
+    records
+      .map(record => {
+        const match =
+          String(record?.name ?? "")
+            .match(
+              new RegExp(
+                `^${todayCode}-(\\d+)$`
+              )
+            );
+
+        return match
+          ? Number(match[1])
+          : null;
+      })
+      .filter(Number.isFinite);
+
+  let nextNumber = 1;
+
+  while (
+    usedNumbers.includes(
+      nextNumber
+    )
+  ) {
+    nextNumber += 1;
+  }
+
+  return `${todayCode}-${nextNumber}`;
+}
+
+function currentProjectSettings() {
   const bpmInput =
     document.getElementById(
       "bpm-input"
@@ -25,237 +354,32 @@ function makeStoredSnapshot() {
       "master-volume"
     );
 
-  snapshot.appSettings = {
+  return {
     bpm:
       Number(
         bpmInput?.value
       ) || 120,
 
     masterVolume:
-      Number(
-        masterVolumeInput?.value
-      ) || 70
-  };
-  /*
-   * 再生中の状態は保存しない。
-   * 復元時は必ず停止状態にする。
-   */
-  snapshot.state.isPlaying =
-    false;
-
-  snapshot.state.playingStepIndex =
-    null;
-
-  snapshot.state.playingSourceType =
-    null;
-
-  snapshot.state.playingPatternIndex =
-    null;
-
-  snapshot.state.playingFillIndex =
-    null;
-
-  snapshot.state.playingSectionIndex =
-    null;
-
-  snapshot.state.playingSectionItemIndex =
-    null;
-
-  snapshot.state.queuedSourceType =
-    null;
-
-  snapshot.state.queuedPatternIndex =
-    null;
-
-  snapshot.state.queuedFillIndex =
-    null;
-
-  snapshot.state.queuedSectionIndex =
-    null;
-
-  return snapshot;
-}
-
-export function saveAutosave() {
-  try {
-    const snapshot =
-      makeStoredSnapshot();
-
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(snapshot)
-    );
-
-    return true;
-  } catch (error) {
-    console.error(
-      "sprooto autosave failed:",
-      error
-    );
-
-    return false;
-  }
-}
-
-export function scheduleAutosave() {
-  clearTimeout(
-    autosaveTimer
-  );
-
-  autosaveTimer =
-    setTimeout(
-      saveAutosave,
-      AUTOSAVE_DELAY
-    );
-}
-
-function migrateSnapshot(snapshot) {
-  const sources = [
-    ...(snapshot.patterns ?? []),
-    ...(snapshot.fills ?? [])
-  ];
-
-  sources.forEach(source => {
-    source?.tracks?.forEach(track => {
-      if (!track.base) {
-        track.base = {};
-      }
-
-      if (!track.offsets) {
-        track.offsets = {};
-      }
-
-      const migratedSounds = [
-        track,
-        track?.pinSounds?.a,
-        track?.pinSounds?.b,
-        track?.pinSounds?.c
-      ].filter(Boolean);
-
-      migratedSounds.forEach(sound => {
-        if (!sound.base) {
-          sound.base = {};
-        }
-
-        if (!sound.offsets) {
-          sound.offsets = {};
-        }
-
-        const articulationDefaults = {
-          glide: 0,
-          nudge: 0,
-          strum: 0
-        };
-
-        Object.entries(articulationDefaults)
-          .forEach(([id, defaultValue]) => {
-            if (typeof sound.base[id] !== "number") {
-              sound.base[id] = defaultValue;
-            }
-
-            if (!Array.isArray(sound.offsets[id])) {
-              sound.offsets[id] = Array(64).fill(0);
-            }
-          });
-
-        if (!["glide", "nudge", "strum"].includes(sound.articulationSelectedId)) {
-          sound.articulationSelectedId = "glide";
-        }
-
-        const crushDefaults = {
-          crushLevel: 0,
-          crushBit: 8,
-          crushRate: 4
-        };
-
-        Object.entries(crushDefaults)
-          .forEach(([id, defaultValue]) => {
-            if (typeof sound.base[id] !== "number") {
-              sound.base[id] = defaultValue;
-            }
-
-            if (!Array.isArray(sound.offsets[id])) {
-              sound.offsets[id] = Array(64).fill(0);
-            }
-          });
-      });
-
-      const chordDefaults = { chord: 0, voices: 4, inversion: 0, };
-      Object.entries(chordDefaults).forEach(([id, defaultValue]) => {
-        if (typeof track.base[id] !== "number") {
-          track.base[id] = defaultValue;
-        }
-        if (!Array.isArray(track.offsets[id])) {
-          track.offsets[id] = Array(64).fill(0);
-        }
-      });
-
-      if (
-        typeof track.base.attack !==
-        "number"
-      ) {
-        track.base.attack = 1;
-      }
-
-      if (
-        !Array.isArray(
-          track.offsets.attack
+      Number.isFinite(
+        Number(
+          masterVolumeInput?.value
         )
-      ) {
-        track.offsets.attack =
-          Array(64).fill(0);
-      }
-    });
-  });
-
-  return snapshot;
+      )
+        ? Number(
+            masterVolumeInput.value
+          )
+        : 70
+  };
 }
 
-export function restoreAutosave() {
-  try {
-    const storedText =
-      localStorage.getItem(
-        STORAGE_KEY
-      );
+function restoreProjectSettings(
+  settings
+) {
+  if (!settings) {
+    return;
+  }
 
-    if (!storedText) {
-      return false;
-    }
-
-    const snapshot =
-      JSON.parse(
-        storedText
-      );
-
-    if (
-      !snapshot ||
-      !Array.isArray(
-        snapshot.patterns
-      ) ||
-      !Array.isArray(
-        snapshot.fills
-      ) ||
-      !Array.isArray(
-        snapshot.sections
-      ) ||
-      !snapshot.state
-    ) {
-      return false;
-    }
-
-    const migratedSnapshot =
-  migrateSnapshot(
-    snapshot
-  );
-
-restoreSnapshot(
-  migratedSnapshot
-);
-
-const storedSettings =
-  migratedSnapshot.appSettings;
-
-if (storedSettings) {
   const bpmInput =
     document.getElementById(
       "bpm-input"
@@ -279,7 +403,7 @@ if (storedSettings) {
           40,
           Math.round(
             Number(
-              storedSettings.bpm
+              settings.bpm
             ) || 120
           )
         )
@@ -296,70 +420,438 @@ if (storedSettings) {
         Math.max(
           0,
           Math.round(
-            Number(
-              storedSettings.masterVolume
-            ) || 70
+            Number.isFinite(
+              Number(
+                settings.masterVolume
+              )
+            )
+              ? Number(
+                  settings.masterVolume
+                )
+              : 70
           )
         )
       );
 
     masterVolumeInput.value =
-      String(
-        masterVolume
-      );
+      String(masterVolume);
 
     if (masterVolumeValue) {
       masterVolumeValue.value =
-        String(
-          masterVolume
-        );
+        String(masterVolume);
 
       masterVolumeValue.textContent =
-        String(
-          masterVolume
-        );
+        String(masterVolume);
     }
   }
 }
 
-    /*
-     * 古い保存データなどに再生状態が
-     * 残っていても必ず停止する。
-     */
-    state.isPlaying =
-      false;
+function projectDataIsValid(
+  data
+) {
+  return Boolean(
+    data &&
+    Array.isArray(data.patterns) &&
+    Array.isArray(data.fills) &&
+    Array.isArray(data.sections) &&
+    data.song &&
+    typeof data.song === "object"
+  );
+}
 
-    state.playingStepIndex =
-      null;
+function legacySnapshotIsValid(
+  snapshot
+) {
+  return Boolean(
+    snapshot &&
+    Array.isArray(snapshot.patterns) &&
+    Array.isArray(snapshot.fills) &&
+    Array.isArray(snapshot.sections) &&
+    snapshot.state
+  );
+}
 
-    state.playingSourceType =
-      null;
+function dispatchProjectChange(
+  type,
+  record
+) {
+  window.dispatchEvent(
+    new CustomEvent(
+      "projectchange",
+      {
+        detail: {
+          type,
+          project:
+            record
+              ? {
+                  id:
+                    record.id,
+                  name:
+                    record.name,
+                  createdAt:
+                    record.createdAt,
+                  updatedAt:
+                    record.updatedAt
+                }
+              : null
+        }
+      }
+    )
+  );
+}
 
-    state.playingPatternIndex =
-      null;
+async function createProjectRecord({
+  name = null,
+  data,
+  settings,
+  createdAt = null
+}) {
+  const now =
+    new Date().toISOString();
 
-    state.playingFillIndex =
-      null;
+  const id =
+    makeProjectId();
 
-    state.playingSectionIndex =
-      null;
+  const record = {
+    schemaVersion:
+      PROJECT_SCHEMA_VERSION,
 
-    state.playingSectionItemIndex =
-      null;
+    id,
 
-    state.queuedSourceType =
-      null;
+    name:
+      (
+        typeof name === "string" &&
+        name.trim()
+      )
+        ? name.trim()
+        : await makeAutomaticProjectName(),
 
-    state.queuedPatternIndex =
-      null;
+    createdAt:
+      createdAt ?? now,
 
-    state.queuedFillIndex =
-      null;
+    updatedAt:
+      now,
 
-    state.queuedSectionIndex =
-      null;
+    settings:
+      settings ?? {
+        bpm: 120,
+        masterVolume: 70
+      },
 
+    data
+  };
+
+  await writeProjectRecord(
+    record
+  );
+
+  return record;
+}
+
+function setCurrentProjectId(
+  projectId
+) {
+  if (!projectId) {
+    localStorage.removeItem(
+      CURRENT_PROJECT_ID_KEY
+    );
+
+    return;
+  }
+
+  localStorage.setItem(
+    CURRENT_PROJECT_ID_KEY,
+    projectId
+  );
+}
+
+export function getCurrentProjectId() {
+  return (
+    localStorage.getItem(
+      CURRENT_PROJECT_ID_KEY
+    ) || null
+  );
+}
+
+export async function getProjectList() {
+  const records =
+    await readAllProjectRecords();
+
+  return records
+    .map(record => ({
+      id:
+        record.id,
+      name:
+        record.name,
+      createdAt:
+        record.createdAt,
+      updatedAt:
+        record.updatedAt
+    }))
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt) -
+        new Date(a.updatedAt)
+    );
+}
+
+export async function getCurrentProjectMeta() {
+  const record =
+    await readProjectRecord(
+      getCurrentProjectId()
+    );
+
+  if (!record) {
+    return null;
+  }
+
+  return {
+    id:
+      record.id,
+    name:
+      record.name,
+    createdAt:
+      record.createdAt,
+    updatedAt:
+      record.updatedAt
+  };
+}
+
+async function saveRecoveryNow() {
+  const id = getCurrentProjectId();
+  if (!id || !(await readProjectRecord(id))) return false;
+  await writeRecoveryRecord({ id, updatedAt: new Date().toISOString(), settings: currentProjectSettings(), data: createProjectSnapshot() });
+  return true;
+}
+export function hasUnsavedChanges() { return dirty; }
+export async function saveCurrentProject() {
+  try {
+    const id = getCurrentProjectId();
+    const old = await readProjectRecord(id);
+    if (!old) return false;
+    const record = { ...old, updatedAt: new Date().toISOString(), settings: currentProjectSettings(), data: createProjectSnapshot() };
+    await writeProjectRecord(record);
+    await writeRecoveryRecord({ id, updatedAt: record.updatedAt, settings: record.settings, data: record.data });
+    dirty = false;
+    dispatchProjectChange("save", record);
     return true;
+  } catch (e) { console.error("sprooto save failed:", e); return false; }
+}
+export async function saveAutosave() { try { return await saveRecoveryNow(); } catch(e) { console.error("sprooto recovery autosave failed:",e); return false; } }
+export function scheduleAutosave() { dirty = true; clearTimeout(autosaveTimer); autosaveTimer=setTimeout(()=>void saveAutosave(), AUTOSAVE_DELAY); }
+
+function restoreProjectRecord(
+  record
+) {
+  if (
+    !record ||
+    !projectDataIsValid(
+      record.data
+    )
+  ) {
+    return false;
+  }
+
+  const restored =
+    restoreProjectSnapshot(
+      record.data
+    );
+
+  if (!restored) {
+    return false;
+  }
+
+  restoreProjectSettings(
+    record.settings
+  );
+
+  return true;
+}
+
+/*
+ * 旧autosaveを一度だけIndexedDB Projectへ移す。
+ * 旧キーは削除しない。
+ */
+async function importLegacyAutosave() {
+  const migrationId =
+    localStorage.getItem(
+      PROJECT_MIGRATION_KEY
+    );
+
+  if (migrationId) {
+    return null;
+  }
+
+  const legacyText =
+    localStorage.getItem(
+      LEGACY_STORAGE_KEY
+    );
+
+  if (!legacyText) {
+    return null;
+  }
+
+  try {
+    const legacySnapshot =
+      JSON.parse(
+        legacyText
+      );
+
+    if (
+      !legacySnapshotIsValid(
+        legacySnapshot
+      )
+    ) {
+      return null;
+    }
+
+    /*
+     * 従来と同じrestoreSnapshot()をまず通す。
+     * これで既存曲のmigration / normalizeも従来どおり適用される。
+     */
+    restoreSnapshot(
+      legacySnapshot
+    );
+
+    restoreProjectSettings(
+      legacySnapshot.appSettings
+    );
+
+    const record =
+      await createProjectRecord({
+        data:
+          createProjectSnapshot(),
+
+        settings:
+          legacySnapshot.appSettings ?? {
+            bpm: 120,
+            masterVolume: 70
+          }
+      });
+
+    setCurrentProjectId(
+      record.id
+    );
+
+    localStorage.setItem(
+      PROJECT_MIGRATION_KEY,
+      record.id
+    );
+
+    return record;
+  } catch (error) {
+    console.error(
+      "sprooto legacy autosave migration failed:",
+      error
+    );
+
+    return null;
+  }
+}
+
+async function createInitialProject() {
+  const record =
+    await createProjectRecord({
+      data:
+        createNewProjectSnapshot(),
+
+      settings: {
+        bpm: 120,
+        masterVolume: 70
+      }
+    });
+
+  setCurrentProjectId(
+    record.id
+  );
+
+  return record;
+}
+
+export async function restoreAutosave() {
+  try {
+    await openProjectDatabase();
+
+    const currentId =
+      getCurrentProjectId();
+
+    if (currentId) {
+      const currentRecord = await readProjectRecord(currentId);
+      const recovery = await readRecoveryRecord(currentId);
+      if (recovery && projectDataIsValid(recovery.data) && restoreProjectSnapshot(recovery.data)) {
+        restoreProjectSettings(recovery.settings);
+        dirty = Boolean(currentRecord && recovery.updatedAt !== currentRecord.updatedAt);
+        return true;
+      }
+      if (currentRecord && restoreProjectRecord(currentRecord)) { dirty = false; return true; }
+    }
+
+    const migrationId =
+      localStorage.getItem(
+        PROJECT_MIGRATION_KEY
+      );
+
+    if (migrationId) {
+      const migratedRecord =
+        await readProjectRecord(
+          migrationId
+        );
+
+      if (
+        migratedRecord &&
+        restoreProjectRecord(
+          migratedRecord
+        )
+      ) {
+        setCurrentProjectId(
+          migratedRecord.id
+        );
+
+        return true;
+      }
+    }
+
+    const imported =
+      await importLegacyAutosave();
+
+    if (imported) {
+      /*
+       * importLegacyAutosave()内で旧snapshotをすでに復元済み。
+       * ここでrestoreProjectSnapshot()を重ねず、その表示状態を維持する。
+       */
+      return true;
+    }
+
+    const records =
+      await readAllProjectRecords();
+
+    const latest =
+      records
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt) -
+            new Date(a.updatedAt)
+        )[0];
+
+    if (
+      latest &&
+      restoreProjectRecord(
+        latest
+      )
+    ) {
+      setCurrentProjectId(
+        latest.id
+      );
+
+      return true;
+    }
+
+    const created =
+      await createInitialProject();
+
+    return restoreProjectRecord(
+      created
+    );
   } catch (error) {
     console.error(
       "sprooto restore failed:",
@@ -370,12 +862,241 @@ if (storedSettings) {
   }
 }
 
+export async function createNewProject() {
+  try {
+    const previousId = getCurrentProjectId();
+    if (previousId) await removeRecoveryRecord(previousId);
+
+    const record =
+      await createProjectRecord({
+        data:
+          createNewProjectSnapshot(),
+
+        settings: {
+          bpm: 120,
+          masterVolume: 70
+        }
+      });
+
+    if (
+      !restoreProjectRecord(
+        record
+      )
+    ) {
+      return null;
+    }
+
+    setCurrentProjectId(
+      record.id
+    );
+
+    await writeRecoveryRecord({ id: record.id, updatedAt: record.updatedAt, settings: record.settings, data: record.data });
+    dirty = false;
+
+    dispatchProjectChange(
+      "new",
+      record
+    );
+
+    return record.id;
+  } catch (error) {
+    console.error(
+      "sprooto new project failed:",
+      error
+    );
+
+    return null;
+  }
+}
+
+export async function openProject(projectId) {
+  try {
+    const target = await readProjectRecord(projectId);
+    if (!target) return false;
+    const previousId = getCurrentProjectId();
+    if (previousId) await removeRecoveryRecord(previousId);
+    if (!restoreProjectRecord(target)) return false;
+    setCurrentProjectId(projectId);
+    await writeRecoveryRecord({ id: target.id, updatedAt: target.updatedAt, settings: target.settings, data: target.data });
+    dirty = false; clearHistory(); dispatchProjectChange("open", target); return true;
+  } catch(e) { console.error("sprooto open project failed:",e); return false; }
+}
+
+export async function saveAsProject(
+  name = null
+) {
+  try {
+    const previousId = getCurrentProjectId();
+
+    const record =
+      await createProjectRecord({
+        name,
+
+        data:
+          createProjectSnapshot(),
+
+        settings:
+          currentProjectSettings()
+      });
+
+    if (previousId) await removeRecoveryRecord(previousId);
+    setCurrentProjectId(record.id);
+    await writeRecoveryRecord({ id: record.id, updatedAt: record.updatedAt, settings: record.settings, data: record.data });
+    dirty = false;
+
+    clearHistory();
+
+    dispatchProjectChange(
+      "saveas",
+      record
+    );
+
+    return record.id;
+  } catch (error) {
+    console.error(
+      "sprooto save as failed:",
+      error
+    );
+
+    return null;
+  }
+}
+
+export async function renameProject(
+  projectId,
+  newName
+) {
+  try {
+    const name =
+      String(
+        newName ?? ""
+      ).trim();
+
+    if (!name) {
+      return false;
+    }
+
+    const record =
+      await readProjectRecord(
+        projectId
+      );
+
+    if (!record) {
+      return false;
+    }
+
+    record.name =
+      name;
+
+    record.updatedAt =
+      new Date().toISOString();
+
+    await writeProjectRecord(
+      record
+    );
+
+    dispatchProjectChange(
+      "rename",
+      record
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "sprooto rename project failed:",
+      error
+    );
+
+    return false;
+  }
+}
+
+export async function deleteProject(
+  projectId
+) {
+  try {
+    const record =
+      await readProjectRecord(
+        projectId
+      );
+
+    if (!record) {
+      return false;
+    }
+
+    const wasCurrent =
+      getCurrentProjectId() ===
+      projectId;
+
+    await removeProjectRecord(projectId);
+    await removeRecoveryRecord(projectId);
+
+    if (!wasCurrent) {
+      dispatchProjectChange(
+        "delete",
+        null
+      );
+
+      return true;
+    }
+
+    setCurrentProjectId(
+      null
+    );
+
+    const records =
+      await readAllProjectRecords();
+
+    const nextRecord =
+      records
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt) -
+            new Date(a.updatedAt)
+        )[0];
+
+    if (
+      nextRecord &&
+      restoreProjectRecord(
+        nextRecord
+      )
+    ) {
+      setCurrentProjectId(
+        nextRecord.id
+      );
+
+      dispatchProjectChange(
+        "delete",
+        nextRecord
+      );
+
+      return true;
+    }
+
+    const created =
+      await createInitialProject();
+
+    restoreProjectRecord(
+      created
+    );
+
+    dispatchProjectChange(
+      "delete",
+      created
+    );
+
+    return true;
+  } catch (error) {
+    console.error(
+      "sprooto delete project failed:",
+      error
+    );
+
+    return false;
+  }
+}
+
 export function initializeAutosave() {
-  /*
-   * 操作終了後に保存予約する。
-   * setTimeoutを挟むことで、
-   * 実際のデータ変更後に保存される。
-   */
   [
     "pointerup",
     "change",
@@ -390,9 +1111,6 @@ export function initializeAutosave() {
     }
   );
 
-  /*
-   * 他アプリへ移る直前にも即時保存する。
-   */
   document.addEventListener(
     "visibilitychange",
     () => {
@@ -404,13 +1122,20 @@ export function initializeAutosave() {
           autosaveTimer
         );
 
-        saveAutosave();
+        void saveAutosave();
       }
     }
   );
 
+  /*
+   * pagehideでは非同期処理の完了は保証されないため、
+   * visibilitychange + 通常autosaveを主経路とする。
+   * ここでも最後の保存要求だけ投げておく。
+   */
   window.addEventListener(
     "pagehide",
-    saveAutosave
+    () => {
+      void saveAutosave();
+    }
   );
 }

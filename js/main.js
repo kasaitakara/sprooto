@@ -188,6 +188,26 @@ window.addEventListener(
   updateHistoryButtons
 );
 
+window.addEventListener(
+  "projectchange",
+  () => {
+    /*
+     * Project切替後は必ず停止表示へ戻す。
+     * restore側でstate.isPlayingがfalseになっていても、
+     * play buttonのCSS classはDOM側に残るため明示的に解除する。
+     */
+    playButton.classList.remove(
+      "playing"
+    );
+
+    setMasterVolumeValue(
+      Number(volumeInput.value)
+    );
+
+    updateHistoryButtons();
+  }
+);
+
 function duration() {
   return 60000 / clamp(Number(bpmInput.value) || 120, 40, 300) / 4;
 }
@@ -1270,17 +1290,21 @@ redoButton.addEventListener("click", () => {
   updateHistoryButtons();
 });
 
-restoreAutosave();
+async function initializeApp() {
+  await restoreAutosave();
 
-render();
-updateHistoryButtons();
+  render();
+  updateHistoryButtons();
 
-initializeAutosave();
+  initializeAutosave();
 
-window.addEventListener(
-  "historychange",
-  scheduleAutosave
-);
+  window.addEventListener(
+    "historychange",
+    scheduleAutosave
+  );
+}
+
+void initializeApp();
 
 document.addEventListener(
   "visibilitychange",

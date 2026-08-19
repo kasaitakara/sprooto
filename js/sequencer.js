@@ -511,17 +511,23 @@ export const fills =
  * 再生順に詰めた配列として保持する。
  * 初期仕様は最大64パーツ。
  */
-export const song = {
-  sequence: [],
+function makeSongData() {
+  return {
+    sequence: [],
 
-  /* Song全体へ掛けるMaster Mix */
-  masterMix: {
-    eq: [0, 0, 0, 0, 0, 0, 0, 0],
-    volume: 100,
-    limiter: -1,
-    reverb: 0
-  }
-};
+    /* Song全体へ掛けるMaster Mix */
+    masterMix: {
+      eq: [0, 0, 0, 0, 0, 0, 0, 0],
+      volume: 100,
+      limiter: -1,
+      reverb: 0
+    }
+  };
+}
+
+export const song =
+  makeSongData();
+
 /*
  * 現在の初期データは
  * Pattern 01へ入れる。
@@ -965,7 +971,8 @@ export const parameters = [
   }
 ];
 
-export const state = {
+function makeDefaultRuntimeState() {
+  return {
   selectedTrackIndex: 0,
 
   selectedParameterId: null,
@@ -1084,6 +1091,11 @@ queuedSectionIndex:
 fillReturnTarget:
   null
 };
+}
+
+export const state =
+  makeDefaultRuntimeState();
+
 
 function ensureReverbSoundState(
   sound
@@ -3087,6 +3099,78 @@ const HISTORY_LIMIT = 10;
 const undoStack = [];
 const redoStack = [];
 
+/*
+ * Project保存用Snapshot。
+ *
+ * UI選択状態・再生状態・Undo / Redo履歴はProjectへ保存しない。
+ * 作品そのものだけを保持する。
+ */
+export function createProjectSnapshot() {
+  return structuredClone({
+    patterns,
+    fills,
+    sections,
+    song
+  });
+}
+
+/*
+ * New Project用の完全な空Project。
+ *
+ * Pattern / Fill / Section / Songは空。
+ * TrackはmakeTrack()の基本Soundだけを持つ。
+ * 4Trackの具体的な初期Soundは後からここへ設定できる。
+ */
+export function createNewProjectSnapshot() {
+  return structuredClone({
+    patterns: Array.from(
+      { length: PATTERN_SLOT_COUNT },
+      () => makePatternData()
+    ),
+
+    fills: Array.from(
+      { length: FILL_SLOT_COUNT },
+      () => makePatternData()
+    ),
+
+    sections: Array.from(
+      { length: SECTION_SLOT_COUNT },
+      () => makeSectionData()
+    ),
+
+    song: makeSongData()
+  });
+}
+
+/*
+ * Projectを開く時はRuntime Stateを初期化する。
+ * Project間でUndo / Redoは持ち越さない。
+ * Clipboardは意図的に初期化しない。
+ */
+export function restoreProjectSnapshot(
+  projectSnapshot
+) {
+  if (!projectSnapshot) {
+    return false;
+  }
+
+  const snapshot = {
+    ...structuredClone(
+      projectSnapshot
+    ),
+    state:
+      makeDefaultRuntimeState()
+  };
+
+  restoreSnapshot(
+    snapshot
+  );
+
+  clearHistory();
+
+  return true;
+}
+
 export function createSnapshot() {
   return structuredClone({
     patterns,
@@ -4179,6 +4263,19 @@ export function canUndo() {
 export function canRedo() {
   return (
     redoStack.length > 0
+  );
+}
+
+/*
+ * Project切替時などに編集履歴だけを破棄する。
+ * Clipboardは別管理なので触らない。
+ */
+export function clearHistory() {
+  undoStack.length = 0;
+  redoStack.length = 0;
+
+  window.dispatchEvent(
+    new Event("historychange")
   );
 }
 

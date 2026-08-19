@@ -58,6 +58,19 @@ import {
   soundsEqual
 } from "./sound-preset-manager.js";
 
+
+import {
+  getProjectList,
+  getCurrentProjectMeta,
+  createNewProject,
+  openProject,
+  saveCurrentProject,
+  hasUnsavedChanges,
+  saveAsProject,
+  renameProject,
+  deleteProject
+} from "./storage.js";
+
 import {
   setMasterMixEqBand,
   setMasterMixVolume,
@@ -67,6 +80,11 @@ import {
 } from "./audio.js";
 
 
+
+const currentProjectName =
+  document.getElementById("current-project-name");
+const projectButton =
+  document.getElementById("project-button");
 
 const sequenceGrid = document.getElementById("sequence-grid");
 const sequencePageButton = document.getElementById("sequence-page-button");
@@ -11718,6 +11736,279 @@ patternPageButton?.addEventListener(
 );
 
 
+
+let projectModal = null;
+
+export async function refreshProjectName() {
+  const meta =
+    await getCurrentProjectMeta();
+
+  if (!currentProjectName) {
+    return;
+  }
+
+  const name = meta?.name || "project";
+  currentProjectName.textContent = name;
+  currentProjectName.title = name;
+}
+
+function closeProjectModal() {
+  projectModal?.remove();
+  projectModal = null;
+}
+
+function createProjectTextDialog({
+  title,
+  value = "",
+  submitLabel = "ok",
+  onSubmit
+}) {
+  if (!projectModal) return;
+
+  const shade = document.createElement("div");
+  shade.className = "project-dialog-shade";
+
+  const form = document.createElement("form");
+  form.className = "project-dialog";
+
+  const label = document.createElement("div");
+  label.className = "project-dialog-title";
+  label.textContent = title;
+
+  const input = document.createElement("input");
+  input.className = "project-name-input";
+  input.type = "text";
+  input.value = value;
+  input.maxLength = 80;
+  input.autocomplete = "off";
+  input.spellcheck = false;
+
+  const buttons = document.createElement("div");
+  buttons.className = "project-dialog-buttons";
+
+  const cancel = createModalButton("cancel");
+  const submit = createModalButton(submitLabel);
+  submit.type = "submit";
+
+  cancel.addEventListener("click", () => {
+    shade.remove();
+  });
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const name = input.value.trim();
+    if (!name) return;
+    submit.disabled = true;
+    await onSubmit(name);
+    shade.remove();
+  });
+
+  buttons.append(cancel, submit);
+  form.append(label, input, buttons);
+  shade.append(form);
+  projectModal.append(shade);
+
+  requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+}
+
+function createProjectConfirmDialog({
+  message,
+  confirmLabel = "delete",
+  onConfirm
+}) {
+  if (!projectModal) return;
+
+  const shade = document.createElement("div");
+  shade.className = "project-dialog-shade";
+
+  const box = document.createElement("div");
+  box.className = "project-dialog";
+
+  const messageNode = document.createElement("div");
+  messageNode.className = "project-dialog-title";
+  messageNode.textContent = message;
+
+  const buttons = document.createElement("div");
+  buttons.className = "project-dialog-buttons";
+
+  const cancel = createModalButton("cancel");
+  const confirm = createModalButton(confirmLabel);
+  confirm.classList.add("danger");
+
+  cancel.addEventListener("click", () => shade.remove());
+  confirm.addEventListener("click", async () => {
+    confirm.disabled = true;
+    await onConfirm();
+    shade.remove();
+  });
+
+  buttons.append(cancel, confirm);
+  box.append(messageNode, buttons);
+  shade.append(box);
+  projectModal.append(shade);
+
+  requestAnimationFrame(() => cancel.focus());
+}
+
+async function openProjectModal() {
+  if (projectModal) return;
+
+  const overlay = document.createElement("div");
+  overlay.className = "project-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", "project manager");
+
+  const modal = document.createElement("div");
+  modal.className = "project-modal";
+  const header = document.createElement("div");
+  header.className = "project-modal-header";
+  const title = document.createElement("div");
+  title.className = "project-modal-title";
+  title.textContent = "project";
+  const close = createModalButton("×", "project-modal-close");
+  close.setAttribute("aria-label", "close");
+  header.append(title, close);
+
+  const actions = document.createElement("div");
+  actions.className = "project-actions";
+  const newButton = createModalButton("new");
+  const openButton = createModalButton("open");
+  const saveButton = createModalButton("save");
+  const saveAsButton = createModalButton("save as");
+  const renameButton = createModalButton("rename");
+  const deleteButton = createModalButton("delete");
+  actions.append(newButton, openButton, saveButton, saveAsButton, renameButton, deleteButton);
+
+  const list = document.createElement("div");
+  list.className = "project-list";
+  modal.append(header, actions, list);
+  overlay.append(modal);
+  document.body.append(overlay);
+  projectModal = overlay;
+
+  let selectedProjectId = null;
+  let selectedProjectName = "";
+
+  function updateActionState() {
+    const selected = Boolean(selectedProjectId);
+    openButton.disabled = !selected;
+    renameButton.disabled = !selected;
+    deleteButton.disabled = !selected;
+  }
+
+  async function renderProjectList() {
+    const [projects, current] = await Promise.all([getProjectList(), getCurrentProjectMeta()]);
+    title.textContent = current?.name || "project";
+    list.innerHTML = "";
+    if (selectedProjectId && !projects.some(project => project.id === selectedProjectId)) {
+      selectedProjectId = null;
+      selectedProjectName = "";
+    }
+    projects.forEach(project => {
+      const item = createModalButton(project.name, "project-list-item");
+      item.dataset.projectId = project.id;
+      item.classList.toggle("active", project.id === selectedProjectId);
+      item.title = project.name;
+      item.addEventListener("click", () => {
+        selectedProjectId = project.id;
+        selectedProjectName = project.name;
+        list.querySelectorAll(".project-list-item").forEach(node => {
+          node.classList.toggle("active", node.dataset.projectId === selectedProjectId);
+        });
+        updateActionState();
+      });
+      list.append(item);
+    });
+    updateActionState();
+  }
+
+  function confirmDiscard(onConfirm) {
+    if (!hasUnsavedChanges()) { void onConfirm(); return; }
+    createProjectConfirmDialog({
+      message: "unsaved changes will be discarded. continue?",
+      onConfirm
+    });
+  }
+
+  close.addEventListener("click", closeProjectModal);
+  overlay.addEventListener("pointerdown", event => { if (event.target === overlay) closeProjectModal(); });
+  overlay.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      const shade = overlay.querySelector(".project-dialog-shade");
+      if (shade) shade.remove(); else closeProjectModal();
+    }
+  }, true);
+
+  newButton.addEventListener("click", () => confirmDiscard(async () => {
+    newButton.disabled = true;
+    const id = await createNewProject();
+    if (id) closeProjectModal(); else newButton.disabled = false;
+  }));
+
+  openButton.addEventListener("click", () => {
+    if (!selectedProjectId) return;
+    confirmDiscard(async () => {
+      openButton.disabled = true;
+      const opened = await openProject(selectedProjectId);
+      if (opened) closeProjectModal(); else openButton.disabled = false;
+    });
+  });
+
+  saveButton.addEventListener("click", async () => {
+    saveButton.disabled = true;
+    const saved = await saveCurrentProject();
+    if (saved) closeProjectModal(); else saveButton.disabled = false;
+  });
+
+  saveAsButton.addEventListener("click", () => {
+    createProjectTextDialog({ title: "save as", value: "", submitLabel: "save", onSubmit: async name => {
+      const id = await saveAsProject(name); if (id) closeProjectModal();
+    }});
+  });
+
+  renameButton.addEventListener("click", () => {
+    if (!selectedProjectId) return;
+    createProjectTextDialog({ title: "rename", value: selectedProjectName, submitLabel: "rename", onSubmit: async name => {
+      await renameProject(selectedProjectId, name);
+      selectedProjectName = name;
+      await refreshProjectName();
+      await renderProjectList();
+    }});
+  });
+
+  deleteButton.addEventListener("click", () => {
+    if (!selectedProjectId) return;
+    createProjectConfirmDialog({ message: `delete ${selectedProjectName}?`, onConfirm: async () => {
+      const deleted = await deleteProject(selectedProjectId);
+      if (deleted) {
+        selectedProjectId = null; selectedProjectName = "";
+        await refreshProjectName(); await renderProjectList();
+      }
+    }});
+  });
+
+  await renderProjectList();
+  close.focus();
+}
+
+projectButton?.addEventListener(
+  "click",
+  () => void openProjectModal()
+);
+
+window.addEventListener(
+  "projectchange",
+  () => {
+    void refreshProjectName();
+    render();
+  }
+);
+
 let soundPresetModal = null;
 
 function createModalButton(label, className = "") {
@@ -12762,6 +13053,7 @@ export function updatePlayingStep() {
 }
 
 export function render() {
+  void refreshProjectName();
   renderCurrentSourceDisplay();
   renderSequence();
   renderEditor();

@@ -2099,6 +2099,25 @@ input.track-volume-slider::-moz-range-thumb {
     background: transparent;
 }
 
+/* =========================
+   FX4 / FX5 placeholder hidden
+========================= */
+
+.fx-parameter-rack
+.parameter-button[data-focus-key="parameter-fx4"]
+.parameter-icon,
+.fx-parameter-rack
+.parameter-button[data-focus-key="parameter-fx5"]
+.parameter-icon,
+.fx-parameter-rack
+.parameter-button[data-focus-key="parameter-fx4"]
+.parameter-value,
+.fx-parameter-rack
+.parameter-button[data-focus-key="parameter-fx5"]
+.parameter-value {
+    visibility: hidden;
+}
+
 /* FXラック内だけ少しコンパクトにする */
 .fx-parameter-rack .parameter-button {
     gap: 1px;

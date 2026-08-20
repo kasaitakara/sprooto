@@ -79,12 +79,19 @@ import {
   getMasterMixMeterData
 } from "./audio.js";
 
+import {
+  renderExportWav,
+  ExportCancelledError
+} from "./export.js";
+
 
 
 const currentProjectName =
   document.getElementById("current-project-name");
 const projectButton =
   document.getElementById("project-button");
+const exportButton =
+  document.getElementById("export-button");
 
 const sequenceGrid = document.getElementById("sequence-grid");
 const sequencePageButton = document.getElementById("sequence-page-button");
@@ -12007,6 +12014,627 @@ window.addEventListener(
     void refreshProjectName();
     render();
   }
+);
+
+let exportModal = null;
+let exportPreviewAudio = null;
+let exportPreviewUrl = null;
+let exportPreviewTimer = null;
+
+function stopExportPreview() {
+  if (exportPreviewTimer) {
+    clearTimeout(exportPreviewTimer);
+    exportPreviewTimer = null;
+  }
+
+  if (exportPreviewAudio) {
+    try {
+      exportPreviewAudio.pause();
+    } catch {}
+    exportPreviewAudio = null;
+  }
+
+  if (exportPreviewUrl) {
+    URL.revokeObjectURL(exportPreviewUrl);
+    exportPreviewUrl = null;
+  }
+}
+
+function closeExportModal() {
+  stopExportPreview();
+  exportModal?.remove();
+  exportModal = null;
+}
+
+function safeExportFileName(name) {
+  const cleaned = String(name || "project")
+    .replace(/[\\/:*?"<>|]+/g, "_")
+    .trim();
+
+  return cleaned || "project";
+}
+
+function downloadExportBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.style.display = "none";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+
+  window.setTimeout(
+    () => URL.revokeObjectURL(url),
+    1000
+  );
+}
+
+async function shareOrDownloadExport(blob, fileName) {
+  const isIOS =
+    /iPhone|iPad|iPod/i.test(
+      navigator.userAgent
+    ) ||
+    (
+      navigator.platform ===
+        "MacIntel" &&
+      navigator.maxTouchPoints > 1
+    );
+
+  const isAndroid =
+    /Android/i.test(
+      navigator.userAgent
+    );
+
+  const isMobile =
+    isIOS || isAndroid;
+
+  /*
+   * iPhone / iPad / Android
+   * → OS共有シート
+   */
+  if (isMobile) {
+    const file = new File(
+      [blob],
+      fileName,
+      {
+        type: "audio/wav"
+      }
+    );
+
+    if (
+      navigator.share &&
+      navigator.canShare?.({
+        files: [file]
+      })
+    ) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: fileName
+        });
+
+        return;
+      } catch (error) {
+        /*
+         * ユーザーが共有画面を
+         * 閉じた場合は何もしない。
+         */
+        if (
+          error?.name ===
+          "AbortError"
+        ) {
+          return;
+        }
+      }
+    }
+  }
+
+  /*
+   * PC、または共有非対応端末
+   * → 通常ダウンロード
+   */
+  downloadExportBlob(
+    blob,
+    fileName
+  );
+}
+
+function makeExportChoice(label, value) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "export-choice";
+  button.textContent = label;
+  button.dataset.value = value;
+  return button;
+}
+
+function makeExportNumberRow({
+  label,
+  min,
+  max,
+  step,
+  value,
+  preview = false
+}) {
+  const row = document.createElement("div");
+  row.className = "export-row";
+
+  const labelNode = document.createElement("div");
+  labelNode.className = "export-label";
+  labelNode.textContent = label;
+
+  const control = document.createElement("div");
+  control.className = "export-value-control";
+
+  const minus = document.createElement("button");
+  minus.type = "button";
+  minus.className = "export-step-button";
+  minus.textContent = "−";
+
+  const output = document.createElement("output");
+  output.className = "export-value";
+  output.dataset.value = String(value);
+
+  const plus = document.createElement("button");
+  plus.type = "button";
+  plus.className = "export-step-button";
+  plus.textContent = "+";
+
+  function formatted(number) {
+    return step === 0.5
+      ? `${Number(number).toFixed(1)}s`
+      : `${Math.round(number)}s`;
+  }
+
+  function setValue(nextValue) {
+    const next = clamp(
+      Math.round(Number(nextValue) / step) * step,
+      min,
+      max
+    );
+
+    output.dataset.value = String(next);
+    output.textContent = formatted(next);
+  }
+
+  minus.addEventListener("click", () => {
+    setValue(Number(output.dataset.value) - step);
+  });
+
+  plus.addEventListener("click", () => {
+    setValue(Number(output.dataset.value) + step);
+  });
+
+  setValue(value);
+  control.append(minus, output, plus);
+  row.append(labelNode, control);
+
+  let previewButton = null;
+  if (preview) {
+    previewButton = document.createElement("button");
+    previewButton.type = "button";
+    previewButton.className = "export-preview";
+    previewButton.textContent = "▶";
+    row.append(previewButton);
+  }
+
+  return {
+    row,
+    output,
+    minus,
+    plus,
+    previewButton,
+    getValue: () => Number(output.dataset.value) || 0,
+    setValue,
+    setDisabled(disabled) {
+      row.classList.toggle("disabled", disabled);
+      minus.disabled = disabled;
+      plus.disabled = disabled;
+      if (previewButton) previewButton.disabled = disabled;
+    }
+  };
+}
+
+async function openExportModal() {
+  if (exportModal) return;
+
+  const overlay = document.createElement("div");
+  overlay.className = "export-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", "export");
+
+  const modal = document.createElement("div");
+  modal.className = "export-modal";
+
+  const header = document.createElement("div");
+  header.className = "export-modal-header";
+
+  const title = document.createElement("div");
+  title.className = "export-modal-title";
+  title.textContent = "export";
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "export-close";
+  close.textContent = "×";
+  close.setAttribute("aria-label", "close");
+
+  header.append(title, close);
+
+  const targetRow = document.createElement("div");
+  targetRow.className = "export-row";
+  const targetLabel = document.createElement("div");
+  targetLabel.className = "export-label";
+  targetLabel.textContent = "target";
+  const targetGroup = document.createElement("div");
+  targetGroup.className = "export-choice-group";
+  const targetSong = makeExportChoice("song", "song");
+  const targetPart = makeExportChoice("part", "part");
+  targetGroup.append(targetSong, targetPart);
+  targetRow.append(targetLabel, targetGroup);
+
+  const endRow = document.createElement("div");
+  endRow.className = "export-row";
+  const endLabel = document.createElement("div");
+  endLabel.className = "export-label";
+  endLabel.textContent = "end";
+  const endGroup = document.createElement("div");
+  endGroup.className = "export-choice-group";
+  const endTail = makeExportChoice("tail", "tail");
+  const endLoop = makeExportChoice("loop", "loop");
+  endGroup.append(endTail, endLoop);
+  endRow.append(endLabel, endGroup);
+
+  const headControl = makeExportNumberRow({
+    label: "head",
+    min: 0,
+    max: 5,
+    step: 0.5,
+    value: 0
+  });
+
+  const fadeInControl = makeExportNumberRow({
+    label: "fade in",
+    min: 0,
+    max: 30,
+    step: 1,
+    value: 0,
+    preview: true
+  });
+
+  const fadeOutControl = makeExportNumberRow({
+    label: "fade out",
+    min: 0,
+    max: 30,
+    step: 1,
+    value: 0,
+    preview: true
+  });
+
+  const formatRow = document.createElement("div");
+  formatRow.className = "export-row";
+  const formatLabel = document.createElement("div");
+  formatLabel.className = "export-label";
+  formatLabel.textContent = "format";
+  const formatValue = document.createElement("div");
+  formatValue.textContent = "wav / 48khz / 24bit / stereo";
+  formatValue.style.fontSize = "var(--font-label)";
+  formatRow.append(formatLabel, formatValue);
+
+  const progressWrap = document.createElement("div");
+  progressWrap.className = "export-progress-wrap";
+  progressWrap.hidden = true;
+
+  const progressRow = document.createElement("div");
+  progressRow.className = "export-progress-row";
+  const progressText = document.createElement("span");
+  progressText.textContent = "exporting 0%";
+  const progressStage = document.createElement("span");
+  progressStage.textContent = "";
+  progressRow.append(progressText, progressStage);
+
+  const progressTrack = document.createElement("div");
+  progressTrack.className = "export-progress-track";
+  const progressBar = document.createElement("div");
+  progressBar.className = "export-progress-bar";
+  progressTrack.append(progressBar);
+
+  const status = document.createElement("div");
+  status.className = "export-status";
+
+  progressWrap.append(progressRow, progressTrack, status);
+
+  const actions = document.createElement("div");
+  actions.className = "export-actions";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "export-action";
+  cancel.textContent = "cancel";
+  const exportAction = document.createElement("button");
+  exportAction.type = "button";
+  exportAction.className = "export-action primary";
+  exportAction.textContent = "export";
+  actions.append(cancel, exportAction);
+
+  modal.append(
+    header,
+    targetRow,
+    endRow,
+    headControl.row,
+    fadeInControl.row,
+    fadeOutControl.row,
+    formatRow,
+    progressWrap,
+    actions
+  );
+
+  overlay.append(modal);
+  document.body.append(overlay);
+  exportModal = overlay;
+
+  let target = "song";
+  let endMode = "tail";
+  let currentSignal = null;
+  let working = false;
+  let progressTimer = null;
+  let displayedProgress = 0;
+
+  function updateProgress(value, stage = "") {
+    displayedProgress = Math.max(displayedProgress, clamp(Math.round(value), 0, 100));
+    progressText.textContent = `exporting ${displayedProgress}%`;
+    progressStage.textContent = stage;
+    progressBar.style.width = `${displayedProgress}%`;
+  }
+
+  function clearProgressTimer() {
+    if (progressTimer) {
+      clearInterval(progressTimer);
+      progressTimer = null;
+    }
+  }
+
+  function beginRenderProgressAnimation() {
+    clearProgressTimer();
+    progressTimer = setInterval(() => {
+      if (displayedProgress < 90) {
+        updateProgress(displayedProgress + 1, "rendering");
+      }
+    }, 140);
+  }
+
+  function setWorking(nextWorking) {
+    working = nextWorking;
+    close.disabled = nextWorking;
+    targetSong.disabled = nextWorking;
+    targetPart.disabled = nextWorking;
+    endTail.disabled = nextWorking;
+    endLoop.disabled = nextWorking;
+    exportAction.disabled = nextWorking;
+    cancel.textContent = nextWorking ? "cancel" : "close";
+    progressWrap.hidden = !nextWorking && displayedProgress === 0;
+    applyModeState();
+  }
+
+  function applyModeState() {
+    targetSong.classList.toggle("active", target === "song");
+    targetPart.classList.toggle("active", target === "part");
+    endTail.classList.toggle("active", endMode === "tail");
+    endLoop.classList.toggle("active", endMode === "loop");
+
+    const loop = endMode === "loop";
+    if (loop) {
+      headControl.setValue(0);
+      fadeInControl.setValue(0);
+      fadeOutControl.setValue(0);
+    }
+
+    const controlsDisabled = working || loop;
+    headControl.setDisabled(controlsDisabled);
+    fadeInControl.setDisabled(controlsDisabled);
+    fadeOutControl.setDisabled(controlsDisabled);
+  }
+
+  function currentOptions() {
+    return {
+      target,
+      endMode,
+      headSeconds: headControl.getValue(),
+      fadeInSeconds: fadeInControl.getValue(),
+      fadeOutSeconds: fadeOutControl.getValue(),
+      bpm: Number(document.getElementById("bpm-input")?.value) || 120,
+      masterVolume: Number(document.getElementById("master-volume")?.value) || 70
+    };
+  }
+
+  async function renderForAction(signal) {
+    displayedProgress = 0;
+    updateProgress(0, "preparing");
+    progressWrap.hidden = false;
+    status.textContent = "";
+
+    return renderExportWav({
+      ...currentOptions(),
+      signal,
+      onProgress(value, stage) {
+        updateProgress(value, stage);
+        if (stage === "rendering") {
+          beginRenderProgressAnimation();
+        } else if (value >= 93) {
+          clearProgressTimer();
+        }
+      }
+    });
+  }
+
+  async function previewFade(kind) {
+    if (working || endMode === "loop") return;
+
+    stopExportPreview();
+    currentSignal = { cancelled: false };
+    setWorking(true);
+    status.textContent = "preview rendering";
+
+    try {
+      const result = await renderForAction(currentSignal);
+      clearProgressTimer();
+
+      const url = URL.createObjectURL(result.blob);
+      const audio = new Audio(url);
+      exportPreviewAudio = audio;
+      exportPreviewUrl = url;
+
+      const bodyEnd = result.headSeconds + result.bodyDuration;
+      const fadeSeconds = kind === "in"
+        ? fadeInControl.getValue()
+        : fadeOutControl.getValue();
+
+      const startTime = kind === "in"
+        ? 0
+        : Math.max(0, bodyEnd - fadeSeconds - 2);
+
+      const endTime = kind === "in"
+        ? Math.min(result.duration, result.headSeconds + fadeSeconds + 2)
+        : Math.min(result.duration, bodyEnd);
+
+      audio.addEventListener(
+        "loadedmetadata",
+        async () => {
+          audio.currentTime = Math.min(startTime, Math.max(0, audio.duration - 0.01));
+          try {
+            await audio.play();
+            status.textContent = "preview";
+            exportPreviewTimer = window.setTimeout(
+              stopExportPreview,
+              Math.max(50, (endTime - startTime) * 1000)
+            );
+          } catch {
+            stopExportPreview();
+          }
+        },
+        { once: true }
+      );
+    } catch (error) {
+      if (!(error instanceof ExportCancelledError)) {
+        status.textContent = error?.message || "preview failed";
+      }
+    } finally {
+      clearProgressTimer();
+      currentSignal = null;
+      setWorking(false);
+    }
+  }
+
+  targetSong.addEventListener("click", () => {
+    if (working) return;
+    target = "song";
+    applyModeState();
+  });
+
+  targetPart.addEventListener("click", () => {
+    if (working) return;
+    target = "part";
+    endMode = "loop";
+    applyModeState();
+  });
+
+  endTail.addEventListener("click", () => {
+    if (working) return;
+    endMode = "tail";
+    applyModeState();
+  });
+
+  endLoop.addEventListener("click", () => {
+    if (working) return;
+    endMode = "loop";
+    applyModeState();
+  });
+
+  fadeInControl.previewButton?.addEventListener(
+    "click",
+    () => void previewFade("in")
+  );
+
+  fadeOutControl.previewButton?.addEventListener(
+    "click",
+    () => void previewFade("out")
+  );
+
+  close.addEventListener("click", closeExportModal);
+  overlay.addEventListener("pointerdown", event => {
+    if (event.target === overlay && !working) {
+      closeExportModal();
+    }
+  });
+
+  overlay.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !working) {
+      event.preventDefault();
+      closeExportModal();
+    }
+  });
+
+  cancel.addEventListener("click", () => {
+    if (!working) {
+      closeExportModal();
+      return;
+    }
+
+    if (currentSignal) {
+      currentSignal.cancelled = true;
+      status.textContent = "cancelling";
+      cancel.disabled = true;
+    }
+  });
+
+  exportAction.addEventListener("click", async () => {
+    if (working) return;
+
+    if (state.isPlaying) {
+      document.getElementById("play-button")?.click();
+    }
+
+    stopExportPreview();
+    currentSignal = { cancelled: false };
+    cancel.disabled = false;
+    setWorking(true);
+
+    try {
+      const result = await renderForAction(currentSignal);
+      clearProgressTimer();
+
+      const meta = await getCurrentProjectMeta();
+      const projectName = safeExportFileName(meta?.name || "project");
+      const fileName = target === "part"
+        ? `loop_${projectName}.wav`
+        : `${projectName}.wav`;
+
+      status.textContent = "complete";
+      await shareOrDownloadExport(result.blob, fileName);
+    } catch (error) {
+      clearProgressTimer();
+
+      if (error instanceof ExportCancelledError) {
+        status.textContent = "cancelled";
+      } else {
+        console.error("sprooto export failed:", error);
+        status.textContent = error?.message || "export failed";
+      }
+    } finally {
+      currentSignal = null;
+      cancel.disabled = false;
+      setWorking(false);
+    }
+  });
+
+  applyModeState();
+  close.focus();
+}
+
+exportButton?.addEventListener(
+  "click",
+  () => void openExportModal()
 );
 
 let soundPresetModal = null;

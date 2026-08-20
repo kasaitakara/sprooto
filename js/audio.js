@@ -18,6 +18,7 @@ let bitCrusherWorkletReady = null;
 let fmVoiceWorkletReady = null;
 let audioClockReady = false;
 let audioClockReadyPromise = null;
+let offlineRenderMode = false;
 
 const EQ_FREQUENCIES = [
   60, 120, 250, 500,
@@ -487,6 +488,10 @@ window.addEventListener(
     initializeFmVoiceWorklet()
   ]);
 
+  if (offlineRenderMode) {
+    return;
+  }
+
   if (context.state === "suspended") {
     audioClockReady = false;
     audioClockReadyPromise = null;
@@ -509,11 +514,17 @@ function createMasterReverbImpulse() {
 
   for (let channel = 0; channel < 2; channel++) {
     const data = buffer.getChannelData(channel);
+    let seed = (0x5f3759df + channel * 104729) >>> 0;
+
+    const nextRandom = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return (seed / 0xffffffff) * 2 - 1;
+    };
 
     for (let index = 0; index < length; index++) {
       const progress = index / length;
       const envelope = Math.pow(1 - progress, 2.6);
-      data[index] = (Math.random() * 2 - 1) * envelope;
+      data[index] = nextRandom() * envelope;
     }
   }
 
@@ -1448,7 +1459,7 @@ const requestedStartTime =
 
 const minimumStartTime =
   context.currentTime +
-  0.03;
+  (offlineRenderMode ? 0 : 0.03);
 
 const now =
   Math.max(
@@ -1457,6 +1468,7 @@ const now =
   );
 
   const bpm =
+    Number(options.bpm) ||
     Number(
       document.getElementById("bpm-input")?.value
     ) || 120;
@@ -2987,27 +2999,19 @@ mixGain
           (repeatCount + 2)
       );
 
-    window.setTimeout(
-      () => {
-        try {
-          panner.disconnect(
-            delayNode
-          );
-
-          delayNode.disconnect();
-          feedbackGain.disconnect();
-          wetGain.disconnect();
-        } catch {
-          /*
-           * すでに切断済みなら何もしない。
-           */
-        }
-      },
-      Math.max(
-        100,
-        cleanupSeconds * 1000
-      )
-    );
+    if (!offlineRenderMode) {
+      window.setTimeout(
+        () => {
+          try {
+            panner.disconnect(delayNode);
+            delayNode.disconnect();
+            feedbackGain.disconnect();
+            wetGain.disconnect();
+          } catch {}
+        },
+        Math.max(100, cleanupSeconds * 1000)
+      );
+    }
   }
 
   /*
@@ -3138,22 +3142,17 @@ mixGain
             1000
         );
 
-      window.setTimeout(
-        () => {
-          try {
-            fxOutput.disconnect(
-              sendGain
-            );
-
-            sendGain.disconnect();
-          } catch {
-            /*
-             * すでに切断済みなら何もしない。
-             */
-          }
-        },
-        disconnectDelayMs
-      );
+      if (!offlineRenderMode) {
+        window.setTimeout(
+          () => {
+            try {
+              fxOutput.disconnect(sendGain);
+              sendGain.disconnect();
+            } catch {}
+          },
+          disconnectDelayMs
+        );
+      }
     }
   }
 
@@ -3307,12 +3306,14 @@ mixGain
 
       fmVoice.connect(sineGain).connect(mixGain);
 
-      window.setTimeout(() => {
-        try {
-          fmVoice.disconnect();
-          sineGain.disconnect();
-        } catch {}
-      }, Math.max(50, (sineStopAt - context.currentTime + 0.05) * 1000));
+      if (!offlineRenderMode) {
+        window.setTimeout(() => {
+          try {
+            fmVoice.disconnect();
+            sineGain.disconnect();
+          } catch {}
+        }, Math.max(50, (sineStopAt - context.currentTime + 0.05) * 1000));
+      }
     }
   }
 
@@ -3366,31 +3367,180 @@ const registeredVoice =
     track.id
   );
 
-window.setTimeout(
-  () => {
-    if (
-      activeTrackVoices.get(
-        track.id
-      ) === registeredVoice
-    ) {
-      activeTrackVoices.delete(
-        track.id
-      );
-    }
-  },
-  Math.max(
-    10,
-    (
-      releaseEnd -
-      context.currentTime +
-      0.05
-    ) *
-      1000
-  )
-);
+if (!offlineRenderMode) {
+  window.setTimeout(
+    () => {
+      if (activeTrackVoices.get(track.id) === registeredVoice) {
+        activeTrackVoices.delete(track.id);
+      }
+    },
+    Math.max(
+      10,
+      (releaseEnd - context.currentTime + 0.05) * 1000
+    )
+  );
+}
 
 }
 
 export function resumeAudio() {
   resumeAudioContext();
+}
+
+/* =========================
+ * Offline export support
+ * ========================= */
+export async function beginOfflineAudioRender(
+  offlineContext,
+  {
+    masterMix = {},
+    masterVolume = 70
+  } = {}
+) {
+  if (!offlineContext) {
+    throw new Error("offline audio context is required");
+  }
+
+  const backup = {
+    context,
+    master,
+    mixInput,
+    mixGain,
+    limiter,
+    reverbConvolver,
+    reverbDryGain,
+    reverbWetGain,
+    spectrumAnalyser,
+    outputAnalyser,
+    eqNodes,
+    spectrumData,
+    outputTimeData,
+    bitCrusherWorkletReady,
+    fmVoiceWorkletReady,
+    audioClockReady,
+    audioClockReadyPromise,
+    offlineRenderMode,
+    trackReverbImpulseCache: trackReverbImpulseCache.slice(),
+    trackReverbBuses: [...trackReverbBuses.entries()],
+    activeTrackVoices: [...activeTrackVoices.entries()]
+  };
+
+  context = offlineContext;
+  offlineRenderMode = true;
+  audioClockReady = true;
+  audioClockReadyPromise = null;
+  bitCrusherWorkletReady = null;
+  fmVoiceWorkletReady = null;
+  spectrumData = null;
+  outputTimeData = null;
+  spectrumAnalyser = null;
+  outputAnalyser = null;
+
+  trackReverbImpulseCache.length = 0;
+  trackReverbBuses.clear();
+  activeTrackVoices.clear();
+
+  master = context.createGain();
+  master.gain.value = clamp(Number(masterVolume) || 0, 0, 100) / 100;
+
+  mixInput = context.createGain();
+
+  const eqValues = Array.isArray(masterMix.eq)
+    ? masterMix.eq
+    : Array(8).fill(0);
+
+  eqNodes = EQ_FREQUENCIES.map((frequency, index) => {
+    const filter = context.createBiquadFilter();
+    filter.type = index === 0
+      ? "lowshelf"
+      : index === EQ_FREQUENCIES.length - 1
+        ? "highshelf"
+        : "peaking";
+    filter.frequency.value = frequency;
+    filter.Q.value = 1;
+    filter.gain.value = clamp(Number(eqValues[index]) || 0, -12, 12);
+    return filter;
+  });
+
+  reverbConvolver = context.createConvolver();
+  reverbConvolver.buffer = createMasterReverbImpulse();
+
+  reverbDryGain = context.createGain();
+  reverbWetGain = context.createGain();
+
+  mixGain = context.createGain();
+  mixGain.gain.value = clamp(Number(masterMix.volume ?? 100) || 0, 0, 100) / 100;
+
+  limiter = context.createDynamicsCompressor();
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.003;
+  limiter.release.value = 0.1;
+  limiter.threshold.value = clamp(Number(masterMix.limiter ?? -1) || 0, -24, 0);
+
+  let previousNode = mixInput;
+  eqNodes.forEach(filter => {
+    previousNode.connect(filter);
+    previousNode = filter;
+  });
+
+  previousNode.connect(reverbDryGain);
+  reverbDryGain.connect(mixGain);
+
+  previousNode.connect(reverbConvolver);
+  reverbConvolver.connect(reverbWetGain);
+  reverbWetGain.connect(mixGain);
+
+  reverbDryGain.gain.value = 1;
+  reverbWetGain.gain.value = clamp(Number(masterMix.reverb ?? 0) || 0, 0, 100) / 100;
+
+  mixGain.connect(limiter);
+  limiter.connect(master);
+  master.connect(context.destination);
+
+  initializeTrackReverbBuses();
+
+  await Promise.all([
+    initializeBitCrusherWorklet(),
+    initializeFmVoiceWorklet()
+  ]);
+
+  let restored = false;
+
+  return function restoreOfflineAudioRender() {
+    if (restored) return;
+    restored = true;
+
+    trackReverbImpulseCache.length = 0;
+    trackReverbImpulseCache.push(...backup.trackReverbImpulseCache);
+
+    trackReverbBuses.clear();
+    backup.trackReverbBuses.forEach(([key, value]) => {
+      trackReverbBuses.set(key, value);
+    });
+
+    activeTrackVoices.clear();
+    backup.activeTrackVoices.forEach(([key, value]) => {
+      activeTrackVoices.set(key, value);
+    });
+
+    context = backup.context;
+    master = backup.master;
+    mixInput = backup.mixInput;
+    mixGain = backup.mixGain;
+    limiter = backup.limiter;
+    reverbConvolver = backup.reverbConvolver;
+    reverbDryGain = backup.reverbDryGain;
+    reverbWetGain = backup.reverbWetGain;
+    spectrumAnalyser = backup.spectrumAnalyser;
+    outputAnalyser = backup.outputAnalyser;
+    eqNodes = backup.eqNodes;
+    spectrumData = backup.spectrumData;
+    outputTimeData = backup.outputTimeData;
+    bitCrusherWorkletReady = backup.bitCrusherWorkletReady;
+    fmVoiceWorkletReady = backup.fmVoiceWorkletReady;
+    audioClockReady = backup.audioClockReady;
+    audioClockReadyPromise = backup.audioClockReadyPromise;
+    offlineRenderMode = backup.offlineRenderMode;
+  };
 }

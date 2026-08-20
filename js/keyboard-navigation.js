@@ -579,6 +579,10 @@ document.addEventListener("keydown", event => {
       ? eventTarget
       : activeElement;
 
+  if (editingTarget?.closest?.(".export-overlay")) {
+    return;
+  }
+
   const isNativeTextEditing =
     editingTarget instanceof HTMLTextAreaElement ||
     editingTarget instanceof HTMLSelectElement ||

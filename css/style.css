@@ -5273,3 +5273,19 @@ input[type="radio"]:focus-visible {
     color: var(--muted);
     font-size: var(--font-label);
 }
+
+/* =========================
+   Page switch icon alignment
+========================= */
+
+.sequence-page-button,
+.pattern-page-button,
+.song-page-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    line-height: 1;
+}

@@ -999,7 +999,7 @@ const envelopeParameter = {
       text: "attack",
       icon: "attack",
       min: 1,
-      max: 50,
+      max: 100,
       step: 1
     },
     {

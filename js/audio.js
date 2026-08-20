@@ -1831,18 +1831,28 @@ const now =
   }
 
   const attackValue =
-    envelopeLfoValue(
-      "attack",
-      (soundTrack.base.attack ?? 1) +
-        offset("attack"),
-      1,
-      50
-    );
+  envelopeLfoValue(
+    "attack",
+    (soundTrack.base.attack ?? 1) +
+      offset("attack"),
+    1,
+    100
+  );
 
-  const attack =
-    Math.max(
-      0.001,
-      attackValue / 1000
+const attackNormalized =
+  (attackValue - 1) / 99;
+
+/*
+ * 1〜100を約1ms〜1秒へ非線形変換。
+ * 低い値ほど細かく、
+ * 高い値ほど長いAttackへ広げる。
+ */
+const attack =
+  0.001 +
+  0.999 *
+    Math.pow(
+      attackNormalized,
+      2.4
     );
 
   const decayValue =

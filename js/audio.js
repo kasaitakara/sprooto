@@ -2927,9 +2927,91 @@ mixGain
    * まずPan後の信号をFXバスへまとめる。
    */
   const fxInput =
-    context.createGain();
+  context.createGain();
 
-  panner.connect(fxInput);
+/*
+ * EXPORT専用Fade。
+ *
+ * 通常再生時は常にgain=1。
+ * Offline Export時だけ、
+ * FXへ入る前の信号へFadeを掛ける。
+ *
+ * これによりDelay / Reverbには
+ * Fade済みの音が入力され、
+ * TAILだけは自然に残る。
+ */
+const exportFadeGain =
+  context.createGain();
+
+exportFadeGain.gain.setValueAtTime(
+  1,
+  0
+);
+
+const fadeEnvelope =
+  options.fadeEnvelope;
+
+if (fadeEnvelope) {
+  const fadeInStart =
+    Number(
+      fadeEnvelope.fadeInStart
+    );
+
+  const fadeInEnd =
+    Number(
+      fadeEnvelope.fadeInEnd
+    );
+
+  const fadeOutStart =
+    Number(
+      fadeEnvelope.fadeOutStart
+    );
+
+  const fadeOutEnd =
+    Number(
+      fadeEnvelope.fadeOutEnd
+    );
+
+  if (
+    Number.isFinite(fadeInStart) &&
+    Number.isFinite(fadeInEnd) &&
+    fadeInEnd > fadeInStart
+  ) {
+    exportFadeGain.gain
+      .setValueAtTime(
+        0,
+        fadeInStart
+      );
+
+    exportFadeGain.gain
+      .linearRampToValueAtTime(
+        1,
+        fadeInEnd
+      );
+  }
+
+  if (
+    Number.isFinite(fadeOutStart) &&
+    Number.isFinite(fadeOutEnd) &&
+    fadeOutEnd > fadeOutStart
+  ) {
+    exportFadeGain.gain
+      .setValueAtTime(
+        1,
+        fadeOutStart
+      );
+
+    exportFadeGain.gain
+      .linearRampToValueAtTime(
+        0,
+        fadeOutEnd
+      );
+  }
+}
+
+panner
+  .connect(exportFadeGain)
+  .connect(fxInput);
 
   /*
    * クリーンなDelay。
@@ -2963,9 +3045,9 @@ mixGain
       now
     );
 
-    panner.connect(
-      delayNode
-    );
+    exportFadeGain.connect(
+  delayNode
+);
 
     delayNode
       .connect(wetGain)
@@ -3003,11 +3085,14 @@ mixGain
       window.setTimeout(
         () => {
           try {
-            panner.disconnect(delayNode);
-            delayNode.disconnect();
-            feedbackGain.disconnect();
-            wetGain.disconnect();
-          } catch {}
+  exportFadeGain.disconnect(
+    delayNode
+  );
+
+  delayNode.disconnect();
+  feedbackGain.disconnect();
+  wetGain.disconnect();
+} catch {}
         },
         Math.max(100, cleanupSeconds * 1000)
       );

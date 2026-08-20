@@ -158,6 +158,7 @@ async function scheduleSource({
   bpm,
   headSeconds,
   guardSeconds,
+  fadeEnvelope,
   signal
 }) {
   const stepSeconds = (60 / Math.max(1, bpm)) / 4;
@@ -204,7 +205,15 @@ async function scheduleSource({
         : null;
 
       if (!pattern) {
-        await playTrackStep(track, trackStepIndex, Math.max(0, baseStart), { bpm });
+        await playTrackStep(
+  track,
+  trackStepIndex,
+  Math.max(0, baseStart),
+  {
+    bpm,
+    fadeEnvelope
+  }
+);
         continue;
       }
 
@@ -218,7 +227,15 @@ async function scheduleSource({
       );
 
       if (Math.random() * 100 >= subProbability) {
-        await playTrackStep(track, trackStepIndex, Math.max(0, baseStart), { bpm });
+        await playTrackStep(
+  track,
+  trackStepIndex,
+  Math.max(0, baseStart),
+  {
+    bpm,
+    fadeEnvelope
+  }
+);
         continue;
       }
 
@@ -240,9 +257,17 @@ async function scheduleSource({
           trackStepIndex,
           Math.max(0, eventTime),
           {
-            bpm,
-            velocityScale: subVelocityScale(crescendo, hitIndex, pattern.hits.length)
-          }
+  bpm,
+
+  velocityScale:
+    subVelocityScale(
+      crescendo,
+      hitIndex,
+      pattern.hits.length
+    ),
+
+  fadeEnvelope
+}
         );
       }
     }
@@ -290,14 +315,8 @@ function findTailEndFrame(buffer, bodyEndFrame) {
 function copyProcessedChannels({
   buffer,
   guardFrames,
-  outputEndFrame,
-  headSeconds,
-  bodyDuration,
-  fadeInSeconds,
-  fadeOutSeconds
+  outputEndFrame
 }) {
-  const sampleRate = buffer.sampleRate;
-  const outputLength = Math.max(1, outputEndFrame - guardFrames);
   const channels = Array.from(
     { length: EXPORT_CHANNELS },
     (_, channelIndex) => {
@@ -307,39 +326,6 @@ function copyProcessedChannels({
       return source.slice(guardFrames, outputEndFrame);
     }
   );
-
-  const bodyStart = Math.round(headSeconds * sampleRate);
-  const bodyEnd = Math.min(
-    outputLength,
-    Math.round((headSeconds + bodyDuration) * sampleRate)
-  );
-
-  const fadeInFrames = Math.min(
-    Math.round(Math.max(0, fadeInSeconds) * sampleRate),
-    Math.max(0, bodyEnd - bodyStart)
-  );
-
-  const fadeOutFrames = Math.min(
-    Math.round(Math.max(0, fadeOutSeconds) * sampleRate),
-    Math.max(0, bodyEnd - bodyStart)
-  );
-
-  channels.forEach(data => {
-    for (let index = 0; index < fadeInFrames; index++) {
-      const gain = fadeInFrames <= 1
-        ? 1
-        : index / (fadeInFrames - 1);
-      data[bodyStart + index] *= gain;
-    }
-
-    const fadeOutStart = Math.max(bodyStart, bodyEnd - fadeOutFrames);
-    for (let frame = fadeOutStart; frame < bodyEnd; frame++) {
-      const gain = fadeOutFrames <= 1
-        ? 0
-        : (bodyEnd - 1 - frame) / (fadeOutFrames - 1);
-      data[frame] *= clamp(gain, 0, 1);
-    }
-  });
 
   return channels;
 }
@@ -422,6 +408,36 @@ export async function renderExportWav({
     bodyDuration += sourceLength(sourceData(item.type, item.index)) * ((60 / safeBpm) / 4);
   });
 
+  const bodyStartSeconds =
+  guardSeconds +
+  safeHead;
+
+const bodyEndSeconds =
+  bodyStartSeconds +
+  bodyDuration;
+
+const fadeEnvelope = {
+  fadeInStart:
+    bodyStartSeconds,
+
+  fadeInEnd:
+    bodyStartSeconds +
+    Math.min(
+      safeFadeIn,
+      bodyDuration
+    ),
+
+  fadeOutStart:
+    bodyEndSeconds -
+    Math.min(
+      safeFadeOut,
+      bodyDuration
+    ),
+
+  fadeOutEnd:
+    bodyEndSeconds
+};
+
   const tailSafety = endMode === "tail"
     ? EXPORT_TAIL_SAFETY_SECONDS
     : 0;
@@ -463,13 +479,14 @@ export async function renderExportWav({
       const source = sourceData(item.type, item.index);
 
       await scheduleSource({
-        source,
-        sourceStartSeconds,
-        bpm: safeBpm,
-        headSeconds: safeHead,
-        guardSeconds,
-        signal
-      });
+  source,
+  sourceStartSeconds,
+  bpm: safeBpm,
+  headSeconds: safeHead,
+  guardSeconds,
+  fadeEnvelope,
+  signal
+});
 
       sourceStartSeconds += sourceLength(source) * ((60 / safeBpm) / 4);
       onProgress?.(
@@ -496,14 +513,10 @@ export async function renderExportWav({
       : findTailEndFrame(renderedBuffer, rawBodyEndFrame);
 
     const channels = copyProcessedChannels({
-      buffer: renderedBuffer,
-      guardFrames,
-      outputEndFrame: rawEndFrame,
-      headSeconds: safeHead,
-      bodyDuration,
-      fadeInSeconds: safeFadeIn,
-      fadeOutSeconds: safeFadeOut
-    });
+  buffer: renderedBuffer,
+  guardFrames,
+  outputEndFrame: rawEndFrame
+});
 
     assertNotCancelled(signal);
     const blob = encodeWav24(channels, EXPORT_SAMPLE_RATE);

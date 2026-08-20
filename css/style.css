@@ -5129,7 +5129,6 @@ input[type="radio"]:focus-visible {
 }
 
 .export-close,
-.export-preview,
 .export-action,
 .export-choice,
 .export-step-button {
@@ -5163,6 +5162,10 @@ input[type="radio"]:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
     flex: 1;
+}
+
+.export-choice-group.single-choice {
+    grid-template-columns: 1fr;
 }
 
 .export-choice {
@@ -5200,12 +5203,6 @@ input[type="radio"]:focus-visible {
     font-size: var(--font-small);
 }
 
-.export-preview {
-    margin-left: auto;
-    min-width: 34px;
-    height: 26px;
-    padding: 0 7px;
-}
 
 .export-row.disabled {
     opacity: 0.38;
@@ -5213,7 +5210,7 @@ input[type="radio"]:focus-visible {
 
 .export-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 6px;
     margin-top: 10px;
 }

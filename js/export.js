@@ -29,19 +29,6 @@ const SUB_PATTERNS = Object.freeze([
   { divisions: 6, hits: [0, 1, 2, 3, 4, 5] }
 ]);
 
-export class ExportCancelledError extends Error {
-  constructor() {
-    super("export cancelled");
-    this.name = "ExportCancelledError";
-  }
-}
-
-function assertNotCancelled(signal) {
-  if (signal?.cancelled) {
-    throw new ExportCancelledError();
-  }
-}
-
 function sourceData(type, index) {
   return type === "fill"
     ? fills[index]
@@ -158,16 +145,13 @@ async function scheduleSource({
   bpm,
   headSeconds,
   guardSeconds,
-  fadeEnvelope,
-  signal
+  fadeEnvelope
 }) {
   const stepSeconds = (60 / Math.max(1, bpm)) / 4;
   const length = sourceLength(source);
   const sourceTracks = audibleTracks(source);
 
   for (let tick = 0; tick < length; tick++) {
-    assertNotCancelled(signal);
-
     for (const track of sourceTracks) {
       const trackStepIndex = tick % clamp(Math.round(Number(track.stepLength) || 1), 1, 64);
       if (!track.steps?.[trackStepIndex]) continue;
@@ -387,11 +371,8 @@ export async function renderExportWav({
   fadeOutSeconds = 0,
   bpm = 120,
   masterVolume = 70,
-  signal = null,
   onProgress = null
 } = {}) {
-  assertNotCancelled(signal);
-
   const sources = flattenTarget(target);
   if (!sources.length) {
     throw new Error(target === "song" ? "song is empty" : "part is empty");
@@ -474,8 +455,7 @@ const fadeEnvelope = {
     let sourceStartSeconds = 0;
 
     for (let index = 0; index < sources.length; index++) {
-      assertNotCancelled(signal);
-      const item = sources[index];
+        const item = sources[index];
       const source = sourceData(item.type, item.index);
 
       await scheduleSource({
@@ -484,8 +464,7 @@ const fadeEnvelope = {
   bpm: safeBpm,
   headSeconds: safeHead,
   guardSeconds,
-  fadeEnvelope,
-  signal
+  fadeEnvelope
 });
 
       sourceStartSeconds += sourceLength(source) * ((60 / safeBpm) / 4);
@@ -495,11 +474,9 @@ const fadeEnvelope = {
       );
     }
 
-    assertNotCancelled(signal);
     onProgress?.(25, "rendering");
 
     const renderedBuffer = await offlineContext.startRendering();
-    assertNotCancelled(signal);
     onProgress?.(93, "processing");
 
     const guardFrames = Math.round(guardSeconds * EXPORT_SAMPLE_RATE);
@@ -518,7 +495,6 @@ const fadeEnvelope = {
   outputEndFrame: rawEndFrame
 });
 
-    assertNotCancelled(signal);
     const blob = encodeWav24(channels, EXPORT_SAMPLE_RATE);
     onProgress?.(100, "done");
 

@@ -80,8 +80,7 @@ import {
 } from "./audio.js";
 
 import {
-  renderExportWav,
-  ExportCancelledError
+  renderExportWav
 } from "./export.js";
 
 
@@ -12017,31 +12016,8 @@ window.addEventListener(
 );
 
 let exportModal = null;
-let exportPreviewAudio = null;
-let exportPreviewUrl = null;
-let exportPreviewTimer = null;
-
-function stopExportPreview() {
-  if (exportPreviewTimer) {
-    clearTimeout(exportPreviewTimer);
-    exportPreviewTimer = null;
-  }
-
-  if (exportPreviewAudio) {
-    try {
-      exportPreviewAudio.pause();
-    } catch {}
-    exportPreviewAudio = null;
-  }
-
-  if (exportPreviewUrl) {
-    URL.revokeObjectURL(exportPreviewUrl);
-    exportPreviewUrl = null;
-  }
-}
 
 function closeExportModal() {
-  stopExportPreview();
   exportModal?.remove();
   exportModal = null;
 }
@@ -12091,7 +12067,8 @@ async function shareOrDownloadExport(blob, fileName) {
 
   /*
    * iPhone / iPad / Android
-   * → OS共有シート
+   * → WAVファイルだけをOS共有シートへ渡す。
+   * title / textは付けない。
    */
   if (isMobile) {
     const file = new File(
@@ -12110,15 +12087,14 @@ async function shareOrDownloadExport(blob, fileName) {
     ) {
       try {
         await navigator.share({
-          files: [file],
-          title: fileName
+          files: [file]
         });
 
         return;
       } catch (error) {
         /*
-         * ユーザーが共有画面を
-         * 閉じた場合は何もしない。
+         * ユーザーが共有画面を閉じた場合は
+         * ダウンロードへフォールバックしない。
          */
         if (
           error?.name ===
@@ -12154,8 +12130,7 @@ function makeExportNumberRow({
   min,
   max,
   step,
-  value,
-  preview = false
+  value
 }) {
   const row = document.createElement("div");
   row.className = "export-row";
@@ -12210,28 +12185,17 @@ function makeExportNumberRow({
   control.append(minus, output, plus);
   row.append(labelNode, control);
 
-  let previewButton = null;
-  if (preview) {
-    previewButton = document.createElement("button");
-    previewButton.type = "button";
-    previewButton.className = "export-preview";
-    previewButton.textContent = "▶";
-    row.append(previewButton);
-  }
-
   return {
     row,
     output,
     minus,
     plus,
-    previewButton,
     getValue: () => Number(output.dataset.value) || 0,
     setValue,
     setDisabled(disabled) {
       row.classList.toggle("disabled", disabled);
       minus.disabled = disabled;
       plus.disabled = disabled;
-      if (previewButton) previewButton.disabled = disabled;
     }
   };
 }
@@ -12300,8 +12264,7 @@ async function openExportModal() {
     min: 0,
     max: 30,
     step: 1,
-    value: 0,
-    preview: true
+    value: 0
   });
 
   const fadeOutControl = makeExportNumberRow({
@@ -12309,8 +12272,7 @@ async function openExportModal() {
     min: 0,
     max: 30,
     step: 1,
-    value: 0,
-    preview: true
+    value: 0
   });
 
   const formatRow = document.createElement("div");
@@ -12348,15 +12310,11 @@ async function openExportModal() {
 
   const actions = document.createElement("div");
   actions.className = "export-actions";
-  const cancel = document.createElement("button");
-  cancel.type = "button";
-  cancel.className = "export-action";
-  cancel.textContent = "cancel";
   const exportAction = document.createElement("button");
   exportAction.type = "button";
   exportAction.className = "export-action primary";
   exportAction.textContent = "export";
-  actions.append(cancel, exportAction);
+  actions.append(exportAction);
 
   modal.append(
     header,
@@ -12376,16 +12334,22 @@ async function openExportModal() {
 
   let target = "song";
   let endMode = "tail";
-  let currentSignal = null;
   let working = false;
   let progressTimer = null;
   let displayedProgress = 0;
 
   function updateProgress(value, stage = "") {
-    displayedProgress = Math.max(displayedProgress, clamp(Math.round(value), 0, 100));
-    progressText.textContent = `exporting ${displayedProgress}%`;
+    displayedProgress = Math.max(
+      displayedProgress,
+      clamp(Math.round(value), 0, 100)
+    );
+
+    progressText.textContent =
+      `exporting ${displayedProgress}%`;
+
     progressStage.textContent = stage;
-    progressBar.style.width = `${displayedProgress}%`;
+    progressBar.style.width =
+      `${displayedProgress}%`;
   }
 
   function clearProgressTimer() {
@@ -12397,58 +12361,122 @@ async function openExportModal() {
 
   function beginRenderProgressAnimation() {
     clearProgressTimer();
+
     progressTimer = setInterval(() => {
       if (displayedProgress < 90) {
-        updateProgress(displayedProgress + 1, "rendering");
+        updateProgress(
+          displayedProgress + 1,
+          "rendering"
+        );
       }
     }, 140);
   }
 
   function setWorking(nextWorking) {
     working = nextWorking;
+
     close.disabled = nextWorking;
     targetSong.disabled = nextWorking;
     targetPart.disabled = nextWorking;
     endTail.disabled = nextWorking;
     endLoop.disabled = nextWorking;
     exportAction.disabled = nextWorking;
-    cancel.textContent = nextWorking ? "cancel" : "close";
-    progressWrap.hidden = !nextWorking && displayedProgress === 0;
+
+    progressWrap.hidden =
+      !nextWorking &&
+      displayedProgress === 0;
+
     applyModeState();
   }
 
   function applyModeState() {
-    targetSong.classList.toggle("active", target === "song");
-    targetPart.classList.toggle("active", target === "part");
-    endTail.classList.toggle("active", endMode === "tail");
-    endLoop.classList.toggle("active", endMode === "loop");
+    const part = target === "part";
 
-    const loop = endMode === "loop";
+    /*
+     * PARTはループ素材専用。
+     * ENDはLOOP固定とし、TAIL自体をUIから消す。
+     */
+    if (part) {
+      endMode = "loop";
+    }
+
+    targetSong.classList.toggle(
+      "active",
+      target === "song"
+    );
+
+    targetPart.classList.toggle(
+      "active",
+      part
+    );
+
+    endTail.hidden = part;
+    endGroup.classList.toggle(
+      "single-choice",
+      part
+    );
+
+    endTail.classList.toggle(
+      "active",
+      !part && endMode === "tail"
+    );
+
+    endLoop.classList.toggle(
+      "active",
+      endMode === "loop"
+    );
+
+    const loop =
+      endMode === "loop";
+
     if (loop) {
       headControl.setValue(0);
       fadeInControl.setValue(0);
       fadeOutControl.setValue(0);
     }
 
-    const controlsDisabled = working || loop;
-    headControl.setDisabled(controlsDisabled);
-    fadeInControl.setDisabled(controlsDisabled);
-    fadeOutControl.setDisabled(controlsDisabled);
+    const controlsDisabled =
+      working || loop;
+
+    headControl.setDisabled(
+      controlsDisabled
+    );
+
+    fadeInControl.setDisabled(
+      controlsDisabled
+    );
+
+    fadeOutControl.setDisabled(
+      controlsDisabled
+    );
   }
 
   function currentOptions() {
     return {
       target,
       endMode,
-      headSeconds: headControl.getValue(),
-      fadeInSeconds: fadeInControl.getValue(),
-      fadeOutSeconds: fadeOutControl.getValue(),
-      bpm: Number(document.getElementById("bpm-input")?.value) || 120,
-      masterVolume: Number(document.getElementById("master-volume")?.value) || 70
+      headSeconds:
+        headControl.getValue(),
+      fadeInSeconds:
+        fadeInControl.getValue(),
+      fadeOutSeconds:
+        fadeOutControl.getValue(),
+      bpm:
+        Number(
+          document.getElementById(
+            "bpm-input"
+          )?.value
+        ) || 120,
+      masterVolume:
+        Number(
+          document.getElementById(
+            "master-volume"
+          )?.value
+        ) || 70
     };
   }
 
-  async function renderForAction(signal) {
+  async function renderForExport() {
     displayedProgress = 0;
     updateProgress(0, "preparing");
     progressWrap.hidden = false;
@@ -12456,9 +12484,13 @@ async function openExportModal() {
 
     return renderExportWav({
       ...currentOptions(),
-      signal,
+
       onProgress(value, stage) {
-        updateProgress(value, stage);
+        updateProgress(
+          value,
+          stage
+        );
+
         if (stage === "rendering") {
           beginRenderProgressAnimation();
         } else if (value >= 93) {
@@ -12468,165 +12500,144 @@ async function openExportModal() {
     });
   }
 
-  async function previewFade(kind) {
-    if (working || endMode === "loop") return;
-
-    stopExportPreview();
-    currentSignal = { cancelled: false };
-    setWorking(true);
-    status.textContent = "preview rendering";
-
-    try {
-      const result = await renderForAction(currentSignal);
-      clearProgressTimer();
-
-      const url = URL.createObjectURL(result.blob);
-      const audio = new Audio(url);
-      exportPreviewAudio = audio;
-      exportPreviewUrl = url;
-
-      const bodyEnd = result.headSeconds + result.bodyDuration;
-      const fadeSeconds = kind === "in"
-        ? fadeInControl.getValue()
-        : fadeOutControl.getValue();
-
-      const startTime = kind === "in"
-        ? 0
-        : Math.max(0, bodyEnd - fadeSeconds - 2);
-
-      const endTime = kind === "in"
-        ? Math.min(result.duration, result.headSeconds + fadeSeconds + 2)
-        : Math.min(result.duration, bodyEnd);
-
-      audio.addEventListener(
-        "loadedmetadata",
-        async () => {
-          audio.currentTime = Math.min(startTime, Math.max(0, audio.duration - 0.01));
-          try {
-            await audio.play();
-            status.textContent = "preview";
-            exportPreviewTimer = window.setTimeout(
-              stopExportPreview,
-              Math.max(50, (endTime - startTime) * 1000)
-            );
-          } catch {
-            stopExportPreview();
-          }
-        },
-        { once: true }
-      );
-    } catch (error) {
-      if (!(error instanceof ExportCancelledError)) {
-        status.textContent = error?.message || "preview failed";
-      }
-    } finally {
-      clearProgressTimer();
-      currentSignal = null;
-      setWorking(false);
-    }
-  }
-
-  targetSong.addEventListener("click", () => {
-    if (working) return;
-    target = "song";
-    applyModeState();
-  });
-
-  targetPart.addEventListener("click", () => {
-    if (working) return;
-    target = "part";
-    endMode = "loop";
-    applyModeState();
-  });
-
-  endTail.addEventListener("click", () => {
-    if (working) return;
-    endMode = "tail";
-    applyModeState();
-  });
-
-  endLoop.addEventListener("click", () => {
-    if (working) return;
-    endMode = "loop";
-    applyModeState();
-  });
-
-  fadeInControl.previewButton?.addEventListener(
+  targetSong.addEventListener(
     "click",
-    () => void previewFade("in")
+    () => {
+      if (working) return;
+
+      target = "song";
+      endMode = "tail";
+      applyModeState();
+    }
   );
 
-  fadeOutControl.previewButton?.addEventListener(
+  targetPart.addEventListener(
     "click",
-    () => void previewFade("out")
+    () => {
+      if (working) return;
+
+      target = "part";
+      endMode = "loop";
+      applyModeState();
+    }
   );
 
-  close.addEventListener("click", closeExportModal);
-  overlay.addEventListener("pointerdown", event => {
-    if (event.target === overlay && !working) {
-      closeExportModal();
-    }
-  });
-
-  overlay.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !working) {
-      event.preventDefault();
-      closeExportModal();
-    }
-  });
-
-  cancel.addEventListener("click", () => {
-    if (!working) {
-      closeExportModal();
-      return;
-    }
-
-    if (currentSignal) {
-      currentSignal.cancelled = true;
-      status.textContent = "cancelling";
-      cancel.disabled = true;
-    }
-  });
-
-  exportAction.addEventListener("click", async () => {
-    if (working) return;
-
-    if (state.isPlaying) {
-      document.getElementById("play-button")?.click();
-    }
-
-    stopExportPreview();
-    currentSignal = { cancelled: false };
-    cancel.disabled = false;
-    setWorking(true);
-
-    try {
-      const result = await renderForAction(currentSignal);
-      clearProgressTimer();
-
-      const meta = await getCurrentProjectMeta();
-      const projectName = safeExportFileName(meta?.name || "project");
-      const fileName = target === "part"
-        ? `loop_${projectName}.wav`
-        : `${projectName}.wav`;
-
-      status.textContent = "complete";
-      await shareOrDownloadExport(result.blob, fileName);
-    } catch (error) {
-      clearProgressTimer();
-
-      if (error instanceof ExportCancelledError) {
-        status.textContent = "cancelled";
-      } else {
-        console.error("sprooto export failed:", error);
-        status.textContent = error?.message || "export failed";
+  endTail.addEventListener(
+    "click",
+    () => {
+      if (
+        working ||
+        target === "part"
+      ) {
+        return;
       }
-    } finally {
-      currentSignal = null;
-      cancel.disabled = false;
-      setWorking(false);
+
+      endMode = "tail";
+      applyModeState();
     }
-  });
+  );
+
+  endLoop.addEventListener(
+    "click",
+    () => {
+      if (working) return;
+
+      endMode = "loop";
+      applyModeState();
+    }
+  );
+
+  close.addEventListener(
+    "click",
+    () => {
+      if (!working) {
+        closeExportModal();
+      }
+    }
+  );
+
+  overlay.addEventListener(
+    "pointerdown",
+    event => {
+      if (
+        event.target === overlay &&
+        !working
+      ) {
+        closeExportModal();
+      }
+    }
+  );
+
+  overlay.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key === "Escape" &&
+        !working
+      ) {
+        event.preventDefault();
+        closeExportModal();
+      }
+    }
+  );
+
+  exportAction.addEventListener(
+    "click",
+    async () => {
+      if (working) return;
+
+      if (state.isPlaying) {
+        document
+          .getElementById(
+            "play-button"
+          )
+          ?.click();
+      }
+
+      setWorking(true);
+
+      try {
+        const result =
+          await renderForExport();
+
+        clearProgressTimer();
+
+        const meta =
+          await getCurrentProjectMeta();
+
+        const projectName =
+          safeExportFileName(
+            meta?.name || "project"
+          );
+
+        const fileName =
+          target === "part"
+            ? `loop_${projectName}.wav`
+            : `${projectName}.wav`;
+
+        status.textContent =
+          "complete";
+
+        await shareOrDownloadExport(
+          result.blob,
+          fileName
+        );
+      } catch (error) {
+        clearProgressTimer();
+
+        console.error(
+          "sprooto export failed:",
+          error
+        );
+
+        status.textContent =
+          error?.message ||
+          "export failed";
+      } finally {
+        setWorking(false);
+      }
+    }
+  );
 
   applyModeState();
   close.focus();

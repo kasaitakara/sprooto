@@ -1961,8 +1961,8 @@ const gate =
     clamp(
       (soundTrack.base.filterCutoff ?? 0) +
         offset("filterCutoff"),
-      -100,
-      100
+      -50,
+      50
     );
 
   const filterResonance =
@@ -1970,7 +1970,7 @@ const gate =
       (soundTrack.base.filterResonance ?? 0) +
         offset("filterResonance"),
       0,
-      100
+      50
     );
 
   const panValue =
@@ -2367,7 +2367,7 @@ connectPanLfo(2);
     filter2.type = "allpass";
   } else {
     const normalizedAmount =
-      Math.abs(filterCutoff) / 100;
+      Math.abs(filterCutoff) / 50;
 
     const isLowPass =
       filterCutoff < 0;
@@ -2411,8 +2411,8 @@ connectPanLfo(2);
     const resonanceQ =
       0.0001 +
       Math.pow(
-        filterResonance / 100,
-        1.7
+        filterResonance / 50,
+        1.2
       ) * 30;
 
     filter1.Q.setValueAtTime(

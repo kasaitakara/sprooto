@@ -704,8 +704,8 @@ export const parameters = [
     id: "filterCutoff",
     label: "cutoff",
     icon: "tone",
-    min: -100,
-    max: 100,
+    min: -50,
+    max: 50,
     step: 1,
     offsetMode: "offset"
   },
@@ -715,7 +715,7 @@ export const parameters = [
     label: "resonance",
     icon: "tone",
     min: 0,
-    max: 100,
+    max: 50,
     step: 1,
     offsetMode: "offset"
   },

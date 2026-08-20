@@ -934,8 +934,8 @@ export const parameters = [
     id: "strum",
     label: "strum",
     icon: "articulation",
-    min: -3,
-    max: 3,
+    min: -8,
+    max: 8,
     step: 1,
     offsetMode: "result"
   },
@@ -3286,8 +3286,8 @@ track.base.nudge = clamp(
 
 track.base.strum = clamp(
   Math.round(track.base.strum),
-  -3,
-  3
+  -8,
+  8
 );
 
   if (!["glide", "nudge", "strum"].includes(track.articulationSelectedId)) {

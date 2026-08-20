@@ -1059,8 +1059,8 @@ const articulationParameter = {
       id: "strum",
       label: "strum",
       icon: "strum",
-      min: -3,
-      max: 3,
+      min: -8,
+      max: 8,
       step: 1,
       offsetMode: "result"
     }

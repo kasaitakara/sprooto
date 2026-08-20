@@ -1553,9 +1553,16 @@ const now =
     (60 / Math.max(1, bpm)) / 4;
 
   const glideStepRatios = [
-    0, 0.125, 0.25, 0.5,
-    0.75, 1, 1.5, 2, 3
-  ];
+  0,
+  0.125,
+  0.25,
+  0.5,
+  1,
+  2,
+  4,
+  6,
+  8
+];
 
   const glideDuration =
     glideValue > 0

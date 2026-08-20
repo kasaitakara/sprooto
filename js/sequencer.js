@@ -212,7 +212,7 @@ filterCutoff: 0,
       crushBit: 8,
       crushRate: 4,
       reverbSend: 0,
-      reverbSize: 50,
+      reverbSize: 5,
       probability: 100,
       subPattern: -1,
       subCrescendo: 0,
@@ -891,8 +891,8 @@ export const parameters = [
       {
         id: "reverbSize",
         label: "size",
-        min: 0,
-        max: 100,
+        min: 1,
+        max: 8,
         step: 1,
         offsetMode: "result"
       }
@@ -1117,7 +1117,40 @@ function ensureReverbSoundState(
   }
 
   if (typeof sound.base.reverbSize !== "number") {
-    sound.base.reverbSize = 50;
+    sound.base.reverbSize = 5;
+  }
+
+  /*
+   * 旧SIZE 0〜100 → 新SIZE 1〜8。
+   * Step Offset込みの実際のbucketを維持して移行する。
+   */
+  if (sound.base.reverbSize > 8) {
+    const oldBase = clamp(sound.base.reverbSize, 0, 100);
+    const newBase = Math.round((oldBase / 100) * 7) + 1;
+    const oldOffsets = Array.isArray(sound.offsets.reverbSize)
+      ? sound.offsets.reverbSize
+      : Array(STEP_COUNT).fill(0);
+
+    sound.offsets.reverbSize = Array.from(
+      { length: STEP_COUNT },
+      (_, index) => {
+        const oldResult = clamp(
+          oldBase + (Number(oldOffsets[index]) || 0),
+          0,
+          100
+        );
+        const newResult = Math.round((oldResult / 100) * 7) + 1;
+        return newResult - newBase;
+      }
+    );
+
+    sound.base.reverbSize = newBase;
+  } else {
+    sound.base.reverbSize = clamp(
+      Math.round(sound.base.reverbSize || 5),
+      1,
+      8
+    );
   }
 
   if (!Array.isArray(sound.offsets.reverbSend)) {

@@ -964,21 +964,9 @@ function createSampleAndHoldLfo({
 function trackReverbBucketIndex(
   sizeValue
 ) {
-  const normalized =
-    clamp(
-      Number(sizeValue) || 0,
-      0,
-      1
-    );
-
+  /* UI / 保存値は1〜8。内部bucketは0〜7。 */
   return clamp(
-    Math.round(
-      normalized *
-        (
-          TRACK_REVERB_BUCKET_COUNT -
-          1
-        )
-    ),
+    Math.round(Number(sizeValue) || 5) - 1,
     0,
     TRACK_REVERB_BUCKET_COUNT - 1
   );
@@ -1302,12 +1290,19 @@ function ensureTrackReverbBus(
     return null;
   }
 
-  initializeTrackReverbImpulses();
-
   const bucketIndex =
     trackReverbBucketIndex(
       sizeValue
     );
+
+  /*
+   * Offline exportでは使用bucketだけIRを生成する。
+   * 通常再生時の事前生成仕様はinitializeTrackReverbBuses()で維持。
+   */
+  if (!trackReverbImpulseCache[bucketIndex]) {
+    trackReverbImpulseCache[bucketIndex] =
+      createTrackReverbImpulse(bucketIndex);
+  }
 
   let bus =
     trackReverbBuses.get(
@@ -1407,14 +1402,7 @@ function initializeTrackReverbBuses() {
       TRACK_REVERB_BUCKET_COUNT;
     index++
   ) {
-    const sizeValue =
-      TRACK_REVERB_BUCKET_COUNT > 1
-        ? index /
-          (
-            TRACK_REVERB_BUCKET_COUNT -
-            1
-          )
-        : 0;
+    const sizeValue = index + 1;
 
     ensureTrackReverbBus(
       sizeValue
@@ -2103,11 +2091,13 @@ const delayTime =
 
   const reverbSize =
     clamp(
-      (soundTrack.base.reverbSize ?? 50) +
-        offset("reverbSize"),
-      0,
-      100
-    ) / 100;
+      Math.round(
+        (soundTrack.base.reverbSize ?? 5) +
+          offset("reverbSize")
+      ),
+      1,
+      8
+    );
 
   const panner =
   context.createStereoPanner();
@@ -3583,7 +3573,8 @@ export async function beginOfflineAudioRender(
   limiter.connect(master);
   master.connect(context.destination);
 
-  initializeTrackReverbBuses();
+  /* Track Reverbは実際に使用されたSIZEだけ遅延生成する。 */
+
 
   await Promise.all([
     initializeBitCrusherWorklet(),

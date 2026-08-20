@@ -1085,7 +1085,7 @@ const reverbParameter = {
   icon: "reverb",
   children: [
     { id: "reverbSend", label: "send", min: 0, max: 100, step: 1, offsetMode: "result" },
-    { id: "reverbSize", label: "size", min: 0, max: 100, step: 1, offsetMode: "result" }
+    { id: "reverbSize", label: "size", min: 1, max: 8, step: 1, offsetMode: "result" }
   ]
 };
 

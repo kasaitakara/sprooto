@@ -25,7 +25,7 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
   crushBit: 8,
   crushRate: 4,
   reverbSend: 0,
-  reverbSize: 50,
+  reverbSize: 5,
   probability: 100,
   subPattern: -1,
   subCrescendo: 0,
@@ -95,6 +95,39 @@ export function normalizeSound(sound) {
         (_, index) => Number(values[index]) || 0
       );
     });
+  }
+
+  /*
+   * Track Reverb SIZE migration
+   * 旧0〜100値を、実音の8bucketを保ったまま1〜8へ変換する。
+   * 新形式（1〜8）はそのまま扱う。
+   */
+  const sourceReverbSize = Number(source.base?.reverbSize);
+  if (Number.isFinite(sourceReverbSize) && sourceReverbSize > 8) {
+    const oldBase = Math.min(100, Math.max(0, sourceReverbSize));
+    const newBase = Math.round((oldBase / 100) * 7) + 1;
+    normalized.base.reverbSize = newBase;
+
+    const oldOffsets = Array.isArray(source.offsets?.reverbSize)
+      ? source.offsets.reverbSize
+      : [];
+
+    normalized.offsets.reverbSize = Array.from(
+      { length: STEP_COUNT },
+      (_, index) => {
+        const oldResult = Math.min(
+          100,
+          Math.max(0, oldBase + (Number(oldOffsets[index]) || 0))
+        );
+        const newResult = Math.round((oldResult / 100) * 7) + 1;
+        return newResult - newBase;
+      }
+    );
+  } else {
+    normalized.base.reverbSize = Math.min(
+      8,
+      Math.max(1, Math.round(Number(normalized.base.reverbSize) || 5))
+    );
   }
 
   normalized.fxMuted = Boolean(source.fxMuted);

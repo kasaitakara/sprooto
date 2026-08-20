@@ -15,7 +15,8 @@ import {
 
 const EXPORT_SAMPLE_RATE = 48000;
 const EXPORT_CHANNELS = 2;
-const EXPORT_TAIL_SAFETY_SECONDS = 30;
+const EXPORT_TAIL_MAX_SECONDS = 30;
+const EXPORT_TAIL_MIN_SECONDS = 0.75;
 const TAIL_SILENCE_THRESHOLD = 0.0001; // -80 dBFS
 const TAIL_SILENCE_HOLD_SECONDS = 0.5;
 
@@ -28,6 +29,19 @@ const SUB_PATTERNS = Object.freeze([
   { divisions: 4, hits: [0, 1] },
   { divisions: 6, hits: [0, 1, 2, 3, 4, 5] }
 ]);
+
+export class ExportCancelledError extends Error {
+  constructor() {
+    super("export cancelled");
+    this.name = "ExportCancelledError";
+  }
+}
+
+function assertNotCancelled(signal) {
+  if (signal?.cancelled) {
+    throw new ExportCancelledError();
+  }
+}
 
 function sourceData(type, index) {
   return type === "fill"
@@ -139,19 +153,77 @@ function audibleTracks(source) {
   );
 }
 
+function estimateTailSafetySeconds(sources, bpm, masterReverbAmount = 0) {
+  let required = Number(masterReverbAmount) > 0 ? 2.7 : EXPORT_TAIL_MIN_SECONDS;
+  const safeBpm = Math.max(1, Number(bpm) || 120);
+  const delayRatios = [1/16, 1/12, 1/8, 1/6, 1/4, 1/3, 1/2, 2/3, 1, 4/3, 2];
+
+  const inspectSound = (sound, track, stepIndex, usingPin = false) => {
+    if (!sound?.base || sound.fxMuted) return;
+
+    const offset = id => usingPin
+      ? 0
+      : (Number(track.offsets?.[id]?.[stepIndex]) || 0);
+
+    const gateValue = clamp((Number(sound.base.gate) || 5) + offset("gate"), 1, 100);
+    const gateNormalized = (gateValue - 1) / 99;
+    const gateSeconds = 0.005 + 9.995 * Math.pow(gateNormalized, 3);
+    required = Math.max(required, gateSeconds + 0.15);
+
+    const reverbSend = clamp((Number(sound.base.reverbSend) || 0) + offset("reverbSend"), 0, 100);
+    if (reverbSend > 0) {
+      const size = clamp(Math.round((Number(sound.base.reverbSize) || 5) + offset("reverbSize")), 1, 8);
+      const normalizedSize = (size - 1) / 7;
+      const impulseDuration = 0.55 + 2.45 * Math.pow(normalizedSize, 1.12);
+      required = Math.max(required, gateSeconds + impulseDuration + 0.35);
+    }
+
+    const delayLevel = clamp((Number(sound.base.delay) || 0) + offset("delay"), 0, 100);
+    if (delayLevel > 0) {
+      const timeIndex = clamp(Math.round((Number(sound.base.delayTime) || 4) + offset("delayTime")), 0, 10);
+      const feedback = clamp((Number(sound.base.delayFeedback) || 35) + offset("delayFeedback"), 0, 95) / 100;
+      const delayTime = (60 / safeBpm) * delayRatios[timeIndex];
+
+      let repeatTail = delayTime;
+      if (feedback > 0) {
+        const repeatsToMinus80dB = Math.ceil(Math.log(0.0001) / Math.log(feedback));
+        repeatTail = delayTime * Math.max(1, repeatsToMinus80dB);
+      }
+
+      required = Math.max(required, gateSeconds + repeatTail + 0.25);
+    }
+  };
+
+  sources.forEach(item => {
+    const source = sourceData(item.type, item.index);
+    audibleTracks(source).forEach(track => {
+      const length = clamp(Math.round(Number(track.stepLength) || 1), 1, 64);
+      for (let stepIndex = 0; stepIndex < length; stepIndex++) {
+        if (!track.steps?.[stepIndex]) continue;
+        const sound = resolveStepSound(track, stepIndex);
+        inspectSound(sound, track, stepIndex, sound !== track);
+      }
+    });
+  });
+
+  return clamp(required, EXPORT_TAIL_MIN_SECONDS, EXPORT_TAIL_MAX_SECONDS);
+}
+
 async function scheduleSource({
   source,
   sourceStartSeconds,
   bpm,
   headSeconds,
   guardSeconds,
-  fadeEnvelope
+  signal
 }) {
   const stepSeconds = (60 / Math.max(1, bpm)) / 4;
   const length = sourceLength(source);
   const sourceTracks = audibleTracks(source);
 
   for (let tick = 0; tick < length; tick++) {
+    assertNotCancelled(signal);
+
     for (const track of sourceTracks) {
       const trackStepIndex = tick % clamp(Math.round(Number(track.stepLength) || 1), 1, 64);
       if (!track.steps?.[trackStepIndex]) continue;
@@ -189,15 +261,7 @@ async function scheduleSource({
         : null;
 
       if (!pattern) {
-        await playTrackStep(
-  track,
-  trackStepIndex,
-  Math.max(0, baseStart),
-  {
-    bpm,
-    fadeEnvelope
-  }
-);
+        await playTrackStep(track, trackStepIndex, Math.max(0, baseStart), { bpm });
         continue;
       }
 
@@ -211,15 +275,7 @@ async function scheduleSource({
       );
 
       if (Math.random() * 100 >= subProbability) {
-        await playTrackStep(
-  track,
-  trackStepIndex,
-  Math.max(0, baseStart),
-  {
-    bpm,
-    fadeEnvelope
-  }
-);
+        await playTrackStep(track, trackStepIndex, Math.max(0, baseStart), { bpm });
         continue;
       }
 
@@ -241,17 +297,9 @@ async function scheduleSource({
           trackStepIndex,
           Math.max(0, eventTime),
           {
-  bpm,
-
-  velocityScale:
-    subVelocityScale(
-      crescendo,
-      hitIndex,
-      pattern.hits.length
-    ),
-
-  fadeEnvelope
-}
+            bpm,
+            velocityScale: subVelocityScale(crescendo, hitIndex, pattern.hits.length)
+          }
         );
       }
     }
@@ -299,8 +347,14 @@ function findTailEndFrame(buffer, bodyEndFrame) {
 function copyProcessedChannels({
   buffer,
   guardFrames,
-  outputEndFrame
+  outputEndFrame,
+  headSeconds,
+  bodyDuration,
+  fadeInSeconds,
+  fadeOutSeconds
 }) {
+  const sampleRate = buffer.sampleRate;
+  const outputLength = Math.max(1, outputEndFrame - guardFrames);
   const channels = Array.from(
     { length: EXPORT_CHANNELS },
     (_, channelIndex) => {
@@ -310,6 +364,39 @@ function copyProcessedChannels({
       return source.slice(guardFrames, outputEndFrame);
     }
   );
+
+  const bodyStart = Math.round(headSeconds * sampleRate);
+  const bodyEnd = Math.min(
+    outputLength,
+    Math.round((headSeconds + bodyDuration) * sampleRate)
+  );
+
+  const fadeInFrames = Math.min(
+    Math.round(Math.max(0, fadeInSeconds) * sampleRate),
+    Math.max(0, bodyEnd - bodyStart)
+  );
+
+  const fadeOutFrames = Math.min(
+    Math.round(Math.max(0, fadeOutSeconds) * sampleRate),
+    Math.max(0, bodyEnd - bodyStart)
+  );
+
+  channels.forEach(data => {
+    for (let index = 0; index < fadeInFrames; index++) {
+      const gain = fadeInFrames <= 1
+        ? 1
+        : index / (fadeInFrames - 1);
+      data[bodyStart + index] *= gain;
+    }
+
+    const fadeOutStart = Math.max(bodyStart, bodyEnd - fadeOutFrames);
+    for (let frame = fadeOutStart; frame < bodyEnd; frame++) {
+      const gain = fadeOutFrames <= 1
+        ? 0
+        : (bodyEnd - 1 - frame) / (fadeOutFrames - 1);
+      data[frame] *= clamp(gain, 0, 1);
+    }
+  });
 
   return channels;
 }
@@ -371,8 +458,11 @@ export async function renderExportWav({
   fadeOutSeconds = 0,
   bpm = 120,
   masterVolume = 70,
+  signal = null,
   onProgress = null
 } = {}) {
+  assertNotCancelled(signal);
+
   const sources = flattenTarget(target);
   if (!sources.length) {
     throw new Error(target === "song" ? "song is empty" : "part is empty");
@@ -389,38 +479,12 @@ export async function renderExportWav({
     bodyDuration += sourceLength(sourceData(item.type, item.index)) * ((60 / safeBpm) / 4);
   });
 
-  const bodyStartSeconds =
-  guardSeconds +
-  safeHead;
-
-const bodyEndSeconds =
-  bodyStartSeconds +
-  bodyDuration;
-
-const fadeEnvelope = {
-  fadeInStart:
-    bodyStartSeconds,
-
-  fadeInEnd:
-    bodyStartSeconds +
-    Math.min(
-      safeFadeIn,
-      bodyDuration
-    ),
-
-  fadeOutStart:
-    bodyEndSeconds -
-    Math.min(
-      safeFadeOut,
-      bodyDuration
-    ),
-
-  fadeOutEnd:
-    bodyEndSeconds
-};
-
   const tailSafety = endMode === "tail"
-    ? EXPORT_TAIL_SAFETY_SECONDS
+    ? estimateTailSafetySeconds(
+        sources,
+        safeBpm,
+        song.masterMix?.reverb ?? 0
+      )
     : 0;
 
   const renderDuration = Math.max(
@@ -455,17 +519,18 @@ const fadeEnvelope = {
     let sourceStartSeconds = 0;
 
     for (let index = 0; index < sources.length; index++) {
-        const item = sources[index];
+      assertNotCancelled(signal);
+      const item = sources[index];
       const source = sourceData(item.type, item.index);
 
       await scheduleSource({
-  source,
-  sourceStartSeconds,
-  bpm: safeBpm,
-  headSeconds: safeHead,
-  guardSeconds,
-  fadeEnvelope
-});
+        source,
+        sourceStartSeconds,
+        bpm: safeBpm,
+        headSeconds: safeHead,
+        guardSeconds,
+        signal
+      });
 
       sourceStartSeconds += sourceLength(source) * ((60 / safeBpm) / 4);
       onProgress?.(
@@ -474,9 +539,11 @@ const fadeEnvelope = {
       );
     }
 
+    assertNotCancelled(signal);
     onProgress?.(25, "rendering");
 
     const renderedBuffer = await offlineContext.startRendering();
+    assertNotCancelled(signal);
     onProgress?.(93, "processing");
 
     const guardFrames = Math.round(guardSeconds * EXPORT_SAMPLE_RATE);
@@ -490,11 +557,16 @@ const fadeEnvelope = {
       : findTailEndFrame(renderedBuffer, rawBodyEndFrame);
 
     const channels = copyProcessedChannels({
-  buffer: renderedBuffer,
-  guardFrames,
-  outputEndFrame: rawEndFrame
-});
+      buffer: renderedBuffer,
+      guardFrames,
+      outputEndFrame: rawEndFrame,
+      headSeconds: safeHead,
+      bodyDuration,
+      fadeInSeconds: safeFadeIn,
+      fadeOutSeconds: safeFadeOut
+    });
 
+    assertNotCancelled(signal);
     const blob = encodeWav24(channels, EXPORT_SAMPLE_RATE);
     onProgress?.(100, "done");
 

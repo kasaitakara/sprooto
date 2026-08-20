@@ -1974,15 +1974,12 @@ const gate =
     );
 
   const panValue =
-    (
-      clamp(
-        soundTrack.base.pan +
-        offset("pan"),
-        0,
-        100
-      ) -
-      50
-    ) / 50;
+  clamp(
+    soundTrack.base.pan +
+      offset("pan"),
+    -25,
+    25
+  ) / 25;
 
   /*
  * FX一括ミュート中は、

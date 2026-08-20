@@ -3159,16 +3159,14 @@ function displayBaseValue(parameter) {
   }
 
   if (parameter.id === "pan") {
-    if (value === 50) {
-      return "c";
-    }
-
-    if (value < 50) {
-      return `l${50 - value}`;
-    }
-
-    return `r${value - 50}`;
+  if (value === 0) {
+    return "c";
   }
+
+  return value < 0
+    ? `l${Math.abs(value)}`
+    : `r${value}`;
+}
 
   if (
   parameter.id === "probability" ||
@@ -5133,6 +5131,19 @@ const definition = {
         : `hp${cutoffValue}`;
     }
 
+    if (id === "pan") {
+  const panValue =
+    Number(track.base[id]) || 0;
+
+  if (panValue === 0) {
+    return "c";
+  }
+
+  return panValue < 0
+    ? `l${Math.abs(panValue)}`
+    : `r${panValue}`;
+}
+
     return String(
       track.base[id]
     );
@@ -6031,16 +6042,16 @@ function displayStepValue(
    * Panも実際の位置を表示。
    */
   if (
-    parameter.id === "pan"
-  ) {
-    if (result === 50) {
-      return "c";
-    }
-
-    return result < 50
-      ? `l${50 - result}`
-      : `r${result - 50}`;
+  parameter.id === "pan"
+) {
+  if (result === 0) {
+    return "c";
   }
+
+  return result < 0
+    ? `l${Math.abs(result)}`
+    : `r${result}`;
+}
 
   if (parameter.id === "glide") {
     const amount = Math.round(Number(result) || 0);

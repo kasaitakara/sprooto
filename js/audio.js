@@ -1541,13 +1541,13 @@ const now =
   );
 
   const strumValue = clamp(
-    Math.round(
-      (soundTrack.base.strum ?? 0) +
-      offset("strum")
-    ),
-    -3,
-    3
-  );
+  Math.round(
+    (soundTrack.base.strum ?? 0) +
+    offset("strum")
+  ),
+  -8,
+  8
+);
 
   const stepSeconds =
     (60 / Math.max(1, bpm)) / 4;

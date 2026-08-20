@@ -5077,7 +5077,7 @@ const definition = {
 
     if (id === "inversion") {
       const inversion = clamp(Math.round(Number(track.base[id]) || 0), 0, 3);
-      return inversion === 0 ? "R" : String(inversion);
+      return String(inversion);
     }
 
     if (id === "subPattern") {
@@ -5965,7 +5965,7 @@ function displayStepValue(
 
   if (parameter.id === "inversion") {
     const inversion = clamp(Math.round(result), 0, 3);
-    return inversion === 0 ? "R" : String(inversion);
+    return String(inversion);
   }
 
   /*

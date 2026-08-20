@@ -1,15 +1,31 @@
-const CACHE_NAME = "sprooto-cache-v1";
+const CACHE_NAME = "sprooto-cache-v2";
 
 const APP_SHELL = [
   "./",
   "./index.html",
+
   "./css/style.css",
-  "./js/main.js"
+
+  "./fonts/IBMPlexMono-Regular.ttf",
+  "./fonts/IBMPlexMono-Regular.woff2",
+  "./fonts/Saira-VariableFont_wdth,wght.ttf",
+
+  "./js/main.js",
+  "./js/audio.js",
+  "./js/export.js",
+  "./js/keyboard-navigation.js",
+  "./js/sequencer.js",
+  "./js/sound-defaults.js",
+  "./js/sound-preset-manager.js",
+  "./js/sound-presets.js",
+  "./js/storage.js",
+  "./js/ui.js"
 ];
+
 
 /**
  * install
- * 最低限のapp shellを先に保存する。
+ * sprooto本体に必要なファイルをすべてcacheへ保存する。
  */
 self.addEventListener("install", event => {
   event.waitUntil(
@@ -20,6 +36,7 @@ self.addEventListener("install", event => {
 
   self.skipWaiting();
 });
+
 
 /**
  * activate
@@ -34,7 +51,7 @@ self.addEventListener("activate", event => {
           cacheNames
             .filter(
               name =>
-                name.startsWith("sprooto-") &&
+                name.startsWith("sprooto-cache-") &&
                 name !== CACHE_NAME
             )
             .map(name => caches.delete(name))
@@ -44,10 +61,15 @@ self.addEventListener("activate", event => {
   );
 });
 
+
 /**
  * fetch
- * onlineならnetworkから取得してcache更新。
- * offlineなら保存済みcacheから返す。
+ *
+ * online:
+ * networkから最新版を取得し、cacheも更新。
+ *
+ * offline:
+ * 保存済みcacheから返す。
  */
 self.addEventListener("fetch", event => {
   const request = event.request;
@@ -58,9 +80,6 @@ self.addEventListener("fetch", event => {
 
   const url = new URL(request.url);
 
-  /**
-   * sprooto自身のファイルだけを対象にする。
-   */
   if (url.origin !== self.location.origin) {
     return;
   }
@@ -68,7 +87,10 @@ self.addEventListener("fetch", event => {
   event.respondWith(
     fetch(request)
       .then(response => {
-        if (!response || response.status !== 200) {
+        if (
+          !response ||
+          response.status !== 200
+        ) {
           return response;
         }
 
@@ -76,7 +98,9 @@ self.addEventListener("fetch", event => {
 
         caches
           .open(CACHE_NAME)
-          .then(cache => cache.put(request, copy));
+          .then(cache => {
+            cache.put(request, copy);
+          });
 
         return response;
       })
@@ -87,9 +111,6 @@ self.addEventListener("fetch", event => {
           return cached;
         }
 
-        /**
-         * navigation要求ならindex.htmlへfallback。
-         */
         if (request.mode === "navigate") {
           return caches.match("./index.html");
         }

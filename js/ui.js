@@ -1828,6 +1828,19 @@ function finishOffsetSelectionMode() {
   renderEditor();
 }
 
+function clearOffsetSelectionMode() {
+  if (editSelection.mode !== "offset") {
+    return;
+  }
+
+  clearEditSelection();
+  editSelection.mode = null;
+
+  document.body.classList.remove(
+    "offset-selection-mode"
+  );
+}
+
 function captureClipboard() {
   const cells = selectedKeysSorted();
 
@@ -6592,6 +6605,8 @@ parentButton.innerHTML =
     state.selectedChildId =
       track.oscSelectedId;
 
+    clearOffsetSelectionMode();
+
     state.selectedParameterId =
       null;
 
@@ -6888,6 +6903,8 @@ function renderEnvelopeEdit() {
   parentButton.addEventListener(
     "click",
     () => {
+      clearOffsetSelectionMode();
+
       state.selectedParameterId =
         null;
 
@@ -7116,7 +7133,10 @@ function renderFilterEdit() {
   parentButton.addEventListener(
     "click",
     () => {
+      clearOffsetSelectionMode();
+
       state.selectedParameterId = null;
+
       renderEditorAndRestore(
         "parameter-filterCutoff"
       );
@@ -7267,7 +7287,10 @@ function renderLfoEdit() {
   parentButton.innerHTML = getParameterIcon("lfo");
   parentButton.setAttribute("aria-label", "LFO編集を閉じる");
   parentButton.addEventListener("click", () => {
+    clearOffsetSelectionMode();
+
     state.selectedParameterId = null;
+
     renderEditorAndRestore("parameter-lfo");
   });
 
@@ -7974,6 +7997,8 @@ icon.innerHTML =
   getParameterIcon(editIconId);
 
   icon.addEventListener("click", () => {
+    clearOffsetSelectionMode();
+
     state.selectedParameterId = null;
 
     renderEditorAndRestore(

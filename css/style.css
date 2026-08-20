@@ -5120,7 +5120,7 @@ input[type="radio"]:focus-visible {
 }
 
 .export-modal {
-    width: 340px;
+    width: 280px;
     max-width: calc(100vw - 20px);
     padding: 10px;
     border: 1px solid var(--line);

@@ -1122,7 +1122,20 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
   margin-top: 5px;
 }
 
-.pattern-cell,
+.pattern-cell {
+    width: 100%;
+    height: 28px;
+
+    aspect-ratio: auto;
+
+    padding: 0;
+    border: 0;
+    background: var(--cell);
+
+    font-size: var(--font-main);
+    line-height: 1;
+}
+
 .section-selector-cell {
     width: 100%;
     height: 22px;
@@ -1234,17 +1247,21 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     justify-content: center;
 }
 
-/* 空Sectionの「—」 */
+/* 空Sectionの「-」 */
 .section-contents-empty {
     grid-column: 1 / -1;
 
     width: 100%;
+    height: 28px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
     color: var(--muted);
 
     font-size: var(--font-main);
     line-height: 1;
-    text-align: center;
 }
 
 /* カーソル表示 */

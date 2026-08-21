@@ -224,16 +224,6 @@ let sharedNoiseBufferContext = null;
 let sharedNoiseSource = null;
 let sharedNoiseSourceContext = null;
 
-/*
- * Realtime Noise Gain pool
- *
- * 発音ごとにGainNodeを新規生成・破棄せず、少数を再利用する。
- * SUB等の高密度発音時でもNoise経路のNode churnを抑える。
- */
-const sharedNoiseGainPool = [];
-const sharedNoiseGainPoolInUse = new Set();
-const SHARED_NOISE_GAIN_POOL_SIZE = 16;
-
 const SHARED_NOISE_SECONDS = 4;
 
 const EQ_FREQUENCIES = [
@@ -272,6 +262,66 @@ const masterMixSettings = {
  */
 const activeTrackVoices =
   new Map();
+
+/*
+ * Common voice mixGain pool
+ *
+ * playTrackStep()ごとに必ず生成されていたmixGainを
+ * 再利用して、Sine/Noise共通のNode churnを減らす。
+ *
+ * Trackごとの前音chokeを壊さないため、
+ * 使用中のGainはpoolへ戻るまで再利用しない。
+ */
+const voiceMixGainPool = [];
+const voiceMixGainPoolInUse = new Set();
+const VOICE_MIX_GAIN_POOL_SIZE = 32;
+
+function acquireVoiceMixGain() {
+  for (const node of voiceMixGainPool) {
+    if (!voiceMixGainPoolInUse.has(node)) {
+      voiceMixGainPoolInUse.add(node);
+      return node;
+    }
+  }
+
+  if (voiceMixGainPool.length < VOICE_MIX_GAIN_POOL_SIZE) {
+    const node =
+      sprootoDebugNode(
+        context.createGain(),
+        "mix"
+      );
+
+    node.gain.value = 0.0001;
+
+    voiceMixGainPool.push(node);
+    voiceMixGainPoolInUse.add(node);
+
+    return node;
+  }
+
+  return null;
+}
+
+function releaseVoiceMixGain(node) {
+  if (!node) {
+    return;
+  }
+
+  try {
+    node.gain.cancelScheduledValues(
+      context.currentTime
+    );
+
+    node.gain.setValueAtTime(
+      0.0001,
+      context.currentTime
+    );
+
+    node.disconnect();
+  } catch {}
+
+  voiceMixGainPoolInUse.delete(node);
+}
 
 /*
  * Track Reverb
@@ -1181,60 +1231,6 @@ function getSharedNoiseSource() {
     context;
 
   return source;
-}
-
-function acquireSharedNoiseGain() {
-  for (const node of sharedNoiseGainPool) {
-    if (!sharedNoiseGainPoolInUse.has(node)) {
-      sharedNoiseGainPoolInUse.add(node);
-      return node;
-    }
-  }
-
-  if (sharedNoiseGainPool.length < SHARED_NOISE_GAIN_POOL_SIZE) {
-    const node =
-      sprootoDebugNode(
-        context.createGain(),
-        "noiseGain"
-      );
-
-    node.gain.value = 0;
-
-    sharedNoiseGainPool.push(
-      node
-    );
-
-    sharedNoiseGainPoolInUse.add(
-      node
-    );
-
-    return node;
-  }
-
-  return null;
-}
-
-function releaseSharedNoiseGain(node) {
-  if (!node) {
-    return;
-  }
-
-  try {
-    node.gain.cancelScheduledValues(
-      context.currentTime
-    );
-
-    node.gain.setValueAtTime(
-      0,
-      context.currentTime
-    );
-
-    node.disconnect();
-  } catch {}
-
-  sharedNoiseGainPoolInUse.delete(
-    node
-  );
 }
 
 /*
@@ -3150,8 +3146,22 @@ filter2.detune.setValueCurveAtTime(
   connectFilterLfo(1);
   connectFilterLfo(2);
 
+const pooledMixGain =
+  !offlineRenderMode
+    ? acquireVoiceMixGain()
+    : null;
+
 const mixGain =
-  sprootoDebugNode(context.createGain(), "mix");
+  pooledMixGain ||
+  sprootoDebugNode(
+    context.createGain(),
+    "mix"
+  );
+
+const isPooledMixGain =
+  Boolean(
+    pooledMixGain
+  );
 
 /*
  * 同じTrackの前音を、
@@ -3197,6 +3207,19 @@ if (
   );
 }
   
+if (isPooledMixGain) {
+  try {
+    mixGain.gain.cancelScheduledValues(
+      context.currentTime
+    );
+
+    mixGain.gain.setValueAtTime(
+      0.0001,
+      context.currentTime
+    );
+  } catch {}
+}
+
 const peakLevel =
   Math.max(
     0.0001,
@@ -3947,51 +3970,42 @@ if (noTrackFx) {
   }
 
   if (noiseVolume > 0) {
+    const noiseGain =
+      sprootoDebugNode(
+        context.createGain(),
+        "noiseGain"
+      );
+
     const noiseStopAt =
       releaseEnd + 0.01;
 
+    /*
+     * shared sourceは常時鳴っているため、
+     * 今回の予約開始時刻nowより前に音が漏れないよう
+     * 接続前にGainを0へ固定する。
+     */
+    noiseGain.gain.setValueAtTime(
+      0,
+      context.currentTime
+    );
+
+    scheduleSourceEnvelope(
+      noiseGain,
+      noiseVolume,
+      noiseDecay
+    );
+
     if (!offlineRenderMode) {
+      /*
+       * =========================
+       * Realtime Noise
+       * =========================
+       *
+       * AudioBufferSourceNodeは1本だけ常駐。
+       * Hitごとに作るのはGainNodeだけ。
+       */
       const noise =
         getSharedNoiseSource();
-
-      const pooledNoiseGain =
-        acquireSharedNoiseGain();
-
-      /*
-       * Poolが埋まった場合だけフォールバックで一時Gainを作る。
-       * 通常は16本以内の再利用で回る想定。
-       */
-      const noiseGain =
-        pooledNoiseGain ||
-        sprootoDebugNode(
-          context.createGain(),
-          "noiseGain"
-        );
-
-      const isPooledNoiseGain =
-        Boolean(
-          pooledNoiseGain
-        );
-
-      /*
-       * 前Hitのautomationを完全に破棄してから再利用する。
-       */
-      noiseGain.gain
-        .cancelScheduledValues(
-          context.currentTime
-        );
-
-      noiseGain.gain
-        .setValueAtTime(
-          0,
-          context.currentTime
-        );
-
-      scheduleSourceEnvelope(
-        noiseGain,
-        noiseVolume,
-        noiseDecay
-      );
 
       noise
         .connect(noiseGain);
@@ -4003,21 +4017,20 @@ if (noTrackFx) {
         () => {
           sprootoDebugNoiseEndedWindow += 1;
 
+          /*
+           * persistent source側の接続も明示的に外す。
+           * noiseGain.disconnect()だけではsource側に
+           * 接続先参照が残る可能性があるため両側を処理する。
+           */
           try {
             noise.disconnect(
               noiseGain
             );
           } catch {}
 
-          if (isPooledNoiseGain) {
-            releaseSharedNoiseGain(
-              noiseGain
-            );
-          } else {
-            sprootoDebugReleaseNode(
-              noiseGain
-            );
-          }
+          sprootoDebugReleaseNode(
+            noiseGain
+          );
         },
         Math.max(
           20,
@@ -4030,14 +4043,13 @@ if (noTrackFx) {
       );
     } else {
       /*
-       * Offline exportは従来どおり。
+       * =========================
+       * Offline export
+       * =========================
+       *
+       * OfflineAudioContextでは常駐source方式を使わず、
+       * 従来どおり発音ごとに有限Sourceを予約する。
        */
-      const noiseGain =
-        sprootoDebugNode(
-          context.createGain(),
-          "noiseGain"
-        );
-
       const noise =
         sprootoDebugNode(
           context.createBufferSource(),
@@ -4055,12 +4067,6 @@ if (noTrackFx) {
           0.001,
           noise.buffer.duration
         );
-
-      scheduleSourceEnvelope(
-        noiseGain,
-        noiseVolume,
-        noiseDecay
-      );
 
       noise
         .connect(noiseGain)
@@ -4176,7 +4182,6 @@ if (!offlineRenderMode) {
         delayNodeForCleanup,
         delayFeedbackGainForCleanup,
         delayWetGainForCleanup,
-        mixGain,
         filter1,
         filter2,
         panner,
@@ -4186,6 +4191,16 @@ if (!offlineRenderMode) {
       ].forEach(
         sprootoDebugReleaseNode
       );
+
+      if (isPooledMixGain) {
+        releaseVoiceMixGain(
+          mixGain
+        );
+      } else {
+        sprootoDebugReleaseNode(
+          mixGain
+        );
+      }
     },
     Math.max(
       100,
@@ -4244,12 +4259,11 @@ export async function beginOfflineAudioRender(
 
   context = offlineContext;
 
+  voiceMixGainPool.length = 0;
+  voiceMixGainPoolInUse.clear();
+
   sharedNoiseBuffer = null;
   sharedNoiseBufferContext = null;
-  sharedNoiseSource = null;
-  sharedNoiseSourceContext = null;
-  sharedNoiseGainPool.length = 0;
-  sharedNoiseGainPoolInUse.clear();
 
   offlineRenderMode = true;
   audioClockReady = true;
@@ -4352,12 +4366,11 @@ export async function beginOfflineAudioRender(
 
     context = backup.context;
 
+    voiceMixGainPool.length = 0;
+    voiceMixGainPoolInUse.clear();
+
     sharedNoiseBuffer = null;
     sharedNoiseBufferContext = null;
-    sharedNoiseSource = null;
-    sharedNoiseSourceContext = null;
-    sharedNoiseGainPool.length = 0;
-    sharedNoiseGainPoolInUse.clear();
 
     master = backup.master;
     mixInput = backup.mixInput;

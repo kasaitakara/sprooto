@@ -1,11 +1,3 @@
-@font-face {
-    font-family: "Saira";
-    src: url("../fonts/Saira-VariableFont_wdth,wght.ttf") format("truetype");
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
-}
-
 :root {
     --font-main: 15px;
 
@@ -223,7 +215,7 @@ body {
     background: var(--bg);
 color: var(--text);
 
- font-family: "Saira", sans-serif;
+ font-family: monospace;
 font-weight: 400;
 }
 

@@ -16,17 +16,15 @@ let spectrumData;
 let outputTimeData;
 let bitCrusherWorkletReady = null;
 let fmVoiceWorkletReady = null;
+
+/*
+ * CRUSHは発音ごとにWorkletを作らず、
+ * Trackごとに1台のAudioWorkletNodeを常設して再利用する。
+ */
+const persistentCrusherByTrack = new Map();
 let audioClockReady = false;
 let audioClockReadyPromise = null;
 let offlineRenderMode = false;
-
-/*
- * DIAGNOSTIC ONLY
- *
- * CRUSH FXのAudioWorklet経路だけを無効化して、
- * FM Workletは元通り残したまま長時間挙動を観測する。
- */
-const SPROOTO_DIAG_DISABLE_CRUSH_WORKLET = true;
 
 let sprootoDebugStarted = false;
 let sprootoDebugInterval = null;
@@ -537,7 +535,7 @@ function startSprootoDebugOverlay() {
             `hb ${hbAge < 0 ? "-" : Math.round(hbAge)}ms hbd ${hbAudioDrift >= 0 ? "+" : ""}${hbAudioDrift.toFixed(3)} hbc ${sprootoDebugHeartbeatCount}`,
             `hbgap ${Math.round(sprootoDebugHeartbeatMaxGapWindow)}ms frameerr ${Math.round(sprootoDebugHeartbeatFrameGapMaxWindow)}`,
             `ots ${Number.isFinite(outputWallDrift) ? outputWallDrift.toFixed(3) : "-"} base ${Number.isFinite(baseLatency) ? baseLatency.toFixed(4) : "-"} out ${Number.isFinite(outputLatency) ? outputLatency.toFixed(4) : "-"}`,
-            `fmwrk ${sprootoDebugFmWorkletCreatedTotal} crushwrk ${sprootoDebugCrusherWorkletCreatedTotal} crushoff 1`,
+            `fmwrk ${sprootoDebugFmWorkletCreatedTotal} crushwrk ${sprootoDebugCrusherWorkletCreatedTotal}`,
             `nodes ${sprootoDebugNodesCreated} live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)} src ${sprootoDebugLiveByType.source || 0} gain ${sprootoDebugLiveByType.gain || 0} wrk ${sprootoDebugLiveByType.worklet || 0}`
           ].join("\n");
 
@@ -952,6 +950,75 @@ async function initializeBitCrusherWorklet() {
 
   return bitCrusherWorkletReady;
 }
+
+function getPersistentCrusher(trackId) {
+  if (
+    !bitCrusherWorkletReady ||
+    !context
+  ) {
+    return null;
+  }
+
+  const key =
+    String(
+      trackId ?? "track"
+    );
+
+  const existing =
+    persistentCrusherByTrack.get(key);
+
+  if (
+    existing &&
+    existing.context === context
+  ) {
+    return existing;
+  }
+
+  try {
+    const input =
+      sprootoDebugNode(
+        context.createGain(),
+        `crusherInput${key}`
+      );
+
+    const worklet =
+      sprootoDebugNode(
+        new AudioWorkletNode(
+          context,
+          "sprooto-bit-crusher",
+          {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            outputChannelCount: [2]
+          }
+        ),
+        `crusherWorklet${key}`
+      );
+
+    input.connect(worklet);
+
+    const entry = {
+      context,
+      input,
+      worklet
+    };
+
+    persistentCrusherByTrack.set(
+      key,
+      entry
+    );
+
+    return entry;
+  } catch (error) {
+    console.warn(
+      "Persistent bit crusher unavailable:",
+      error
+    );
+
+    return null;
+  }
+}
+
 
 export async function initializeAudio() {
   if (!context) {
@@ -2707,7 +2774,7 @@ const delayTime =
     95
   ) / 100;
 
-  const crushLevelRaw =
+  const crushLevel =
     soundTrack.fxMuted
       ? 0
       : clamp(
@@ -2716,11 +2783,6 @@ const delayTime =
           0,
           100
         ) / 100;
-
-  const crushLevel =
-    SPROOTO_DIAG_DISABLE_CRUSH_WORKLET
-      ? 0
-      : crushLevelRaw;
 
   const crushBit = clamp(
     Math.round(
@@ -3881,83 +3943,77 @@ if (noTrackFx) {
    * LEVEL 0は完全Dry、100は完全Wet。
    */
   if (!noTrackFx) {
-  if (crushLevel > 0 && bitCrusherWorkletReady) {
-    const dryGain =
-      sprootoDebugNode(context.createGain());
-
-    const wetGain =
-      sprootoDebugNode(context.createGain());
-
-    let crusherNode = null;
-
-    crusherDryGainForCleanup =
-      dryGain;
-
-    crusherWetGainForCleanup =
-      wetGain;
-
-    try {
-      sprootoDebugCrusherWorkletCreatedTotal += 1;
-
-      crusherNode =
+    if (
+      crushLevel > 0 &&
+      bitCrusherWorkletReady
+    ) {
+      const dryGain =
         sprootoDebugNode(
-          new AudioWorkletNode(
-            context,
-            "sprooto-bit-crusher",
-            {
-              numberOfInputs: 1,
-              numberOfOutputs: 1,
-              outputChannelCount: [2]
-            }
-          )
+          context.createGain()
         );
 
-      crusherNodeForCleanup =
-        crusherNode;
+      const wetGain =
+        sprootoDebugNode(
+          context.createGain()
+        );
 
-      crusherNode.parameters
-        .get("bitDepth")
-        ?.setValueAtTime(
-          crushBit,
+      crusherDryGainForCleanup =
+        dryGain;
+
+      crusherWetGainForCleanup =
+        wetGain;
+
+      const persistentCrusher =
+        getPersistentCrusher(
+          track.id
+        );
+
+      if (persistentCrusher) {
+        persistentCrusher.worklet.parameters
+          .get("bitDepth")
+          ?.setValueAtTime(
+            crushBit,
+            now
+          );
+
+        persistentCrusher.worklet.parameters
+          .get("rateReduction")
+          ?.setValueAtTime(
+            crushRate,
+            now
+          );
+
+        dryGain.gain.setValueAtTime(
+          1 - crushLevel,
           now
         );
 
-      crusherNode.parameters
-        .get("rateReduction")
-        ?.setValueAtTime(
-          crushRate,
+        wetGain.gain.setValueAtTime(
+          crushLevel,
           now
         );
 
-      dryGain.gain.setValueAtTime(
-        1 - crushLevel,
-        now
+        fxInput
+          .connect(dryGain)
+          .connect(fxOutput);
+
+        fxInput.connect(
+          persistentCrusher.input
+        );
+
+        persistentCrusher.worklet
+          .connect(wetGain)
+          .connect(fxOutput);
+      } else {
+        fxInput.connect(
+          fxOutput
+        );
+      }
+    } else {
+      fxInput.connect(
+        fxOutput
       );
-
-      wetGain.gain.setValueAtTime(
-        crushLevel,
-        now
-      );
-
-      fxInput
-        .connect(dryGain)
-        .connect(fxOutput);
-
-      fxInput
-        .connect(crusherNode)
-        .connect(wetGain)
-        .connect(fxOutput);
-    } catch (error) {
-      console.warn(
-        "Bit crusher node unavailable:",
-        error
-      );
-
-      fxInput.connect(fxOutput);
     }
-  } else {
-    fxInput.connect(fxOutput);
-  }
 
   /*
    * FX3：Track Reverb
@@ -4460,11 +4516,26 @@ if (!offlineRenderMode) {
       );
 
       /*
-       * CrusherはAudioWorkletNodeなので、
-       * 発音単位で必ずgraphから外す。
+       * CRUSH Worklet本体はTrack常設。
+       * この発音専用のDry/Wet Gainだけ外し、
+       * Worklet -> wetGain の枝も明示的に切る。
        */
+      if (crusherWetGainForCleanup) {
+        const persistentCrusher =
+          persistentCrusherByTrack.get(
+            String(
+              track.id ?? "track"
+            )
+          );
+
+        try {
+          persistentCrusher?.worklet?.disconnect(
+            crusherWetGainForCleanup
+          );
+        } catch {}
+      }
+
       [
-        crusherNodeForCleanup,
         crusherDryGainForCleanup,
         crusherWetGainForCleanup
       ].forEach(
@@ -4552,6 +4623,8 @@ export async function beginOfflineAudioRender(
   };
 
   context = offlineContext;
+
+  persistentCrusherByTrack.clear();
 
   sharedNoiseBuffer = null;
   sharedNoiseBufferContext = null;
@@ -4656,6 +4729,8 @@ export async function beginOfflineAudioRender(
     });
 
     context = backup.context;
+
+    persistentCrusherByTrack.clear();
 
     sharedNoiseBuffer = null;
     sharedNoiseBufferContext = null;

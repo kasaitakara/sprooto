@@ -209,6 +209,21 @@ function startSprootoDebugOverlay() {
  */
 let sharedNoiseBuffer = null;
 let sharedNoiseBufferContext = null;
+
+/*
+ * Realtime Noise source
+ *
+ * AudioBufferSourceNodeを発音ごとに作り直さず、
+ * 通常再生ではAudioContextごとに1本だけ常駐させる。
+ *
+ * 各発音はこの連続Noiseを専用GainNodeへ分岐し、
+ * 発音終了後に source -> gain の接続だけを外す。
+ *
+ * Offline exportは従来どおり発音ごとのBufferSourceを使う。
+ */
+let sharedNoiseSource = null;
+let sharedNoiseSourceContext = null;
+
 const SHARED_NOISE_SECONDS = 4;
 
 const EQ_FREQUENCIES = [
@@ -1115,6 +1130,47 @@ function getSharedNoiseBuffer() {
     context;
 
   return buffer;
+}
+
+function getSharedNoiseSource() {
+  if (
+    sharedNoiseSource &&
+    sharedNoiseSourceContext === context
+  ) {
+    return sharedNoiseSource;
+  }
+
+  const source =
+    sprootoDebugNode(
+      context.createBufferSource(),
+      "noise"
+    );
+
+  source.buffer =
+    getSharedNoiseBuffer();
+
+  source.loop = true;
+
+  /*
+   * 連続Noiseなので、発音ごとのrandom offsetは不要。
+   * 1本を流し続け、各HitはGain envelopeだけで切り出す。
+   */
+  source.start(
+    context.currentTime,
+    Math.random() *
+      Math.max(
+        0.001,
+        source.buffer.duration
+      )
+  );
+
+  sharedNoiseSource =
+    source;
+
+  sharedNoiseSourceContext =
+    context;
+
+  return source;
 }
 
 /*
@@ -3832,32 +3888,24 @@ if (noTrackFx) {
   }
 
   if (noiseVolume > 0) {
-    const noise =
-      sprootoDebugNode(context.createBufferSource(), "noise");
-
     const noiseGain =
-      sprootoDebugNode(context.createGain(), "noiseGain");
+      sprootoDebugNode(
+        context.createGain(),
+        "noiseGain"
+      );
 
     const noiseStopAt =
-  releaseEnd + 0.01;
+      releaseEnd + 0.01;
 
-noise.buffer =
-  getSharedNoiseBuffer();
-
-/*
- * 同じBufferを共有しても各発音が同じ位相から始まらないよう、
- * 開始位置をランダム化する。
- *
- * GateがBuffer長を超える場合も自然に継続できるようloopする。
- */
-noise.loop = true;
-
-const noiseStartOffset =
-  Math.random() *
-  Math.max(
-    0.001,
-    noise.buffer.duration
-  );
+    /*
+     * shared sourceは常時鳴っているため、
+     * 今回の予約開始時刻nowより前に音が漏れないよう
+     * 接続前にGainを0へ固定する。
+     */
+    noiseGain.gain.setValueAtTime(
+      0,
+      context.currentTime
+    );
 
     scheduleSourceEnvelope(
       noiseGain,
@@ -3865,32 +3913,42 @@ const noiseStartOffset =
       noiseDecay
     );
 
-    noise
-      .connect(noiseGain)
-      .connect(mixGain);
-
-    /*
-     * BufferSourceはstopだけでなく、
-     * 終了時に接続も明示的に切る。
-     *
-     * SUB等で短時間に大量発音しても、
-     * 終了済みNoise graphを残さない。
-     */
-    /*
-     * Noise cleanup
-     *
-     * stop時刻はsprooto側で既知なので、リアルタイム再生では
-     * AudioBufferSourceNodeのended通知にcleanupを依存しない。
-     */
     if (!offlineRenderMode) {
+      /*
+       * =========================
+       * Realtime Noise
+       * =========================
+       *
+       * AudioBufferSourceNodeは1本だけ常駐。
+       * Hitごとに作るのはGainNodeだけ。
+       */
+      const noise =
+        getSharedNoiseSource();
+
+      noise
+        .connect(noiseGain);
+
+      noiseGain
+        .connect(mixGain);
+
       sprootoDebugTimeout(
         () => {
           sprootoDebugNoiseEndedWindow += 1;
 
+          /*
+           * persistent source側の接続も明示的に外す。
+           * noiseGain.disconnect()だけではsource側に
+           * 接続先参照が残る可能性があるため両側を処理する。
+           */
           try {
-            sprootoDebugReleaseNode(noise);
-            sprootoDebugReleaseNode(noiseGain);
+            noise.disconnect(
+              noiseGain
+            );
           } catch {}
+
+          sprootoDebugReleaseNode(
+            noiseGain
+          );
         },
         Math.max(
           20,
@@ -3901,16 +3959,46 @@ const noiseStartOffset =
           ) * 1000
         )
       );
+    } else {
+      /*
+       * =========================
+       * Offline export
+       * =========================
+       *
+       * OfflineAudioContextでは常駐source方式を使わず、
+       * 従来どおり発音ごとに有限Sourceを予約する。
+       */
+      const noise =
+        sprootoDebugNode(
+          context.createBufferSource(),
+          "noise"
+        );
+
+      noise.buffer =
+        getSharedNoiseBuffer();
+
+      noise.loop = true;
+
+      const noiseStartOffset =
+        Math.random() *
+        Math.max(
+          0.001,
+          noise.buffer.duration
+        );
+
+      noise
+        .connect(noiseGain)
+        .connect(mixGain);
+
+      noise.start(
+        now,
+        noiseStartOffset
+      );
+
+      noise.stop(
+        noiseStopAt
+      );
     }
-
-    noise.start(
-      now,
-      noiseStartOffset
-    );
-
-    noise.stop(
-      noiseStopAt
-    );
   }
 
   /*

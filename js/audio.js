@@ -25,14 +25,30 @@ let sprootoDebugInterval = null;
 let sprootoDebugPlayCallsTotal = 0;
 let sprootoDebugPlayCallsWindow = 0;
 let sprootoDebugNodesCreated = 0;
+let sprootoDebugNodesReleased = 0;
 let sprootoDebugCleanups = 0;
 let sprootoDebugTimersScheduled = 0;
 let sprootoDebugTimersFired = 0;
-
+const sprootoDebugReleasedNodes = new WeakSet();
 
 function sprootoDebugNode(node) {
-  sprootoDebugNodesCreated += 1;
+  if (node) {
+    sprootoDebugNodesCreated += 1;
+  }
   return node;
+}
+
+function sprootoDebugReleaseNode(node) {
+  if (!node || sprootoDebugReleasedNodes.has(node)) {
+    return;
+  }
+
+  sprootoDebugReleasedNodes.add(node);
+  sprootoDebugNodesReleased += 1;
+
+  try {
+    node.disconnect();
+  } catch {}
 }
 
 function sprootoDebugTimeout(callback, delay) {
@@ -110,6 +126,7 @@ function startSprootoDebugOverlay() {
             `plays ${sprootoDebugPlayCallsTotal}`,
             `active ${activeTrackVoices.size}`,
             `nodes ${sprootoDebugNodesCreated}`,
+            `live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)}`,
             `cleanup ${sprootoDebugCleanups}`,
             `timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}`
           ].join("\\n");
@@ -2266,8 +2283,28 @@ const delayTime =
       8
     );
 
+  const panLfoActive = [1, 2].some(lfoNumber => {
+    const prefix = `lfo${lfoNumber}`;
+    if (soundTrack.base[`${prefix}Target`] !== "pan") {
+      return false;
+    }
+
+    return clamp(
+      (soundTrack.base[`${prefix}Depth`] ?? 0) +
+        offset(`${prefix}Depth`),
+      0,
+      100
+    ) > 0;
+  });
+
+  /*
+   * Pan fast path:
+   * center固定かつPan LFOなしならStereoPannerNodeを作らない。
+   */
   const panner =
-  sprootoDebugNode(context.createStereoPanner());
+    (panValue !== 0 || panLfoActive)
+      ? sprootoDebugNode(context.createStereoPanner())
+      : null;
 
 /*
  * Filter OFF fast path:
@@ -2306,11 +2343,14 @@ const releaseEnd =
  * Pan LFOの停止管理用。
  */
 const panLfoOscillators = [];
+const panLfoGainNodes = [];
 
-  panner.pan.setValueAtTime(
-    panValue,
-    now
-  );
+  if (panner) {
+    panner.pan.setValueAtTime(
+      panValue,
+      now
+    );
+  }
 
   /*
  * Pan LFO
@@ -2322,6 +2362,10 @@ const panLfoOscillators = [];
 function connectPanLfo(
   lfoNumber
 ) {
+  if (!panner) {
+    return;
+  }
+
   const prefix =
     `lfo${lfoNumber}`;
 
@@ -2427,14 +2471,6 @@ if (lfoWave === "random") {
   return;
 }
 
-const lfoOscillator =
-  sprootoDebugNode(context.createOscillator());
-
-const lfoGain =
-  sprootoDebugNode(context.createGain());
-
-  let lfoGainDirection = 1;
-
 if (lfoWave === "rise" || lfoWave === "fall") {
 
     const start =
@@ -2454,6 +2490,14 @@ if (lfoWave === "rise" || lfoWave === "fall") {
 
     return;
 }
+
+const lfoOscillator =
+  sprootoDebugNode(context.createOscillator());
+
+const lfoGain =
+  sprootoDebugNode(context.createGain());
+
+let lfoGainDirection = 1;
 
   switch (lfoWave) {
     case "triangle":
@@ -2511,6 +2555,10 @@ if (lfoWave === "rise" || lfoWave === "fall") {
 
   panLfoOscillators.push(
     lfoOscillator
+  );
+
+  panLfoGainNodes.push(
+    lfoGain
   );
 
   lfoOscillator.start(
@@ -3084,21 +3132,34 @@ activeTrackVoices.set(
   }
 );
 
+let voiceOutputNode = mixGain;
+
 if (filterEnabled) {
   mixGain
     .connect(filter1)
-    .connect(filter2)
-    .connect(panner);
-} else {
-  mixGain.connect(panner);
+    .connect(filter2);
+
+  voiceOutputNode = filter2;
+}
+
+if (panner) {
+  voiceOutputNode.connect(panner);
+  voiceOutputNode = panner;
 }
 
   /*
    * FX1 Delay → FX2 CRUSH の順で処理するため、
    * まずPan後の信号をFXバスへまとめる。
    */
+  const noTrackFx =
+    delayLevel <= 0 &&
+    crushLevel <= 0 &&
+    reverbSend <= 0;
+
   const fxInput =
-  sprootoDebugNode(context.createGain());
+    noTrackFx
+      ? null
+      : sprootoDebugNode(context.createGain());
 
 /*
  * EXPORT専用Fade。
@@ -3112,7 +3173,7 @@ if (filterEnabled) {
  * オフライン化前と同じ水準へ戻す。
  */
 let exportFadeGain = null;
-let fxSourceNode = panner;
+let fxSourceNode = voiceOutputNode;
 
 const fadeEnvelope =
   options.fadeEnvelope;
@@ -3187,7 +3248,7 @@ if (
     }
   }
 
-  panner.connect(
+  voiceOutputNode.connect(
     exportFadeGain
   );
 
@@ -3195,9 +3256,11 @@ if (
     exportFadeGain;
 }
 
-fxSourceNode.connect(
-  fxInput
-);
+if (noTrackFx) {
+  fxSourceNode.connect(mixInput);
+} else {
+  fxSourceNode.connect(fxInput);
+}
 
   /*
    * 共通Audio graphをいつ解放できるか判断するため、
@@ -3207,6 +3270,10 @@ fxSourceNode.connect(
    */
   let delayGraphCleanupAt =
     releaseEnd;
+
+  let delayNodeForCleanup = null;
+  let delayFeedbackGainForCleanup = null;
+  let delayWetGainForCleanup = null;
 
   /*
    * クリーンなDelay。
@@ -3224,6 +3291,10 @@ fxSourceNode.connect(
 
     const wetGain =
       sprootoDebugNode(context.createGain());
+
+    delayNodeForCleanup = delayNode;
+    delayFeedbackGainForCleanup = feedbackGain;
+    delayWetGainForCleanup = wetGain;
 
     delayNode.delayTime.setValueAtTime(
       delayTime,
@@ -3282,30 +3353,6 @@ fxSourceNode.connect(
         now + cleanupSeconds
       );
 
-    if (!offlineRenderMode) {
-      sprootoDebugTimeout(
-        () => {
-          try {
-            fxSourceNode.disconnect(
-              delayNode
-            );
-
-            delayNode.disconnect();
-            feedbackGain.disconnect();
-            wetGain.disconnect();
-          } catch {}
-        },
-        Math.max(
-          100,
-          (
-            delayGraphCleanupAt -
-            context.currentTime +
-            0.05
-          ) *
-            1000
-        )
-      );
-    }
   }
 
   /*
@@ -3313,7 +3360,9 @@ fxSourceNode.connect(
    * Reverb SEND 0でも、このGainは単純な通過点だけになる。
    */
   const fxOutput =
-    sprootoDebugNode(context.createGain());
+    noTrackFx
+      ? null
+      : sprootoDebugNode(context.createGain());
 
   /*
    * FX2ノードは発音終了後にまとめて解放するため、
@@ -3330,6 +3379,7 @@ fxSourceNode.connect(
    * CRUSH LEVELでDry/Wetを混ぜる。
    * LEVEL 0は完全Dry、100は完全Wet。
    */
+  if (!noTrackFx) {
   if (crushLevel > 0 && bitCrusherWorkletReady) {
     const dryGain =
       sprootoDebugNode(context.createGain());
@@ -3347,14 +3397,16 @@ fxSourceNode.connect(
 
     try {
       crusherNode =
-        new AudioWorkletNode(
-          context,
-          "sprooto-bit-crusher",
-          {
-            numberOfInputs: 1,
-            numberOfOutputs: 1,
-            outputChannelCount: [2]
-          }
+        sprootoDebugNode(
+          new AudioWorkletNode(
+            context,
+            "sprooto-bit-crusher",
+            {
+              numberOfInputs: 1,
+              numberOfOutputs: 1,
+              outputChannelCount: [2]
+            }
+          )
         );
 
       crusherNodeForCleanup =
@@ -3458,13 +3510,14 @@ fxSourceNode.connect(
           () => {
             try {
               fxOutput.disconnect(sendGain);
-              sendGain.disconnect();
+              sprootoDebugReleaseNode(sendGain);
             } catch {}
           },
           disconnectDelayMs
         );
       }
     }
+  }
   }
 
   function scheduleSourceEnvelope(
@@ -3524,6 +3577,10 @@ fxSourceNode.connect(
     );
   }
 }
+
+  const fmVoiceNodesForCleanup = [];
+  const fmVoiceGainsForCleanup = [];
+  let fmVoiceCleanupAt = releaseEnd;
 
   if (sineVolume > 0 && fmVoiceWorkletReady) {
     const voiceGainScale = 1 / Math.sqrt(Math.max(1, chordNotes.length));
@@ -3632,45 +3689,39 @@ fxSourceNode.connect(
         );
 
         if (!offlineRenderMode) {
-          sprootoDebugTimeout(
+          oscillator.addEventListener(
+            "ended",
             () => {
-              try {
-                oscillator.disconnect();
-                sineGain.disconnect();
-              } catch {}
+              sprootoDebugReleaseNode(oscillator);
+              sprootoDebugReleaseNode(sineGain);
             },
-            Math.max(
-              50,
-              (
-                sineStopAt -
-                context.currentTime +
-                0.05
-              ) * 1000
-            )
+            { once: true }
           );
         }
       } else {
         const fmVoice =
-          new AudioWorkletNode(
-            context,
-            "sprooto-fm-voice",
-            {
-              numberOfInputs: 0,
-              numberOfOutputs: 1,
-              outputChannelCount: [1],
-              processorOptions: {
-                startTime: voiceStartTime,
-                stopTime: sineStopAt,
-                startNote: glideStartNote,
-                targetNote: voiceNote,
-                glideDuration,
-                fmDepth,
-                fmRatio,
-                fmFeedbackStrength,
-                pitchLfos,
-                fmDepthLfos
+          sprootoDebugNode(
+            new AudioWorkletNode(
+              context,
+              "sprooto-fm-voice",
+              {
+                numberOfInputs: 0,
+                numberOfOutputs: 1,
+                outputChannelCount: [1],
+                processorOptions: {
+                  startTime: voiceStartTime,
+                  stopTime: sineStopAt,
+                  startNote: glideStartNote,
+                  targetNote: voiceNote,
+                  glideDuration,
+                  fmDepth,
+                  fmRatio,
+                  fmFeedbackStrength,
+                  pitchLfos,
+                  fmDepthLfos
+                }
               }
-            }
+            )
           );
 
         fmVoice
@@ -3678,25 +3729,25 @@ fxSourceNode.connect(
           .connect(mixGain);
 
         if (!offlineRenderMode) {
-          sprootoDebugTimeout(
-            () => {
-              try {
-                fmVoice.disconnect();
-                sineGain.disconnect();
-              } catch {}
-            },
-            Math.max(
-              50,
-              (
-                sineStopAt -
-                context.currentTime +
-                0.05
-              ) * 1000
-            )
-          );
+          fmVoiceNodesForCleanup.push(fmVoice);
+          fmVoiceGainsForCleanup.push(sineGain);
+          fmVoiceCleanupAt = Math.max(fmVoiceCleanupAt, sineStopAt);
         }
       }
     }
+  }
+
+  if (!offlineRenderMode && fmVoiceNodesForCleanup.length > 0) {
+    sprootoDebugTimeout(
+      () => {
+        fmVoiceNodesForCleanup.forEach(sprootoDebugReleaseNode);
+        fmVoiceGainsForCleanup.forEach(sprootoDebugReleaseNode);
+      },
+      Math.max(
+        50,
+        (fmVoiceCleanupAt - context.currentTime + 0.05) * 1000
+      )
+    );
   }
 
   if (noiseVolume > 0) {
@@ -3749,8 +3800,8 @@ const noiseStartOffset =
         "ended",
         () => {
           try {
-            noise.disconnect();
-            noiseGain.disconnect();
+            sprootoDebugReleaseNode(noise);
+            sprootoDebugReleaseNode(noiseGain);
           } catch {}
         },
         { once: true }
@@ -3829,19 +3880,15 @@ if (!offlineRenderMode) {
        * LFO sourceは停止後も接続が残るため切断する。
        */
       panLfoOscillators.forEach(
-        node => {
-          try {
-            node.disconnect();
-          } catch {}
-        }
+        sprootoDebugReleaseNode
+      );
+
+      panLfoGainNodes.forEach(
+        sprootoDebugReleaseNode
       );
 
       filterLfoNodes.forEach(
-        node => {
-          try {
-            node.disconnect();
-          } catch {}
-        }
+        sprootoDebugReleaseNode
       );
 
       /*
@@ -3858,9 +3905,7 @@ if (!offlineRenderMode) {
             return;
           }
 
-          try {
-            node.disconnect();
-          } catch {}
+          sprootoDebugReleaseNode(node);
         }
       );
 
@@ -3869,6 +3914,9 @@ if (!offlineRenderMode) {
        * Delay tail終了後なので、ここで切っても音は変わらない。
        */
       [
+        delayNodeForCleanup,
+        delayFeedbackGainForCleanup,
+        delayWetGainForCleanup,
         mixGain,
         filter1,
         filter2,
@@ -3877,15 +3925,7 @@ if (!offlineRenderMode) {
         fxInput,
         fxOutput
       ].forEach(
-        node => {
-          if (!node) {
-            return;
-          }
-
-          try {
-            node.disconnect();
-          } catch {}
-        }
+        sprootoDebugReleaseNode
       );
     },
     Math.max(

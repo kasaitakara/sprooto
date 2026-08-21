@@ -17,7 +17,7 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
 　fmFeedback: 0,
   filterCutoff: 0,
   filterResonance: 0,
-  pan: 50,
+  pan: 0,
   delay: 0,
   delayTime: 4,
   delayFeedback: 35,

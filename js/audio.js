@@ -2164,11 +2164,23 @@ const delayTime =
   const panner =
   context.createStereoPanner();
 
+/*
+ * Filter OFF fast path:
+ * cutoff 0では、従来allpassとして毎発音2個生成していた
+ * BiquadFilterNodeを完全に省略する。
+ */
+const filterEnabled =
+  filterCutoff !== 0;
+
 const filter1 =
-  context.createBiquadFilter();
+  filterEnabled
+    ? context.createBiquadFilter()
+    : null;
 
 const filter2 =
-  context.createBiquadFilter();
+  filterEnabled
+    ? context.createBiquadFilter()
+    : null;
 
 const gateEnd =
   now + gate + maximumStrumDelay;
@@ -2414,10 +2426,7 @@ connectPanLfo(2);
    * 同じBiquadFilterを2段直列にして、
    * LP／HPとも24dB/oct相当として扱う。
    */
-  if (filterCutoff === 0) {
-    filter1.type = "allpass";
-    filter2.type = "allpass";
-  } else {
+  if (filterEnabled) {
     const normalizedAmount =
       Math.abs(filterCutoff) / 50;
 
@@ -2498,7 +2507,7 @@ connectPanLfo(2);
   function connectFilterLfo(
     lfoNumber
   ) {
-    if (filterCutoff === 0) {
+    if (!filterEnabled) {
       return;
     }
 
@@ -2970,10 +2979,14 @@ activeTrackVoices.set(
   }
 );
 
-mixGain
-  .connect(filter1)
-  .connect(filter2)
-  .connect(panner);
+if (filterEnabled) {
+  mixGain
+    .connect(filter1)
+    .connect(filter2)
+    .connect(panner);
+} else {
+  mixGain.connect(panner);
+}
 
   /*
    * FX1 Delay → FX2 CRUSH の順で処理するため、

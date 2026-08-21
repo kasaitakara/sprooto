@@ -31,9 +31,14 @@ let sprootoDebugNodesReleasedWindow = 0;
 let sprootoDebugCleanups = 0;
 let sprootoDebugTimersScheduled = 0;
 let sprootoDebugTimersFired = 0;
+let sprootoDebugTimerMaxLateMsWindow = 0;
+let sprootoDebugOscEndedWindow = 0;
+let sprootoDebugNoiseEndedWindow = 0;
 const sprootoDebugReleasedNodes = new WeakSet();
 const sprootoDebugNodeTypes = new WeakMap();
+const sprootoDebugNodeRoles = new WeakMap();
 const sprootoDebugLiveByType = Object.create(null);
+const sprootoDebugLiveByRole = Object.create(null);
 
 function sprootoDebugType(node) {
   const name = node?.constructor?.name ?? "other";
@@ -48,13 +53,19 @@ function sprootoDebugType(node) {
   return "other";
 }
 
-function sprootoDebugNode(node) {
+function sprootoDebugNode(node, role = null) {
   if (node) {
     const type = sprootoDebugType(node);
     sprootoDebugNodesCreated += 1;
     sprootoDebugNodesCreatedWindow += 1;
     sprootoDebugNodeTypes.set(node, type);
     sprootoDebugLiveByType[type] = (sprootoDebugLiveByType[type] || 0) + 1;
+
+    if (role) {
+      sprootoDebugNodeRoles.set(node, role);
+      sprootoDebugLiveByRole[role] =
+        (sprootoDebugLiveByRole[role] || 0) + 1;
+    }
   }
   return node;
 }
@@ -73,6 +84,12 @@ function sprootoDebugReleaseNode(node) {
     sprootoDebugLiveByType[type] = Math.max(0, (sprootoDebugLiveByType[type] || 0) - 1);
   }
 
+  const role = sprootoDebugNodeRoles.get(node);
+  if (role) {
+    sprootoDebugLiveByRole[role] =
+      Math.max(0, (sprootoDebugLiveByRole[role] || 0) - 1);
+  }
+
   try {
     node.disconnect();
   } catch {}
@@ -81,12 +98,31 @@ function sprootoDebugReleaseNode(node) {
 function sprootoDebugTimeout(callback, delay) {
   sprootoDebugTimersScheduled += 1;
 
+  const safeDelay =
+    Math.max(0, Number(delay) || 0);
+
+  const expectedAt =
+    performance.now() + safeDelay;
+
   return window.setTimeout(
     () => {
       sprootoDebugTimersFired += 1;
+
+      const lateMs =
+        Math.max(
+          0,
+          performance.now() - expectedAt
+        );
+
+      sprootoDebugTimerMaxLateMsWindow =
+        Math.max(
+          sprootoDebugTimerMaxLateMsWindow,
+          lateMs
+        );
+
       callback();
     },
-    delay
+    safeDelay
   );
 }
 
@@ -148,15 +184,18 @@ function startSprootoDebugOverlay() {
         panel.textContent =
           [
             `t ${context?.currentTime?.toFixed?.(1) ?? "-"}  state ${context?.state ?? "none"}  pps ${sprootoDebugPlayCallsWindow}  active ${activeTrackVoices.size}`,
-            `nodes ${sprootoDebugNodesCreated}  live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)}  timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}`,
-            `src ${sprootoDebugLiveByType.source || 0}  gain ${sprootoDebugLiveByType.gain || 0}  pan ${sprootoDebugLiveByType.pan || 0}  filt ${sprootoDebugLiveByType.filter || 0}`,
-            `wrk ${sprootoDebugLiveByType.worklet || 0}  dly ${sprootoDebugLiveByType.delay || 0}  conv ${sprootoDebugLiveByType.conv || 0}  oth ${sprootoDebugLiveByType.other || 0}`,
-            `+ /s ${sprootoDebugNodesCreatedWindow}  - /s ${sprootoDebugNodesReleasedWindow}  cleanup ${sprootoDebugCleanups}`
+            `nodes ${sprootoDebugNodesCreated}  live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)}  timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}  lag ${Math.round(sprootoDebugTimerMaxLateMsWindow)}`,
+            `src ${sprootoDebugLiveByType.source || 0}  osc ${sprootoDebugLiveByRole.osc || 0}  noi ${sprootoDebugLiveByRole.noise || 0}  lfo ${sprootoDebugLiveByRole.lfo || 0}`,
+            `gain ${sprootoDebugLiveByType.gain || 0}  mix ${sprootoDebugLiveByRole.mix || 0}  sg ${sprootoDebugLiveByRole.sineGain || 0}  ng ${sprootoDebugLiveByRole.noiseGain || 0}  wrk ${sprootoDebugLiveByType.worklet || 0}`,
+            `+/s ${sprootoDebugNodesCreatedWindow}  -/s ${sprootoDebugNodesReleasedWindow}  end o${sprootoDebugOscEndedWindow}/n${sprootoDebugNoiseEndedWindow}  clean ${sprootoDebugCleanups}`
           ].join("\n");
 
         sprootoDebugPlayCallsWindow = 0;
         sprootoDebugNodesCreatedWindow = 0;
         sprootoDebugNodesReleasedWindow = 0;
+        sprootoDebugTimerMaxLateMsWindow = 0;
+        sprootoDebugOscEndedWindow = 0;
+        sprootoDebugNoiseEndedWindow = 0;
       },
       1000
     );
@@ -1092,7 +1131,7 @@ function createSampleAndHoldLfo({
   stopTime
 }) {
   const source =
-    sprootoDebugNode(context.createConstantSource());
+    sprootoDebugNode(context.createConstantSource(), "lfo");
 
   const safeRate =
     Math.max(
@@ -2517,7 +2556,7 @@ if (lfoWave === "rise" || lfoWave === "fall") {
 }
 
 const lfoOscillator =
-  sprootoDebugNode(context.createOscillator());
+  sprootoDebugNode(context.createOscillator(), "osc");
 
 const lfoGain =
   sprootoDebugNode(context.createGain());
@@ -2768,7 +2807,7 @@ connectPanLfo(2);
 
     if (lfoWave === "random") {
       const source =
-        sprootoDebugNode(context.createConstantSource());
+        sprootoDebugNode(context.createConstantSource(), "lfo");
 
       source.connect(filter1.detune);
       source.connect(filter2.detune);
@@ -2804,7 +2843,7 @@ connectPanLfo(2);
       lfoWave === "fall"
     ) {
       const source =
-        sprootoDebugNode(context.createConstantSource());
+        sprootoDebugNode(context.createConstantSource(), "lfo");
 
       source.connect(filter1.detune);
       source.connect(filter2.detune);
@@ -2992,7 +3031,7 @@ filter2.detune.setValueCurveAtTime(
   connectFilterLfo(2);
 
 const mixGain =
-  sprootoDebugNode(context.createGain());
+  sprootoDebugNode(context.createGain(), "mix");
 
 /*
  * 同じTrackの前音を、
@@ -3669,7 +3708,7 @@ if (noTrackFx) {
       const voiceStartTime = now + voiceStartDelay;
       const sineStopAt = releaseEnd + 0.01 + voiceStartDelay;
 
-      const sineGain = sprootoDebugNode(context.createGain());
+      const sineGain = sprootoDebugNode(context.createGain(), "sineGain");
       sineGain.gain.setValueAtTime(
         Math.max(0.0001, sineVolume * voiceGainScale),
         voiceStartTime
@@ -3692,7 +3731,7 @@ if (noTrackFx) {
 
       if (canUseNativeSine) {
         const oscillator =
-          sprootoDebugNode(context.createOscillator());
+          sprootoDebugNode(context.createOscillator(), "osc");
 
         oscillator.type = "sine";
 
@@ -3717,6 +3756,7 @@ if (noTrackFx) {
           oscillator.addEventListener(
             "ended",
             () => {
+              sprootoDebugOscEndedWindow += 1;
               sprootoDebugReleaseNode(oscillator);
               sprootoDebugReleaseNode(sineGain);
             },
@@ -3777,10 +3817,10 @@ if (noTrackFx) {
 
   if (noiseVolume > 0) {
     const noise =
-      sprootoDebugNode(context.createBufferSource());
+      sprootoDebugNode(context.createBufferSource(), "noise");
 
     const noiseGain =
-      sprootoDebugNode(context.createGain());
+      sprootoDebugNode(context.createGain(), "noiseGain");
 
     const noiseStopAt =
   releaseEnd + 0.01;
@@ -3824,6 +3864,7 @@ const noiseStartOffset =
       noise.addEventListener(
         "ended",
         () => {
+          sprootoDebugNoiseEndedWindow += 1;
           try {
             sprootoDebugReleaseNode(noise);
             sprootoDebugReleaseNode(noiseGain);

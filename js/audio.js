@@ -24,6 +24,28 @@ let sprootoDebugStarted = false;
 let sprootoDebugInterval = null;
 let sprootoDebugPlayCallsTotal = 0;
 let sprootoDebugPlayCallsWindow = 0;
+let sprootoDebugNodesCreated = 0;
+let sprootoDebugCleanups = 0;
+let sprootoDebugTimersScheduled = 0;
+let sprootoDebugTimersFired = 0;
+
+
+function sprootoDebugNode(node) {
+  sprootoDebugNodesCreated += 1;
+  return node;
+}
+
+function sprootoDebugTimeout(callback, delay) {
+  sprootoDebugTimersScheduled += 1;
+
+  return window.setTimeout(
+    () => {
+      sprootoDebugTimersFired += 1;
+      callback();
+    },
+    delay
+  );
+}
 
 function startSprootoDebugOverlay() {
   if (
@@ -86,7 +108,10 @@ function startSprootoDebugOverlay() {
             `state ${context?.state ?? "none"}`,
             `pps ${sprootoDebugPlayCallsWindow}`,
             `plays ${sprootoDebugPlayCallsTotal}`,
-            `active ${activeTrackVoices.size}`
+            `active ${activeTrackVoices.size}`,
+            `nodes ${sprootoDebugNodesCreated}`,
+            `cleanup ${sprootoDebugCleanups}`,
+            `timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}`
           ].join("\\n");
 
         sprootoDebugPlayCallsWindow = 0;
@@ -186,7 +211,7 @@ async function ensureAudioClockReady() {
             return;
           }
 
-          window.setTimeout(
+          sprootoDebugTimeout(
             checkClock,
             4
           );
@@ -485,13 +510,13 @@ export async function initializeAudio() {
     startSprootoDebugOverlay();
     audioClockReady = false;
     audioClockReadyPromise = null;
-    master = context.createGain();
+    master = sprootoDebugNode(context.createGain());
     master.gain.value = 0.7;
 
-    mixInput = context.createGain();
+    mixInput = sprootoDebugNode(context.createGain());
 
     eqNodes = EQ_FREQUENCIES.map((frequency, index) => {
-      const filter = context.createBiquadFilter();
+      const filter = sprootoDebugNode(context.createBiquadFilter());
       filter.type = index === 0
         ? "lowshelf"
         : index === EQ_FREQUENCIES.length - 1
@@ -506,10 +531,10 @@ export async function initializeAudio() {
     reverbConvolver = context.createConvolver();
     reverbConvolver.buffer = createMasterReverbImpulse();
 
-    reverbDryGain = context.createGain();
-    reverbWetGain = context.createGain();
+    reverbDryGain = sprootoDebugNode(context.createGain());
+    reverbWetGain = sprootoDebugNode(context.createGain());
 
-    mixGain = context.createGain();
+    mixGain = sprootoDebugNode(context.createGain());
     limiter = context.createDynamicsCompressor();
     limiter.knee.value = 0;
     limiter.ratio.value = 20;
@@ -1025,7 +1050,7 @@ function createSampleAndHoldLfo({
   stopTime
 }) {
   const source =
-    context.createConstantSource();
+    sprootoDebugNode(context.createConstantSource());
 
   const safeRate =
     Math.max(
@@ -1442,19 +1467,19 @@ function ensureTrackReverbBus(
   }
 
   const input =
-    context.createGain();
+    sprootoDebugNode(context.createGain());
 
   const highpass =
-    context.createBiquadFilter();
+    sprootoDebugNode(context.createBiquadFilter());
 
   const convolver =
     context.createConvolver();
 
   const lowpass =
-    context.createBiquadFilter();
+    sprootoDebugNode(context.createBiquadFilter());
 
   const output =
-    context.createGain();
+    sprootoDebugNode(context.createGain());
 
   const size =
     TRACK_REVERB_BUCKET_COUNT > 1
@@ -2242,7 +2267,7 @@ const delayTime =
     );
 
   const panner =
-  context.createStereoPanner();
+  sprootoDebugNode(context.createStereoPanner());
 
 /*
  * Filter OFF fast path:
@@ -2254,12 +2279,12 @@ const filterEnabled =
 
 const filter1 =
   filterEnabled
-    ? context.createBiquadFilter()
+    ? sprootoDebugNode(context.createBiquadFilter())
     : null;
 
 const filter2 =
   filterEnabled
-    ? context.createBiquadFilter()
+    ? sprootoDebugNode(context.createBiquadFilter())
     : null;
 
 const gateEnd =
@@ -2403,10 +2428,10 @@ if (lfoWave === "random") {
 }
 
 const lfoOscillator =
-  context.createOscillator();
+  sprootoDebugNode(context.createOscillator());
 
 const lfoGain =
-  context.createGain();
+  sprootoDebugNode(context.createGain());
 
   let lfoGainDirection = 1;
 
@@ -2670,7 +2695,7 @@ connectPanLfo(2);
 
     if (lfoWave === "random") {
       const source =
-        context.createConstantSource();
+        sprootoDebugNode(context.createConstantSource());
 
       source.connect(filter1.detune);
       source.connect(filter2.detune);
@@ -2706,7 +2731,7 @@ connectPanLfo(2);
       lfoWave === "fall"
     ) {
       const source =
-        context.createConstantSource();
+        sprootoDebugNode(context.createConstantSource());
 
       source.connect(filter1.detune);
       source.connect(filter2.detune);
@@ -2894,7 +2919,7 @@ filter2.detune.setValueCurveAtTime(
   connectFilterLfo(2);
 
 const mixGain =
-  context.createGain();
+  sprootoDebugNode(context.createGain());
 
 /*
  * 同じTrackの前音を、
@@ -3073,7 +3098,7 @@ if (filterEnabled) {
    * まずPan後の信号をFXバスへまとめる。
    */
   const fxInput =
-  context.createGain();
+  sprootoDebugNode(context.createGain());
 
 /*
  * EXPORT専用Fade。
@@ -3097,7 +3122,7 @@ if (
   fadeEnvelope
 ) {
   exportFadeGain =
-    context.createGain();
+    sprootoDebugNode(context.createGain());
 
   exportFadeGain.gain.setValueAtTime(
     1,
@@ -3192,13 +3217,13 @@ fxSourceNode.connect(
    */
   if (delayLevel > 0) {
     const delayNode =
-      context.createDelay(1.1);
+      sprootoDebugNode(context.createDelay(1.1));
 
     const feedbackGain =
-      context.createGain();
+      sprootoDebugNode(context.createGain());
 
     const wetGain =
-      context.createGain();
+      sprootoDebugNode(context.createGain());
 
     delayNode.delayTime.setValueAtTime(
       delayTime,
@@ -3258,7 +3283,7 @@ fxSourceNode.connect(
       );
 
     if (!offlineRenderMode) {
-      window.setTimeout(
+      sprootoDebugTimeout(
         () => {
           try {
             fxSourceNode.disconnect(
@@ -3288,7 +3313,7 @@ fxSourceNode.connect(
    * Reverb SEND 0でも、このGainは単純な通過点だけになる。
    */
   const fxOutput =
-    context.createGain();
+    sprootoDebugNode(context.createGain());
 
   /*
    * FX2ノードは発音終了後にまとめて解放するため、
@@ -3307,10 +3332,10 @@ fxSourceNode.connect(
    */
   if (crushLevel > 0 && bitCrusherWorkletReady) {
     const dryGain =
-      context.createGain();
+      sprootoDebugNode(context.createGain());
 
     const wetGain =
-      context.createGain();
+      sprootoDebugNode(context.createGain());
 
     let crusherNode = null;
 
@@ -3400,7 +3425,7 @@ fxSourceNode.connect(
 
     if (reverbBus) {
       const sendGain =
-        context.createGain();
+        sprootoDebugNode(context.createGain());
 
       sendGain.gain.setValueAtTime(
         reverbSend,
@@ -3429,7 +3454,7 @@ fxSourceNode.connect(
         );
 
       if (!offlineRenderMode) {
-        window.setTimeout(
+        sprootoDebugTimeout(
           () => {
             try {
               fxOutput.disconnect(sendGain);
@@ -3562,7 +3587,7 @@ fxSourceNode.connect(
       const voiceStartTime = now + voiceStartDelay;
       const sineStopAt = releaseEnd + 0.01 + voiceStartDelay;
 
-      const sineGain = context.createGain();
+      const sineGain = sprootoDebugNode(context.createGain());
       sineGain.gain.setValueAtTime(
         Math.max(0.0001, sineVolume * voiceGainScale),
         voiceStartTime
@@ -3585,7 +3610,7 @@ fxSourceNode.connect(
 
       if (canUseNativeSine) {
         const oscillator =
-          context.createOscillator();
+          sprootoDebugNode(context.createOscillator());
 
         oscillator.type = "sine";
 
@@ -3607,7 +3632,7 @@ fxSourceNode.connect(
         );
 
         if (!offlineRenderMode) {
-          window.setTimeout(
+          sprootoDebugTimeout(
             () => {
               try {
                 oscillator.disconnect();
@@ -3653,7 +3678,7 @@ fxSourceNode.connect(
           .connect(mixGain);
 
         if (!offlineRenderMode) {
-          window.setTimeout(
+          sprootoDebugTimeout(
             () => {
               try {
                 fmVoice.disconnect();
@@ -3676,10 +3701,10 @@ fxSourceNode.connect(
 
   if (noiseVolume > 0) {
     const noise =
-      context.createBufferSource();
+      sprootoDebugNode(context.createBufferSource());
 
     const noiseGain =
-      context.createGain();
+      sprootoDebugNode(context.createGain());
 
     const noiseStopAt =
   releaseEnd + 0.01;
@@ -3764,7 +3789,7 @@ const registeredVoice =
   );
 
 if (!offlineRenderMode) {
-  window.setTimeout(
+  sprootoDebugTimeout(
     () => {
       if (activeTrackVoices.get(track.id) === registeredVoice) {
         activeTrackVoices.delete(track.id);
@@ -3796,8 +3821,10 @@ if (!offlineRenderMode) {
       delayGraphCleanupAt + 0.10
     );
 
-  window.setTimeout(
+  sprootoDebugTimeout(
     () => {
+      sprootoDebugCleanups += 1;
+
       /*
        * LFO sourceは停止後も接続が残るため切断する。
        */
@@ -3935,17 +3962,17 @@ export async function beginOfflineAudioRender(
   trackReverbBuses.clear();
   activeTrackVoices.clear();
 
-  master = context.createGain();
+  master = sprootoDebugNode(context.createGain());
   master.gain.value = clamp(Number(masterVolume) || 0, 0, 100) / 100;
 
-  mixInput = context.createGain();
+  mixInput = sprootoDebugNode(context.createGain());
 
   const eqValues = Array.isArray(masterMix.eq)
     ? masterMix.eq
     : Array(8).fill(0);
 
   eqNodes = EQ_FREQUENCIES.map((frequency, index) => {
-    const filter = context.createBiquadFilter();
+    const filter = sprootoDebugNode(context.createBiquadFilter());
     filter.type = index === 0
       ? "lowshelf"
       : index === EQ_FREQUENCIES.length - 1
@@ -3960,10 +3987,10 @@ export async function beginOfflineAudioRender(
   reverbConvolver = context.createConvolver();
   reverbConvolver.buffer = createMasterReverbImpulse();
 
-  reverbDryGain = context.createGain();
-  reverbWetGain = context.createGain();
+  reverbDryGain = sprootoDebugNode(context.createGain());
+  reverbWetGain = sprootoDebugNode(context.createGain());
 
-  mixGain = context.createGain();
+  mixGain = sprootoDebugNode(context.createGain());
   mixGain.gain.value = clamp(Number(masterMix.volume ?? 100) || 0, 0, 100) / 100;
 
   limiter = context.createDynamicsCompressor();

@@ -3281,7 +3281,9 @@ function parameterButton(menuItem) {
       : "glide";
 
   const parentSweepParameter =
-  parameter?.id === "crush"
+  parameter?.id === "note"
+    ? parameterById("note")
+    : parameter?.id === "crush"
     ? parameterById("crushLevel")
     : parameter?.id === "reverb"
     ? parameterById("reverbSend")

@@ -20,6 +20,14 @@ let audioClockReady = false;
 let audioClockReadyPromise = null;
 let offlineRenderMode = false;
 
+/*
+ * DIAGNOSTIC ONLY
+ *
+ * CRUSH FXのAudioWorklet経路だけを無効化して、
+ * FM Workletは元通り残したまま長時間挙動を観測する。
+ */
+const SPROOTO_DIAG_DISABLE_CRUSH_WORKLET = true;
+
 let sprootoDebugStarted = false;
 let sprootoDebugInterval = null;
 let sprootoDebugPlayCallsTotal = 0;
@@ -529,7 +537,7 @@ function startSprootoDebugOverlay() {
             `hb ${hbAge < 0 ? "-" : Math.round(hbAge)}ms hbd ${hbAudioDrift >= 0 ? "+" : ""}${hbAudioDrift.toFixed(3)} hbc ${sprootoDebugHeartbeatCount}`,
             `hbgap ${Math.round(sprootoDebugHeartbeatMaxGapWindow)}ms frameerr ${Math.round(sprootoDebugHeartbeatFrameGapMaxWindow)}`,
             `ots ${Number.isFinite(outputWallDrift) ? outputWallDrift.toFixed(3) : "-"} base ${Number.isFinite(baseLatency) ? baseLatency.toFixed(4) : "-"} out ${Number.isFinite(outputLatency) ? outputLatency.toFixed(4) : "-"}`,
-            `fmwrk ${sprootoDebugFmWorkletCreatedTotal} crushwrk ${sprootoDebugCrusherWorkletCreatedTotal}`,
+            `fmwrk ${sprootoDebugFmWorkletCreatedTotal} crushwrk ${sprootoDebugCrusherWorkletCreatedTotal} crushoff 1`,
             `nodes ${sprootoDebugNodesCreated} live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)} src ${sprootoDebugLiveByType.source || 0} gain ${sprootoDebugLiveByType.gain || 0} wrk ${sprootoDebugLiveByType.worklet || 0}`
           ].join("\n");
 
@@ -2699,7 +2707,7 @@ const delayTime =
     95
   ) / 100;
 
-  const crushLevel =
+  const crushLevelRaw =
     soundTrack.fxMuted
       ? 0
       : clamp(
@@ -2708,6 +2716,11 @@ const delayTime =
           0,
           100
         ) / 100;
+
+  const crushLevel =
+    SPROOTO_DIAG_DISABLE_CRUSH_WORKLET
+      ? 0
+      : crushLevelRaw;
 
   const crushBit = clamp(
     Math.round(

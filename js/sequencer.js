@@ -579,7 +579,7 @@ export const parameters = [
     label: "volume",
     icon: "volume",
     min: 0,
-    max: 100,
+    max: 150,
     step: 1,
     offsetMode: "offset"
   },

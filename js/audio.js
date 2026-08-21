@@ -1669,7 +1669,7 @@ const now =
         soundTrack.base.velocity +
         offset("velocity"),
         0,
-        100
+        150
       ) / 100
     ) *
     velocityScale;

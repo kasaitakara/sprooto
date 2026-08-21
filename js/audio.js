@@ -2559,6 +2559,7 @@ connectPanLfo(2);
       }
 
       source.start(now);
+      source.stop(stopTime);
       filterLfoNodes.push(source);
       return;
     }
@@ -3018,6 +3019,15 @@ panner
   .connect(fxInput);
 
   /*
+   * 共通Audio graphをいつ解放できるか判断するため、
+   * Delay tailの終了予定時刻を保持する。
+   *
+   * DelayなしならreleaseEndで解放できる。
+   */
+  let delayGraphCleanupAt =
+    releaseEnd;
+
+  /*
    * クリーンなDelay。
    *
    * フィルターや拡散処理を挟まず、
@@ -3085,20 +3095,34 @@ panner
           (repeatCount + 2)
       );
 
+    delayGraphCleanupAt =
+      Math.max(
+        delayGraphCleanupAt,
+        now + cleanupSeconds
+      );
+
     if (!offlineRenderMode) {
       window.setTimeout(
         () => {
           try {
-  exportFadeGain.disconnect(
-    delayNode
-  );
+            exportFadeGain.disconnect(
+              delayNode
+            );
 
-  delayNode.disconnect();
-  feedbackGain.disconnect();
-  wetGain.disconnect();
-} catch {}
+            delayNode.disconnect();
+            feedbackGain.disconnect();
+            wetGain.disconnect();
+          } catch {}
         },
-        Math.max(100, cleanupSeconds * 1000)
+        Math.max(
+          100,
+          (
+            delayGraphCleanupAt -
+            context.currentTime +
+            0.05
+          ) *
+            1000
+        )
       );
     }
   }
@@ -3109,6 +3133,14 @@ panner
    */
   const fxOutput =
     context.createGain();
+
+  /*
+   * FX2ノードは発音終了後にまとめて解放するため、
+   * block外から参照できるよう保持する。
+   */
+  let crusherNodeForCleanup = null;
+  let crusherDryGainForCleanup = null;
+  let crusherWetGainForCleanup = null;
 
   /*
    * FX2：Bit Crusher
@@ -3126,6 +3158,12 @@ panner
 
     let crusherNode = null;
 
+    crusherDryGainForCleanup =
+      dryGain;
+
+    crusherWetGainForCleanup =
+      wetGain;
+
     try {
       crusherNode =
         new AudioWorkletNode(
@@ -3137,6 +3175,9 @@ panner
             outputChannelCount: [2]
           }
         );
+
+      crusherNodeForCleanup =
+        crusherNode;
 
       crusherNode.parameters
         .get("bitDepth")
@@ -3431,6 +3472,26 @@ noise.buffer =
       .connect(noiseGain)
       .connect(mixGain);
 
+    /*
+     * BufferSourceはstopだけでなく、
+     * 終了時に接続も明示的に切る。
+     *
+     * SUB等で短時間に大量発音しても、
+     * 終了済みNoise graphを残さない。
+     */
+    if (!offlineRenderMode) {
+      noise.addEventListener(
+        "ended",
+        () => {
+          try {
+            noise.disconnect();
+            noiseGain.disconnect();
+          } catch {}
+        },
+        { once: true }
+      );
+    }
+
     noise.start(now);
     noise.stop(noiseStopAt);
   }
@@ -3466,6 +3527,97 @@ if (!offlineRenderMode) {
     Math.max(
       10,
       (releaseEnd - context.currentTime + 0.05) * 1000
+    )
+  );
+
+  /*
+   * =========================
+   * Per-voice AudioNode cleanup
+   * =========================
+   *
+   * Source本体が終了しても、接続されたAudioNode graphを
+   * 明示的に切らないまま高密度発音を続けると、
+   * iPhone等でGC / Web Audio資源回収が追いつかない場合がある。
+   *
+   * Delay使用時はtailがfxInput -> fxOutputを通るため、
+   * releaseEndでは切らず、Delay cleanup予定時刻まで待つ。
+   * Track ReverbはSend入力を別timerで切っており、
+   * Convolver Bus自体は共有なのでtailを壊さない。
+   */
+  const graphCleanupAt =
+    Math.max(
+      releaseEnd + 0.15,
+      delayGraphCleanupAt + 0.10
+    );
+
+  window.setTimeout(
+    () => {
+      /*
+       * LFO sourceは停止後も接続が残るため切断する。
+       */
+      panLfoOscillators.forEach(
+        node => {
+          try {
+            node.disconnect();
+          } catch {}
+        }
+      );
+
+      filterLfoNodes.forEach(
+        node => {
+          try {
+            node.disconnect();
+          } catch {}
+        }
+      );
+
+      /*
+       * CrusherはAudioWorkletNodeなので、
+       * 発音単位で必ずgraphから外す。
+       */
+      [
+        crusherNodeForCleanup,
+        crusherDryGainForCleanup,
+        crusherWetGainForCleanup
+      ].forEach(
+        node => {
+          if (!node) {
+            return;
+          }
+
+          try {
+            node.disconnect();
+          } catch {}
+        }
+      );
+
+      /*
+       * 発音ごとに生成する共通Dry / FX経路。
+       * Delay tail終了後なので、ここで切っても音は変わらない。
+       */
+      [
+        mixGain,
+        filter1,
+        filter2,
+        panner,
+        exportFadeGain,
+        fxInput,
+        fxOutput
+      ].forEach(
+        node => {
+          try {
+            node.disconnect();
+          } catch {}
+        }
+      );
+    },
+    Math.max(
+      100,
+      (
+        graphCleanupAt -
+        context.currentTime
+      ) *
+        1000
     )
   );
 }

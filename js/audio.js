@@ -34,6 +34,24 @@ let sprootoDebugTimersFired = 0;
 let sprootoDebugTimerMaxLateMsWindow = 0;
 let sprootoDebugOscEndedWindow = 0;
 let sprootoDebugNoiseEndedWindow = 0;
+
+let sprootoDebugAutomationTotal = 0;
+let sprootoDebugAutomationWindow = 0;
+let sprootoDebugMainLagMaxWindow = 0;
+let sprootoDebugRafFramesWindow = 0;
+let sprootoDebugRafLastTime = 0;
+let sprootoDebugRafRunning = false;
+
+let sprootoDebugWallStart = 0;
+let sprootoDebugAudioStart = 0;
+
+let sprootoDebugHeartbeatLastReceivedWall = 0;
+let sprootoDebugHeartbeatLastAudioTime = 0;
+let sprootoDebugHeartbeatMaxGapMsWindow = 0;
+let sprootoDebugHeartbeatCount = 0;
+let sprootoDebugHeartbeatNode = null;
+let sprootoDebugHeartbeatReady = null;
+
 const sprootoDebugReleasedNodes = new WeakSet();
 const sprootoDebugNodeTypes = new WeakMap();
 const sprootoDebugNodeRoles = new WeakMap();
@@ -95,6 +113,204 @@ function sprootoDebugReleaseNode(node) {
   } catch {}
 }
 
+function sprootoDebugAutomation(count = 1) {
+  const safeCount =
+    Math.max(
+      0,
+      Math.floor(
+        Number(count) || 0
+      )
+    );
+
+  sprootoDebugAutomationTotal +=
+    safeCount;
+
+  sprootoDebugAutomationWindow +=
+    safeCount;
+}
+
+function sprootoDebugStartRafMonitor() {
+  if (
+    sprootoDebugRafRunning ||
+    typeof requestAnimationFrame !== "function"
+  ) {
+    return;
+  }
+
+  sprootoDebugRafRunning = true;
+
+  const tick = now => {
+    if (sprootoDebugRafLastTime > 0) {
+      const gap =
+        now -
+        sprootoDebugRafLastTime;
+
+      /*
+       * 60Hz想定の16.7msを超えた分だけ
+       * main/UI側の遅延として観測。
+       */
+      sprootoDebugMainLagMaxWindow =
+        Math.max(
+          sprootoDebugMainLagMaxWindow,
+          Math.max(
+            0,
+            gap - 16.7
+          )
+        );
+    }
+
+    sprootoDebugRafLastTime =
+      now;
+
+    sprootoDebugRafFramesWindow +=
+      1;
+
+    requestAnimationFrame(
+      tick
+    );
+  };
+
+  requestAnimationFrame(
+    tick
+  );
+}
+
+async function sprootoDebugEnsureHeartbeat() {
+  if (
+    offlineRenderMode ||
+    !context?.audioWorklet
+  ) {
+    return;
+  }
+
+  if (sprootoDebugHeartbeatNode) {
+    return;
+  }
+
+  if (!sprootoDebugHeartbeatReady) {
+    const processorSource = `
+      class SprootoDebugHeartbeatProcessor extends AudioWorkletProcessor {
+        constructor() {
+          super();
+          this.frameAccumulator = 0;
+        }
+
+        process(inputs, outputs) {
+          const output = outputs[0];
+          const channel = output?.[0];
+
+          if (channel) {
+            channel.fill(0);
+          }
+
+          this.frameAccumulator += 128;
+
+          if (
+            this.frameAccumulator >=
+            sampleRate
+          ) {
+            this.frameAccumulator = 0;
+
+            this.port.postMessage({
+              t: currentTime
+            });
+          }
+
+          return true;
+        }
+      }
+
+      registerProcessor(
+        "sprooto-debug-heartbeat",
+        SprootoDebugHeartbeatProcessor
+      );
+    `;
+
+    const blob =
+      new Blob(
+        [processorSource],
+        { type: "application/javascript" }
+      );
+
+    const url =
+      URL.createObjectURL(
+        blob
+      );
+
+    sprootoDebugHeartbeatReady =
+      context.audioWorklet
+        .addModule(url)
+        .finally(
+          () => {
+            URL.revokeObjectURL(
+              url
+            );
+          }
+        );
+  }
+
+  await sprootoDebugHeartbeatReady;
+
+  if (sprootoDebugHeartbeatNode) {
+    return;
+  }
+
+  sprootoDebugHeartbeatNode =
+    new AudioWorkletNode(
+      context,
+      "sprooto-debug-heartbeat",
+      {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [1]
+      }
+    );
+
+  const silentGain =
+    context.createGain();
+
+  silentGain.gain.value =
+    0;
+
+  sprootoDebugHeartbeatNode
+    .connect(silentGain)
+    .connect(context.destination);
+
+  sprootoDebugHeartbeatNode
+    .port
+    .onmessage =
+      event => {
+        const wallNow =
+          performance.now();
+
+        if (
+          sprootoDebugHeartbeatLastReceivedWall >
+          0
+        ) {
+          const gap =
+            wallNow -
+            sprootoDebugHeartbeatLastReceivedWall;
+
+          sprootoDebugHeartbeatMaxGapMsWindow =
+            Math.max(
+              sprootoDebugHeartbeatMaxGapMsWindow,
+              gap
+            );
+        }
+
+        sprootoDebugHeartbeatLastReceivedWall =
+          wallNow;
+
+        sprootoDebugHeartbeatLastAudioTime =
+          Number(
+            event?.data?.t
+          ) || 0;
+
+        sprootoDebugHeartbeatCount +=
+          1;
+      };
+}
+
 function sprootoDebugTimeout(callback, delay) {
   sprootoDebugTimersScheduled += 1;
 
@@ -135,6 +351,14 @@ function startSprootoDebugOverlay() {
   }
 
   sprootoDebugStarted = true;
+
+  sprootoDebugWallStart =
+    performance.now();
+
+  sprootoDebugAudioStart =
+    context?.currentTime || 0;
+
+  sprootoDebugStartRafMonitor();
 
   let panel =
     document.getElementById(
@@ -181,19 +405,60 @@ function startSprootoDebugOverlay() {
           return;
         }
 
+        const wallElapsed =
+          (
+            performance.now() -
+            sprootoDebugWallStart
+          ) / 1000;
+
+        const audioElapsed =
+          context
+            ? context.currentTime -
+              sprootoDebugAudioStart
+            : 0;
+
+        const drift =
+          wallElapsed -
+          audioElapsed;
+
+        const heartbeatAgeMs =
+          sprootoDebugHeartbeatLastReceivedWall > 0
+            ? performance.now() -
+              sprootoDebugHeartbeatLastReceivedWall
+            : -1;
+
+        const hbGap =
+          sprootoDebugHeartbeatMaxGapMsWindow;
+
+        const baseLatency =
+          Number(
+            context?.baseLatency
+          );
+
+        const outputLatency =
+          Number(
+            context?.outputLatency
+          );
+
         panel.textContent =
           [
-            `t ${context?.currentTime?.toFixed?.(1) ?? "-"}  state ${context?.state ?? "none"}  pps ${sprootoDebugPlayCallsWindow}  active ${activeTrackVoices.size}`,
-            `nodes ${sprootoDebugNodesCreated}  live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)}  timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}  lag ${Math.round(sprootoDebugTimerMaxLateMsWindow)}`,
-            `src ${sprootoDebugLiveByType.source || 0}  osc ${sprootoDebugLiveByRole.osc || 0}  noi ${sprootoDebugLiveByRole.noise || 0}  lfo ${sprootoDebugLiveByRole.lfo || 0}`,
-            `gain ${sprootoDebugLiveByType.gain || 0}  mix ${sprootoDebugLiveByRole.mix || 0}  sg ${sprootoDebugLiveByRole.sineGain || 0}  ng ${sprootoDebugLiveByRole.noiseGain || 0}  wrk ${sprootoDebugLiveByType.worklet || 0}`,
-            `+/s ${sprootoDebugNodesCreatedWindow}  -/s ${sprootoDebugNodesReleasedWindow}  end o${sprootoDebugOscEndedWindow}/n${sprootoDebugNoiseEndedWindow}  clean ${sprootoDebugCleanups}`
+            `t ${audioElapsed.toFixed(1)}  wall ${wallElapsed.toFixed(1)}  drift ${drift >= 0 ? "+" : ""}${drift.toFixed(3)}  state ${context?.state ?? "none"}`,
+            `play ${sprootoDebugPlayCallsTotal}  pps ${sprootoDebugPlayCallsWindow}  auto ${sprootoDebugAutomationTotal}  a/s ${sprootoDebugAutomationWindow}`,
+            `mainlag ${Math.round(sprootoDebugMainLagMaxWindow)}  timerlag ${Math.round(sprootoDebugTimerMaxLateMsWindow)}  raf ${sprootoDebugRafFramesWindow}`,
+            `hb ${heartbeatAgeMs < 0 ? "-" : Math.round(heartbeatAgeMs)}ms  hbmax ${Math.round(hbGap)}  hbcnt ${sprootoDebugHeartbeatCount}`,
+            `base ${Number.isFinite(baseLatency) ? baseLatency.toFixed(4) : "-"}  out ${Number.isFinite(outputLatency) ? outputLatency.toFixed(4) : "-"}`,
+            `nodes ${sprootoDebugNodesCreated}  live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)}  timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}`,
+            `src ${sprootoDebugLiveByType.source || 0}  gain ${sprootoDebugLiveByType.gain || 0}  wrk ${sprootoDebugLiveByType.worklet || 0}  clean ${sprootoDebugCleanups}`
           ].join("\n");
 
         sprootoDebugPlayCallsWindow = 0;
         sprootoDebugNodesCreatedWindow = 0;
         sprootoDebugNodesReleasedWindow = 0;
+        sprootoDebugAutomationWindow = 0;
+        sprootoDebugMainLagMaxWindow = 0;
+        sprootoDebugRafFramesWindow = 0;
         sprootoDebugTimerMaxLateMsWindow = 0;
+        sprootoDebugHeartbeatMaxGapMsWindow = 0;
         sprootoDebugOscEndedWindow = 0;
         sprootoDebugNoiseEndedWindow = 0;
       },
@@ -262,66 +527,6 @@ const masterMixSettings = {
  */
 const activeTrackVoices =
   new Map();
-
-/*
- * Common voice mixGain pool
- *
- * playTrackStep()ごとに必ず生成されていたmixGainを
- * 再利用して、Sine/Noise共通のNode churnを減らす。
- *
- * Trackごとの前音chokeを壊さないため、
- * 使用中のGainはpoolへ戻るまで再利用しない。
- */
-const voiceMixGainPool = [];
-const voiceMixGainPoolInUse = new Set();
-const VOICE_MIX_GAIN_POOL_SIZE = 32;
-
-function acquireVoiceMixGain() {
-  for (const node of voiceMixGainPool) {
-    if (!voiceMixGainPoolInUse.has(node)) {
-      voiceMixGainPoolInUse.add(node);
-      return node;
-    }
-  }
-
-  if (voiceMixGainPool.length < VOICE_MIX_GAIN_POOL_SIZE) {
-    const node =
-      sprootoDebugNode(
-        context.createGain(),
-        "mix"
-      );
-
-    node.gain.value = 0.0001;
-
-    voiceMixGainPool.push(node);
-    voiceMixGainPoolInUse.add(node);
-
-    return node;
-  }
-
-  return null;
-}
-
-function releaseVoiceMixGain(node) {
-  if (!node) {
-    return;
-  }
-
-  try {
-    node.gain.cancelScheduledValues(
-      context.currentTime
-    );
-
-    node.gain.setValueAtTime(
-      0.0001,
-      context.currentTime
-    );
-
-    node.disconnect();
-  } catch {}
-
-  voiceMixGainPoolInUse.delete(node);
-}
 
 /*
  * Track Reverb
@@ -756,6 +961,8 @@ window.addEventListener(
     initializeFmVoiceWorklet()
   ]);
 
+  await sprootoDebugEnsureHeartbeat();
+
   if (offlineRenderMode) {
     return;
   }
@@ -771,6 +978,7 @@ window.addEventListener(
 
 export function setMasterVolume(value) {
   if (!master || !context) return;
+  sprootoDebugAutomation();
   master.gain.setTargetAtTime(clamp(Number(value), 0, 1), context.currentTime, 0.01);
 }
 
@@ -805,12 +1013,15 @@ function applyMasterMixSettings() {
   const now = context.currentTime;
 
   eqNodes.forEach((filter, index) => {
+    sprootoDebugAutomation();
     filter.gain.setTargetAtTime(
       masterMixSettings.eq[index] ?? 0,
       now,
       0.01
     );
   });
+
+  sprootoDebugAutomation();
 
   mixGain?.gain.setTargetAtTime(
     clamp(masterMixSettings.volume, 0, 100) / 100,
@@ -819,6 +1030,7 @@ function applyMasterMixSettings() {
   );
 
   if (limiter) {
+    sprootoDebugAutomation();
     limiter.threshold.setTargetAtTime(
       clamp(masterMixSettings.limiter, -24, 0),
       now,
@@ -829,11 +1041,15 @@ function applyMasterMixSettings() {
   const reverbAmount =
     clamp(masterMixSettings.reverb, 0, 100) / 100;
 
+  sprootoDebugAutomation();
+
   reverbDryGain?.gain.setTargetAtTime(
     1,
     now,
     0.01
   );
+
+  sprootoDebugAutomation();
 
   reverbWetGain?.gain.setTargetAtTime(
     reverbAmount,
@@ -1292,6 +1508,8 @@ function createSampleAndHoldLfo({
         1
       ) *
       safeDepth;
+
+    sprootoDebugAutomation();
 
     source.offset.setValueAtTime(
       randomValue,
@@ -2526,6 +2744,7 @@ const panLfoOscillators = [];
 const panLfoGainNodes = [];
 
   if (panner) {
+    sprootoDebugAutomation();
     panner.pan.setValueAtTime(
       panValue,
       now
@@ -2658,10 +2877,14 @@ if (lfoWave === "rise" || lfoWave === "fall") {
             ? lfoDepth / 100
             : -(lfoDepth / 100);
 
+    sprootoDebugAutomation();
+
     panner.pan.setValueAtTime(
         panValue + start,
         now
     );
+
+    sprootoDebugAutomation();
 
     panner.pan.linearRampToValueAtTime(
         panValue,
@@ -2710,6 +2933,7 @@ let lfoGainDirection = 1;
   }
 
   lfoOscillator.frequency
+  /* debug automation count */
   .setValueAtTime(
     rateHz,
     now
@@ -2720,6 +2944,7 @@ let lfoGainDirection = 1;
    * panを最大±1揺らす。
    */
   lfoGain.gain
+    /* debug automation count */
     .setValueAtTime(
       (
         lfoDepth /
@@ -2787,10 +3012,14 @@ connectPanLfo(2);
     filter1.type = filterType;
     filter2.type = filterType;
 
+    sprootoDebugAutomation();
+
     filter1.frequency.setValueAtTime(
       cutoffFrequency,
       now
     );
+
+    sprootoDebugAutomation();
 
     filter2.frequency.setValueAtTime(
       cutoffFrequency,
@@ -2809,6 +3038,8 @@ connectPanLfo(2);
         1.2
       ) * 30;
 
+    sprootoDebugAutomation();
+
     filter1.Q.setValueAtTime(
       resonanceQ,
       now
@@ -2819,6 +3050,7 @@ connectPanLfo(2);
      * 24dB構成でもResonanceの変化を
      * 聴き取りやすくする。
      */
+    sprootoDebugAutomation();
     filter2.Q.setValueAtTime(
       Math.max(
         0.0001,
@@ -2938,6 +3170,7 @@ connectPanLfo(2);
         time <= stopTime &&
         eventCount < 4096
       ) {
+        sprootoDebugAutomation();
         source.offset.setValueAtTime(
           (Math.random() * 2 - 1) *
             amountCents,
@@ -2964,12 +3197,16 @@ connectPanLfo(2);
       source.connect(filter1.detune);
       source.connect(filter2.detune);
 
+      sprootoDebugAutomation();
+
       source.offset.setValueAtTime(
         lfoWave === "fall"
           ? amountCents
           : -amountCents,
         now
       );
+
+      sprootoDebugAutomation();
 
       source.offset.linearRampToValueAtTime(
         0,
@@ -3130,11 +3367,14 @@ for (
 /*
  * 2段のFilterへ完全に同じカーブを予約。
  */
+sprootoDebugAutomation();
 filter1.detune.setValueCurveAtTime(
   curve,
   now,
   modulationDuration
 );
+
+sprootoDebugAutomation();
 
 filter2.detune.setValueCurveAtTime(
   curve,
@@ -3146,22 +3386,8 @@ filter2.detune.setValueCurveAtTime(
   connectFilterLfo(1);
   connectFilterLfo(2);
 
-const pooledMixGain =
-  !offlineRenderMode
-    ? acquireVoiceMixGain()
-    : null;
-
 const mixGain =
-  pooledMixGain ||
-  sprootoDebugNode(
-    context.createGain(),
-    "mix"
-  );
-
-const isPooledMixGain =
-  Boolean(
-    pooledMixGain
-  );
+  sprootoDebugNode(context.createGain(), "mix");
 
 /*
  * 同じTrackの前音を、
@@ -3187,13 +3413,17 @@ if (
       .cancelAndHoldAtTime ===
     "function"
   ) {
+    sprootoDebugAutomation();
     previousGain.cancelAndHoldAtTime(
       chokeStart
     );
   } else {
+    sprootoDebugAutomation();
     previousGain.cancelScheduledValues(
       chokeStart
     );
+
+    sprootoDebugAutomation();
 
     previousGain.setValueAtTime(
       0.001,
@@ -3201,25 +3431,18 @@ if (
     );
   }
 
+  sprootoDebugAutomation();
+
+  sprootoDebugAutomation(
+    2
+  );
+
   previousGain.exponentialRampToValueAtTime(
     0.0001,
     now
   );
 }
   
-if (isPooledMixGain) {
-  try {
-    mixGain.gain.cancelScheduledValues(
-      context.currentTime
-    );
-
-    mixGain.gain.setValueAtTime(
-      0.0001,
-      context.currentTime
-    );
-  } catch {}
-}
-
 const peakLevel =
   Math.max(
     0.0001,
@@ -3235,13 +3458,28 @@ const sustainLevel =
 const attackEnd =
   now + attack;
 
+sprootoDebugAutomation(
+  4
+);
+
 const decayEnd =
   attackEnd + decay;
+
+sprootoDebugAutomation();
 
 mixGain.gain.setValueAtTime(
   0.0001,
   now
 );
+
+sprootoDebugAutomation();
+
+mixGain.gain.setValueAtTime(
+  0.0001,
+  now
+);
+
+sprootoDebugAutomation();
 
 mixGain.gain.exponentialRampToValueAtTime(
   peakLevel,
@@ -3266,15 +3504,20 @@ if (gateEnd <= decayEnd) {
         )
     );
 
+  sprootoDebugAutomation();
+
   mixGain.gain.exponentialRampToValueAtTime(
     levelAtGate,
     gateEnd
   );
 } else {
+  sprootoDebugAutomation();
   mixGain.gain.exponentialRampToValueAtTime(
     sustainLevel,
     decayEnd
   );
+
+  sprootoDebugAutomation();
 
   mixGain.gain.setValueAtTime(
     sustainLevel,
@@ -3285,6 +3528,7 @@ if (gateEnd <= decayEnd) {
 /*
  * クリック防止用の短い終了フェード。
  */
+sprootoDebugAutomation();
 mixGain.gain.exponentialRampToValueAtTime(
   0.0001,
   releaseEnd
@@ -3387,6 +3631,8 @@ if (
   exportFadeGain =
     sprootoDebugNode(context.createGain());
 
+  sprootoDebugAutomation();
+
   exportFadeGain.gain.setValueAtTime(
     1,
     0
@@ -3419,12 +3665,14 @@ if (
       fadeInEnd > fadeInStart
     ) {
       exportFadeGain.gain
+        /* debug automation count */
         .setValueAtTime(
           0,
           fadeInStart
         );
 
       exportFadeGain.gain
+        /* debug automation count */
         .linearRampToValueAtTime(
           1,
           fadeInEnd
@@ -3437,12 +3685,14 @@ if (
       fadeOutEnd > fadeOutStart
     ) {
       exportFadeGain.gain
+        /* debug automation count */
         .setValueAtTime(
           1,
           fadeOutStart
         );
 
       exportFadeGain.gain
+        /* debug automation count */
         .linearRampToValueAtTime(
           0,
           fadeOutEnd
@@ -3498,15 +3748,21 @@ if (noTrackFx) {
     delayFeedbackGainForCleanup = feedbackGain;
     delayWetGainForCleanup = wetGain;
 
+    sprootoDebugAutomation();
+
     delayNode.delayTime.setValueAtTime(
       delayTime,
       now
     );
 
+    sprootoDebugAutomation();
+
     feedbackGain.gain.setValueAtTime(
       delayFeedback,
       now
     );
+
+    sprootoDebugAutomation();
 
     wetGain.gain.setValueAtTime(
       delayLevel,
@@ -3616,6 +3872,7 @@ if (noTrackFx) {
 
       crusherNode.parameters
         .get("bitDepth")
+        sprootoDebugAutomation();
         ?.setValueAtTime(
           crushBit,
           now
@@ -3623,15 +3880,20 @@ if (noTrackFx) {
 
       crusherNode.parameters
         .get("rateReduction")
+        sprootoDebugAutomation();
         ?.setValueAtTime(
           crushRate,
           now
         );
 
+      sprootoDebugAutomation();
+
       dryGain.gain.setValueAtTime(
         1 - crushLevel,
         now
       );
+
+      sprootoDebugAutomation();
 
       wetGain.gain.setValueAtTime(
         crushLevel,
@@ -3680,6 +3942,8 @@ if (noTrackFx) {
     if (reverbBus) {
       const sendGain =
         sprootoDebugNode(context.createGain());
+
+      sprootoDebugAutomation();
 
       sendGain.gain.setValueAtTime(
         reverbSend,
@@ -3759,10 +4023,20 @@ if (noTrackFx) {
       gateEnd
     );
 
+  sprootoDebugAutomation();
+
+  sprootoDebugAutomation(
+    sourceDecayEnd < gateEnd
+      ? 3
+      : 2
+  );
+
   gainNode.gain.setValueAtTime(
     safeLevel,
     now
   );
+
+  sprootoDebugAutomation();
 
   gainNode.gain.exponentialRampToValueAtTime(
     tailLevel,
@@ -3773,6 +4047,7 @@ if (noTrackFx) {
     sourceDecayEnd <
     gateEnd
   ) {
+    sprootoDebugAutomation();
     gainNode.gain.setValueAtTime(
       tailLevel,
       gateEnd
@@ -3847,6 +4122,7 @@ if (noTrackFx) {
       const sineStopAt = releaseEnd + 0.01 + voiceStartDelay;
 
       const sineGain = sprootoDebugNode(context.createGain(), "sineGain");
+      sprootoDebugAutomation();
       sineGain.gain.setValueAtTime(
         Math.max(0.0001, sineVolume * voiceGainScale),
         voiceStartTime
@@ -3872,6 +4148,8 @@ if (noTrackFx) {
           sprootoDebugNode(context.createOscillator(), "osc");
 
         oscillator.type = "sine";
+
+        sprootoDebugAutomation();
 
         oscillator.frequency.setValueAtTime(
           frequency(voiceNote),
@@ -3984,6 +4262,7 @@ if (noTrackFx) {
      * 今回の予約開始時刻nowより前に音が漏れないよう
      * 接続前にGainを0へ固定する。
      */
+    sprootoDebugAutomation();
     noiseGain.gain.setValueAtTime(
       0,
       context.currentTime
@@ -4182,6 +4461,7 @@ if (!offlineRenderMode) {
         delayNodeForCleanup,
         delayFeedbackGainForCleanup,
         delayWetGainForCleanup,
+        mixGain,
         filter1,
         filter2,
         panner,
@@ -4191,16 +4471,6 @@ if (!offlineRenderMode) {
       ].forEach(
         sprootoDebugReleaseNode
       );
-
-      if (isPooledMixGain) {
-        releaseVoiceMixGain(
-          mixGain
-        );
-      } else {
-        sprootoDebugReleaseNode(
-          mixGain
-        );
-      }
     },
     Math.max(
       100,
@@ -4258,9 +4528,6 @@ export async function beginOfflineAudioRender(
   };
 
   context = offlineContext;
-
-  voiceMixGainPool.length = 0;
-  voiceMixGainPoolInUse.clear();
 
   sharedNoiseBuffer = null;
   sharedNoiseBufferContext = null;
@@ -4365,9 +4632,6 @@ export async function beginOfflineAudioRender(
     });
 
     context = backup.context;
-
-    voiceMixGainPool.length = 0;
-    voiceMixGainPoolInUse.clear();
 
     sharedNoiseBuffer = null;
     sharedNoiseBufferContext = null;

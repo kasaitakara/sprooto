@@ -3752,15 +3752,31 @@ if (noTrackFx) {
           sineStopAt
         );
 
+        /*
+         * Native sine cleanup
+         *
+         * iPhone長時間再生でOscillatorNodeのended通知も
+         * Noiseと同様に途中から止まり、oscillator / sineGainが
+         * 滞留することを確認。
+         *
+         * stop時刻は既知なので、ended依存をやめて
+         * sineStopAt直後にsprooto側timerで明示releaseする。
+         */
         if (!offlineRenderMode) {
-          oscillator.addEventListener(
-            "ended",
+          sprootoDebugTimeout(
             () => {
               sprootoDebugOscEndedWindow += 1;
               sprootoDebugReleaseNode(oscillator);
               sprootoDebugReleaseNode(sineGain);
             },
-            { once: true }
+            Math.max(
+              20,
+              (
+                sineStopAt -
+                context.currentTime +
+                0.05
+              ) * 1000
+            )
           );
         }
       } else {
@@ -3865,9 +3881,6 @@ const noiseStartOffset =
      *
      * stop時刻はsprooto側で既知なので、リアルタイム再生では
      * AudioBufferSourceNodeのended通知にcleanupを依存しない。
-     *
-     * stop()はWeb Audioのaudio clockで予約したまま、
-     * noiseStopAt直後にsprooto側timerでgraphを明示releaseする。
      */
     if (!offlineRenderMode) {
       sprootoDebugTimeout(

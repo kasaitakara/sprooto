@@ -2985,86 +2985,101 @@ mixGain
 /*
  * EXPORT専用Fade。
  *
- * 通常再生時は常にgain=1。
- * Offline Export時だけ、
- * FXへ入る前の信号へFadeを掛ける。
+ * 通常再生ではオフライン化前と同じ
+ * panner → fxInput の直結経路を使う。
  *
- * これによりDelay / Reverbには
- * Fade済みの音が入力され、
- * TAILだけは自然に残る。
+ * Offline Export時、またはfadeEnvelopeが
+ * 明示された場合だけFade用GainNodeを生成する。
+ * これにより通常再生の発音ごとのAudioNode生成数を
+ * オフライン化前と同じ水準へ戻す。
  */
-const exportFadeGain =
-  context.createGain();
-
-exportFadeGain.gain.setValueAtTime(
-  1,
-  0
-);
+let exportFadeGain = null;
+let fxSourceNode = panner;
 
 const fadeEnvelope =
   options.fadeEnvelope;
 
-if (fadeEnvelope) {
-  const fadeInStart =
-    Number(
-      fadeEnvelope.fadeInStart
-    );
+if (
+  offlineRenderMode ||
+  fadeEnvelope
+) {
+  exportFadeGain =
+    context.createGain();
 
-  const fadeInEnd =
-    Number(
-      fadeEnvelope.fadeInEnd
-    );
+  exportFadeGain.gain.setValueAtTime(
+    1,
+    0
+  );
 
-  const fadeOutStart =
-    Number(
-      fadeEnvelope.fadeOutStart
-    );
-
-  const fadeOutEnd =
-    Number(
-      fadeEnvelope.fadeOutEnd
-    );
-
-  if (
-    Number.isFinite(fadeInStart) &&
-    Number.isFinite(fadeInEnd) &&
-    fadeInEnd > fadeInStart
-  ) {
-    exportFadeGain.gain
-      .setValueAtTime(
-        0,
-        fadeInStart
+  if (fadeEnvelope) {
+    const fadeInStart =
+      Number(
+        fadeEnvelope.fadeInStart
       );
 
-    exportFadeGain.gain
-      .linearRampToValueAtTime(
-        1,
-        fadeInEnd
+    const fadeInEnd =
+      Number(
+        fadeEnvelope.fadeInEnd
       );
+
+    const fadeOutStart =
+      Number(
+        fadeEnvelope.fadeOutStart
+      );
+
+    const fadeOutEnd =
+      Number(
+        fadeEnvelope.fadeOutEnd
+      );
+
+    if (
+      Number.isFinite(fadeInStart) &&
+      Number.isFinite(fadeInEnd) &&
+      fadeInEnd > fadeInStart
+    ) {
+      exportFadeGain.gain
+        .setValueAtTime(
+          0,
+          fadeInStart
+        );
+
+      exportFadeGain.gain
+        .linearRampToValueAtTime(
+          1,
+          fadeInEnd
+        );
+    }
+
+    if (
+      Number.isFinite(fadeOutStart) &&
+      Number.isFinite(fadeOutEnd) &&
+      fadeOutEnd > fadeOutStart
+    ) {
+      exportFadeGain.gain
+        .setValueAtTime(
+          1,
+          fadeOutStart
+        );
+
+      exportFadeGain.gain
+        .linearRampToValueAtTime(
+          0,
+          fadeOutEnd
+        );
+    }
   }
 
-  if (
-    Number.isFinite(fadeOutStart) &&
-    Number.isFinite(fadeOutEnd) &&
-    fadeOutEnd > fadeOutStart
-  ) {
-    exportFadeGain.gain
-      .setValueAtTime(
-        1,
-        fadeOutStart
-      );
+  panner.connect(
+    exportFadeGain
+  );
 
-    exportFadeGain.gain
-      .linearRampToValueAtTime(
-        0,
-        fadeOutEnd
-      );
-  }
+  fxSourceNode =
+    exportFadeGain;
 }
 
-panner
-  .connect(exportFadeGain)
-  .connect(fxInput);
+fxSourceNode.connect(
+  fxInput
+);
 
   /*
    * 共通Audio graphをいつ解放できるか判断するため、
@@ -3107,9 +3122,9 @@ panner
       now
     );
 
-    exportFadeGain.connect(
-  delayNode
-);
+    fxSourceNode.connect(
+      delayNode
+    );
 
     delayNode
       .connect(wetGain)
@@ -3153,7 +3168,7 @@ panner
       window.setTimeout(
         () => {
           try {
-            exportFadeGain.disconnect(
+            fxSourceNode.disconnect(
               delayNode
             );
 
@@ -3672,6 +3687,10 @@ if (!offlineRenderMode) {
         fxOutput
       ].forEach(
         node => {
+          if (!node) {
+            return;
+          }
+
           try {
             node.disconnect();
           } catch {}

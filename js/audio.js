@@ -18,17 +18,6 @@ let bitCrusherWorkletReady = null;
 let fmVoiceWorkletReady = null;
 let audioClockReady = false;
 let audioClockReadyPromise = null;
-let offlineRenderMode = false;
-
-/*
- * White Noise buffer cache
- *
- * Noise発音ごとに巨大なAudioBufferを作り直さず、
- * AudioContextごとに1つの共有Bufferを使い回す。
- */
-let sharedNoiseBuffer = null;
-let sharedNoiseBufferContext = null;
-const SHARED_NOISE_SECONDS = 4;
 
 const EQ_FREQUENCIES = [
   60, 120, 250, 500,
@@ -498,10 +487,6 @@ window.addEventListener(
     initializeFmVoiceWorklet()
   ]);
 
-  if (offlineRenderMode) {
-    return;
-  }
-
   if (context.state === "suspended") {
     audioClockReady = false;
     audioClockReadyPromise = null;
@@ -524,17 +509,11 @@ function createMasterReverbImpulse() {
 
   for (let channel = 0; channel < 2; channel++) {
     const data = buffer.getChannelData(channel);
-    let seed = (0x5f3759df + channel * 104729) >>> 0;
-
-    const nextRandom = () => {
-      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-      return (seed / 0xffffffff) * 2 - 1;
-    };
 
     for (let index = 0; index < length; index++) {
       const progress = index / length;
       const envelope = Math.pow(1 - progress, 2.6);
-      data[index] = nextRandom() * envelope;
+      data[index] = (Math.random() * 2 - 1) * envelope;
     }
   }
 
@@ -885,52 +864,11 @@ function oneShotPitchDepthToCents(value) {
   );
 }
 
-function getSharedNoiseBuffer() {
-  /*
-   * Offline exportではcontext自体が差し替わるため、
-   * 現在のAudioContext専用Bufferだけを再利用する。
-   */
-  if (
-    sharedNoiseBuffer &&
-    sharedNoiseBufferContext === context
-  ) {
-    return sharedNoiseBuffer;
-  }
-
-  const size =
-    Math.max(
-      1,
-      Math.ceil(
-        context.sampleRate *
-          SHARED_NOISE_SECONDS
-      )
-    );
-
-  const buffer =
-    context.createBuffer(
-      1,
-      size,
-      context.sampleRate
-    );
-
-  const data =
-    buffer.getChannelData(0);
-
-  for (
-    let index = 0;
-    index < size;
-    index++
-  ) {
-    data[index] =
-      Math.random() * 2 - 1;
-  }
-
-  sharedNoiseBuffer =
-    buffer;
-
-  sharedNoiseBufferContext =
-    context;
-
+function makeNoiseBuffer(duration) {
+  const size = Math.max(1, Math.ceil(context.sampleRate * duration));
+  const buffer = context.createBuffer(1, size, context.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
   return buffer;
 }
 
@@ -1015,7 +953,6 @@ function createSampleAndHoldLfo({
 function trackReverbBucketIndex(
   sizeValue
 ) {
-  /* UI / 保存値は1〜8。内部bucketは0〜7。 */
   return clamp(
     Math.round(Number(sizeValue) || 5) - 1,
     0,
@@ -1341,19 +1278,12 @@ function ensureTrackReverbBus(
     return null;
   }
 
+  initializeTrackReverbImpulses();
+
   const bucketIndex =
     trackReverbBucketIndex(
       sizeValue
     );
-
-  /*
-   * Offline exportでは使用bucketだけIRを生成する。
-   * 通常再生時の事前生成仕様はinitializeTrackReverbBuses()で維持。
-   */
-  if (!trackReverbImpulseCache[bucketIndex]) {
-    trackReverbImpulseCache[bucketIndex] =
-      createTrackReverbImpulse(bucketIndex);
-  }
 
   let bus =
     trackReverbBuses.get(
@@ -1445,17 +1375,27 @@ function initializeTrackReverbBuses() {
     return;
   }
 
-  /*
-   * IR Bufferだけは事前生成しておく。
-   *
-   * Convolver Bus本体はSENDが実際に使われたbucketだけ
-   * ensureTrackReverbBus()で遅延生成する。
-   *
-   * 以前はSIZE 1〜8のConvolverを全て常駐させていたため、
-   * SEND 0でも最大8本のConvolver graphがAudioContext上に
-   * 接続されたままになっていた。
-   */
   initializeTrackReverbImpulses();
+
+  for (
+    let index = 0;
+    index <
+      TRACK_REVERB_BUCKET_COUNT;
+    index++
+  ) {
+    const sizeValue =
+      TRACK_REVERB_BUCKET_COUNT > 1
+        ? index /
+          (
+            TRACK_REVERB_BUCKET_COUNT -
+            1
+          )
+        : 0;
+
+    ensureTrackReverbBus(
+      sizeValue
+    );
+  }
 }
 
 export async function playTrackStep(
@@ -1495,7 +1435,7 @@ const requestedStartTime =
 
 const minimumStartTime =
   context.currentTime +
-  (offlineRenderMode ? 0 : 0.03);
+  0.03;
 
 const now =
   Math.max(
@@ -1504,7 +1444,6 @@ const now =
   );
 
   const bpm =
-    Number(options.bpm) ||
     Number(
       document.getElementById("bpm-input")?.value
     ) || 120;
@@ -1589,28 +1528,28 @@ const now =
   );
 
   const strumValue = clamp(
-  Math.round(
-    (soundTrack.base.strum ?? 0) +
-    offset("strum")
-  ),
-  -8,
-  8
-);
+    Math.round(
+      (soundTrack.base.strum ?? 0) +
+      offset("strum")
+    ),
+    -8,
+    8
+  );
 
   const stepSeconds =
     (60 / Math.max(1, bpm)) / 4;
 
   const glideStepRatios = [
-  0,
-  0.125,
-  0.25,
-  0.5,
-  1,
-  2,
-  4,
-  6,
-  8
-];
+    0,
+    0.125,
+    0.25,
+    0.5,
+    1,
+    2,
+    4,
+    6,
+    8
+  ];
 
   const glideDuration =
     glideValue > 0
@@ -1886,29 +1825,24 @@ const now =
   }
 
   const attackValue =
-  envelopeLfoValue(
-    "attack",
-    (soundTrack.base.attack ?? 1) +
-      offset("attack"),
-    1,
-    100
-  );
-
-const attackNormalized =
-  (attackValue - 1) / 99;
-
-/*
- * 1〜100を約1ms〜1秒へ非線形変換。
- * 低い値ほど細かく、
- * 高い値ほど長いAttackへ広げる。
- */
-const attack =
-  0.001 +
-  0.999 *
-    Math.pow(
-      attackNormalized,
-      2.4
+    envelopeLfoValue(
+      "attack",
+      (soundTrack.base.attack ?? 1) +
+        offset("attack"),
+      1,
+      100
     );
+
+  const attackNormalized =
+    (attackValue - 1) / 99;
+
+  const attack =
+    0.001 +
+    0.999 *
+      Math.pow(
+        attackNormalized,
+        2.4
+      );
 
   const decayValue =
     envelopeLfoValue(
@@ -2029,12 +1963,12 @@ const gate =
     );
 
   const panValue =
-  clamp(
-    soundTrack.base.pan +
-      offset("pan"),
-    -25,
-    25
-  ) / 25;
+    clamp(
+      soundTrack.base.pan +
+        offset("pan"),
+      -25,
+      25
+    ) / 25;
 
   /*
  * FX一括ミュート中は、
@@ -2607,7 +2541,6 @@ connectPanLfo(2);
       }
 
       source.start(now);
-      source.stop(stopTime);
       filterLfoNodes.push(source);
       return;
     }
@@ -2980,115 +2913,9 @@ mixGain
    * まずPan後の信号をFXバスへまとめる。
    */
   const fxInput =
-  context.createGain();
-
-/*
- * EXPORT専用Fade。
- *
- * 通常再生ではオフライン化前と同じ
- * panner → fxInput の直結経路を使う。
- *
- * Offline Export時、またはfadeEnvelopeが
- * 明示された場合だけFade用GainNodeを生成する。
- * これにより通常再生の発音ごとのAudioNode生成数を
- * オフライン化前と同じ水準へ戻す。
- */
-let exportFadeGain = null;
-let fxSourceNode = panner;
-
-const fadeEnvelope =
-  options.fadeEnvelope;
-
-if (
-  offlineRenderMode ||
-  fadeEnvelope
-) {
-  exportFadeGain =
     context.createGain();
 
-  exportFadeGain.gain.setValueAtTime(
-    1,
-    0
-  );
-
-  if (fadeEnvelope) {
-    const fadeInStart =
-      Number(
-        fadeEnvelope.fadeInStart
-      );
-
-    const fadeInEnd =
-      Number(
-        fadeEnvelope.fadeInEnd
-      );
-
-    const fadeOutStart =
-      Number(
-        fadeEnvelope.fadeOutStart
-      );
-
-    const fadeOutEnd =
-      Number(
-        fadeEnvelope.fadeOutEnd
-      );
-
-    if (
-      Number.isFinite(fadeInStart) &&
-      Number.isFinite(fadeInEnd) &&
-      fadeInEnd > fadeInStart
-    ) {
-      exportFadeGain.gain
-        .setValueAtTime(
-          0,
-          fadeInStart
-        );
-
-      exportFadeGain.gain
-        .linearRampToValueAtTime(
-          1,
-          fadeInEnd
-        );
-    }
-
-    if (
-      Number.isFinite(fadeOutStart) &&
-      Number.isFinite(fadeOutEnd) &&
-      fadeOutEnd > fadeOutStart
-    ) {
-      exportFadeGain.gain
-        .setValueAtTime(
-          1,
-          fadeOutStart
-        );
-
-      exportFadeGain.gain
-        .linearRampToValueAtTime(
-          0,
-          fadeOutEnd
-        );
-    }
-  }
-
-  panner.connect(
-    exportFadeGain
-  );
-
-  fxSourceNode =
-    exportFadeGain;
-}
-
-fxSourceNode.connect(
-  fxInput
-);
-
-  /*
-   * 共通Audio graphをいつ解放できるか判断するため、
-   * Delay tailの終了予定時刻を保持する。
-   *
-   * DelayなしならreleaseEndで解放できる。
-   */
-  let delayGraphCleanupAt =
-    releaseEnd;
+  panner.connect(fxInput);
 
   /*
    * クリーンなDelay。
@@ -3122,7 +2949,7 @@ fxSourceNode.connect(
       now
     );
 
-    fxSourceNode.connect(
+    panner.connect(
       delayNode
     );
 
@@ -3158,36 +2985,27 @@ fxSourceNode.connect(
           (repeatCount + 2)
       );
 
-    delayGraphCleanupAt =
+    window.setTimeout(
+      () => {
+        try {
+          panner.disconnect(
+            delayNode
+          );
+
+          delayNode.disconnect();
+          feedbackGain.disconnect();
+          wetGain.disconnect();
+        } catch {
+          /*
+           * すでに切断済みなら何もしない。
+           */
+        }
+      },
       Math.max(
-        delayGraphCleanupAt,
-        now + cleanupSeconds
-      );
-
-    if (!offlineRenderMode) {
-      window.setTimeout(
-        () => {
-          try {
-            fxSourceNode.disconnect(
-              delayNode
-            );
-
-            delayNode.disconnect();
-            feedbackGain.disconnect();
-            wetGain.disconnect();
-          } catch {}
-        },
-        Math.max(
-          100,
-          (
-            delayGraphCleanupAt -
-            context.currentTime +
-            0.05
-          ) *
-            1000
-        )
-      );
-    }
+        100,
+        cleanupSeconds * 1000
+      )
+    );
   }
 
   /*
@@ -3196,14 +3014,6 @@ fxSourceNode.connect(
    */
   const fxOutput =
     context.createGain();
-
-  /*
-   * FX2ノードは発音終了後にまとめて解放するため、
-   * block外から参照できるよう保持する。
-   */
-  let crusherNodeForCleanup = null;
-  let crusherDryGainForCleanup = null;
-  let crusherWetGainForCleanup = null;
 
   /*
    * FX2：Bit Crusher
@@ -3221,12 +3031,6 @@ fxSourceNode.connect(
 
     let crusherNode = null;
 
-    crusherDryGainForCleanup =
-      dryGain;
-
-    crusherWetGainForCleanup =
-      wetGain;
-
     try {
       crusherNode =
         new AudioWorkletNode(
@@ -3238,9 +3042,6 @@ fxSourceNode.connect(
             outputChannelCount: [2]
           }
         );
-
-      crusherNodeForCleanup =
-        crusherNode;
 
       crusherNode.parameters
         .get("bitDepth")
@@ -3335,17 +3136,22 @@ fxSourceNode.connect(
             1000
         );
 
-      if (!offlineRenderMode) {
-        window.setTimeout(
-          () => {
-            try {
-              fxOutput.disconnect(sendGain);
-              sendGain.disconnect();
-            } catch {}
-          },
-          disconnectDelayMs
-        );
-      }
+      window.setTimeout(
+        () => {
+          try {
+            fxOutput.disconnect(
+              sendGain
+            );
+
+            sendGain.disconnect();
+          } catch {
+            /*
+             * すでに切断済みなら何もしない。
+             */
+          }
+        },
+        disconnectDelayMs
+      );
     }
   }
 
@@ -3499,14 +3305,12 @@ fxSourceNode.connect(
 
       fmVoice.connect(sineGain).connect(mixGain);
 
-      if (!offlineRenderMode) {
-        window.setTimeout(() => {
-          try {
-            fmVoice.disconnect();
-            sineGain.disconnect();
-          } catch {}
-        }, Math.max(50, (sineStopAt - context.currentTime + 0.05) * 1000));
-      }
+      window.setTimeout(() => {
+        try {
+          fmVoice.disconnect();
+          sineGain.disconnect();
+        } catch {}
+      }, Math.max(50, (sineStopAt - context.currentTime + 0.05) * 1000));
     }
   }
 
@@ -3521,21 +3325,8 @@ fxSourceNode.connect(
   releaseEnd + 0.01;
 
 noise.buffer =
-  getSharedNoiseBuffer();
-
-/*
- * 同じBufferを共有しても各発音が同じ位相から始まらないよう、
- * 開始位置をランダム化する。
- *
- * GateがBuffer長を超える場合も自然に継続できるようloopする。
- */
-noise.loop = true;
-
-const noiseStartOffset =
-  Math.random() *
-  Math.max(
-    0.001,
-    noise.buffer.duration
+  makeNoiseBuffer(
+    gate + 0.05
   );
 
     scheduleSourceEnvelope(
@@ -3548,34 +3339,8 @@ const noiseStartOffset =
       .connect(noiseGain)
       .connect(mixGain);
 
-    /*
-     * BufferSourceはstopだけでなく、
-     * 終了時に接続も明示的に切る。
-     *
-     * SUB等で短時間に大量発音しても、
-     * 終了済みNoise graphを残さない。
-     */
-    if (!offlineRenderMode) {
-      noise.addEventListener(
-        "ended",
-        () => {
-          try {
-            noise.disconnect();
-            noiseGain.disconnect();
-          } catch {}
-        },
-        { once: true }
-      );
-    }
-
-    noise.start(
-      now,
-      noiseStartOffset
-    );
-
-    noise.stop(
-      noiseStopAt
-    );
+    noise.start(now);
+    noise.stop(noiseStopAt);
   }
 
   /*
@@ -3599,114 +3364,28 @@ const registeredVoice =
     track.id
   );
 
-if (!offlineRenderMode) {
-  window.setTimeout(
-    () => {
-      if (activeTrackVoices.get(track.id) === registeredVoice) {
-        activeTrackVoices.delete(track.id);
-      }
-    },
-    Math.max(
-      10,
-      (releaseEnd - context.currentTime + 0.05) * 1000
-    )
-  );
-
-  /*
-   * =========================
-   * Per-voice AudioNode cleanup
-   * =========================
-   *
-   * Source本体が終了しても、接続されたAudioNode graphを
-   * 明示的に切らないまま高密度発音を続けると、
-   * iPhone等でGC / Web Audio資源回収が追いつかない場合がある。
-   *
-   * Delay使用時はtailがfxInput -> fxOutputを通るため、
-   * releaseEndでは切らず、Delay cleanup予定時刻まで待つ。
-   * Track ReverbはSend入力を別timerで切っており、
-   * Convolver Bus自体は共有なのでtailを壊さない。
-   */
-  const graphCleanupAt =
-    Math.max(
-      releaseEnd + 0.15,
-      delayGraphCleanupAt + 0.10
-    );
-
-  window.setTimeout(
-    () => {
-      /*
-       * LFO sourceは停止後も接続が残るため切断する。
-       */
-      panLfoOscillators.forEach(
-        node => {
-          try {
-            node.disconnect();
-          } catch {}
-        }
+window.setTimeout(
+  () => {
+    if (
+      activeTrackVoices.get(
+        track.id
+      ) === registeredVoice
+    ) {
+      activeTrackVoices.delete(
+        track.id
       );
-
-      filterLfoNodes.forEach(
-        node => {
-          try {
-            node.disconnect();
-          } catch {}
-        }
-      );
-
-      /*
-       * CrusherはAudioWorkletNodeなので、
-       * 発音単位で必ずgraphから外す。
-       */
-      [
-        crusherNodeForCleanup,
-        crusherDryGainForCleanup,
-        crusherWetGainForCleanup
-      ].forEach(
-        node => {
-          if (!node) {
-            return;
-          }
-
-          try {
-            node.disconnect();
-          } catch {}
-        }
-      );
-
-      /*
-       * 発音ごとに生成する共通Dry / FX経路。
-       * Delay tail終了後なので、ここで切っても音は変わらない。
-       */
-      [
-        mixGain,
-        filter1,
-        filter2,
-        panner,
-        exportFadeGain,
-        fxInput,
-        fxOutput
-      ].forEach(
-        node => {
-          if (!node) {
-            return;
-          }
-
-          try {
-            node.disconnect();
-          } catch {}
-        }
-      );
-    },
-    Math.max(
-      100,
-      (
-        graphCleanupAt -
-        context.currentTime
-      ) *
-        1000
-    )
-  );
-}
+    }
+  },
+  Math.max(
+    10,
+    (
+      releaseEnd -
+      context.currentTime +
+      0.05
+    ) *
+      1000
+  )
+);
 
 }
 
@@ -3714,169 +3393,10 @@ export function resumeAudio() {
   resumeAudioContext();
 }
 
-/* =========================
- * Offline export support
- * ========================= */
-export async function beginOfflineAudioRender(
-  offlineContext,
-  {
-    masterMix = {},
-    masterVolume = 70
-  } = {}
-) {
-  if (!offlineContext) {
-    throw new Error("offline audio context is required");
-  }
-
-  const backup = {
-    context,
-    master,
-    mixInput,
-    mixGain,
-    limiter,
-    reverbConvolver,
-    reverbDryGain,
-    reverbWetGain,
-    spectrumAnalyser,
-    outputAnalyser,
-    eqNodes,
-    spectrumData,
-    outputTimeData,
-    bitCrusherWorkletReady,
-    fmVoiceWorkletReady,
-    audioClockReady,
-    audioClockReadyPromise,
-    offlineRenderMode,
-    trackReverbImpulseCache: trackReverbImpulseCache.slice(),
-    trackReverbBuses: [...trackReverbBuses.entries()],
-    activeTrackVoices: [...activeTrackVoices.entries()]
-  };
-
-  context = offlineContext;
-
-  sharedNoiseBuffer = null;
-  sharedNoiseBufferContext = null;
-
-  offlineRenderMode = true;
-  audioClockReady = true;
-  audioClockReadyPromise = null;
-  bitCrusherWorkletReady = null;
-  fmVoiceWorkletReady = null;
-  spectrumData = null;
-  outputTimeData = null;
-  spectrumAnalyser = null;
-  outputAnalyser = null;
-
-  trackReverbImpulseCache.length = 0;
-  trackReverbBuses.clear();
-  activeTrackVoices.clear();
-
-  master = context.createGain();
-  master.gain.value = clamp(Number(masterVolume) || 0, 0, 100) / 100;
-
-  mixInput = context.createGain();
-
-  const eqValues = Array.isArray(masterMix.eq)
-    ? masterMix.eq
-    : Array(8).fill(0);
-
-  eqNodes = EQ_FREQUENCIES.map((frequency, index) => {
-    const filter = context.createBiquadFilter();
-    filter.type = index === 0
-      ? "lowshelf"
-      : index === EQ_FREQUENCIES.length - 1
-        ? "highshelf"
-        : "peaking";
-    filter.frequency.value = frequency;
-    filter.Q.value = 1;
-    filter.gain.value = clamp(Number(eqValues[index]) || 0, -12, 12);
-    return filter;
-  });
-
-  reverbConvolver = context.createConvolver();
-  reverbConvolver.buffer = createMasterReverbImpulse();
-
-  reverbDryGain = context.createGain();
-  reverbWetGain = context.createGain();
-
-  mixGain = context.createGain();
-  mixGain.gain.value = clamp(Number(masterMix.volume ?? 100) || 0, 0, 100) / 100;
-
-  limiter = context.createDynamicsCompressor();
-  limiter.knee.value = 0;
-  limiter.ratio.value = 20;
-  limiter.attack.value = 0.003;
-  limiter.release.value = 0.1;
-  limiter.threshold.value = clamp(Number(masterMix.limiter ?? -1) || 0, -24, 0);
-
-  let previousNode = mixInput;
-  eqNodes.forEach(filter => {
-    previousNode.connect(filter);
-    previousNode = filter;
-  });
-
-  previousNode.connect(reverbDryGain);
-  reverbDryGain.connect(mixGain);
-
-  previousNode.connect(reverbConvolver);
-  reverbConvolver.connect(reverbWetGain);
-  reverbWetGain.connect(mixGain);
-
-  reverbDryGain.gain.value = 1;
-  reverbWetGain.gain.value = clamp(Number(masterMix.reverb ?? 0) || 0, 0, 100) / 100;
-
-  mixGain.connect(limiter);
-  limiter.connect(master);
-  master.connect(context.destination);
-
-  /* Track Reverbは実際に使用されたSIZEだけ遅延生成する。 */
-
-
-  await Promise.all([
-    initializeBitCrusherWorklet(),
-    initializeFmVoiceWorklet()
-  ]);
-
-  let restored = false;
-
-  return function restoreOfflineAudioRender() {
-    if (restored) return;
-    restored = true;
-
-    trackReverbImpulseCache.length = 0;
-    trackReverbImpulseCache.push(...backup.trackReverbImpulseCache);
-
-    trackReverbBuses.clear();
-    backup.trackReverbBuses.forEach(([key, value]) => {
-      trackReverbBuses.set(key, value);
-    });
-
-    activeTrackVoices.clear();
-    backup.activeTrackVoices.forEach(([key, value]) => {
-      activeTrackVoices.set(key, value);
-    });
-
-    context = backup.context;
-
-    sharedNoiseBuffer = null;
-    sharedNoiseBufferContext = null;
-
-    master = backup.master;
-    mixInput = backup.mixInput;
-    mixGain = backup.mixGain;
-    limiter = backup.limiter;
-    reverbConvolver = backup.reverbConvolver;
-    reverbDryGain = backup.reverbDryGain;
-    reverbWetGain = backup.reverbWetGain;
-    spectrumAnalyser = backup.spectrumAnalyser;
-    outputAnalyser = backup.outputAnalyser;
-    eqNodes = backup.eqNodes;
-    spectrumData = backup.spectrumData;
-    outputTimeData = backup.outputTimeData;
-    bitCrusherWorkletReady = backup.bitCrusherWorkletReady;
-    fmVoiceWorkletReady = backup.fmVoiceWorkletReady;
-    audioClockReady = backup.audioClockReady;
-    audioClockReadyPromise = backup.audioClockReadyPromise;
-    offlineRenderMode = backup.offlineRenderMode;
-  };
+/*
+ * Compatibility stub for the current export module.
+ * This A/B build is for normal-playback testing only.
+ */
+export async function beginOfflineAudioRender() {
+  throw new Error("offline export is disabled in pre-offline audio A/B test");
 }

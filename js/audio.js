@@ -35,22 +35,21 @@ let sprootoDebugTimerMaxLateMsWindow = 0;
 let sprootoDebugOscEndedWindow = 0;
 let sprootoDebugNoiseEndedWindow = 0;
 
-let sprootoDebugAutomationTotal = 0;
-let sprootoDebugAutomationWindow = 0;
-let sprootoDebugMainLagMaxWindow = 0;
-let sprootoDebugRafFramesWindow = 0;
-let sprootoDebugRafLastTime = 0;
-let sprootoDebugRafRunning = false;
-
 let sprootoDebugWallStart = 0;
 let sprootoDebugAudioStart = 0;
+let sprootoDebugRafLast = 0;
+let sprootoDebugMainLagMaxWindow = 0;
+let sprootoDebugRafFramesWindow = 0;
+let sprootoDebugRafStarted = false;
 
-let sprootoDebugHeartbeatLastReceivedWall = 0;
-let sprootoDebugHeartbeatLastAudioTime = 0;
-let sprootoDebugHeartbeatMaxGapMsWindow = 0;
-let sprootoDebugHeartbeatCount = 0;
 let sprootoDebugHeartbeatNode = null;
 let sprootoDebugHeartbeatReady = null;
+let sprootoDebugHeartbeatLastWall = 0;
+let sprootoDebugHeartbeatMaxGapWindow = 0;
+let sprootoDebugHeartbeatCount = 0;
+
+let sprootoDebugAutomationTotal = 0;
+let sprootoDebugAutomationWindow = 0;
 
 const sprootoDebugReleasedNodes = new WeakSet();
 const sprootoDebugNodeTypes = new WeakMap();
@@ -113,202 +112,150 @@ function sprootoDebugReleaseNode(node) {
   } catch {}
 }
 
-function sprootoDebugAutomation(count = 1) {
-  const safeCount =
-    Math.max(
-      0,
-      Math.floor(
-        Number(count) || 0
-      )
-    );
-
-  sprootoDebugAutomationTotal +=
-    safeCount;
-
-  sprootoDebugAutomationWindow +=
-    safeCount;
-}
 
 function sprootoDebugStartRafMonitor() {
   if (
-    sprootoDebugRafRunning ||
-    typeof requestAnimationFrame !== "function"
+    sprootoDebugRafStarted ||
+    typeof window === "undefined" ||
+    typeof window.requestAnimationFrame !== "function"
   ) {
     return;
   }
 
-  sprootoDebugRafRunning = true;
+  sprootoDebugRafStarted = true;
 
-  const tick = now => {
-    if (sprootoDebugRafLastTime > 0) {
-      const gap =
-        now -
-        sprootoDebugRafLastTime;
+  const tick = timestamp => {
+    if (sprootoDebugRafLast > 0) {
+      const gap = timestamp - sprootoDebugRafLast;
 
-      /*
-       * 60Hz想定の16.7msを超えた分だけ
-       * main/UI側の遅延として観測。
-       */
       sprootoDebugMainLagMaxWindow =
         Math.max(
           sprootoDebugMainLagMaxWindow,
-          Math.max(
-            0,
-            gap - 16.7
-          )
+          Math.max(0, gap - 16.7)
         );
     }
 
-    sprootoDebugRafLastTime =
-      now;
+    sprootoDebugRafLast = timestamp;
+    sprootoDebugRafFramesWindow += 1;
 
-    sprootoDebugRafFramesWindow +=
-      1;
-
-    requestAnimationFrame(
-      tick
-    );
+    window.requestAnimationFrame(tick);
   };
 
-  requestAnimationFrame(
-    tick
-  );
+  window.requestAnimationFrame(tick);
 }
 
-async function sprootoDebugEnsureHeartbeat() {
+function sprootoDebugCountAutomation(count = 1) {
+  const safe = Math.max(0, Math.floor(Number(count) || 0));
+  sprootoDebugAutomationTotal += safe;
+  sprootoDebugAutomationWindow += safe;
+}
+
+async function sprootoDebugStartHeartbeat() {
   if (
     offlineRenderMode ||
-    !context?.audioWorklet
+    !context?.audioWorklet ||
+    sprootoDebugHeartbeatNode
   ) {
     return;
   }
 
-  if (sprootoDebugHeartbeatNode) {
-    return;
-  }
+  try {
+    if (!sprootoDebugHeartbeatReady) {
+      const processorSource = `
+        class SprootoDebugHeartbeatProcessor extends AudioWorkletProcessor {
+          constructor() {
+            super();
+            this.frames = 0;
+          }
 
-  if (!sprootoDebugHeartbeatReady) {
-    const processorSource = `
-      class SprootoDebugHeartbeatProcessor extends AudioWorkletProcessor {
-        constructor() {
-          super();
-          this.frameAccumulator = 0;
+          process(inputs, outputs) {
+            const channel = outputs[0]?.[0];
+            if (channel) {
+              channel.fill(0);
+            }
+
+            this.frames += 128;
+
+            if (this.frames >= sampleRate) {
+              this.frames = 0;
+              this.port.postMessage({ t: currentTime });
+            }
+
+            return true;
+          }
         }
 
-        process(inputs, outputs) {
-          const output = outputs[0];
-          const channel = output?.[0];
-
-          if (channel) {
-            channel.fill(0);
-          }
-
-          this.frameAccumulator += 128;
-
-          if (
-            this.frameAccumulator >=
-            sampleRate
-          ) {
-            this.frameAccumulator = 0;
-
-            this.port.postMessage({
-              t: currentTime
-            });
-          }
-
-          return true;
-        }
-      }
-
-      registerProcessor(
-        "sprooto-debug-heartbeat",
-        SprootoDebugHeartbeatProcessor
-      );
-    `;
-
-    const blob =
-      new Blob(
-        [processorSource],
-        { type: "application/javascript" }
-      );
-
-    const url =
-      URL.createObjectURL(
-        blob
-      );
-
-    sprootoDebugHeartbeatReady =
-      context.audioWorklet
-        .addModule(url)
-        .finally(
-          () => {
-            URL.revokeObjectURL(
-              url
-            );
-          }
+        registerProcessor(
+          "sprooto-debug-heartbeat",
+          SprootoDebugHeartbeatProcessor
         );
-  }
+      `;
 
-  await sprootoDebugHeartbeatReady;
+      const blob =
+        new Blob(
+          [processorSource],
+          { type: "application/javascript" }
+        );
 
-  if (sprootoDebugHeartbeatNode) {
-    return;
-  }
+      const url =
+        URL.createObjectURL(blob);
 
-  sprootoDebugHeartbeatNode =
-    new AudioWorkletNode(
-      context,
-      "sprooto-debug-heartbeat",
-      {
-        numberOfInputs: 0,
-        numberOfOutputs: 1,
-        outputChannelCount: [1]
-      }
-    );
+      sprootoDebugHeartbeatReady =
+        context.audioWorklet
+          .addModule(url)
+          .finally(() => {
+            URL.revokeObjectURL(url);
+          });
+    }
 
-  const silentGain =
-    context.createGain();
+    await sprootoDebugHeartbeatReady;
 
-  silentGain.gain.value =
-    0;
+    if (sprootoDebugHeartbeatNode) {
+      return;
+    }
 
-  sprootoDebugHeartbeatNode
-    .connect(silentGain)
-    .connect(context.destination);
-
-  sprootoDebugHeartbeatNode
-    .port
-    .onmessage =
-      event => {
-        const wallNow =
-          performance.now();
-
-        if (
-          sprootoDebugHeartbeatLastReceivedWall >
-          0
-        ) {
-          const gap =
-            wallNow -
-            sprootoDebugHeartbeatLastReceivedWall;
-
-          sprootoDebugHeartbeatMaxGapMsWindow =
-            Math.max(
-              sprootoDebugHeartbeatMaxGapMsWindow,
-              gap
-            );
+    const node =
+      new AudioWorkletNode(
+        context,
+        "sprooto-debug-heartbeat",
+        {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [1]
         }
+      );
 
-        sprootoDebugHeartbeatLastReceivedWall =
-          wallNow;
+    const silent =
+      context.createGain();
 
-        sprootoDebugHeartbeatLastAudioTime =
-          Number(
-            event?.data?.t
-          ) || 0;
+    silent.gain.value = 0;
 
-        sprootoDebugHeartbeatCount +=
-          1;
-      };
+    node
+      .connect(silent)
+      .connect(context.destination);
+
+    node.port.onmessage = () => {
+      const wallNow = performance.now();
+
+      if (sprootoDebugHeartbeatLastWall > 0) {
+        sprootoDebugHeartbeatMaxGapWindow =
+          Math.max(
+            sprootoDebugHeartbeatMaxGapWindow,
+            wallNow - sprootoDebugHeartbeatLastWall
+          );
+      }
+
+      sprootoDebugHeartbeatLastWall = wallNow;
+      sprootoDebugHeartbeatCount += 1;
+    };
+
+    sprootoDebugHeartbeatNode = node;
+  } catch (error) {
+    console.warn(
+      "Debug heartbeat unavailable:",
+      error
+    );
+  }
 }
 
 function sprootoDebugTimeout(callback, delay) {
@@ -393,7 +340,11 @@ function startSprootoDebugOverlay() {
       }
     );
 
-    document.body.appendChild(
+    const debugHost =
+      document.body ||
+      document.documentElement;
+
+    debugHost?.appendChild(
       panel
     );
   }
@@ -405,50 +356,37 @@ function startSprootoDebugOverlay() {
           return;
         }
 
-        const wallElapsed =
-          (
-            performance.now() -
-            sprootoDebugWallStart
-          ) / 1000;
+        const wall =
+          (performance.now() - sprootoDebugWallStart) / 1000;
 
-        const audioElapsed =
+        const audio =
           context
-            ? context.currentTime -
-              sprootoDebugAudioStart
+            ? context.currentTime - sprootoDebugAudioStart
             : 0;
 
         const drift =
-          wallElapsed -
-          audioElapsed;
+          wall - audio;
 
-        const heartbeatAgeMs =
-          sprootoDebugHeartbeatLastReceivedWall > 0
-            ? performance.now() -
-              sprootoDebugHeartbeatLastReceivedWall
+        const hbAge =
+          sprootoDebugHeartbeatLastWall > 0
+            ? performance.now() - sprootoDebugHeartbeatLastWall
             : -1;
 
-        const hbGap =
-          sprootoDebugHeartbeatMaxGapMsWindow;
-
         const baseLatency =
-          Number(
-            context?.baseLatency
-          );
+          Number(context?.baseLatency);
 
         const outputLatency =
-          Number(
-            context?.outputLatency
-          );
+          Number(context?.outputLatency);
 
         panel.textContent =
           [
-            `t ${audioElapsed.toFixed(1)}  wall ${wallElapsed.toFixed(1)}  drift ${drift >= 0 ? "+" : ""}${drift.toFixed(3)}  state ${context?.state ?? "none"}`,
-            `play ${sprootoDebugPlayCallsTotal}  pps ${sprootoDebugPlayCallsWindow}  auto ${sprootoDebugAutomationTotal}  a/s ${sprootoDebugAutomationWindow}`,
-            `mainlag ${Math.round(sprootoDebugMainLagMaxWindow)}  timerlag ${Math.round(sprootoDebugTimerMaxLateMsWindow)}  raf ${sprootoDebugRafFramesWindow}`,
-            `hb ${heartbeatAgeMs < 0 ? "-" : Math.round(heartbeatAgeMs)}ms  hbmax ${Math.round(hbGap)}  hbcnt ${sprootoDebugHeartbeatCount}`,
-            `base ${Number.isFinite(baseLatency) ? baseLatency.toFixed(4) : "-"}  out ${Number.isFinite(outputLatency) ? outputLatency.toFixed(4) : "-"}`,
-            `nodes ${sprootoDebugNodesCreated}  live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)}  timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}`,
-            `src ${sprootoDebugLiveByType.source || 0}  gain ${sprootoDebugLiveByType.gain || 0}  wrk ${sprootoDebugLiveByType.worklet || 0}  clean ${sprootoDebugCleanups}`
+            `t ${audio.toFixed(1)} wall ${wall.toFixed(1)} drift ${drift >= 0 ? "+" : ""}${drift.toFixed(3)} ${context?.state ?? "none"}`,
+            `play ${sprootoDebugPlayCallsTotal} pps ${sprootoDebugPlayCallsWindow} auto ${sprootoDebugAutomationTotal} a/s ${sprootoDebugAutomationWindow}`,
+            `main ${Math.round(sprootoDebugMainLagMaxWindow)}ms timer ${Math.round(sprootoDebugTimerMaxLateMsWindow)}ms raf ${sprootoDebugRafFramesWindow}`,
+            `hb ${hbAge < 0 ? "-" : Math.round(hbAge)}ms hbmax ${Math.round(sprootoDebugHeartbeatMaxGapWindow)} hbcnt ${sprootoDebugHeartbeatCount}`,
+            `base ${Number.isFinite(baseLatency) ? baseLatency.toFixed(4) : "-"} out ${Number.isFinite(outputLatency) ? outputLatency.toFixed(4) : "-"}`,
+            `nodes ${sprootoDebugNodesCreated} live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)} timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}`,
+            `src ${sprootoDebugLiveByType.source || 0} gain ${sprootoDebugLiveByType.gain || 0} wrk ${sprootoDebugLiveByType.worklet || 0}`
           ].join("\n");
 
         sprootoDebugPlayCallsWindow = 0;
@@ -458,7 +396,7 @@ function startSprootoDebugOverlay() {
         sprootoDebugMainLagMaxWindow = 0;
         sprootoDebugRafFramesWindow = 0;
         sprootoDebugTimerMaxLateMsWindow = 0;
-        sprootoDebugHeartbeatMaxGapMsWindow = 0;
+        sprootoDebugHeartbeatMaxGapWindow = 0;
         sprootoDebugOscEndedWindow = 0;
         sprootoDebugNoiseEndedWindow = 0;
       },
@@ -961,7 +899,9 @@ window.addEventListener(
     initializeFmVoiceWorklet()
   ]);
 
-  await sprootoDebugEnsureHeartbeat();
+  if (!offlineRenderMode) {
+    sprootoDebugStartHeartbeat();
+  }
 
   if (offlineRenderMode) {
     return;
@@ -978,7 +918,6 @@ window.addEventListener(
 
 export function setMasterVolume(value) {
   if (!master || !context) return;
-  sprootoDebugAutomation();
   master.gain.setTargetAtTime(clamp(Number(value), 0, 1), context.currentTime, 0.01);
 }
 
@@ -1013,15 +952,12 @@ function applyMasterMixSettings() {
   const now = context.currentTime;
 
   eqNodes.forEach((filter, index) => {
-    sprootoDebugAutomation();
     filter.gain.setTargetAtTime(
       masterMixSettings.eq[index] ?? 0,
       now,
       0.01
     );
   });
-
-  sprootoDebugAutomation();
 
   mixGain?.gain.setTargetAtTime(
     clamp(masterMixSettings.volume, 0, 100) / 100,
@@ -1030,7 +966,6 @@ function applyMasterMixSettings() {
   );
 
   if (limiter) {
-    sprootoDebugAutomation();
     limiter.threshold.setTargetAtTime(
       clamp(masterMixSettings.limiter, -24, 0),
       now,
@@ -1041,15 +976,11 @@ function applyMasterMixSettings() {
   const reverbAmount =
     clamp(masterMixSettings.reverb, 0, 100) / 100;
 
-  sprootoDebugAutomation();
-
   reverbDryGain?.gain.setTargetAtTime(
     1,
     now,
     0.01
   );
-
-  sprootoDebugAutomation();
 
   reverbWetGain?.gain.setTargetAtTime(
     reverbAmount,
@@ -1508,8 +1439,6 @@ function createSampleAndHoldLfo({
         1
       ) *
       safeDepth;
-
-    sprootoDebugAutomation();
 
     source.offset.setValueAtTime(
       randomValue,
@@ -2744,7 +2673,6 @@ const panLfoOscillators = [];
 const panLfoGainNodes = [];
 
   if (panner) {
-    sprootoDebugAutomation();
     panner.pan.setValueAtTime(
       panValue,
       now
@@ -2877,14 +2805,10 @@ if (lfoWave === "rise" || lfoWave === "fall") {
             ? lfoDepth / 100
             : -(lfoDepth / 100);
 
-    sprootoDebugAutomation();
-
     panner.pan.setValueAtTime(
         panValue + start,
         now
     );
-
-    sprootoDebugAutomation();
 
     panner.pan.linearRampToValueAtTime(
         panValue,
@@ -2933,7 +2857,6 @@ let lfoGainDirection = 1;
   }
 
   lfoOscillator.frequency
-  /* debug automation count */
   .setValueAtTime(
     rateHz,
     now
@@ -2944,7 +2867,6 @@ let lfoGainDirection = 1;
    * panを最大±1揺らす。
    */
   lfoGain.gain
-    /* debug automation count */
     .setValueAtTime(
       (
         lfoDepth /
@@ -3012,14 +2934,10 @@ connectPanLfo(2);
     filter1.type = filterType;
     filter2.type = filterType;
 
-    sprootoDebugAutomation();
-
     filter1.frequency.setValueAtTime(
       cutoffFrequency,
       now
     );
-
-    sprootoDebugAutomation();
 
     filter2.frequency.setValueAtTime(
       cutoffFrequency,
@@ -3038,8 +2956,6 @@ connectPanLfo(2);
         1.2
       ) * 30;
 
-    sprootoDebugAutomation();
-
     filter1.Q.setValueAtTime(
       resonanceQ,
       now
@@ -3050,7 +2966,6 @@ connectPanLfo(2);
      * 24dB構成でもResonanceの変化を
      * 聴き取りやすくする。
      */
-    sprootoDebugAutomation();
     filter2.Q.setValueAtTime(
       Math.max(
         0.0001,
@@ -3170,7 +3085,6 @@ connectPanLfo(2);
         time <= stopTime &&
         eventCount < 4096
       ) {
-        sprootoDebugAutomation();
         source.offset.setValueAtTime(
           (Math.random() * 2 - 1) *
             amountCents,
@@ -3197,16 +3111,12 @@ connectPanLfo(2);
       source.connect(filter1.detune);
       source.connect(filter2.detune);
 
-      sprootoDebugAutomation();
-
       source.offset.setValueAtTime(
         lfoWave === "fall"
           ? amountCents
           : -amountCents,
         now
       );
-
-      sprootoDebugAutomation();
 
       source.offset.linearRampToValueAtTime(
         0,
@@ -3367,14 +3277,11 @@ for (
 /*
  * 2段のFilterへ完全に同じカーブを予約。
  */
-sprootoDebugAutomation();
 filter1.detune.setValueCurveAtTime(
   curve,
   now,
   modulationDuration
 );
-
-sprootoDebugAutomation();
 
 filter2.detune.setValueCurveAtTime(
   curve,
@@ -3413,17 +3320,13 @@ if (
       .cancelAndHoldAtTime ===
     "function"
   ) {
-    sprootoDebugAutomation();
     previousGain.cancelAndHoldAtTime(
       chokeStart
     );
   } else {
-    sprootoDebugAutomation();
     previousGain.cancelScheduledValues(
       chokeStart
     );
-
-    sprootoDebugAutomation();
 
     previousGain.setValueAtTime(
       0.001,
@@ -3431,11 +3334,7 @@ if (
     );
   }
 
-  sprootoDebugAutomation();
-
-  sprootoDebugAutomation(
-    2
-  );
+  sprootoDebugCountAutomation(2);
 
   previousGain.exponentialRampToValueAtTime(
     0.0001,
@@ -3443,6 +3342,8 @@ if (
   );
 }
   
+sprootoDebugCountAutomation(4);
+
 const peakLevel =
   Math.max(
     0.0001,
@@ -3458,28 +3359,18 @@ const sustainLevel =
 const attackEnd =
   now + attack;
 
-sprootoDebugAutomation(
-  4
-);
-
 const decayEnd =
   attackEnd + decay;
 
-sprootoDebugAutomation();
-
 mixGain.gain.setValueAtTime(
   0.0001,
   now
 );
 
-sprootoDebugAutomation();
-
 mixGain.gain.setValueAtTime(
   0.0001,
   now
 );
-
-sprootoDebugAutomation();
 
 mixGain.gain.exponentialRampToValueAtTime(
   peakLevel,
@@ -3504,20 +3395,15 @@ if (gateEnd <= decayEnd) {
         )
     );
 
-  sprootoDebugAutomation();
-
   mixGain.gain.exponentialRampToValueAtTime(
     levelAtGate,
     gateEnd
   );
 } else {
-  sprootoDebugAutomation();
   mixGain.gain.exponentialRampToValueAtTime(
     sustainLevel,
     decayEnd
   );
-
-  sprootoDebugAutomation();
 
   mixGain.gain.setValueAtTime(
     sustainLevel,
@@ -3528,7 +3414,6 @@ if (gateEnd <= decayEnd) {
 /*
  * クリック防止用の短い終了フェード。
  */
-sprootoDebugAutomation();
 mixGain.gain.exponentialRampToValueAtTime(
   0.0001,
   releaseEnd
@@ -3631,8 +3516,6 @@ if (
   exportFadeGain =
     sprootoDebugNode(context.createGain());
 
-  sprootoDebugAutomation();
-
   exportFadeGain.gain.setValueAtTime(
     1,
     0
@@ -3665,14 +3548,12 @@ if (
       fadeInEnd > fadeInStart
     ) {
       exportFadeGain.gain
-        /* debug automation count */
         .setValueAtTime(
           0,
           fadeInStart
         );
 
       exportFadeGain.gain
-        /* debug automation count */
         .linearRampToValueAtTime(
           1,
           fadeInEnd
@@ -3685,14 +3566,12 @@ if (
       fadeOutEnd > fadeOutStart
     ) {
       exportFadeGain.gain
-        /* debug automation count */
         .setValueAtTime(
           1,
           fadeOutStart
         );
 
       exportFadeGain.gain
-        /* debug automation count */
         .linearRampToValueAtTime(
           0,
           fadeOutEnd
@@ -3748,21 +3627,15 @@ if (noTrackFx) {
     delayFeedbackGainForCleanup = feedbackGain;
     delayWetGainForCleanup = wetGain;
 
-    sprootoDebugAutomation();
-
     delayNode.delayTime.setValueAtTime(
       delayTime,
       now
     );
 
-    sprootoDebugAutomation();
-
     feedbackGain.gain.setValueAtTime(
       delayFeedback,
       now
     );
-
-    sprootoDebugAutomation();
 
     wetGain.gain.setValueAtTime(
       delayLevel,
@@ -3872,7 +3745,6 @@ if (noTrackFx) {
 
       crusherNode.parameters
         .get("bitDepth")
-        sprootoDebugAutomation();
         ?.setValueAtTime(
           crushBit,
           now
@@ -3880,20 +3752,15 @@ if (noTrackFx) {
 
       crusherNode.parameters
         .get("rateReduction")
-        sprootoDebugAutomation();
         ?.setValueAtTime(
           crushRate,
           now
         );
 
-      sprootoDebugAutomation();
-
       dryGain.gain.setValueAtTime(
         1 - crushLevel,
         now
       );
-
-      sprootoDebugAutomation();
 
       wetGain.gain.setValueAtTime(
         crushLevel,
@@ -3942,8 +3809,6 @@ if (noTrackFx) {
     if (reverbBus) {
       const sendGain =
         sprootoDebugNode(context.createGain());
-
-      sprootoDebugAutomation();
 
       sendGain.gain.setValueAtTime(
         reverbSend,
@@ -4023,9 +3888,7 @@ if (noTrackFx) {
       gateEnd
     );
 
-  sprootoDebugAutomation();
-
-  sprootoDebugAutomation(
+  sprootoDebugCountAutomation(
     sourceDecayEnd < gateEnd
       ? 3
       : 2
@@ -4036,8 +3899,6 @@ if (noTrackFx) {
     now
   );
 
-  sprootoDebugAutomation();
-
   gainNode.gain.exponentialRampToValueAtTime(
     tailLevel,
     sourceDecayEnd
@@ -4047,7 +3908,6 @@ if (noTrackFx) {
     sourceDecayEnd <
     gateEnd
   ) {
-    sprootoDebugAutomation();
     gainNode.gain.setValueAtTime(
       tailLevel,
       gateEnd
@@ -4122,7 +3982,6 @@ if (noTrackFx) {
       const sineStopAt = releaseEnd + 0.01 + voiceStartDelay;
 
       const sineGain = sprootoDebugNode(context.createGain(), "sineGain");
-      sprootoDebugAutomation();
       sineGain.gain.setValueAtTime(
         Math.max(0.0001, sineVolume * voiceGainScale),
         voiceStartTime
@@ -4148,8 +4007,6 @@ if (noTrackFx) {
           sprootoDebugNode(context.createOscillator(), "osc");
 
         oscillator.type = "sine";
-
-        sprootoDebugAutomation();
 
         oscillator.frequency.setValueAtTime(
           frequency(voiceNote),
@@ -4262,7 +4119,6 @@ if (noTrackFx) {
      * 今回の予約開始時刻nowより前に音が漏れないよう
      * 接続前にGainを0へ固定する。
      */
-    sprootoDebugAutomation();
     noiseGain.gain.setValueAtTime(
       0,
       context.currentTime

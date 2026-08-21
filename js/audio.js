@@ -2817,6 +2817,32 @@ const mixGain =
   context.createGain();
 
 /*
+ * 現在のvoiceで生成したsource / nodeを保持。
+ * 次の同一Track発音でchokeされたら即終了する。
+ */
+const voiceSources = [];
+const voiceNodes = [
+  mixGain,
+  panner,
+  filter1,
+  filter2
+].filter(Boolean);
+
+function cleanupVoiceGraph() {
+  voiceSources.forEach(source => {
+    try {
+      source.stop?.();
+    } catch {}
+  });
+
+  voiceNodes.forEach(node => {
+    try {
+      node.disconnect?.();
+    } catch {}
+  });
+}
+
+/*
  * 同じTrackの前音を、
  * 今回の発音開始時刻までに閉じる。
  *
@@ -2858,6 +2884,27 @@ if (
     0.0001,
     now
   );
+
+  if (
+    !offlineRenderMode &&
+    typeof previousVoice.cleanup === "function"
+  ) {
+    window.setTimeout(
+      () => {
+        try {
+          previousVoice.cleanup();
+        } catch {}
+      },
+      Math.max(
+        0,
+        (
+          now -
+          context.currentTime +
+          0.01
+        ) * 1000
+      )
+    );
+  }
 }
   
 const peakLevel =
@@ -2947,6 +2994,7 @@ activeTrackVoices.set(
     gainNode: mixGain,
     startTime: now,
     endTime: releaseEnd,
+    cleanup: cleanupVoiceGraph,
     pitchTrajectories:
       sineVolume > 0
         ? chordNotes.map(
@@ -2989,369 +3037,375 @@ if (filterEnabled) {
 }
 
   /*
-   * FX graph fast path
-   *
-   * Delay / CRUSH / Track Reverbをすべて使わない発音では、
-   * 従来毎発音生成していたfxInput / fxOutputを作らず、
-   * panner（またはexportFadeGain）からmixInputへ直結する。
+   * FX1 Delay → FX2 CRUSH の順で処理するため、
+   * まずPan後の信号をFXバスへまとめる。
    */
-  let exportFadeGain = null;
-  let fxSourceNode = panner;
+  const fxInput =
+  context.createGain();
 
-  const fadeEnvelope =
-    options.fadeEnvelope;
+/*
+ * EXPORT専用Fade。
+ *
+ * 通常再生ではオフライン化前と同じ
+ * panner → fxInput の直結経路を使う。
+ *
+ * Offline Export時、またはfadeEnvelopeが
+ * 明示された場合だけFade用GainNodeを生成する。
+ * これにより通常再生の発音ごとのAudioNode生成数を
+ * オフライン化前と同じ水準へ戻す。
+ */
+let exportFadeGain = null;
+let fxSourceNode = panner;
 
-  if (
-    offlineRenderMode ||
-    fadeEnvelope
-  ) {
-    exportFadeGain =
-      context.createGain();
+const fadeEnvelope =
+  options.fadeEnvelope;
 
-    exportFadeGain.gain.setValueAtTime(
-      1,
-      0
-    );
+if (
+  offlineRenderMode ||
+  fadeEnvelope
+) {
+  exportFadeGain =
+    context.createGain();
 
-    if (fadeEnvelope) {
-      const fadeInStart =
-        Number(
-          fadeEnvelope.fadeInStart
+  exportFadeGain.gain.setValueAtTime(
+    1,
+    0
+  );
+
+  if (fadeEnvelope) {
+    const fadeInStart =
+      Number(
+        fadeEnvelope.fadeInStart
+      );
+
+    const fadeInEnd =
+      Number(
+        fadeEnvelope.fadeInEnd
+      );
+
+    const fadeOutStart =
+      Number(
+        fadeEnvelope.fadeOutStart
+      );
+
+    const fadeOutEnd =
+      Number(
+        fadeEnvelope.fadeOutEnd
+      );
+
+    if (
+      Number.isFinite(fadeInStart) &&
+      Number.isFinite(fadeInEnd) &&
+      fadeInEnd > fadeInStart
+    ) {
+      exportFadeGain.gain
+        .setValueAtTime(
+          0,
+          fadeInStart
         );
 
-      const fadeInEnd =
-        Number(
-          fadeEnvelope.fadeInEnd
+      exportFadeGain.gain
+        .linearRampToValueAtTime(
+          1,
+          fadeInEnd
         );
-
-      const fadeOutStart =
-        Number(
-          fadeEnvelope.fadeOutStart
-        );
-
-      const fadeOutEnd =
-        Number(
-          fadeEnvelope.fadeOutEnd
-        );
-
-      if (
-        Number.isFinite(fadeInStart) &&
-        Number.isFinite(fadeInEnd) &&
-        fadeInEnd > fadeInStart
-      ) {
-        exportFadeGain.gain
-          .setValueAtTime(
-            0,
-            fadeInStart
-          );
-
-        exportFadeGain.gain
-          .linearRampToValueAtTime(
-            1,
-            fadeInEnd
-          );
-      }
-
-      if (
-        Number.isFinite(fadeOutStart) &&
-        Number.isFinite(fadeOutEnd) &&
-        fadeOutEnd > fadeOutStart
-      ) {
-        exportFadeGain.gain
-          .setValueAtTime(
-            1,
-            fadeOutStart
-          );
-
-        exportFadeGain.gain
-          .linearRampToValueAtTime(
-            0,
-            fadeOutEnd
-          );
-      }
     }
 
-    panner.connect(
-      exportFadeGain
-    );
+    if (
+      Number.isFinite(fadeOutStart) &&
+      Number.isFinite(fadeOutEnd) &&
+      fadeOutEnd > fadeOutStart
+    ) {
+      exportFadeGain.gain
+        .setValueAtTime(
+          1,
+          fadeOutStart
+        );
 
-    fxSourceNode =
-      exportFadeGain;
+      exportFadeGain.gain
+        .linearRampToValueAtTime(
+          0,
+          fadeOutEnd
+        );
+    }
   }
 
-  const hasDelay =
-    delayLevel > 0;
+  panner.connect(
+    exportFadeGain
+  );
 
-  const hasCrush =
-    crushLevel > 0 &&
-    bitCrusherWorkletReady;
+  fxSourceNode =
+    exportFadeGain;
+}
 
-  const hasTrackReverb =
-    reverbSend > 0;
+fxSourceNode.connect(
+  fxInput
+);
 
-  const needsFxGraph =
-    hasDelay ||
-    hasCrush ||
-    hasTrackReverb;
-
-  let fxInput = null;
-  let fxOutput = null;
-
+  /*
+   * 共通Audio graphをいつ解放できるか判断するため、
+   * Delay tailの終了予定時刻を保持する。
+   *
+   * DelayなしならreleaseEndで解放できる。
+   */
   let delayGraphCleanupAt =
     releaseEnd;
 
+  /*
+   * クリーンなDelay。
+   *
+   * フィルターや拡散処理を挟まず、
+   * 原音と同じ信号を音量だけ減衰させて
+   * 繰り返す。
+   */
+  if (delayLevel > 0) {
+    const delayNode =
+      context.createDelay(1.1);
+
+    const feedbackGain =
+      context.createGain();
+
+    const wetGain =
+      context.createGain();
+
+    delayNode.delayTime.setValueAtTime(
+      delayTime,
+      now
+    );
+
+    feedbackGain.gain.setValueAtTime(
+      delayFeedback,
+      now
+    );
+
+    wetGain.gain.setValueAtTime(
+      delayLevel,
+      now
+    );
+
+    fxSourceNode.connect(
+      delayNode
+    );
+
+    delayNode
+      .connect(wetGain)
+      .connect(fxInput);
+
+    delayNode
+      .connect(feedbackGain)
+      .connect(delayNode);
+
+    /*
+     * Feedbackが十分小さくなった後に
+     * Delayノードを切り離す。
+     */
+    const repeatCount =
+      delayFeedback <= 0
+        ? 1
+        : Math.min(
+            64,
+            Math.ceil(
+              Math.log(0.001) /
+              Math.log(delayFeedback)
+            )
+          );
+
+    const cleanupSeconds =
+      Math.min(
+        20,
+        attack +
+        maximumDecay +
+        delayTime *
+          (repeatCount + 2)
+      );
+
+    delayGraphCleanupAt =
+      Math.max(
+        delayGraphCleanupAt,
+        now + cleanupSeconds
+      );
+
+    if (!offlineRenderMode) {
+      window.setTimeout(
+        () => {
+          try {
+            fxSourceNode.disconnect(
+              delayNode
+            );
+
+            delayNode.disconnect();
+            feedbackGain.disconnect();
+            wetGain.disconnect();
+          } catch {}
+        },
+        Math.max(
+          100,
+          (
+            delayGraphCleanupAt -
+            context.currentTime +
+            0.05
+          ) *
+            1000
+        )
+      );
+    }
+  }
+
+  /*
+   * FX2の出力をいったんFX3入力へまとめる。
+   * Reverb SEND 0でも、このGainは単純な通過点だけになる。
+   */
+  const fxOutput =
+    context.createGain();
+
+  /*
+   * FX2ノードは発音終了後にまとめて解放するため、
+   * block外から参照できるよう保持する。
+   */
   let crusherNodeForCleanup = null;
   let crusherDryGainForCleanup = null;
   let crusherWetGainForCleanup = null;
 
-  if (!needsFxGraph) {
-    /*
-     * FX完全OFF：
-     * 余計なGainNodeを一切作らずMasterへ直結。
-     */
-    fxSourceNode.connect(
-      mixInput
-    );
-  } else {
-    fxInput =
+  /*
+   * FX2：Bit Crusher
+   *
+   * BIT / RATEで完成したWet音を作り、
+   * CRUSH LEVELでDry/Wetを混ぜる。
+   * LEVEL 0は完全Dry、100は完全Wet。
+   */
+  if (crushLevel > 0 && bitCrusherWorkletReady) {
+    const dryGain =
       context.createGain();
 
-    fxOutput =
+    const wetGain =
       context.createGain();
 
-    fxSourceNode.connect(
-      fxInput
-    );
+    let crusherNode = null;
 
-    /*
-     * FX1：Delay
-     */
-    if (hasDelay) {
-      const delayNode =
-        context.createDelay(1.1);
+    crusherDryGainForCleanup =
+      dryGain;
 
-      const feedbackGain =
-        context.createGain();
+    crusherWetGainForCleanup =
+      wetGain;
 
-      const wetGain =
-        context.createGain();
+    try {
+      crusherNode =
+        new AudioWorkletNode(
+          context,
+          "sprooto-bit-crusher",
+          {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            outputChannelCount: [2]
+          }
+        );
 
-      delayNode.delayTime.setValueAtTime(
-        delayTime,
-        now
-      );
+      crusherNodeForCleanup =
+        crusherNode;
 
-      feedbackGain.gain.setValueAtTime(
-        delayFeedback,
+      crusherNode.parameters
+        .get("bitDepth")
+        ?.setValueAtTime(
+          crushBit,
+          now
+        );
+
+      crusherNode.parameters
+        .get("rateReduction")
+        ?.setValueAtTime(
+          crushRate,
+          now
+        );
+
+      dryGain.gain.setValueAtTime(
+        1 - crushLevel,
         now
       );
 
       wetGain.gain.setValueAtTime(
-        delayLevel,
+        crushLevel,
         now
       );
 
-      fxSourceNode.connect(
-        delayNode
+      fxInput
+        .connect(dryGain)
+        .connect(fxOutput);
+
+      fxInput
+        .connect(crusherNode)
+        .connect(wetGain)
+        .connect(fxOutput);
+    } catch (error) {
+      console.warn(
+        "Bit crusher node unavailable:",
+        error
       );
 
-      delayNode
-        .connect(wetGain)
-        .connect(fxInput);
+      fxInput.connect(fxOutput);
+    }
+  } else {
+    fxInput.connect(fxOutput);
+  }
 
-      delayNode
-        .connect(feedbackGain)
-        .connect(delayNode);
+  /*
+   * FX3：Track Reverb
+   *
+   * Dryは常にそのままMasterへ送る。
+   * WetだけをSize別の共有Convolver BusへSendする。
+   *
+   * Feedback loopを一切持たないので、
+   * Reverb追加による発振・音切れを起こしにくい構造。
+   */
+  fxOutput.connect(
+    mixInput
+  );
 
-      const repeatCount =
-        delayFeedback <= 0
-          ? 1
-          : Math.min(
-              64,
-              Math.ceil(
-                Math.log(0.001) /
-                Math.log(delayFeedback)
-              )
-            );
+  if (reverbSend > 0) {
+    const reverbBus =
+      ensureTrackReverbBus(
+        reverbSize
+      );
 
-      const cleanupSeconds =
-        Math.min(
-          20,
-          attack +
-          maximumDecay +
-          delayTime *
-            (repeatCount + 2)
+    if (reverbBus) {
+      const sendGain =
+        context.createGain();
+
+      sendGain.gain.setValueAtTime(
+        reverbSend,
+        now
+      );
+
+      fxOutput
+        .connect(sendGain)
+        .connect(
+          reverbBus.input
         );
 
-      delayGraphCleanupAt =
+      /*
+       * 元音が終わったらSendノードだけ切る。
+       * Convolver側の残響Tailは独立して最後まで鳴る。
+       */
+      const disconnectDelayMs =
         Math.max(
-          delayGraphCleanupAt,
-          now + cleanupSeconds
+          100,
+          (
+            releaseEnd -
+            context.currentTime +
+            0.12
+          ) *
+            1000
         );
 
       if (!offlineRenderMode) {
         window.setTimeout(
           () => {
             try {
-              fxSourceNode.disconnect(
-                delayNode
-              );
-
-              delayNode.disconnect();
-              feedbackGain.disconnect();
-              wetGain.disconnect();
+              fxOutput.disconnect(sendGain);
+              sendGain.disconnect();
             } catch {}
           },
-          Math.max(
-            100,
-            (
-              delayGraphCleanupAt -
-              context.currentTime +
-              0.05
-            ) *
-              1000
-          )
+          disconnectDelayMs
         );
-      }
-    }
-
-    /*
-     * FX2：CRUSH
-     */
-    if (hasCrush) {
-      const dryGain =
-        context.createGain();
-
-      const wetGain =
-        context.createGain();
-
-      let crusherNode = null;
-
-      crusherDryGainForCleanup =
-        dryGain;
-
-      crusherWetGainForCleanup =
-        wetGain;
-
-      try {
-        crusherNode =
-          new AudioWorkletNode(
-            context,
-            "sprooto-bit-crusher",
-            {
-              numberOfInputs: 1,
-              numberOfOutputs: 1,
-              outputChannelCount: [2]
-            }
-          );
-
-        crusherNodeForCleanup =
-          crusherNode;
-
-        crusherNode.parameters
-          .get("bitDepth")
-          ?.setValueAtTime(
-            crushBit,
-            now
-          );
-
-        crusherNode.parameters
-          .get("rateReduction")
-          ?.setValueAtTime(
-            crushRate,
-            now
-          );
-
-        dryGain.gain.setValueAtTime(
-          1 - crushLevel,
-          now
-        );
-
-        wetGain.gain.setValueAtTime(
-          crushLevel,
-          now
-        );
-
-        fxInput
-          .connect(dryGain)
-          .connect(fxOutput);
-
-        fxInput
-          .connect(crusherNode)
-          .connect(wetGain)
-          .connect(fxOutput);
-      } catch (error) {
-        console.warn(
-          "Bit crusher node unavailable:",
-          error
-        );
-
-        fxInput.connect(
-          fxOutput
-        );
-      }
-    } else {
-      fxInput.connect(
-        fxOutput
-      );
-    }
-
-    /*
-     * DryはMasterへ。
-     */
-    fxOutput.connect(
-      mixInput
-    );
-
-    /*
-     * FX3：Track Reverb
-     */
-    if (hasTrackReverb) {
-      const reverbBus =
-        ensureTrackReverbBus(
-          reverbSize
-        );
-
-      if (reverbBus) {
-        const sendGain =
-          context.createGain();
-
-        sendGain.gain.setValueAtTime(
-          reverbSend,
-          now
-        );
-
-        fxOutput
-          .connect(sendGain)
-          .connect(
-            reverbBus.input
-          );
-
-        const disconnectDelayMs =
-          Math.max(
-            100,
-            (
-              releaseEnd -
-              context.currentTime +
-              0.12
-            ) *
-              1000
-          );
-
-        if (!offlineRenderMode) {
-          window.setTimeout(
-            () => {
-              try {
-                fxOutput.disconnect(
-                  sendGain
-                );
-
-                sendGain.disconnect();
-              } catch {}
-            },
-            disconnectDelayMs
-          );
-        }
       }
     }
   }
@@ -3501,7 +3555,15 @@ if (filterEnabled) {
         const oscillator =
           context.createOscillator();
 
-        oscillator.type = "sine";
+        
+        voiceSources.push(
+          oscillator
+        );
+
+        voiceNodes.push(
+          sineGain
+        );
+oscillator.type = "sine";
 
         oscillator.frequency.setValueAtTime(
           frequency(voiceNote),
@@ -3562,6 +3624,15 @@ if (filterEnabled) {
             }
           );
 
+        voiceSources.push(
+          fmVoice
+        );
+
+        voiceNodes.push(
+          fmVoice,
+          sineGain
+        );
+
         fmVoice
           .connect(sineGain)
           .connect(mixGain);
@@ -3595,7 +3666,16 @@ if (filterEnabled) {
     const noiseGain =
       context.createGain();
 
-    const noiseStopAt =
+    
+    voiceSources.push(
+      noise
+    );
+
+    voiceNodes.push(
+      noise,
+      noiseGain
+    );
+const noiseStopAt =
   releaseEnd + 0.01;
 
 noise.buffer =
@@ -3712,6 +3792,8 @@ if (!offlineRenderMode) {
 
   window.setTimeout(
     () => {
+      cleanupVoiceGraph();
+
       /*
        * LFO sourceは停止後も接続が残るため切断する。
        */

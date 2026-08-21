@@ -1445,20 +1445,17 @@ function initializeTrackReverbBuses() {
     return;
   }
 
+  /*
+   * IR Bufferだけは事前生成しておく。
+   *
+   * Convolver Bus本体はSENDが実際に使われたbucketだけ
+   * ensureTrackReverbBus()で遅延生成する。
+   *
+   * 以前はSIZE 1〜8のConvolverを全て常駐させていたため、
+   * SEND 0でも最大8本のConvolver graphがAudioContext上に
+   * 接続されたままになっていた。
+   */
   initializeTrackReverbImpulses();
-
-  for (
-    let index = 0;
-    index <
-      TRACK_REVERB_BUCKET_COUNT;
-    index++
-  ) {
-    const sizeValue = index + 1;
-
-    ensureTrackReverbBus(
-      sizeValue
-    );
-  }
 }
 
 export async function playTrackStep(

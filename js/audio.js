@@ -20,6 +20,16 @@ let audioClockReady = false;
 let audioClockReadyPromise = null;
 let offlineRenderMode = false;
 
+/*
+ * White Noise buffer cache
+ *
+ * Noise発音ごとに巨大なAudioBufferを作り直さず、
+ * AudioContextごとに1つの共有Bufferを使い回す。
+ */
+let sharedNoiseBuffer = null;
+let sharedNoiseBufferContext = null;
+const SHARED_NOISE_SECONDS = 4;
+
 const EQ_FREQUENCIES = [
   60, 120, 250, 500,
   1000, 2000, 4000, 8000
@@ -875,11 +885,52 @@ function oneShotPitchDepthToCents(value) {
   );
 }
 
-function makeNoiseBuffer(duration) {
-  const size = Math.max(1, Math.ceil(context.sampleRate * duration));
-  const buffer = context.createBuffer(1, size, context.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+function getSharedNoiseBuffer() {
+  /*
+   * Offline exportではcontext自体が差し替わるため、
+   * 現在のAudioContext専用Bufferだけを再利用する。
+   */
+  if (
+    sharedNoiseBuffer &&
+    sharedNoiseBufferContext === context
+  ) {
+    return sharedNoiseBuffer;
+  }
+
+  const size =
+    Math.max(
+      1,
+      Math.ceil(
+        context.sampleRate *
+          SHARED_NOISE_SECONDS
+      )
+    );
+
+  const buffer =
+    context.createBuffer(
+      1,
+      size,
+      context.sampleRate
+    );
+
+  const data =
+    buffer.getChannelData(0);
+
+  for (
+    let index = 0;
+    index < size;
+    index++
+  ) {
+    data[index] =
+      Math.random() * 2 - 1;
+  }
+
+  sharedNoiseBuffer =
+    buffer;
+
+  sharedNoiseBufferContext =
+    context;
+
   return buffer;
 }
 
@@ -3458,8 +3509,21 @@ panner
   releaseEnd + 0.01;
 
 noise.buffer =
-  makeNoiseBuffer(
-    gate + 0.05
+  getSharedNoiseBuffer();
+
+/*
+ * 同じBufferを共有しても各発音が同じ位相から始まらないよう、
+ * 開始位置をランダム化する。
+ *
+ * GateがBuffer長を超える場合も自然に継続できるようloopする。
+ */
+noise.loop = true;
+
+const noiseStartOffset =
+  Math.random() *
+  Math.max(
+    0.001,
+    noise.buffer.duration
   );
 
     scheduleSourceEnvelope(
@@ -3492,8 +3556,14 @@ noise.buffer =
       );
     }
 
-    noise.start(now);
-    noise.stop(noiseStopAt);
+    noise.start(
+      now,
+      noiseStartOffset
+    );
+
+    noise.stop(
+      noiseStopAt
+    );
   }
 
   /*
@@ -3667,6 +3737,10 @@ export async function beginOfflineAudioRender(
   };
 
   context = offlineContext;
+
+  sharedNoiseBuffer = null;
+  sharedNoiseBufferContext = null;
+
   offlineRenderMode = true;
   audioClockReady = true;
   audioClockReadyPromise = null;
@@ -3767,6 +3841,10 @@ export async function beginOfflineAudioRender(
     });
 
     context = backup.context;
+
+    sharedNoiseBuffer = null;
+    sharedNoiseBufferContext = null;
+
     master = backup.master;
     mixInput = backup.mixInput;
     mixGain = backup.mixGain;

@@ -12043,6 +12043,26 @@ projectButton?.addEventListener(
 window.addEventListener(
   "projectchange",
   () => {
+    /*
+     * Project切替時は、Projectデータ外にある
+     * Pin編集UIの一時状態をMain Soundへ戻す。
+     *
+     * pinEditSlot / pinPlacementModeを持ち越すと、
+     * 新しいProjectでPreset適用先が意図せず
+     * Pin Soundになる可能性がある。
+     */
+    pinPlacementMode = false;
+    setPinEditSlot(null);
+
+    /*
+     * Project切替中にSound Preset画面が残っていた場合、
+     * 旧ProjectのTrack参照を保持させない。
+     */
+    if (soundPresetModal) {
+      soundPresetModal.remove();
+      soundPresetModal = null;
+    }
+
     void refreshProjectName();
     render();
   }
@@ -12811,12 +12831,46 @@ body.append(
   }
 
   function applySelection(item, type) {
+    /*
+     * Preset画面を開いた時点のTrack参照ではなく、
+     * 適用する瞬間の編集対象を取得する。
+     *
+     * Project切替やPin編集状態の変化後でも、
+     * 現在のMain / Pin Soundへ確実に適用する。
+     */
+    const targetTrack =
+      editorTrack();
+
+    if (!targetTrack) {
+      return;
+    }
+
     if (type === "now") {
-      applyTrackSound(track, nowSound, nowName);
-      selected = { type: "now", id: "now", name: "now", category: "now" };
+      applyTrackSound(
+        targetTrack,
+        nowSound,
+        nowName
+      );
+
+      selected = {
+        type: "now",
+        id: "now",
+        name: "now",
+        category: "now"
+      };
     } else {
-      applyTrackSound(track, item.sound, item.name);
-      selected = { type, id: item.id, name: item.name, category: item.category };
+      applyTrackSound(
+        targetTrack,
+        item.sound,
+        item.name
+      );
+
+      selected = {
+        type,
+        id: item.id,
+        name: item.name,
+        category: item.category
+      };
     }
 
     renderSequence();

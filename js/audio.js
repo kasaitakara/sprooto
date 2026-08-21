@@ -3469,43 +3469,114 @@ fxSourceNode.connect(
       const voiceStartTime = now + voiceStartDelay;
       const sineStopAt = releaseEnd + 0.01 + voiceStartDelay;
 
-      const fmVoice = new AudioWorkletNode(
-        context,
-        "sprooto-fm-voice",
-        {
-          numberOfInputs: 0,
-          numberOfOutputs: 1,
-          outputChannelCount: [1],
-          processorOptions: {
-            startTime: voiceStartTime,
-            stopTime: sineStopAt,
-            startNote: glideStartNote,
-            targetNote: voiceNote,
-            glideDuration,
-            fmDepth,
-            fmRatio,
-            fmFeedbackStrength,
-            pitchLfos,
-            fmDepthLfos
-          }
-        }
-      );
-
       const sineGain = context.createGain();
       sineGain.gain.setValueAtTime(
         Math.max(0.0001, sineVolume * voiceGainScale),
         voiceStartTime
       );
 
-      fmVoice.connect(sineGain).connect(mixGain);
+      /*
+       * Fast path:
+       * FM / pitch LFO / glideを一切使わない単純サイン波は、
+       * AudioWorkletNodeを毎発音生成せず
+       * ネイティブOscillatorNodeで鳴らす。
+       *
+       * 高密度パターンで最も重い
+       * AudioWorkletNode生成数を減らすための分岐。
+       */
+      const canUseNativeSine =
+        fmDepth <= 0 &&
+        glideDuration <= 0 &&
+        pitchLfos.length === 0 &&
+        fmDepthLfos.length === 0;
 
-      if (!offlineRenderMode) {
-        window.setTimeout(() => {
-          try {
-            fmVoice.disconnect();
-            sineGain.disconnect();
-          } catch {}
-        }, Math.max(50, (sineStopAt - context.currentTime + 0.05) * 1000));
+      if (canUseNativeSine) {
+        const oscillator =
+          context.createOscillator();
+
+        oscillator.type = "sine";
+
+        oscillator.frequency.setValueAtTime(
+          frequency(voiceNote),
+          voiceStartTime
+        );
+
+        oscillator
+          .connect(sineGain)
+          .connect(mixGain);
+
+        oscillator.start(
+          voiceStartTime
+        );
+
+        oscillator.stop(
+          sineStopAt
+        );
+
+        if (!offlineRenderMode) {
+          window.setTimeout(
+            () => {
+              try {
+                oscillator.disconnect();
+                sineGain.disconnect();
+              } catch {}
+            },
+            Math.max(
+              50,
+              (
+                sineStopAt -
+                context.currentTime +
+                0.05
+              ) * 1000
+            )
+          );
+        }
+      } else {
+        const fmVoice =
+          new AudioWorkletNode(
+            context,
+            "sprooto-fm-voice",
+            {
+              numberOfInputs: 0,
+              numberOfOutputs: 1,
+              outputChannelCount: [1],
+              processorOptions: {
+                startTime: voiceStartTime,
+                stopTime: sineStopAt,
+                startNote: glideStartNote,
+                targetNote: voiceNote,
+                glideDuration,
+                fmDepth,
+                fmRatio,
+                fmFeedbackStrength,
+                pitchLfos,
+                fmDepthLfos
+              }
+            }
+          );
+
+        fmVoice
+          .connect(sineGain)
+          .connect(mixGain);
+
+        if (!offlineRenderMode) {
+          window.setTimeout(
+            () => {
+              try {
+                fmVoice.disconnect();
+                sineGain.disconnect();
+              } catch {}
+            },
+            Math.max(
+              50,
+              (
+                sineStopAt -
+                context.currentTime +
+                0.05
+              ) * 1000
+            )
+          );
+        }
       }
     }
   }

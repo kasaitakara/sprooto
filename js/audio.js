@@ -3860,17 +3860,33 @@ const noiseStartOffset =
      * SUB等で短時間に大量発音しても、
      * 終了済みNoise graphを残さない。
      */
+    /*
+     * Noise cleanup
+     *
+     * stop時刻はsprooto側で既知なので、リアルタイム再生では
+     * AudioBufferSourceNodeのended通知にcleanupを依存しない。
+     *
+     * stop()はWeb Audioのaudio clockで予約したまま、
+     * noiseStopAt直後にsprooto側timerでgraphを明示releaseする。
+     */
     if (!offlineRenderMode) {
-      noise.addEventListener(
-        "ended",
+      sprootoDebugTimeout(
         () => {
           sprootoDebugNoiseEndedWindow += 1;
+
           try {
             sprootoDebugReleaseNode(noise);
             sprootoDebugReleaseNode(noiseGain);
           } catch {}
         },
-        { once: true }
+        Math.max(
+          20,
+          (
+            noiseStopAt -
+            context.currentTime +
+            0.05
+          ) * 1000
+        )
       );
     }
 

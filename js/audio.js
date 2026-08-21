@@ -20,6 +20,153 @@ let audioClockReady = false;
 let audioClockReadyPromise = null;
 let offlineRenderMode = false;
 
+let sprootoDebugStarted = false;
+let sprootoDebugInterval = null;
+
+const sprootoDebug = {
+  playCallsTotal: 0,
+  playCallsWindow: 0,
+  pendingTimeouts: 0,
+  createdNodes: 0,
+  createdSources: 0,
+  createdWorklets: 0,
+  cleanupVoiceCalls: 0,
+  nodeTypes: Object.create(null)
+};
+
+function debugCountNode(type, isSource = false) {
+  sprootoDebug.createdNodes += 1;
+
+  if (isSource) {
+    sprootoDebug.createdSources += 1;
+  }
+
+  sprootoDebug.nodeTypes[type] =
+    (sprootoDebug.nodeTypes[type] || 0) + 1;
+}
+
+function debugSetTimeout(callback, delay, ...args) {
+  sprootoDebug.pendingTimeouts += 1;
+
+  return debugSetTimeout(
+    (...callbackArgs) => {
+      sprootoDebug.pendingTimeouts =
+        Math.max(
+          0,
+          sprootoDebug.pendingTimeouts - 1
+        );
+
+      callback(...callbackArgs);
+    },
+    delay,
+    ...args
+  );
+}
+
+function startSprootoDebugLogging() {
+  if (
+    sprootoDebugStarted ||
+    typeof window === "undefined"
+  ) {
+    return;
+  }
+
+  sprootoDebugStarted = true;
+
+  let debugPanel =
+    document.getElementById(
+      "sprooto-audio-debug-panel"
+    );
+
+  if (!debugPanel) {
+    debugPanel =
+      document.createElement(
+        "div"
+      );
+
+    debugPanel.id =
+      "sprooto-audio-debug-panel";
+
+    Object.assign(
+      debugPanel.style,
+      {
+        position: "fixed",
+        top: "8px",
+        right: "8px",
+        zIndex: "999999",
+        maxWidth: "46vw",
+        padding: "6px 8px",
+        fontFamily: "monospace",
+        fontSize: "10px",
+        lineHeight: "1.25",
+        whiteSpace: "pre",
+        pointerEvents: "none",
+        background: "rgba(0,0,0,0.78)",
+        color: "#fff",
+        borderRadius: "6px"
+      }
+    );
+
+    document.body.appendChild(
+      debugPanel
+    );
+  }
+
+  sprootoDebugInterval =
+    window.setInterval(
+      () => {
+        const snapshot = {
+          audioTime:
+            context?.currentTime ?? null,
+          state:
+            context?.state ?? "none",
+          playsPerSecond:
+            sprootoDebug.playCallsWindow,
+          playCallsTotal:
+            sprootoDebug.playCallsTotal,
+          activeTracks:
+            activeTrackVoices.size,
+          pendingTimeouts:
+            sprootoDebug.pendingTimeouts,
+          createdNodes:
+            sprootoDebug.createdNodes,
+          createdSources:
+            sprootoDebug.createdSources,
+          createdWorklets:
+            sprootoDebug.createdWorklets,
+          cleanupVoiceCalls:
+            sprootoDebug.cleanupVoiceCalls,
+          nodeTypes: {
+            ...sprootoDebug.nodeTypes
+          }
+        };
+
+        sprootoDebug.playCallsWindow = 0;
+
+        console.log(
+          "[sprooto-audio-debug]",
+          snapshot
+        );
+
+        if (debugPanel) {
+          debugPanel.textContent =
+            [
+              `t ${snapshot.audioTime?.toFixed?.(1) ?? "-"}`,
+              `pps ${snapshot.playsPerSecond}`,
+              `plays ${snapshot.playCallsTotal}`,
+              `active ${snapshot.activeTracks}`,
+              `timers ${snapshot.pendingTimeouts}`,
+              `nodes ${snapshot.createdNodes}`,
+              `sources ${snapshot.createdSources}`,
+              `worklets ${snapshot.createdWorklets}`,
+              `cleanups ${snapshot.cleanupVoiceCalls}`
+            ].join("\n");
+        }
+      },
+      1000
+    );
+}
+
 /*
  * White Noise buffer cache
  *
@@ -111,7 +258,7 @@ async function ensureAudioClockReady() {
             return;
           }
 
-          window.setTimeout(
+          debugSetTimeout(
             checkClock,
             4
           );
@@ -406,15 +553,29 @@ export async function initializeAudio() {
   if (!context) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     context = new AudioContextClass();
+
+    startSprootoDebugLogging();
     audioClockReady = false;
     audioClockReadyPromise = null;
-    master = context.createGain();
+    master = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
     master.gain.value = 0.7;
 
-    mixInput = context.createGain();
+    mixInput = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
     eqNodes = EQ_FREQUENCIES.map((frequency, index) => {
-      const filter = context.createBiquadFilter();
+      const filter = (() => {
+    const node = context.createBiquadFilter();
+    debugCountNode("biquad", false);
+    return node;
+  })();
       filter.type = index === 0
         ? "lowshelf"
         : index === EQ_FREQUENCIES.length - 1
@@ -426,14 +587,34 @@ export async function initializeAudio() {
       return filter;
     });
 
-    reverbConvolver = context.createConvolver();
+    reverbConvolver = (() => {
+    const node = context.createConvolver();
+    debugCountNode("convolver", false);
+    return node;
+  })();
     reverbConvolver.buffer = createMasterReverbImpulse();
 
-    reverbDryGain = context.createGain();
-    reverbWetGain = context.createGain();
+    reverbDryGain = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
+    reverbWetGain = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
-    mixGain = context.createGain();
-    limiter = context.createDynamicsCompressor();
+    mixGain = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
+    limiter = (() => {
+    const node = context.createDynamicsCompressor();
+    debugCountNode("compressor", false);
+    return node;
+  })();
     limiter.knee.value = 0;
     limiter.ratio.value = 20;
     limiter.attack.value = 0.003;
@@ -445,7 +626,11 @@ export async function initializeAudio() {
       previousNode = filter;
     });
 
-    spectrumAnalyser = context.createAnalyser();
+    spectrumAnalyser = (() => {
+    const node = context.createAnalyser();
+    debugCountNode("analyser", false);
+    return node;
+  })();
     spectrumAnalyser.fftSize = 2048;
     spectrumAnalyser.smoothingTimeConstant = 0.72;
     previousNode.connect(spectrumAnalyser);
@@ -459,7 +644,11 @@ export async function initializeAudio() {
 
     mixGain.connect(limiter);
 
-    outputAnalyser = context.createAnalyser();
+    outputAnalyser = (() => {
+    const node = context.createAnalyser();
+    debugCountNode("analyser", false);
+    return node;
+  })();
     outputAnalyser.fftSize = 1024;
     outputAnalyser.smoothingTimeConstant = 0.6;
 
@@ -948,7 +1137,11 @@ function createSampleAndHoldLfo({
   stopTime
 }) {
   const source =
-    context.createConstantSource();
+    (() => {
+    const node = context.createConstantSource();
+    debugCountNode("constantSource", true);
+    return node;
+  })();
 
   const safeRate =
     Math.max(
@@ -1365,19 +1558,39 @@ function ensureTrackReverbBus(
   }
 
   const input =
-    context.createGain();
+    (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
   const highpass =
-    context.createBiquadFilter();
+    (() => {
+    const node = context.createBiquadFilter();
+    debugCountNode("biquad", false);
+    return node;
+  })();
 
   const convolver =
-    context.createConvolver();
+    (() => {
+    const node = context.createConvolver();
+    debugCountNode("convolver", false);
+    return node;
+  })();
 
   const lowpass =
-    context.createBiquadFilter();
+    (() => {
+    const node = context.createBiquadFilter();
+    debugCountNode("biquad", false);
+    return node;
+  })();
 
   const output =
-    context.createGain();
+    (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
   const size =
     TRACK_REVERB_BUCKET_COUNT > 1
@@ -1464,6 +1677,9 @@ export async function playTrackStep(
   delaySeconds = 0,
   options = {}
 ) {
+  sprootoDebug.playCallsTotal += 1;
+  sprootoDebug.playCallsWindow += 1;
+
   await initializeAudio();
 
   /*
@@ -2162,7 +2378,11 @@ const delayTime =
     );
 
   const panner =
-  context.createStereoPanner();
+  (() => {
+    const node = context.createStereoPanner();
+    debugCountNode("stereoPanner", false);
+    return node;
+  })();
 
 /*
  * Filter OFF fast path:
@@ -2174,12 +2394,20 @@ const filterEnabled =
 
 const filter1 =
   filterEnabled
-    ? context.createBiquadFilter()
+    ? (() => {
+    const node = context.createBiquadFilter();
+    debugCountNode("biquad", false);
+    return node;
+  })()
     : null;
 
 const filter2 =
   filterEnabled
-    ? context.createBiquadFilter()
+    ? (() => {
+    const node = context.createBiquadFilter();
+    debugCountNode("biquad", false);
+    return node;
+  })()
     : null;
 
 const gateEnd =
@@ -2323,10 +2551,18 @@ if (lfoWave === "random") {
 }
 
 const lfoOscillator =
-  context.createOscillator();
+  (() => {
+    const node = context.createOscillator();
+    debugCountNode("oscillator", true);
+    return node;
+  })();
 
 const lfoGain =
-  context.createGain();
+  (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
   let lfoGainDirection = 1;
 
@@ -2590,7 +2826,11 @@ connectPanLfo(2);
 
     if (lfoWave === "random") {
       const source =
-        context.createConstantSource();
+        (() => {
+    const node = context.createConstantSource();
+    debugCountNode("constantSource", true);
+    return node;
+  })();
 
       source.connect(filter1.detune);
       source.connect(filter2.detune);
@@ -2626,7 +2866,11 @@ connectPanLfo(2);
       lfoWave === "fall"
     ) {
       const source =
-        context.createConstantSource();
+        (() => {
+    const node = context.createConstantSource();
+    debugCountNode("constantSource", true);
+    return node;
+  })();
 
       source.connect(filter1.detune);
       source.connect(filter2.detune);
@@ -2814,7 +3058,11 @@ filter2.detune.setValueCurveAtTime(
   connectFilterLfo(2);
 
 const mixGain =
-  context.createGain();
+  (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
 /*
  * 現在のvoiceで生成したsource / nodeを保持。
@@ -2829,6 +3077,8 @@ const voiceNodes = [
 ].filter(Boolean);
 
 function cleanupVoiceGraph() {
+  sprootoDebug.cleanupVoiceCalls += 1;
+
   voiceSources.forEach(source => {
     try {
       source.stop?.();
@@ -2889,7 +3139,7 @@ if (
     !offlineRenderMode &&
     typeof previousVoice.cleanup === "function"
   ) {
-    window.setTimeout(
+    debugSetTimeout(
       () => {
         try {
           previousVoice.cleanup();
@@ -3041,7 +3291,11 @@ if (filterEnabled) {
    * まずPan後の信号をFXバスへまとめる。
    */
   const fxInput =
-  context.createGain();
+  (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
 /*
  * EXPORT専用Fade。
@@ -3065,7 +3319,11 @@ if (
   fadeEnvelope
 ) {
   exportFadeGain =
-    context.createGain();
+    (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
   exportFadeGain.gain.setValueAtTime(
     1,
@@ -3160,13 +3418,25 @@ fxSourceNode.connect(
    */
   if (delayLevel > 0) {
     const delayNode =
-      context.createDelay(1.1);
+      (() => {
+    const node = context.createDelay(1.1);
+    debugCountNode("delay", false);
+    return node;
+  })();
 
     const feedbackGain =
-      context.createGain();
+      (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
     const wetGain =
-      context.createGain();
+      (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
     delayNode.delayTime.setValueAtTime(
       delayTime,
@@ -3226,7 +3496,7 @@ fxSourceNode.connect(
       );
 
     if (!offlineRenderMode) {
-      window.setTimeout(
+      debugSetTimeout(
         () => {
           try {
             fxSourceNode.disconnect(
@@ -3256,7 +3526,11 @@ fxSourceNode.connect(
    * Reverb SEND 0でも、このGainは単純な通過点だけになる。
    */
   const fxOutput =
-    context.createGain();
+    (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
   /*
    * FX2ノードは発音終了後にまとめて解放するため、
@@ -3275,10 +3549,18 @@ fxSourceNode.connect(
    */
   if (crushLevel > 0 && bitCrusherWorkletReady) {
     const dryGain =
-      context.createGain();
+      (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
     const wetGain =
-      context.createGain();
+      (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
     let crusherNode = null;
 
@@ -3290,7 +3572,7 @@ fxSourceNode.connect(
 
     try {
       crusherNode =
-        new AudioWorkletNode(
+        (() => { sprootoDebug.createdWorklets += 1; debugCountNode("audioWorklet", true); return new AudioWorkletNode(
           context,
           "sprooto-bit-crusher",
           {
@@ -3298,7 +3580,7 @@ fxSourceNode.connect(
             numberOfOutputs: 1,
             outputChannelCount: [2]
           }
-        );
+        ); })()
 
       crusherNodeForCleanup =
         crusherNode;
@@ -3368,7 +3650,11 @@ fxSourceNode.connect(
 
     if (reverbBus) {
       const sendGain =
-        context.createGain();
+        (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
       sendGain.gain.setValueAtTime(
         reverbSend,
@@ -3397,7 +3683,7 @@ fxSourceNode.connect(
         );
 
       if (!offlineRenderMode) {
-        window.setTimeout(
+        debugSetTimeout(
           () => {
             try {
               fxOutput.disconnect(sendGain);
@@ -3530,7 +3816,11 @@ fxSourceNode.connect(
       const voiceStartTime = now + voiceStartDelay;
       const sineStopAt = releaseEnd + 0.01 + voiceStartDelay;
 
-      const sineGain = context.createGain();
+      const sineGain = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
       sineGain.gain.setValueAtTime(
         Math.max(0.0001, sineVolume * voiceGainScale),
         voiceStartTime
@@ -3553,7 +3843,11 @@ fxSourceNode.connect(
 
       if (canUseNativeSine) {
         const oscillator =
-          context.createOscillator();
+          (() => {
+    const node = context.createOscillator();
+    debugCountNode("oscillator", true);
+    return node;
+  })();
 
         
         voiceSources.push(
@@ -3583,7 +3877,7 @@ oscillator.type = "sine";
         );
 
         if (!offlineRenderMode) {
-          window.setTimeout(
+          debugSetTimeout(
             () => {
               try {
                 oscillator.disconnect();
@@ -3602,7 +3896,7 @@ oscillator.type = "sine";
         }
       } else {
         const fmVoice =
-          new AudioWorkletNode(
+          (() => { sprootoDebug.createdWorklets += 1; debugCountNode("audioWorklet", true); return new AudioWorkletNode(
             context,
             "sprooto-fm-voice",
             {
@@ -3622,7 +3916,7 @@ oscillator.type = "sine";
                 fmDepthLfos
               }
             }
-          );
+          ); })()
 
         voiceSources.push(
           fmVoice
@@ -3638,7 +3932,7 @@ oscillator.type = "sine";
           .connect(mixGain);
 
         if (!offlineRenderMode) {
-          window.setTimeout(
+          debugSetTimeout(
             () => {
               try {
                 fmVoice.disconnect();
@@ -3661,10 +3955,18 @@ oscillator.type = "sine";
 
   if (noiseVolume > 0) {
     const noise =
-      context.createBufferSource();
+      (() => {
+    const node = context.createBufferSource();
+    debugCountNode("bufferSource", true);
+    return node;
+  })();
 
     const noiseGain =
-      context.createGain();
+      (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
     
     voiceSources.push(
@@ -3758,7 +4060,7 @@ const registeredVoice =
   );
 
 if (!offlineRenderMode) {
-  window.setTimeout(
+  debugSetTimeout(
     () => {
       if (activeTrackVoices.get(track.id) === registeredVoice) {
         activeTrackVoices.delete(track.id);
@@ -3790,7 +4092,7 @@ if (!offlineRenderMode) {
       delayGraphCleanupAt + 0.10
     );
 
-  window.setTimeout(
+  debugSetTimeout(
     () => {
       cleanupVoiceGraph();
 
@@ -3931,17 +4233,29 @@ export async function beginOfflineAudioRender(
   trackReverbBuses.clear();
   activeTrackVoices.clear();
 
-  master = context.createGain();
+  master = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
   master.gain.value = clamp(Number(masterVolume) || 0, 0, 100) / 100;
 
-  mixInput = context.createGain();
+  mixInput = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
   const eqValues = Array.isArray(masterMix.eq)
     ? masterMix.eq
     : Array(8).fill(0);
 
   eqNodes = EQ_FREQUENCIES.map((frequency, index) => {
-    const filter = context.createBiquadFilter();
+    const filter = (() => {
+    const node = context.createBiquadFilter();
+    debugCountNode("biquad", false);
+    return node;
+  })();
     filter.type = index === 0
       ? "lowshelf"
       : index === EQ_FREQUENCIES.length - 1
@@ -3953,16 +4267,36 @@ export async function beginOfflineAudioRender(
     return filter;
   });
 
-  reverbConvolver = context.createConvolver();
+  reverbConvolver = (() => {
+    const node = context.createConvolver();
+    debugCountNode("convolver", false);
+    return node;
+  })();
   reverbConvolver.buffer = createMasterReverbImpulse();
 
-  reverbDryGain = context.createGain();
-  reverbWetGain = context.createGain();
+  reverbDryGain = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
+  reverbWetGain = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
 
-  mixGain = context.createGain();
+  mixGain = (() => {
+    const node = context.createGain();
+    debugCountNode("gain", false);
+    return node;
+  })();
   mixGain.gain.value = clamp(Number(masterMix.volume ?? 100) || 0, 0, 100) / 100;
 
-  limiter = context.createDynamicsCompressor();
+  limiter = (() => {
+    const node = context.createDynamicsCompressor();
+    debugCountNode("compressor", false);
+    return node;
+  })();
   limiter.knee.value = 0;
   limiter.ratio.value = 20;
   limiter.attack.value = 0.003;
@@ -4038,5 +4372,34 @@ export async function beginOfflineAudioRender(
     audioClockReady = backup.audioClockReady;
     audioClockReadyPromise = backup.audioClockReadyPromise;
     offlineRenderMode = backup.offlineRenderMode;
+  };
+}
+
+
+export function getAudioDebugSnapshot() {
+  return {
+    audioTime:
+      context?.currentTime ?? null,
+    state:
+      context?.state ?? "none",
+    playsPerSecond:
+      sprootoDebug.playCallsWindow,
+    playCallsTotal:
+      sprootoDebug.playCallsTotal,
+    activeTracks:
+      activeTrackVoices.size,
+    pendingTimeouts:
+      sprootoDebug.pendingTimeouts,
+    createdNodes:
+      sprootoDebug.createdNodes,
+    createdSources:
+      sprootoDebug.createdSources,
+    createdWorklets:
+      sprootoDebug.createdWorklets,
+    cleanupVoiceCalls:
+      sprootoDebug.cleanupVoiceCalls,
+    nodeTypes: {
+      ...sprootoDebug.nodeTypes
+    }
   };
 }

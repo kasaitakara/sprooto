@@ -26,14 +26,35 @@ let sprootoDebugPlayCallsTotal = 0;
 let sprootoDebugPlayCallsWindow = 0;
 let sprootoDebugNodesCreated = 0;
 let sprootoDebugNodesReleased = 0;
+let sprootoDebugNodesCreatedWindow = 0;
+let sprootoDebugNodesReleasedWindow = 0;
 let sprootoDebugCleanups = 0;
 let sprootoDebugTimersScheduled = 0;
 let sprootoDebugTimersFired = 0;
 const sprootoDebugReleasedNodes = new WeakSet();
+const sprootoDebugNodeTypes = new WeakMap();
+const sprootoDebugLiveByType = Object.create(null);
+
+function sprootoDebugType(node) {
+  const name = node?.constructor?.name ?? "other";
+
+  if (/AudioWorkletNode/i.test(name)) return "worklet";
+  if (/GainNode/i.test(name)) return "gain";
+  if (/StereoPannerNode/i.test(name)) return "pan";
+  if (/BiquadFilterNode/i.test(name)) return "filter";
+  if (/OscillatorNode|AudioBufferSourceNode|ConstantSourceNode/i.test(name)) return "source";
+  if (/DelayNode/i.test(name)) return "delay";
+  if (/ConvolverNode/i.test(name)) return "conv";
+  return "other";
+}
 
 function sprootoDebugNode(node) {
   if (node) {
+    const type = sprootoDebugType(node);
     sprootoDebugNodesCreated += 1;
+    sprootoDebugNodesCreatedWindow += 1;
+    sprootoDebugNodeTypes.set(node, type);
+    sprootoDebugLiveByType[type] = (sprootoDebugLiveByType[type] || 0) + 1;
   }
   return node;
 }
@@ -45,6 +66,12 @@ function sprootoDebugReleaseNode(node) {
 
   sprootoDebugReleasedNodes.add(node);
   sprootoDebugNodesReleased += 1;
+  sprootoDebugNodesReleasedWindow += 1;
+
+  const type = sprootoDebugNodeTypes.get(node);
+  if (type) {
+    sprootoDebugLiveByType[type] = Math.max(0, (sprootoDebugLiveByType[type] || 0) - 1);
+  }
 
   try {
     node.disconnect();
@@ -120,18 +147,16 @@ function startSprootoDebugOverlay() {
 
         panel.textContent =
           [
-            `t ${context?.currentTime?.toFixed?.(1) ?? "-"}`,
-            `state ${context?.state ?? "none"}`,
-            `pps ${sprootoDebugPlayCallsWindow}`,
-            `plays ${sprootoDebugPlayCallsTotal}`,
-            `active ${activeTrackVoices.size}`,
-            `nodes ${sprootoDebugNodesCreated}`,
-            `live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)}`,
-            `cleanup ${sprootoDebugCleanups}`,
-            `timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}`
-          ].join("\\n");
+            `t ${context?.currentTime?.toFixed?.(1) ?? "-"}  state ${context?.state ?? "none"}  pps ${sprootoDebugPlayCallsWindow}  active ${activeTrackVoices.size}`,
+            `nodes ${sprootoDebugNodesCreated}  live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)}  timers ${Math.max(0, sprootoDebugTimersScheduled - sprootoDebugTimersFired)}`,
+            `src ${sprootoDebugLiveByType.source || 0}  gain ${sprootoDebugLiveByType.gain || 0}  pan ${sprootoDebugLiveByType.pan || 0}  filt ${sprootoDebugLiveByType.filter || 0}`,
+            `wrk ${sprootoDebugLiveByType.worklet || 0}  dly ${sprootoDebugLiveByType.delay || 0}  conv ${sprootoDebugLiveByType.conv || 0}  oth ${sprootoDebugLiveByType.other || 0}`,
+            `+ /s ${sprootoDebugNodesCreatedWindow}  - /s ${sprootoDebugNodesReleasedWindow}  cleanup ${sprootoDebugCleanups}`
+          ].join("\n");
 
         sprootoDebugPlayCallsWindow = 0;
+        sprootoDebugNodesCreatedWindow = 0;
+        sprootoDebugNodesReleasedWindow = 0;
       },
       1000
     );

@@ -4592,24 +4592,25 @@ if (!offlineRenderMode) {
        * この発音専用のDry/Wet Gainだけ外し、
        * Worklet -> wetGain の枝も明示的に切る。
        */
-      if (crusherWetGainForCleanup) {
-        const persistentCrusher =
-          persistentCrusherByTrack.get(
-            String(
-              track.id ?? "track"
-            )
-          );
+      /*
+if (crusherWetGainForCleanup) {
+  const persistentCrusher =
+    persistentCrusherByTrack.get(
+      String(
+        track.id ?? "track"
+      )
+    );
 
-        try {
-          persistentCrusher?.worklet?.disconnect(
-            crusherWetGainForCleanup
-          );
-        } catch {}
-      }
+  try {
+    persistentCrusher?.worklet?.disconnect(
+      crusherWetGainForCleanup
+    );
+  } catch {}
+}
+*/
 
       [
-        crusherDryGainForCleanup,
-        crusherWetGainForCleanup
+        crusherDryGainForCleanup
       ].forEach(
         node => {
           if (!node) {

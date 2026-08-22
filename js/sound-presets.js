@@ -347,7 +347,7 @@ export const FACTORY_SOUND_PRESETS = [
     sound: sound({
       note: -31,
 
-      sineVolume: 100,
+      sineVolume: 65,
       noiseVolume: 0,
 
       attack: 1,
@@ -376,8 +376,8 @@ export const FACTORY_SOUND_PRESETS = [
     sound: sound({
       note: -32,
 
-      sineVolume: 70,
-      noiseVolume: 10,
+      sineVolume: 50,
+      noiseVolume: 5,
 
       attack: 1,
       decay: 50,
@@ -414,9 +414,9 @@ export const FACTORY_SOUND_PRESETS = [
       noiseVolume: 0,
 
       attack: 5,
-      decay: 25,
+      decay: 20,
       sustain: 0,
-      gate: 30,
+      gate: 25,
 
       fmDepth: 9,
       fmRatio: 1.25,

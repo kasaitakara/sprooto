@@ -528,16 +528,12 @@ function startSprootoDebugOverlay() {
           );
 
         panel.textContent =
-          [
-            `t ${audio.toFixed(1)} wall ${wall.toFixed(1)} drift ${drift >= 0 ? "+" : ""}${drift.toFixed(3)} ${context?.state ?? "none"}`,
-            `play ${sprootoDebugPlayCallsTotal} pps ${sprootoDebugPlayCallsWindow} statechg ${sprootoDebugStateChanges}`,
-            `main ${Math.round(sprootoDebugMainLagMaxWindow)}ms timer ${Math.round(sprootoDebugTimerMaxLateMsWindow)}ms raf ${sprootoDebugRafFramesWindow}`,
-            `hb ${hbAge < 0 ? "-" : Math.round(hbAge)}ms hbd ${hbAudioDrift >= 0 ? "+" : ""}${hbAudioDrift.toFixed(3)} hbc ${sprootoDebugHeartbeatCount}`,
-            `hbgap ${Math.round(sprootoDebugHeartbeatMaxGapWindow)}ms frameerr ${Math.round(sprootoDebugHeartbeatFrameGapMaxWindow)}`,
-            `ots ${Number.isFinite(outputWallDrift) ? outputWallDrift.toFixed(3) : "-"} base ${Number.isFinite(baseLatency) ? baseLatency.toFixed(4) : "-"} out ${Number.isFinite(outputLatency) ? outputLatency.toFixed(4) : "-"}`,
-            `fmwrk ${sprootoDebugFmWorkletCreatedTotal} crushwrk ${sprootoDebugCrusherWorkletCreatedTotal}`,
-            `nodes ${sprootoDebugNodesCreated} live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)} src ${sprootoDebugLiveByType.source || 0} gain ${sprootoDebugLiveByType.gain || 0} wrk ${sprootoDebugLiveByType.worklet || 0}`
-          ].join("\n");
+  [
+    `t ${audio.toFixed(0)} drift ${drift >= 0 ? "+" : ""}${drift.toFixed(2)} ${context?.state ?? "none"}`,
+    `main ${Math.round(sprootoDebugMainLagMaxWindow)}ms timer ${Math.round(sprootoDebugTimerMaxLateMsWindow)}ms`,
+    `hb ${hbAge < 0 ? "-" : Math.round(hbAge)}ms gap ${Math.round(sprootoDebugHeartbeatMaxGapWindow)}ms`,
+    `nodes ${sprootoDebugNodesCreated} live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)} src ${sprootoDebugLiveByType.source || 0} wrk ${sprootoDebugLiveByType.worklet || 0}`
+  ].join("\n");
 
         sprootoDebugPlayCallsWindow = 0;
         sprootoDebugNodesCreatedWindow = 0;

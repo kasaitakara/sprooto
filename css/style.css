@@ -1,5 +1,5 @@
 :root {
-    --font-main: 15px;
+    --font-main: 14px;
 
     --font-small: calc(var(--font-main) - 1px);
     --font-label: calc(var(--font-main) - 3px);

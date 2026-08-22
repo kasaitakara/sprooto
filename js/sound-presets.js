@@ -330,7 +330,7 @@ export const FACTORY_SOUND_PRESETS = [
       lfo1Target: "pitch",
       lfo1Wave: "fall",
       lfo1Depth: 60,
-      lfo1Rate: 8.0
+      lfo1Rate: 8.0,
 
       crush: 55,
       crushBit: 12,
@@ -340,7 +340,7 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
-    id: "factory-kick-acostic kick",
+    id: "factory-kick-acoustic kick",
     category: "kick",
     name: "acoustic kick",
 

@@ -894,36 +894,102 @@ async function initializeBitCrusherWorklet() {
           const frameCount = output[0]?.length || 0;
 
           for (let frame = 0; frame < frameCount; frame++) {
-            const capture = this.phase === 0;
+  let frameSilent = true;
 
-            for (let channel = 0; channel < output.length; channel++) {
-              const source = input[channel] || input[0];
-              const destination = output[channel];
+  /*
+   * このframeで全チャンネルが
+   * ほぼ無音かを先に判定する。
+   */
+  for (
+    let channel = 0;
+    channel < output.length;
+    channel++
+  ) {
+    const source =
+      input[channel] || input[0];
 
-              if (!source || !destination) {
-                continue;
-              }
+    const sample =
+      source?.[frame] || 0;
 
-              const sample = source[frame] || 0;
+    if (
+      Math.abs(sample) >=
+      0.00001
+    ) {
+      frameSilent = false;
+      break;
+    }
+  }
 
-if (Math.abs(sample) < 0.00001) {
-  this.held[channel] = 0;
-  destination[frame] = 0;
-  continue;
+  /*
+   * 完全に無音なら、
+   * 前回のheld値とRATE位相を
+   * 次の発音へ持ち越さない。
+   */
+  if (frameSilent) {
+    this.phase = 0;
+
+    for (
+      let channel = 0;
+      channel < output.length;
+      channel++
+    ) {
+      this.held[channel] = 0;
+
+      if (output[channel]) {
+        output[channel][frame] = 0;
+      }
+    }
+
+    continue;
+  }
+
+  const capture =
+    this.phase === 0;
+
+  for (
+    let channel = 0;
+    channel < output.length;
+    channel++
+  ) {
+    const source =
+      input[channel] || input[0];
+
+    const destination =
+      output[channel];
+
+    if (
+      !source ||
+      !destination
+    ) {
+      continue;
+    }
+
+    if (
+      capture ||
+      this.held[channel] ===
+        undefined
+    ) {
+      const sample =
+        source[frame] || 0;
+
+      this.held[channel] =
+        Math.round(
+          sample *
+            quantizer
+        ) /
+        quantizer;
+    }
+
+    destination[frame] =
+      this.held[channel];
+  }
+
+  this.phase =
+    (
+      this.phase + 1
+    ) %
+    rateReduction;
 }
-
-if (capture || this.held[channel] === undefined) {
-  this.held[channel] =
-    Math.round(sample * quantizer) /
-    quantizer;
-}
-
-destination[frame] =
-  this.held[channel];
-            }
-
-            this.phase = (this.phase + 1) % rateReduction;
-          }
 
           return true;
         }

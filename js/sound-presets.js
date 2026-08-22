@@ -245,9 +245,9 @@ function sound(
 
 export const FACTORY_SOUND_PRESETS = [
   {
-  id: "factory-initialize",
+  id: "factory-initialize-initialize tone",
   category: "other",
-  name: "Initialize Tone",
+  name: "initialize tone",
 
   sound: sound({
     note: 12,
@@ -279,7 +279,7 @@ export const FACTORY_SOUND_PRESETS = [
 },
 
   {
-    id: "factory-kick-01",
+    id: "factory-kick-electro kick",
     category: "kick",
     name: "electoro kick",
 
@@ -307,7 +307,40 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
-    id: "factory-kick-02",
+    id: "factory-kick-minimal kick",
+    category: "kick",
+    name: "minimal kick",
+
+    sound: sound({
+      note: -36,
+
+      sineVolume: 100,
+      noiseVolume: 0,
+
+      attack: 5,
+      decay: 8,
+      sustain: 0,
+      gate: 20,
+
+      fmDepth: 2,
+      fmRatio: 3.75,
+
+      filterCutoff: -15,
+
+      lfo1Target: "pitch",
+      lfo1Wave: "fall",
+      lfo1Depth: 60,
+      lfo1Rate: 8.0
+
+      crush: 55,
+      crushBit: 12,
+      crushRate: 4
+
+    })
+  },
+
+  {
+    id: "factory-kick-acostic kick",
     category: "kick",
     name: "acoustic kick",
 

@@ -1743,8 +1743,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .track-sound-name {
-    font-size: var(--font-small);
-    line-height: 1;
+    font-size: var(--font-label);
+line-height: 1.25;
     color: var(--muted);
 
     transform: translateX(6px);
@@ -3151,12 +3151,21 @@ select[data-focus-key]:focus-visible,
 
 .sound-preset-current {
     padding-bottom: 12px;
-    border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
-    .sound-preset-current {
-    padding-bottom: 12px;
-    border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
-    font-size: var(--font-small);
+    border-bottom: 1px solid color-mix(
+        in srgb,
+        var(--line) 45%,
+        transparent
+    );
+
+    font-size: var(--font-label);
 }
+
+.sound-preset-save-modes label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    font-size: var(--font-label);
 }
 
 .sound-preset-save-modes {
@@ -3169,12 +3178,8 @@ select[data-focus-key]:focus-visible,
     display: flex;
     align-items: center;
     gap: 7px;
-    .sound-preset-save-modes label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: var(--font-small);
-}
+
+    font-size: var(--font-label);
 }
 
 .sound-preset-save-fields {
@@ -5280,4 +5285,19 @@ input[type="radio"]:focus-visible {
     padding: 0;
 
     line-height: 1;
+}
+
+/* =========================
+   Sound preset small text
+========================= */
+
+.sound-preset-tab,
+.sound-preset-category,
+.sound-preset-category-heading,
+.sound-preset-item,
+.sound-preset-save-dialog,
+.sound-preset-save-mode,
+.sound-preset-save-fields,
+.sound-preset-dialog-buttons button {
+    font-size: var(--font-label);
 }

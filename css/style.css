@@ -2973,18 +2973,25 @@ select[data-focus-key]:focus-visible,
 .track-sound-name {
     min-width: 0;
     flex: 1 1 auto;
-    padding: 0;
+
+    padding: 0 0 3px 0;
     border: 0;
     background: transparent;
+
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+
     text-align: left;
-    font-size: var(--font-small);
-    line-height: 1;
+
+    font-size: var(--font-label);
+    line-height: 1.3;
+
     color: var(--muted);
     -webkit-text-fill-color: var(--muted);
-    transform: translateX(6px);
+
+    transform: translate(6px, -1px);
+
     cursor: pointer;
 }
 

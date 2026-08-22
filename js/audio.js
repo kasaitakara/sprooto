@@ -4061,9 +4061,29 @@ if (noTrackFx) {
         );
 
         wetGain.gain.setValueAtTime(
-          crushLevel,
-          now
-        );
+  crushLevel,
+  now
+);
+
+const crushFadeDuration =
+  0.008;
+
+const crushFadeStart =
+  Math.max(
+    now,
+    releaseEnd -
+      crushFadeDuration
+  );
+
+wetGain.gain.setValueAtTime(
+  crushLevel,
+  crushFadeStart
+);
+
+wetGain.gain.linearRampToValueAtTime(
+  0,
+  releaseEnd
+);
 
         fxInput
           .connect(dryGain)
@@ -4592,8 +4612,7 @@ if (!offlineRenderMode) {
        * この発音専用のDry/Wet Gainだけ外し、
        * Worklet -> wetGain の枝も明示的に切る。
        */
-      /*
-if (crusherWetGainForCleanup) {
+      if (crusherWetGainForCleanup) {
   const persistentCrusher =
     persistentCrusherByTrack.get(
       String(
@@ -4607,11 +4626,11 @@ if (crusherWetGainForCleanup) {
     );
   } catch {}
 }
-*/
 
       [
-        crusherDryGainForCleanup
-      ].forEach(
+  crusherDryGainForCleanup,
+  crusherWetGainForCleanup
+].forEach(
         node => {
           if (!node) {
             return;
@@ -4633,9 +4652,9 @@ if (crusherWetGainForCleanup) {
   filter1,
   filter2,
   panner,
-  exportFadeGain
-  // fxInput,
-  // fxOutput
+  exportFadeGain,
+  fxInput,
+  fxOutput
 ].forEach(
   sprootoDebugReleaseNode
 );

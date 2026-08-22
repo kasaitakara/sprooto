@@ -433,20 +433,20 @@ export const FACTORY_SOUND_PRESETS = [
 {
     id: "factory-snare-electro snare",
     category: "snare",
-    name: "acoustic snare",
+    name: "electro snare",
 
     sound: sound({
-      note: -12,
+      note: 0,
 
       sineVolume: 90,
       sineDecay: 1,
       noiseVolume: 40,
-      noiseDecay: 100,
+      noiseDecay: 1,
 
       attack: 1,
       decay: 20,
       sustain: 0,
-      gate: 19,
+      gate: 20,
 
       filterCutoff: 38,
       filterResonance: 0,
@@ -454,7 +454,11 @@ export const FACTORY_SOUND_PRESETS = [
       lfo1Target: "filterCutoff",
       lfo1Wave: "rise",
       lfo1Depth: 100,
-      lfo1Rate: 100
+      lfo1Rate: 100,
+
+      crushLevel: 15,
+      crushBit: 8,
+      crushRate: 4
     })
   },
 
@@ -466,7 +470,7 @@ export const FACTORY_SOUND_PRESETS = [
     sound: sound({
       note: -5,
 
-      sineVolume: 85,
+      sineVolume: 100,
       sineDecay: 1,
       noiseVolume: 30,
       noiseDecay: 100,

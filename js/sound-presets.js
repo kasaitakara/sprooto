@@ -430,25 +430,86 @@ export const FACTORY_SOUND_PRESETS = [
     })
   },
 
-  {
-    id: "factory-snare-01",
+{
+    id: "factory-snare-electro snare",
     category: "snare",
-    name: "standard snare",
+    name: "acoustic snare",
 
     sound: sound({
-      note: -1,
+      note: -12,
 
-      sineVolume: 100,
-      noiseVolume: 35,
-      noiseDecay: 60,
+      sineVolume: 90,
+      sineDecay: 1,
+      noiseVolume: 40,
+      noiseDecay: 100,
 
       attack: 1,
-      decay: 3,
+      decay: 20,
+      sustain: 0,
+      gate: 19,
+
+      filterCutoff: 38,
+      filterResonance: 0,
+      
+      lfo1Target: "filterCutoff",
+      lfo1Wave: "rise",
+      lfo1Depth: 100,
+      lfo1Rate: 100
+    })
+  },
+
+  {
+    id: "factory-snare-acoustic snare",
+    category: "snare",
+    name: "acoustic snare",
+
+    sound: sound({
+      note: -5,
+
+      sineVolume: 85,
+      sineDecay: 1,
+      noiseVolume: 30,
+      noiseDecay: 100,
+
+      attack: 1,
+      decay: 2,
       sustain: 0,
       gate: 25,
 
-      filterCutoff: 70,
-      filterResonance: 20,
+      filterCutoff: 35,
+      filterResonance: 0,
+
+      lfo1Target: "filterCutoff",
+      lfo1Wave: "rise",
+      lfo1Depth: 100,
+      lfo1Rate: 100
+    })
+  },
+
+{
+    id: "factory-snare-piccolo snare",
+    category: "snare",
+    name: "piccolo snare",
+
+    sound: sound({
+      note: -5,
+
+      sineVolume: 85,
+      sineDecay: 1,
+      noiseVolume: 40,
+      noiseDecay: 100,
+
+      attack: 1,
+      decay: 2,
+      sustain: 0,
+      gate: 22,
+
+      fmDepth: 19,
+      fmRatio: 1,
+
+      filterCutoff: 38,
+      filterResonance: 0,
+
       lfo1Target: "filterCutoff",
       lfo1Wave: "rise",
       lfo1Depth: 100,

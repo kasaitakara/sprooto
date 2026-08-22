@@ -330,9 +330,9 @@ export const FACTORY_SOUND_PRESETS = [
       lfo1Target: "pitch",
       lfo1Wave: "fall",
       lfo1Depth: 60,
-      lfo1Rate: 8.0,
+      lfo1Rate: 80,
 
-      crush: 55,
+      crushLevel: 55,
       crushBit: 12,
       crushRate: 4
 
@@ -363,7 +363,7 @@ export const FACTORY_SOUND_PRESETS = [
       lfo1Target: "pitch",
       lfo1Wave: "fall",
       lfo1Depth: 100,
-      lfo1Rate: 9.0
+      lfo1Rate: 90
 
     })
   },
@@ -393,9 +393,9 @@ export const FACTORY_SOUND_PRESETS = [
       lfo1Target: "pitch",
       lfo1Wave: "fall",
       lfo1Depth: 100,
-      lfo1Rate: 10.0,
+      lfo1Rate: 100,
 
-      crush: 100,
+      crushLevel: 100,
       crushBit: 8,
       crushRate: 8
 
@@ -426,7 +426,7 @@ export const FACTORY_SOUND_PRESETS = [
       lfo1Target: "pitch",
       lfo1Wave: "fall",
       lfo1Depth: 70,
-      lfo1Rate: 8.6
+      lfo1Rate: 86
     })
   },
 

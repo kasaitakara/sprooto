@@ -309,27 +309,28 @@ export const FACTORY_SOUND_PRESETS = [
   {
     id: "factory-kick-02",
     category: "kick",
-    name: "Kick 02",
+    name: "acoustic kick",
 
     sound: sound({
-      note: -18,
+      note: -39,
 
       sineVolume: 100,
       noiseVolume: 0,
 
-      attack: 1,
-      decay: 28,
+      attack: 5,
+      decay: 25,
       sustain: 0,
-      gate: 14,
+      gate: 30,
 
-      fmDepth: 1,
+      fmDepth: 9,
+      fmRatio: 1.25,
 
-      filterCutoff: -18,
+      filterCutoff: -12,
 
       lfo1Target: "pitch",
       lfo1Wave: "fall",
-      lfo1Depth: 58,
-      lfo1Rate: 78
+      lfo1Depth: 70,
+      lfo1Rate: 8.6
     })
   },
 

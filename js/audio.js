@@ -904,12 +904,22 @@ async function initializeBitCrusherWorklet() {
                 continue;
               }
 
-              if (capture || this.held[channel] === undefined) {
-                const sample = source[frame] || 0;
-                this.held[channel] = Math.round(sample * quantizer) / quantizer;
-              }
+              const sample = source[frame] || 0;
 
-              destination[frame] = this.held[channel];
+if (Math.abs(sample) < 0.00001) {
+  this.held[channel] = 0;
+  destination[frame] = 0;
+  continue;
+}
+
+if (capture || this.held[channel] === undefined) {
+  this.held[channel] =
+    Math.round(sample * quantizer) /
+    quantizer;
+}
+
+destination[frame] =
+  this.held[channel];
             }
 
             this.phase = (this.phase + 1) % rateReduction;

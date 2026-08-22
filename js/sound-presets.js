@@ -340,6 +340,69 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
+    id: "factory-kick-fall kick",
+    category: "kick",
+    name: "fall kick",
+
+    sound: sound({
+      note: -31,
+
+      sineVolume: 100,
+      noiseVolume: 0,
+
+      attack: 1,
+      decay: 40,
+      sustain: 0,
+      gate: 45,
+
+      fmDepth: 0,
+      fmRatio: 1,
+
+      filterCutoff: -10,
+
+      lfo1Target: "pitch",
+      lfo1Wave: "fall",
+      lfo1Depth: 100,
+      lfo1Rate: 9.0
+
+    })
+  },
+
+{
+    id: "factory-kick-bit kick",
+    category: "kick",
+    name: "bit kick",
+
+    sound: sound({
+      note: -32,
+
+      sineVolume: 70,
+      noiseVolume: 10,
+
+      attack: 1,
+      decay: 50,
+      sustain: 0,
+      gate: 23,
+
+      fmDepth: 15,
+      fmRatio: 6,
+      fmFeedback: 50,
+
+      filterCutoff: -18,
+
+      lfo1Target: "pitch",
+      lfo1Wave: "fall",
+      lfo1Depth: 100,
+      lfo1Rate: 10.0,
+
+      crush: 100,
+      crushBit: 8,
+      crushRate: 8
+
+    })
+  },
+
+  {
     id: "factory-kick-acoustic kick",
     category: "kick",
     name: "acoustic kick",

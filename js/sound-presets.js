@@ -778,26 +778,55 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
-    id: "factory-bass-01",
+    id: "factory-bass-double bass",
     category: "bass",
-    name: "Bass 01",
+    name: "double bass",
 
     sound: sound({
-      note: -12,
+      note: -24,
+
+      velocity: 120,
 
       sineVolume: 100,
       noiseVolume: 0,
 
-      attack: 3,
-      decay: 20,
-      sustain: 72,
-      gate: 38,
+      attack: 1,
+      decay: 11,
+      sustain: 1,
+      gate: 50,
 
       fmDepth: 4,
       fmRatio: 1,
 
-      filterCutoff: -26,
-      filterResonance: 20
+      filterCutoff: -24,
+      filterResonance: 0
+    })
+  },
+
+{
+    id: "factory-bass-fake square bass",
+    category: "bass",
+    name: "fake square bass",
+
+    sound: sound({
+      note: -12,
+
+      velocity: 120,
+
+      sineVolume: 100,
+      noiseVolume: 0,
+
+      attack: 1,
+      decay: 15,
+      sustain: 0,
+      gate: 50,
+
+      fmDepth: 11,
+      fmRatio: 0.25,
+      fmFeedback: 50,
+
+      filterCutoff: -24,
+      filterResonance: 0
     })
   },
 

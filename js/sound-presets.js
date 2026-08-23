@@ -583,7 +583,7 @@ export const FACTORY_SOUND_PRESETS = [
 {
     id: "factory-hh-electro hh2",
     category: "hh",
-    name: "electoro hh2",
+    name: "electro hh2",
 
     sound: sound(
       {

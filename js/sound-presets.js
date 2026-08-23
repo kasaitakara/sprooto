@@ -554,6 +554,32 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
+    id: "factory-snare-noise snare",
+    category: "snare",
+    name: "noise snare",
+
+    sound: sound({
+
+      sineVolume: 0,
+      sineDecay: 1,
+      noiseVolume: 40,
+      noiseDecay: 1,
+
+      attack: 1,
+      decay: 100,
+      sustain: 0,
+      gate: 17,
+
+      filterCutoff: -10,
+      filterResonance: 0,
+      
+      crushLevel: 25,
+      crushBit: 8,
+      crushRate: 4
+    })
+  },
+
+  {
     id: "factory-hh-electro hh1",
     category: "hh",
     name: "electro hh1",

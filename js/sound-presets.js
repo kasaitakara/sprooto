@@ -778,32 +778,6 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
 {
-    id: "factory-bass-double bass",
-    category: "bass",
-    name: "double bass",
-
-    sound: sound({
-      note: -24,
-
-      velocity: 120,
-
-      sineVolume: 100,
-      noiseVolume: 0,
-
-      attack: 1,
-      decay: 11,
-      sustain: 1,
-      gate: 50,
-
-      fmDepth: 0,
-      fmRatio: 0,
-
-      filterCutoff: -24,
-      filterResonance: 0
-    })
-  },
-
-{
     id: "factory-bass-electric bass",
     category: "bass",
     name: "electric bass",
@@ -845,7 +819,7 @@ export const FACTORY_SOUND_PRESETS = [
       attack: 1,
       decay: 11,
       sustain: 1,
-      gate: 35,
+      gate: 40,
 
       fmDepth: 0,
       fmRatio: 0,

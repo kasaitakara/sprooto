@@ -863,21 +863,21 @@ export const FACTORY_SOUND_PRESETS = [
 
     sound: sound({
 
-      note: 24,
-      velocity: 150,
+      note: 12,
+      velocity: 130,
 
 
       sineVolume: 100,
       sineDecay:5,
       noiseVolume: 0,
 
-      attack: 14,
+      attack: 8,
       decay: 10,
       sustain: 3,
       gate: 60,
 
       fmDepth: 8,
-      fmRatio: 0.25,
+      fmRatio: 0.5,
       fmFeedback: 50,
 
       filterCutoff: -28,
@@ -949,8 +949,8 @@ export const FACTORY_SOUND_PRESETS = [
   },  
 
 {
-    id: "factory-strings-acoustic guitar",
-    category: "strings",
+    id: "factory-guitar-acoustic guitar",
+    category: "guitar",
     name: "acoustic guitar",
 
     sound: sound({
@@ -973,6 +973,71 @@ export const FACTORY_SOUND_PRESETS = [
 
       filterCutoff: -27,
       filterResonance: 0,
+
+      lfo1Target: "pan",
+      lfo1Wave: "sine",
+      lfo1Depth: 14,
+      lfo1Rate: 100
+    })
+  },
+
+{
+    id: "factory-guitar-electric guitar",
+    category: "guitar",
+    name: "electric guitar",
+
+    sound: sound({
+
+      note: 24,
+      velocity: 120,
+
+      sineVolume: 100,
+      sineDecay:5,
+      noiseVolume: 0,
+
+      attack: 1,
+      decay: 20,
+      sustain: 6,
+      gate: 60,
+
+      fmDepth: 20,
+      fmRatio: 0.75,
+      fmFeedback: 25,
+
+      filterCutoff: -29,
+      filterResonance: 20,
+
+      lfo1Target: "pan",
+      lfo1Wave: "sine",
+      lfo1Depth: 10,
+      lfo1Rate: 100
+    })
+  },
+
+{
+    id: "factory-guitar-electro guitar",
+    category: "guitar",
+    name: "electro guitar",
+
+    sound: sound({
+
+      note: 24,
+
+      sineVolume: 75,
+      sineDecay:5,
+      noiseVolume: 0,
+
+      attack: 1,
+      decay: 8,
+      sustain: 4,
+      gate: 60,
+
+      fmDepth: 12,
+      fmRatio: 0.75,
+      fmFeedback: 11,
+
+      filterCutoff: -21,
+      filterResonance: 20,
 
       lfo1Target: "pan",
       lfo1Wave: "sine",

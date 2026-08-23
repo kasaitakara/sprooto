@@ -662,28 +662,90 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
-    id: "factory-cymbal-01",
+    id: "factory-cymbal-electro crush1",
     category: "cymbal",
-    name: "Cymbal 01",
+    name: "electro crush1",
 
     sound: sound(
       {
         sineVolume: 0,
 
-        noiseVolume: 72,
-        noiseDecay: 38,
+        noiseVolume: 60,
+        noiseDecay: 1,
 
         attack: 1,
-        decay: 44,
-        sustain: 20,
-        gate: 38,
+        decay: 50,
+        sustain: 0,
+        gate: 70,
 
-        filterCutoff: 48,
-        filterResonance: 16,
+        fmDepth:20,
+        fmRatio:3.5,
+        fmFeedback:24,
 
-        delay: 12,
-        delayTime: 3,
-        delayFeedback: 22
+        filterCutoff: 40,
+        filterResonance: 11
+      },
+      {
+        oscSelectedId:
+          "noiseVolume"
+      }
+    )
+  },
+
+{
+    id: "factory-cymbal-electro crush2",
+    category: "cymbal",
+    name: "electro crush2",
+
+    sound: sound(
+      {
+        sineVolume: 0,
+
+        noiseVolume: 3,
+        noiseDecay: 1,
+
+        attack: 1,
+        decay: 16,
+        sustain: 0,
+        gate: 70,
+
+        filterCutoff: 45,
+        filterResonance: 30,
+
+        crushLevel: 40,
+        crushBit: 16,
+        crushRate: 1
+      },
+      {
+        oscSelectedId:
+          "noiseVolume"
+      }
+    )
+  },
+
+  {
+    id: "factory-cymbal-splash",
+    category: "cymbal",
+    name: "splash",
+
+    sound: sound(
+      {
+        sineVolume: 0,
+
+        noiseVolume: 60,
+        noiseDecay: 1,
+
+        attack: 1,
+        decay: 15,
+        sustain: 0,
+        gate: 70,
+
+        fmDepth:20,
+        fmRatio:3.5,
+        fmFeedback:24,
+
+        filterCutoff: 33,
+        filterResonance: 11
       },
       {
         oscSelectedId:

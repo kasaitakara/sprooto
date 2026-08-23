@@ -521,25 +521,80 @@ export const FACTORY_SOUND_PRESETS = [
     })
   },
 
+{
+    id: "factory-snare-can snare",
+    category: "snare",
+    name: "can snare",
+
+    sound: sound({
+      note: 12,
+
+      sineVolume: 85,
+      sineDecay: 1,
+      noiseVolume: 60,
+      noiseDecay: 1,
+
+      attack: 1,
+      decay: 4,
+      sustain: 0,
+      gate: 25,
+
+      filterCutoff: 0,
+      filterResonance: 0,
+      
+      lfo1Target: "filterCutoff",
+      lfo1Wave: "rise",
+      lfo1Depth: 100,
+      lfo1Rate: 100
+    })
+  },
+
   {
-    id: "factory-hh-01",
+    id: "factory-hh-standard hh",
+    category: "hh",
+    name: "standard hh",
+
+    sound: sound(
+      {
+        sineVolume: 0,
+        sineDecay:1,
+        noiseVolume: 60,
+        noiseDecay: 1,
+
+        attack: 1,
+        decay: 2,
+        sustain: 0,
+        gate: 30,
+
+        filterCutoff: 48,
+        filterResonance: 20
+      },
+      {
+        oscSelectedId:
+          "noiseVolume"
+      }
+    )
+  },
+
+{
+    id: "factory-hh-electro hh",
     category: "hh",
     name: "electoro hh",
 
     sound: sound(
       {
         sineVolume: 0,
-        sineDecay:5,
-        noiseVolume: 80,
+        sineDecay:1,
+        noiseVolum1: 7,
         noiseDecay: 5,
 
         attack: 1,
-        decay: 1,
+        decay: 2,
         sustain: 0,
         gate: 30,
 
-        filterCutoff: 95,
-        filterResonance: 30
+        filterCutoff: 41,
+        filterResonance: 41
       },
       {
         oscSelectedId:
@@ -549,24 +604,24 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
-    id: "factory-hh-02",
+    id: "factory-hh-acoustic hh",
     category: "hh",
-    name: "HH Open",
+    name: "acoustic hh",
 
     sound: sound(
       {
         sineVolume: 0,
 
-        noiseVolume: 68,
-        noiseDecay: 18,
+        noiseVolume: 50,
+        noiseDecay: 5,
 
         attack: 1,
-        decay: 22,
+        decay: 2,
         sustain: 18,
-        gate: 24,
+        gate: 30,
 
-        filterCutoff: 60,
-        filterResonance: 8
+        filterCutoff: 30,
+        filterResonance: 0
       },
       {
         oscSelectedId:

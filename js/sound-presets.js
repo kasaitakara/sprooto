@@ -662,6 +662,33 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
+    id: "factory-hh-noise hh",
+    category: "hh",
+    name: "noise hh",
+
+    sound: sound(
+      {
+        sineVolume: 0,
+
+        noiseVolume: 40,
+        noiseDecay: 5,
+
+        attack: 1,
+        decay: 100,
+        sustain: 0,
+        gate: 17,
+
+        filterCutoff: 30,
+        filterResonance: 0
+      },
+      {
+        oscSelectedId:
+          "noiseVolume"
+      }
+    )
+  },
+
+  {
     id: "factory-cymbal-electro crush1",
     category: "cymbal",
     name: "electro crush1",

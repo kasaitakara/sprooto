@@ -755,25 +755,63 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
-    id: "factory-perc-01",
+    id: "factory-perc-short sine",
     category: "perc",
-    name: "Perc 01",
+    name: "short sine",
 
     sound: sound({
-      note: 7,
+      note: 24,
 
-      sineVolume: 72,
-      noiseVolume: 20,
+      sineVolume: 55,
+      noiseVolume: 0,
 
       attack: 1,
-      decay: 8,
+      decay: 2,
       sustain: 0,
-      gate: 5,
+      gate: 20
+    })
+  },
 
-      fmDepth: 8,
-      fmRatio: 2.5,
+{
+    id: "factory-perc-high sine",
+    category: "perc",
+    name: "high sine",
 
-      filterCutoff: 12
+    sound: sound({
+      note: 66,
+
+      sineVolume: 50,
+      noiseVolume: 0,
+
+      attack: 5,
+      decay: 100,
+      sustain: 0,
+      gate: 20
+    })
+  },
+
+{
+    id: "factory-perc-triangle",
+    category: "perc",
+    name: "triangle",
+
+    sound: sound({
+      note: 65,
+
+      sineVolume: 30,
+      noiseVolume: 0,
+
+      attack: 1,
+      decay: 10,
+      sustain: 0,
+      gate: 50,
+
+      fmDepth: 20,
+      fmRatio: 0.25,
+      fmFeedback: 20,
+
+      filterCutoff: 46
+      
     })
   },
 
@@ -898,6 +936,9 @@ export const FACTORY_SOUND_PRESETS = [
     name: "electric piano",
 
     sound: sound({
+
+      velocity: 90,
+
       sineVolume: 90,
       sineDecay:50,
       noiseVolume: 0,
@@ -910,15 +951,10 @@ export const FACTORY_SOUND_PRESETS = [
       fmDepth: 7,
       fmRatio: 1,
 
-      lfo1Target: "pitch",
+      lfo1Target: "pan",
       lfo1Wave: "sine",
-      lfo1Depth: 1,
-      lfo1Rate: 25,
-
-      lfo2Target: "pan",
-      lfo2Wave: "sine",
-      lfo2Depth: 10,
-      lfo2Rate: 50,
+      lfo1Depth: 10,
+      lfo1Rate: 50,
 
       strum: 5
     },
@@ -934,6 +970,9 @@ export const FACTORY_SOUND_PRESETS = [
     name: "organ",
 
     sound: sound({
+
+      velocity: 90,
+
       sineVolume: 90,
       sineDecay:50,
       noiseVolume: 0,
@@ -1014,7 +1053,7 @@ export const FACTORY_SOUND_PRESETS = [
     sound: sound({
 
       note: 24,
-      velocity: 120,
+      velocity: 140,
 
       sineVolume: 100,
       sineDecay:5,
@@ -1054,7 +1093,7 @@ export const FACTORY_SOUND_PRESETS = [
 
       note: 24,
 
-      sineVolume: 75,
+      sineVolume: 70,
       sineDecay:5,
       noiseVolume: 0,
 
@@ -1078,33 +1117,23 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
-    id: "factory-pad-01",
+    id: "factory-pad-sine pad",
     category: "pad",
-    name: "Pad 01",
+    name: "sine pad",
 
     sound: sound({
-      sineVolume: 80,
+      sineVolume: 10,
       noiseVolume: 8,
 
-      attack: 36,
-      decay: 48,
-      sustain: 82,
-      gate: 78,
-
-      fmDepth: 3,
-      fmRatio: 1.5,
-
-      filterCutoff: -38,
-      filterResonance: 14,
-
-      delay: 34,
-      delayTime: 8,
-      delayFeedback: 48,
+      attack: 70,
+      decay: 100,
+      sustain: 0,
+      gate: 80,
 
       lfo1Target: "pan",
       lfo1Wave: "sine",
-      lfo1Depth: 32,
-      lfo1Rate: 10
+      lfo1Depth: 4,
+      lfo1Rate: 100
     })
   },
 

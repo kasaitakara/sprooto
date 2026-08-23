@@ -559,10 +559,10 @@ export const FACTORY_SOUND_PRESETS = [
     name: "noise snare",
 
     sound: sound({
-
+      
       sineVolume: 0,
       sineDecay: 1,
-      noiseVolume: 40,
+      noiseVolume: 100,
       noiseDecay: 1,
 
       attack: 1,
@@ -570,12 +570,8 @@ export const FACTORY_SOUND_PRESETS = [
       sustain: 0,
       gate: 17,
 
-      filterCutoff: -10,
-      filterResonance: 0,
-      
-      crushLevel: 25,
-      crushBit: 8,
-      crushRate: 4
+      filterCutoff: -15,
+      filterResonance: 0
     })
   },
 

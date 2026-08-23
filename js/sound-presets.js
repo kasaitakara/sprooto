@@ -947,6 +947,33 @@ export const FACTORY_SOUND_PRESETS = [
     })
   },  
 
+{
+    id: "factory-strings-acoustic guitar",
+    category: "strings",
+    name: "acoustic guitar",
+
+    velocity: 150,
+    note: 24,
+
+    sound: sound({
+      sineVolume: 100,
+      sineDecay:5,
+      noiseVolume: 0,
+
+      attack: 1,
+      decay: 13,
+      sustain: 3,
+      gate: 60,
+
+      fmDepth: 15,
+      fmRatio: 0.25,
+      fmFeedback: 38,
+
+      filterCutoff: -27,
+      filterResonance: 0
+    })
+  },
+
   {
     id: "factory-pad-01",
     category: "pad",

@@ -952,8 +952,9 @@ export const FACTORY_SOUND_PRESETS = [
     category: "strings",
     name: "acoustic guitar",
 
-    velocity: 150,
     note: 24,
+
+    velocity: 150,
 
     sound: sound({
       sineVolume: 100,
@@ -970,7 +971,12 @@ export const FACTORY_SOUND_PRESETS = [
       fmFeedback: 38,
 
       filterCutoff: -27,
-      filterResonance: 0
+      filterResonance: 0,
+
+      lfo1Target: "pan",
+      lfo1Wave: "sine",
+      lfo1Depth: 14,
+      lfo1Rate: 100
     })
   },
 

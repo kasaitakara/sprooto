@@ -585,7 +585,7 @@ export const FACTORY_SOUND_PRESETS = [
       {
         sineVolume: 0,
         sineDecay:1,
-        noiseVolum1: 7,
+        noiseVolum1: 10,
         noiseDecay: 5,
 
         attack: 1,

@@ -861,11 +861,12 @@ export const FACTORY_SOUND_PRESETS = [
     category: "keys",
     name: "acoustic piano",
 
-    note: 24,
-
-    velocity: 150,
-
     sound: sound({
+
+      note: 24,
+      velocity: 150,
+
+
       sineVolume: 100,
       sineDecay:5,
       noiseVolume: 0,
@@ -952,11 +953,11 @@ export const FACTORY_SOUND_PRESETS = [
     category: "strings",
     name: "acoustic guitar",
 
-    note: 24,
-
-    velocity: 150,
-
     sound: sound({
+
+      note: 24,
+      velocity: 150,
+
       sineVolume: 100,
       sineDecay:5,
       noiseVolume: 0,

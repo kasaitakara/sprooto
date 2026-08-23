@@ -884,7 +884,7 @@ export const FACTORY_SOUND_PRESETS = [
       gate: 45,
 
       filterCutoff: -10,
-      filterResonance: 0
+      filterResonance: 0,
 
       lfo1Target: "tone",
       lfo1Wave: "fall",

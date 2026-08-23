@@ -857,6 +857,34 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
+    id: "factory-keys-acoustic piano",
+    category: "keys",
+    name: "acoustic piano",
+
+    note: 24,
+
+    velocity: 150,
+
+    sound: sound({
+      sineVolume: 100,
+      sineDecay:5,
+      noiseVolume: 0,
+
+      attack: 14,
+      decay: 10,
+      sustain: 3,
+      gate: 60,
+
+      fmDepth: 8,
+      fmRatio: 0.25,
+      fmFeedback: 50,
+
+      filterCutoff: -28,
+      filterResonance: 1
+    })
+  },
+
+  {
     id: "factory-keys-electric piano",
     category: "keys",
     name: "electric piano",
@@ -885,6 +913,39 @@ export const FACTORY_SOUND_PRESETS = [
       lfo2Rate: 50
     })
   },
+
+{
+    id: "factory-keys-organ",
+    category: "keys",
+    name: "organ",
+
+    sound: sound({
+      sineVolume: 90,
+      sineDecay:50,
+      noiseVolume: 0,
+
+      attack: 6,
+      decay: 8,
+      sustain: 11,
+      gate: 100,
+
+      fmDepth: 5,
+      fmRatio: 3,
+
+      filterCutoff: -25,
+      filterResonance: 25,
+
+      lfo1Target: "pitch",
+      lfo1Wave: "sine",
+      lfo1Depth: 1,
+      lfo1Rate: 1,
+
+      lfo2Target: "pan",
+      lfo2Wave: "sine",
+      lfo2Depth: 11,
+      lfo2Rate: 86
+    })
+  },  
 
   {
     id: "factory-pad-01",

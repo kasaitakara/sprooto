@@ -550,9 +550,9 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
   {
-    id: "factory-hh-standard hh",
+    id: "factory-hh-electro hh1",
     category: "hh",
-    name: "standard hh",
+    name: "electro hh1",
 
     sound: sound(
       {
@@ -577,9 +577,9 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
 {
-    id: "factory-hh-electro hh",
+    id: "factory-hh-electro hh2",
     category: "hh",
-    name: "electoro hh",
+    name: "electoro hh2",
 
     sound: sound(
       {
@@ -603,10 +603,37 @@ export const FACTORY_SOUND_PRESETS = [
     )
   },
 
-  {
-    id: "factory-hh-acoustic hh",
+ {
+    id: "factory-hh-acoustic hh1",
     category: "hh",
-    name: "acoustic hh",
+    name: "acoustic hh1",
+
+    sound: sound(
+      {
+        sineVolume: 0,
+        sineDecay:1,
+        noiseVolume: 70,
+        noiseDecay: 1,
+
+        attack: 1,
+        decay: 2,
+        sustain: 0,
+        gate: 30,
+
+        filterCutoff: 48,
+        filterResonance: 5
+      },
+      {
+        oscSelectedId:
+          "noiseVolume"
+      }
+    )
+  },
+
+  {
+    id: "factory-hh-acoustic hh2",
+    category: "hh",
+    name: "acoustic hh2",
 
     sound: sound(
       {

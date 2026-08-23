@@ -858,7 +858,7 @@ export const FACTORY_SOUND_PRESETS = [
 
   {
     id: "factory-lead-01",
-    category: "lead",
+    category: "keys",
     name: "electric piano",
 
     sound: sound({

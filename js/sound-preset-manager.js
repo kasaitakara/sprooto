@@ -5,7 +5,7 @@ const USER_PRESET_STORAGE_KEY = "sprooto-user-sound-presets-v1";
 
 export const SOUND_CATEGORIES = [
   "kick", "snare", "hh", "cymbal", "perc",
-  "bass", "lead", "pad", "fx", "other"
+  "bass", "keys", "lead", "pad", "fx", "other"
 ];
 
 function clonePreset(preset) {

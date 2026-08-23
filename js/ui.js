@@ -12983,29 +12983,97 @@ body.append(
     })).filter(group => group.presets.length > 0);
   }
 
-  function scrollToCategory(category) {
-    list.querySelector(`[data-category-heading="${category}"]`)?.scrollIntoView({
-      block: "start",
-      behavior: "smooth"
-    });
+let categoryScrollLocked = false;
+let categoryScrollUnlockTimer = null;
+
+function scrollToCategory(category) {
+  const heading =
+    list.querySelector(
+      `[data-category-heading="${category}"]`
+    );
+
+  if (!heading) {
+    return;
   }
 
-  function updateActiveCategory() {
-    const headings = Array.from(list.querySelectorAll("[data-category-heading]"));
-    if (!headings.length) return;
-    const listTop = list.getBoundingClientRect().top;
-    let active = headings[0].dataset.categoryHeading;
-    headings.forEach(heading => {
-      if (heading.getBoundingClientRect().top <= listTop + 10) {
-        active = heading.dataset.categoryHeading;
-      }
-    });
-    categories.querySelectorAll("button").forEach(button => {
-      button.classList.toggle("active", button.dataset.category === active);
-    });
+  categoryScrollLocked = true;
+
+  if (categoryScrollUnlockTimer !== null) {
+    clearTimeout(categoryScrollUnlockTimer);
   }
 
-  function renderCategories(groups) {
+  categories
+    .querySelectorAll("button")
+    .forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.category === category
+      );
+    });
+
+  heading.scrollIntoView({
+    block: "start",
+    behavior: "smooth"
+  });
+
+  categoryScrollUnlockTimer =
+    window.setTimeout(
+      () => {
+        categories
+          .querySelectorAll("button")
+          .forEach(button => {
+            button.classList.toggle(
+              "active",
+              button.dataset.category === category
+            );
+          });
+
+        categoryScrollLocked = false;
+        categoryScrollUnlockTimer = null;
+      },
+      600
+    );
+}
+
+function updateActiveCategory() {
+  const headings =
+    Array.from(
+      list.querySelectorAll(
+        "[data-category-heading]"
+      )
+    );
+
+  if (!headings.length) {
+    return;
+  }
+
+  const listTop =
+    list.getBoundingClientRect().top;
+
+  let active =
+    headings[0].dataset.categoryHeading;
+
+  headings.forEach(heading => {
+    if (
+      heading.getBoundingClientRect().top <=
+      listTop + 10
+    ) {
+      active =
+        heading.dataset.categoryHeading;
+    }
+  });
+
+  categories
+    .querySelectorAll("button")
+    .forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.category === active
+      );
+    });
+}
+
+function renderCategories(groups) {
     categories.innerHTML = "";
     groups.forEach(({ category }) => {
       const button = createModalButton(category, "sound-preset-category");
@@ -13433,10 +13501,12 @@ modeWrap.appendChild(
   list.addEventListener(
   "scroll",
   () => {
-    updateActiveCategory();
+    if (!categoryScrollLocked) {
+      updateActiveCategory();
+    }
+
     updatePresetScrollbar();
-  },
-  { passive: true }
+  }
 );
 
   overlay.addEventListener("keydown", event => {

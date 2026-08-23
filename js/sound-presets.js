@@ -881,8 +881,15 @@ export const FACTORY_SOUND_PRESETS = [
       fmFeedback: 50,
 
       filterCutoff: -28,
-      filterResonance: 1
-    })
+      filterResonance: 1,
+
+      strum: 6
+    },
+    {
+      articulationSelectedId: "strum"
+   }
+  )
+    
   },
 
   {
@@ -911,8 +918,14 @@ export const FACTORY_SOUND_PRESETS = [
       lfo2Target: "pan",
       lfo2Wave: "sine",
       lfo2Depth: 10,
-      lfo2Rate: 50
-    })
+      lfo2Rate: 50,
+
+      strum: 5
+    },
+    {
+      articulationSelectedId: "strum"
+   }
+  )
   },
 
 {
@@ -944,8 +957,14 @@ export const FACTORY_SOUND_PRESETS = [
       lfo2Target: "pan",
       lfo2Wave: "sine",
       lfo2Depth: 11,
-      lfo2Rate: 86
-    })
+      lfo2Rate: 86,
+      
+      strum: 5
+    },
+    {
+      articulationSelectedId: "strum"
+   }
+  )
   },  
 
 {
@@ -977,8 +996,14 @@ export const FACTORY_SOUND_PRESETS = [
       lfo1Target: "pan",
       lfo1Wave: "sine",
       lfo1Depth: 14,
-      lfo1Rate: 100
-    })
+      lfo1Rate: 100,
+    
+      strum: 4
+    },
+    {
+      articulationSelectedId: "strum"
+   }
+  )
   },
 
 {
@@ -996,7 +1021,7 @@ export const FACTORY_SOUND_PRESETS = [
       noiseVolume: 0,
 
       attack: 1,
-      decay: 20,
+      decay: 14,
       sustain: 6,
       gate: 60,
 
@@ -1010,8 +1035,14 @@ export const FACTORY_SOUND_PRESETS = [
       lfo1Target: "pan",
       lfo1Wave: "sine",
       lfo1Depth: 10,
-      lfo1Rate: 100
-    })
+      lfo1Rate: 100,
+   
+      strum: 4
+    },
+    {
+      articulationSelectedId: "strum"
+   }
+  )
   },
 
 {

@@ -868,6 +868,33 @@ export const FACTORY_SOUND_PRESETS = [
   },
 
 {
+    id: "factory-bass-fall bass",
+    category: "bass",
+    name: "fall bass",
+
+    sound: sound({
+      note: -24,
+
+      sineVolume: 100,
+      noiseVolume: 0,
+
+      attack: 1,
+      decay: 25,
+      sustain: 0,
+      gate: 45,
+
+      filterCutoff: -10,
+      filterResonance: 0
+
+      lfo1Target: "tone",
+      lfo1Wave: "fall",
+      lfo1Depth: 50,
+      lfo1Rate: 100 
+
+    })
+  },
+
+{
     id: "factory-bass-fake square bass",
     category: "bass",
     name: "fake square bass",

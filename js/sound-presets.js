@@ -1122,7 +1122,7 @@ export const FACTORY_SOUND_PRESETS = [
     name: "sine pad",
 
     sound: sound({
-      sineVolume: 10,
+      sineVolume: 100,
       noiseVolume: 8,
 
       attack: 70,

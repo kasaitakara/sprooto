@@ -83,7 +83,6 @@ export function captureTrackSound(track) {
   return normalizeSound({
     base: track.base,
     offsets: track.offsets,
-    fxMuted: track.fxMuted,
     envelopeSelectedId: track.envelopeSelectedId,
     oscSelectedId: track.oscSelectedId,
     articulationSelectedId: track.articulationSelectedId,
@@ -94,7 +93,6 @@ export function captureTrackSound(track) {
 export function applyTrackSound(track, sound, soundName) {
   const normalized = normalizeSound(sound);
   track.base = structuredClone(normalized.base);
-  track.fxMuted = normalized.fxMuted;
   track.envelopeSelectedId = normalized.envelopeSelectedId;
   track.oscSelectedId = normalized.oscSelectedId;
   track.articulationSelectedId = normalized.articulationSelectedId;

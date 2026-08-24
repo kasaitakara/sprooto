@@ -5,8 +5,6 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
   inversion: 0,
   sineVolume: 100,
   sineDecay: 5,
-  noiseVolume: 0,
-  noiseDecay: 5,
   velocity: 70,
   attack: 1,
   decay: 5,
@@ -18,14 +16,6 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
   filterCutoff: 0,
   filterResonance: 0,
   pan: 0,
-  delay: 0,
-  delayTime: 4,
-  delayFeedback: 35,
-  crushLevel: 0,
-  crushBit: 8,
-  crushRate: 4,
-  reverbSend: 0,
-  reverbSize: 5,
   probability: 100,
   subPattern: -1,
   subCrescendo: 0,
@@ -46,13 +36,12 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
 });
 
 export const SOUND_OFFSET_IDS = Object.freeze([
-  "note", "chord", "voices", "inversion", "velocity", "attack", "decay", "sustain", "gate",
-  "sineVolume", "sineDecay", "noiseVolume", "noiseDecay",
+  "note", "chord", "voices", "inversion", "velocity",
+  "attack", "decay", "sustain", "gate",
+  "sineVolume", "sineDecay",
   "fmDepth", "fmRatio", "fmFeedback",
-"filterCutoff", "filterResonance", "pan",
-  "delay", "delayTime", "delayFeedback",
-  "crushLevel", "crushBit", "crushRate",
-  "reverbSend", "reverbSize", "probability",
+  "filterCutoff", "filterResonance", "pan",
+  "probability",
   "subPattern", "subCrescendo", "subProbability",
   "glide", "nudge", "strum",
   "lfo1Depth", "lfo1Rate", "lfo2Depth", "lfo2Rate"
@@ -70,7 +59,6 @@ export function createDefaultSound() {
   return {
     base: structuredClone(SOUND_BASE_DEFAULTS),
     offsets: zeroOffsets(),
-    fxMuted: false,
     envelopeSelectedId: "decay",
     oscSelectedId: "sineVolume",
     articulationSelectedId: "glide",
@@ -83,7 +71,10 @@ export function normalizeSound(sound) {
   const normalized = createDefaultSound();
 
   if (source.base && typeof source.base === "object") {
-    Object.assign(normalized.base, structuredClone(source.base));
+    Object.keys(SOUND_BASE_DEFAULTS).forEach(id => {
+      if (!(id in source.base)) return;
+      normalized.base[id] = structuredClone(source.base[id]);
+    });
   }
 
   if (source.offsets && typeof source.offsets === "object") {
@@ -97,46 +88,11 @@ export function normalizeSound(sound) {
     });
   }
 
-  /*
-   * Track Reverb SIZE migration
-   * 旧0〜100値を、実音の8bucketを保ったまま1〜8へ変換する。
-   * 新形式（1〜8）はそのまま扱う。
-   */
-  const sourceReverbSize = Number(source.base?.reverbSize);
-  if (Number.isFinite(sourceReverbSize) && sourceReverbSize > 8) {
-    const oldBase = Math.min(100, Math.max(0, sourceReverbSize));
-    const newBase = Math.round((oldBase / 100) * 7) + 1;
-    normalized.base.reverbSize = newBase;
-
-    const oldOffsets = Array.isArray(source.offsets?.reverbSize)
-      ? source.offsets.reverbSize
-      : [];
-
-    normalized.offsets.reverbSize = Array.from(
-      { length: STEP_COUNT },
-      (_, index) => {
-        const oldResult = Math.min(
-          100,
-          Math.max(0, oldBase + (Number(oldOffsets[index]) || 0))
-        );
-        const newResult = Math.round((oldResult / 100) * 7) + 1;
-        return newResult - newBase;
-      }
-    );
-  } else {
-    normalized.base.reverbSize = Math.min(
-      8,
-      Math.max(1, Math.round(Number(normalized.base.reverbSize) || 5))
-    );
-  }
-
-  normalized.fxMuted = Boolean(source.fxMuted);
-
   if (["attack", "decay", "sustain", "gate"].includes(source.envelopeSelectedId)) {
     normalized.envelopeSelectedId = source.envelopeSelectedId;
   }
 
-  if (["sineVolume", "sineDecay", "noiseVolume", "noiseDecay"].includes(source.oscSelectedId)) {
+  if (["sineVolume", "sineDecay"].includes(source.oscSelectedId)) {
     normalized.oscSelectedId = source.oscSelectedId;
   }
 

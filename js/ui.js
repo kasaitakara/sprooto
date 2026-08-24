@@ -974,18 +974,6 @@ const oscParameter = {
       label: "SINE DECAY",
       text: "decay"
     },
-    {
-      id: "noiseVolume",
-      source: "noise",
-      label: "NOISE MIX",
-      text: "mix"
-    },
-    {
-      id: "noiseDecay",
-      source: "noise",
-      label: "NOISE DECAY",
-      text: "decay"
-    }
   ]
 };
 
@@ -1182,12 +1170,6 @@ const parameterMenuItems = [
   { label: "PAN", parameterId: "pan", icon: "pan" },
   { label: "LFO", parameterId: "lfo", icon: "lfo" },
   { label: "art", parameter: articulationParameter, icon: "articulation" },
-  { label: "fx", placeholderId: "fx", icon: "fx" },
-  { label: "fx1", parameterId: "delay", icon: "delay" },
-  { label: "fx2", parameter: crushParameter, icon: "crush" },
-  { label: "fx3", parameter: reverbParameter, icon: "reverb" },
-  { label: "fx4", placeholderId: "fx4", icon: "fx" },
-  { label: "fx5", placeholderId: "fx5", icon: "fx" },
   { label: "prob", parameterId: "probability", icon: "probability" },
   { label: "sub", parameter: subParameter, icon: "sub" }
 ];
@@ -3251,17 +3233,9 @@ function currentParentParameter(menuItem) {
     );
   }
 
-  // OSC
+  // OSC is sine-only.
   if (menuItem.parameter?.id === "osc") {
-    switch (track.oscSelectedId ?? "sineVolume") {
-      case "noiseVolume":
-      case "noiseDecay":
-        return parameterById("noiseVolume");
-
-      case "sineDecay":
-      default:
-        return parameterById("sineVolume");
-    }
+    return parameterById("sineVolume");
   }
 
   return menuItem.parameter ??
@@ -3300,14 +3274,7 @@ function parameterButton(menuItem) {
           : "lfo1Depth"
       )
     : parameter?.id === "osc"
-      ? parameterById(
-          editorTrack().oscSelectedId ===
-            "noiseVolume" ||
-          editorTrack().oscSelectedId ===
-            "noiseDecay"
-            ? "noiseVolume"
-            : "sineVolume"
-        )
+      ? parameterById("sineVolume")
       : parameter?.id === "envelope"
         ? parameterById(
             editorTrack().envelopeSelectedId ??
@@ -3364,12 +3331,7 @@ function parameterButton(menuItem) {
 
   const displayedIcon =
   parameter?.id === "osc"
-    ? (
-        parentSweepParameter?.id ===
-          "noiseVolume"
-          ? "noise"
-          : "sine"
-      )
+    ? "sine"
     : parameter?.id === "envelope"
       ? envelopeParameter.children.find(
           child =>
@@ -4941,59 +4903,18 @@ topRow.appendChild(
     "parameter-menu";
 
   /*
- * パラメーターメニューを
- * 主音 / FXラック / 発音条件に分けて配置する。
- */
-const soundParameterItems =
-  parameterMenuItems.slice(0, 8);
-
-const fxParameterItems =
-  parameterMenuItems.slice(8, 14);
-
-const timingParameterItems =
-  parameterMenuItems.slice(14, 16);
-
-/*
- * 1行目：主音パラメーター
- */
-soundParameterItems.forEach(menuItem => {
-  grid.appendChild(
-    parameterButton(menuItem)
-  );
-});
-
-/*
- * 2行目左側：FXラック
- */
-const fxRack =
-  document.createElement("div");
-
-fxRack.className =
-  editorTrack().fxMuted
-    ? "fx-parameter-rack fx-muted"
-    : "fx-parameter-rack";
-
-fxRack.setAttribute(
-  "aria-label",
-  "FX"
-);
-
-fxParameterItems.forEach(menuItem => {
-  fxRack.appendChild(
-    parameterButton(menuItem)
-  );
-});
-
-grid.appendChild(fxRack);
-
-/*
- * 2行目右側：発音条件パラメーター
- */
-timingParameterItems.forEach(menuItem => {
-  grid.appendChild(
-    parameterButton(menuItem)
-  );
-});
+   * Step 1: Track FX撤去後は、FXラックという中間レイアウトを使わない。
+   * 残ったパラメーターを8列×2段の通常グリッドへそのまま流す。
+   *
+   * 旧実装の slice(0,8) / slice(8,14) / slice(14,16) を残すと、
+   * art / prob / sub がFXラック側へ誤分類され、初回Editor描画を
+   * 旧FX状態へ依存させてしまうため、ここで完全に切り離す。
+   */
+  parameterMenuItems.forEach(menuItem => {
+    grid.appendChild(
+      parameterButton(menuItem)
+    );
+  });
 
   editor.append(
     header,
@@ -6590,11 +6511,7 @@ function renderOscEdit() {
   parentButton.dataset.focusKey =
     "edit-parameter-osc";
 
-  const activeSourceIcon =
-  activeId === "noiseVolume" ||
-  activeId === "noiseDecay"
-    ? "noise"
-    : "sine";
+  const activeSourceIcon = "sine";
 
 parentButton.innerHTML =
   getParameterIcon(
@@ -6609,11 +6526,7 @@ parentButton.innerHTML =
   parentButton.addEventListener(
   "click",
   () => {
-    track.oscSelectedId =
-      activeId === "noiseVolume" ||
-      activeId === "noiseDecay"
-        ? "noiseVolume"
-        : "sineVolume";
+    track.oscSelectedId = "sineVolume";
 
     state.selectedChildId =
       track.oscSelectedId;
@@ -6736,13 +6649,6 @@ parentButton.innerHTML =
     ]
   );
 
-  appendSourceGroup(
-    "noise",
-    [
-      "noiseVolume",
-      "noiseDecay"
-    ]
-  );
 
   header.append(
     trackButton,
@@ -13735,7 +13641,7 @@ function renderPinPlacementScreen() {
   editor.append(header, grid);
 }
 
-export function renderEditor() {
+function renderEditorUnsafe() {
   editor.innerHTML = "";
 
   const pinEnabled =
@@ -13806,6 +13712,37 @@ export function renderEditor() {
       state.selectedParameterId
     )
   );
+}
+
+
+export function renderEditor() {
+  try {
+    renderEditorUnsafe();
+  } catch (error) {
+    console.error("sprooto editor render failed:", error);
+
+    if (editor) {
+      editor.hidden = false;
+      editor.innerHTML = "";
+
+      const panel = document.createElement("div");
+      panel.style.cssText = [
+        "height:100%",
+        "overflow:auto",
+        "padding:6px",
+        "font:10px/1.3 monospace",
+        "white-space:pre-wrap",
+        "color:var(--text)",
+        "background:var(--cell)",
+        "border:1px solid var(--line)"
+      ].join(";");
+
+      const message = error?.message ?? String(error);
+      const stack = error?.stack ?? "(no stack)";
+      panel.textContent = `editor error\n${message}\n\n${stack}`;
+      editor.appendChild(panel);
+    }
+  }
 }
 
 export function updatePlayingStep() {

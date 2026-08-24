@@ -180,11 +180,6 @@ function makeTrack(id) {
     muted: false,
 solo: false,
 
-/*
- * Track内の全FXを一括バイパスする。
- */
-fxMuted: false,
-
     base: {
   note: 0,
   chord: 0,
@@ -192,8 +187,6 @@ fxMuted: false,
   inversion: 0,
   sineVolume: 100,
   sineDecay: 5,
-  noiseVolume: 0,
-  noiseDecay: 5,
   velocity: 70,
   attack: 1,
   decay: 5,
@@ -205,14 +198,6 @@ fmFeedback: 0,
 filterCutoff: 0,
       filterResonance: 0,
       pan: 0,
-      delay: 0,
-      delayTime: 4,
-      delayFeedback: 35,
-      crushLevel: 0,
-      crushBit: 8,
-      crushRate: 4,
-      reverbSend: 0,
-      reverbSize: 5,
       probability: 100,
       subPattern: -1,
       subCrescendo: 0,
@@ -268,12 +253,6 @@ sineVolume:
   sineDecay:
     filled(0),
 
-  noiseVolume:
-    filled(0),
-
-  noiseDecay:
-    filled(0),
-
   fmDepth:
     filled(0),
 
@@ -290,30 +269,6 @@ fmFeedback:
     filled(0),
 
   pan:
-    filled(0),
-
-  delay:
-    filled(0),
-
-  delayTime:
-    filled(0),
-
-  delayFeedback:
-    filled(0),
-
-  crushLevel:
-    filled(0),
-
-  crushBit:
-    filled(0),
-
-  crushRate:
-    filled(0),
-
-  reverbSend:
-    filled(0),
-
-  reverbSize:
     filled(0),
 
   probability:
@@ -434,15 +389,6 @@ function applyInitialPatternData(
     }
   );
 
-  patternTracks[2]
-    .base.noiseVolume = 70;
-
-  patternTracks[2]
-    .base.sineVolume = 0;
-
-  patternTracks[2]
-    .base.noiseDecay = 1;
-
   /*
    * Track 4
    */
@@ -462,15 +408,6 @@ function applyInitialPatternData(
         true;
     }
   );
-
-  patternTracks[3]
-    .base.noiseVolume = 45;
-
-  patternTracks[3]
-    .base.sineVolume = 0;
-
-  patternTracks[3]
-    .base.noiseDecay = 1;
 }
 
 /*
@@ -604,25 +541,6 @@ export const parameters = [
     offsetMode: "offset"
   },
 
-  {
-    id: "noiseVolume",
-    label: "noise volume",
-    icon: "volume",
-    min: 0,
-    max: 100,
-    step: 1,
-    offsetMode: "offset"
-  },
-
-  {
-    id: "noiseDecay",
-    label: "noise decay",
-    icon: "decay",
-    min: 1,
-    max: 100,
-    step: 1,
-    offsetMode: "offset"
-  },
 
   {
   id: "attack",
@@ -807,97 +725,6 @@ export const parameters = [
   ]
 },
 
-  {
-    id: "delay",
-    label: "delay",
-    icon: "delay",
-    min: 0,
-    max: 100,
-    step: 1,
-    offsetMode: "offset",
-
-    children: [
-      {
-        id: "delay",
-        label: "level"
-      },
-
-      {
-  id: "delayTime",
-  label: "time",
-  min: 0,
-  max: 10,
-  step: 1
-},
-
-      {
-  id: "delayFeedback",
-  label: "fdbk",
-  min: 0,
-  max: 95,
-  step: 1
-}
-    ]
-  },
-
-
-  {
-    id: "crushLevel",
-    label: "crush",
-    icon: "crush",
-    min: 0,
-    max: 100,
-    step: 1,
-    offsetMode: "result",
-
-    children: [
-      {
-        id: "crushBit",
-        label: "bit",
-        min: 1,
-        max: 16,
-        step: 1,
-        offsetMode: "result"
-      },
-      {
-        id: "crushRate",
-        label: "rate",
-        min: 1,
-        max: 32,
-        step: 1,
-        offsetMode: "result"
-      }
-    ]
-  },
-
-  {
-    id: "reverbSend",
-    label: "reverb",
-    icon: "reverb",
-    min: 0,
-    max: 100,
-    step: 1,
-    offsetMode: "result",
-
-    children: [
-      {
-        id: "reverbSend",
-        label: "send",
-        min: 0,
-        max: 100,
-        step: 1,
-        offsetMode: "result"
-      },
-      {
-        id: "reverbSize",
-        label: "size",
-        min: 1,
-        max: 8,
-        step: 1,
-        offsetMode: "result"
-      }
-    ]
-  },
 
   {
     id: "probability",
@@ -1097,100 +924,11 @@ export const state =
   makeDefaultRuntimeState();
 
 
-function ensureReverbSoundState(
-  sound
-) {
-  if (!sound || typeof sound !== "object") {
-    return;
-  }
-
-  if (!sound.base || typeof sound.base !== "object") {
-    sound.base = {};
-  }
-
-  if (!sound.offsets || typeof sound.offsets !== "object") {
-    sound.offsets = {};
-  }
-
-  if (typeof sound.base.reverbSend !== "number") {
-    sound.base.reverbSend = 0;
-  }
-
-  if (typeof sound.base.reverbSize !== "number") {
-    sound.base.reverbSize = 5;
-  }
-
-  /*
-   * 旧SIZE 0〜100 → 新SIZE 1〜8。
-   * Step Offset込みの実際のbucketを維持して移行する。
-   */
-  if (sound.base.reverbSize > 8) {
-    const oldBase = clamp(sound.base.reverbSize, 0, 100);
-    const newBase = Math.round((oldBase / 100) * 7) + 1;
-    const oldOffsets = Array.isArray(sound.offsets.reverbSize)
-      ? sound.offsets.reverbSize
-      : Array(STEP_COUNT).fill(0);
-
-    sound.offsets.reverbSize = Array.from(
-      { length: STEP_COUNT },
-      (_, index) => {
-        const oldResult = clamp(
-          oldBase + (Number(oldOffsets[index]) || 0),
-          0,
-          100
-        );
-        const newResult = Math.round((oldResult / 100) * 7) + 1;
-        return newResult - newBase;
-      }
-    );
-
-    sound.base.reverbSize = newBase;
-  } else {
-    sound.base.reverbSize = clamp(
-      Math.round(sound.base.reverbSize || 5),
-      1,
-      8
-    );
-  }
-
-  if (!Array.isArray(sound.offsets.reverbSend)) {
-    sound.offsets.reverbSend =
-      Array(STEP_COUNT).fill(0);
-  }
-
-  if (!Array.isArray(sound.offsets.reverbSize)) {
-    sound.offsets.reverbSize =
-      Array(STEP_COUNT).fill(0);
-  }
-}
-
-function ensureTrackReverbState(
-  track
-) {
-  if (!track || typeof track !== "object") {
-    return track;
-  }
-
-  ensureReverbSoundState(track);
-
-  ["a", "b", "c"].forEach(
-    slot => {
-      ensureReverbSoundState(
-        track.pinSounds?.[slot]
-      );
-    }
-  );
-
-  return track;
-}
 
 export function resolveStepSound(
   track,
   stepIndex
 ) {
-  ensureTrackReverbState(
-    track
-  );
 
   /*
    * PinモードOFF中は、Stepにa/b/cの配置情報が残っていても
@@ -1253,9 +991,6 @@ function loadSourceTracks(
     ...data.tracks
   );
 
-  tracks.forEach(
-    ensureTrackReverbState
-  );
 
   syncPatternLength();
 
@@ -3294,36 +3029,6 @@ track.base.strum = clamp(
     track.articulationSelectedId = "glide";
   }
 
-  const crushDefaults = {
-    crushLevel: 0,
-    crushBit: 8,
-    crushRate: 4
-  };
-
-  Object.entries(crushDefaults).forEach(([id, defaultValue]) => {
-    if (typeof track.base[id] !== "number") {
-      track.base[id] = defaultValue;
-    }
-
-    if (!Array.isArray(track.offsets[id])) {
-      track.offsets[id] = filled(0);
-    }
-  });
-
-  track.base.crushLevel = clamp(Math.round(track.base.crushLevel), 0, 100);
-  track.base.crushBit = clamp(Math.round(track.base.crushBit), 1, 16);
-  {
-    const crushRateValues = [1, 2, 4, 8, 16, 32];
-    track.base.crushRate = crushRateValues.reduce(
-      (bestValue, value) =>
-        Math.abs(value - track.base.crushRate) <
-        Math.abs(bestValue - track.base.crushRate)
-          ? value
-          : bestValue,
-      crushRateValues[0]
-    );
-  }
-
   track.pinEnabled =
     Boolean(track.pinEnabled);
 
@@ -3508,17 +3213,6 @@ if (
   }
 
   if (
-    typeof track.base.noiseVolume !==
-      "number"
-  ) {
-    track.base.noiseVolume =
-      typeof track.base.noise ===
-        "number"
-        ? track.base.noise
-        : 0;
-  }
-
-  if (
   typeof track.base.decay !==
   "number"
 ) {
@@ -3548,14 +3242,6 @@ if (
       legacyDecay;
   }
 
-  if (
-    typeof track.base.noiseDecay !==
-      "number"
-  ) {
-    track.base.noiseDecay =
-      legacyDecay;
-  }
-
   const legacyDecayOffsets =
     Array.isArray(
       track.offsets.decay
@@ -3563,10 +3249,7 @@ if (
       ? track.offsets.decay
       : filled(0);
 
-  [
-    "sineVolume",
-    "noiseVolume"
-  ].forEach(parameterId => {
+  ["sineVolume"].forEach(parameterId => {
     if (
       !Array.isArray(
         track.offsets[parameterId]
@@ -3577,10 +3260,7 @@ if (
     }
   });
 
-  [
-    "sineDecay",
-    "noiseDecay"
-  ].forEach(parameterId => {
+  ["sineDecay"].forEach(parameterId => {
     if (
       !Array.isArray(
         track.offsets[parameterId]
@@ -3592,72 +3272,6 @@ if (
         ];
     }
   });
-
-  if (
-  typeof track.fxMuted !==
-  "boolean"
-) {
-  track.fxMuted = false;
-}
-
-  const hasNewDelayData =
-  Array.isArray(
-    track.offsets.delayTime
-  ) &&
-  Array.isArray(
-    track.offsets.delayFeedback
-  );
-
-  if (
-    typeof track.base.delay !==
-    "number"
-  ) {
-    track.base.delay = 0;
-  }
-
-  if (
-  !hasNewDelayData ||
-  typeof track.base.delayTime !==
-    "number" ||
-  track.base.delayTime < 0 ||
-  track.base.delayTime > 10
-) {
-  track.base.delayTime = 4;
-}
-
-  if (
-    typeof track.base.delayFeedback !==
-    "number"
-  ) {
-    track.base.delayFeedback = 35;
-  }
-
-  if (
-    !Array.isArray(
-      track.offsets.delay
-    )
-  ) {
-    track.offsets.delay =
-      filled(0);
-  }
-
-  if (
-  !Array.isArray(
-    track.offsets.delayTime
-  )
-  ) {
-  track.offsets.delayTime =
-    filled(0);
-  }
-
-  if (
-  !Array.isArray(
-    track.offsets.delayFeedback
-  )
-  ) {
-  track.offsets.delayFeedback =
-    filled(0);
-  }
 
   /*
    * 旧保存データへLFO初期値を補う。
@@ -3770,8 +3384,7 @@ if (
       }
 
       if (
-        target === "sineDecay" ||
-        target === "noiseDecay"
+        target === "sineDecay"
       ) {
         track.base[parameterId] =
           "decay";
@@ -3794,6 +3407,16 @@ if (
         filled(0);
     }
   });
+
+  /* Step 1: deleted sound fields are stripped from restored legacy projects. */
+  const normalizedSound = normalizeSound(track);
+  track.base = normalizedSound.base;
+  track.offsets = normalizedSound.offsets;
+  track.envelopeSelectedId = normalizedSound.envelopeSelectedId;
+  track.oscSelectedId = normalizedSound.oscSelectedId;
+  track.articulationSelectedId = normalizedSound.articulationSelectedId;
+  track.lfoSelected = normalizedSound.lfoSelected;
+
 }
 
 function normalizeSnapshotData(
@@ -3898,6 +3521,22 @@ function normalizeSnapshotData(
   ) {
     snapshot.state.selectedChildId =
       "filterCutoff";
+  }
+
+  const deletedStep1Parameters = new Set([
+    "noiseVolume", "noiseDecay",
+    "delay", "delayTime", "delayFeedback",
+    "crush", "crushLevel", "crushBit", "crushRate",
+    "reverb", "reverbSend", "reverbSize",
+    "fx", "fx4", "fx5"
+  ]);
+
+  if (deletedStep1Parameters.has(snapshot.state.selectedParameterId)) {
+    snapshot.state.selectedParameterId = null;
+  }
+
+  if (deletedStep1Parameters.has(snapshot.state.selectedChildId)) {
+    snapshot.state.selectedChildId = null;
   }
 
   return snapshot;
@@ -4349,11 +3988,9 @@ export function syncPatternLength() {
 }
 
 export function selectedTrack() {
-  return ensureTrackReverbState(
-    tracks[
-      state.selectedTrackIndex
-    ]
-  );
+  return tracks[
+    state.selectedTrackIndex
+  ];
 }
 
 export function parameterById(

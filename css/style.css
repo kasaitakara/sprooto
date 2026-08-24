@@ -1987,18 +1987,6 @@ line-height: 1.25;
     cursor: default;
 }
 
-/* FX全体アイコンだけ通常文字色 */
-.parameter-button[data-focus-key="parameter-fx"] {
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-}
-
-.parameter-button[data-focus-key="parameter-fx"] .parameter-icon,
-.parameter-button[data-focus-key="parameter-fx"] .parameter-value {
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-}
-
 .parameter-placeholder .parameter-label,
 .parameter-placeholder .parameter-value {
     color: var(--muted);
@@ -2077,116 +2065,6 @@ input.track-volume-slider::-moz-range-thumb {
     input.track-volume-slider::-webkit-slider-thumb {
         margin-top: calc((1px - 8px) / 2);
     }
-}
-
-/* =========================
-   FX parameter rack
-========================= */
-
-.fx-parameter-rack {
-    grid-column: span 6;
-
-    display: grid;
-    grid-template-columns:
-        repeat(6, minmax(0, 1fr));
-
-    width: 100%;
-    height: 36px;
-
-    padding: 0;
-    column-gap: 5px;
-
-    background: var(--cell);
-    overflow: hidden;
-}
-
-.fx-parameter-rack .parameter-button {
-    width: 100%;
-    height: 36px;
-    min-height: 36px;
-
-    background: transparent;
-}
-
-/* =========================
-   FX4 / FX5 placeholder hidden
-========================= */
-
-.fx-parameter-rack
-.parameter-button[data-focus-key="parameter-fx4"]
-.parameter-icon,
-.fx-parameter-rack
-.parameter-button[data-focus-key="parameter-fx5"]
-.parameter-icon,
-.fx-parameter-rack
-.parameter-button[data-focus-key="parameter-fx4"]
-.parameter-value,
-.fx-parameter-rack
-.parameter-button[data-focus-key="parameter-fx5"]
-.parameter-value {
-    visibility: hidden;
-}
-
-/* FXラック内だけ少しコンパクトにする */
-.fx-parameter-rack .parameter-button {
-    gap: 1px;
-}
-
-.fx-parameter-rack .parameter-icon svg {
-    width: 15px;
-    height: 15px;
-}
-
-.fx-parameter-rack .parameter-value {
-    font-size: var(--font-label);
-    line-height: 1;
-}
-
-/* =========================
-   FX all mute
-========================= */
-
-/*
- * ミュート待機中。
- * 全削除の消しゴムと同じ強調色。
- */
-.fx-parameter-rack
-.parameter-button[
-    data-focus-key="parameter-fx"
-].delete-armed {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color:
-        var(--selected-text);
-}
-
-/*
- * FXミュート中は、
- * 左端FXボタン以外を
- * 未使用FXと同じ色に抑える。
- */
-.fx-parameter-rack.fx-muted
-.parameter-button:not(
-    [data-focus-key="parameter-fx"]
-) {
-    color: var(--muted);
-    -webkit-text-fill-color:
-        var(--muted);
-}
-
-.fx-parameter-rack.fx-muted
-.parameter-button:not(
-    [data-focus-key="parameter-fx"]
-)
-.parameter-icon,
-.fx-parameter-rack.fx-muted
-.parameter-button:not(
-    [data-focus-key="parameter-fx"]
-)
-.parameter-value {
-    color: var(--muted);
-    -webkit-text-fill-color:
-        var(--muted);
 }
 
 /* =========================

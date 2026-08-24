@@ -14,14 +14,12 @@ let outputAnalyser;
 let eqNodes = [];
 let spectrumData;
 let outputTimeData;
-let bitCrusherWorkletReady = null;
 let fmVoiceWorkletReady = null;
 
 /*
  * CRUSHは発音ごとにWorkletを作らず、
  * Trackごとに1台のAudioWorkletNodeを常設して再利用する。
  */
-const persistentCrusherByTrack = new Map();
 let audioClockReady = false;
 let audioClockReadyPromise = null;
 let offlineRenderMode = false;
@@ -39,7 +37,6 @@ let sprootoDebugTimersScheduled = 0;
 let sprootoDebugTimersFired = 0;
 let sprootoDebugTimerMaxLateMsWindow = 0;
 let sprootoDebugOscEndedWindow = 0;
-let sprootoDebugNoiseEndedWindow = 0;
 
 let sprootoDebugWallStart = 0;
 let sprootoDebugAudioStart = 0;
@@ -62,7 +59,6 @@ let sprootoDebugStateChanges = 0;
 let sprootoDebugLastState = "none";
 
 let sprootoDebugFmWorkletCreatedTotal = 0;
-let sprootoDebugCrusherWorkletCreatedTotal = 0;
 
 const sprootoDebugReleasedNodes = new WeakSet();
 const sprootoDebugNodeTypes = new WeakMap();
@@ -544,36 +540,10 @@ function startSprootoDebugOverlay() {
         sprootoDebugHeartbeatMaxGapWindow = 0;
         sprootoDebugHeartbeatFrameGapMaxWindow = 0;
         sprootoDebugOscEndedWindow = 0;
-        sprootoDebugNoiseEndedWindow = 0;
       },
       1000
     );
 }
-
-/*
- * White Noise buffer cache
- *
- * Noise発音ごとに巨大なAudioBufferを作り直さず、
- * AudioContextごとに1つの共有Bufferを使い回す。
- */
-let sharedNoiseBuffer = null;
-let sharedNoiseBufferContext = null;
-
-/*
- * Realtime Noise source
- *
- * AudioBufferSourceNodeを発音ごとに作り直さず、
- * 通常再生ではAudioContextごとに1本だけ常駐させる。
- *
- * 各発音はこの連続Noiseを専用GainNodeへ分岐し、
- * 発音終了後に source -> gain の接続だけを外す。
- *
- * Offline exportは従来どおり発音ごとのBufferSourceを使う。
- */
-let sharedNoiseSource = null;
-let sharedNoiseSourceContext = null;
-
-const SHARED_NOISE_SECONDS = 4;
 
 const EQ_FREQUENCIES = [
   60, 120, 250, 500,
@@ -612,16 +582,6 @@ const masterMixSettings = {
 const activeTrackVoices =
   new Map();
 
-/*
- * Track Reverb
- *
- * Sizeは内部的に8段階のImpulseへ量子化する。
- * 同じSizeは全Trackで同じConvolver Busを共有するため、
- * 発音ごとに重いDSPノードを生成しない。
- */
-const TRACK_REVERB_BUCKET_COUNT = 8;
-const trackReverbImpulseCache = [];
-const trackReverbBuses = new Map();
 
 async function ensureAudioClockReady() {
   if (!context) {
@@ -839,258 +799,6 @@ async function initializeFmVoiceWorklet() {
   return fmVoiceWorkletReady;
 }
 
-async function initializeBitCrusherWorklet() {
-  if (!context?.audioWorklet) {
-    return false;
-  }
-
-  if (!bitCrusherWorkletReady) {
-    const processorSource = `
-      class SprootoBitCrusherProcessor extends AudioWorkletProcessor {
-        static get parameterDescriptors() {
-          return [
-            {
-              name: "bitDepth",
-              defaultValue: 8,
-              minValue: 1,
-              maxValue: 16,
-              automationRate: "k-rate"
-            },
-            {
-              name: "rateReduction",
-              defaultValue: 4,
-              minValue: 1,
-              maxValue: 32,
-              automationRate: "k-rate"
-            }
-          ];
-        }
-
-        constructor() {
-          super();
-          this.phase = 0;
-          this.held = [];
-        }
-
-        process(inputs, outputs, parameters) {
-          const input = inputs[0];
-          const output = outputs[0];
-
-          if (!input || input.length === 0) {
-            return true;
-          }
-
-          const bitDepth = Math.max(
-            1,
-            Math.min(16, Math.round(parameters.bitDepth[0] || 8))
-          );
-
-          const rateReduction = Math.max(
-            1,
-            Math.min(32, Math.round(parameters.rateReduction[0] || 4))
-          );
-
-          const quantizer = Math.max(1, Math.pow(2, bitDepth - 1) - 1);
-          const frameCount = output[0]?.length || 0;
-
-          for (let frame = 0; frame < frameCount; frame++) {
-  let frameSilent = true;
-
-  /*
-   * このframeで全チャンネルが
-   * ほぼ無音かを先に判定する。
-   */
-  for (
-    let channel = 0;
-    channel < output.length;
-    channel++
-  ) {
-    const source =
-      input[channel] || input[0];
-
-    const sample =
-      source?.[frame] || 0;
-
-    if (
-      Math.abs(sample) >=
-      0.00001
-    ) {
-      frameSilent = false;
-      break;
-    }
-  }
-
-  /*
-   * 完全に無音なら、
-   * 前回のheld値とRATE位相を
-   * 次の発音へ持ち越さない。
-   */
-  if (frameSilent) {
-    this.phase = 0;
-
-    for (
-      let channel = 0;
-      channel < output.length;
-      channel++
-    ) {
-      this.held[channel] = 0;
-
-      if (output[channel]) {
-        output[channel][frame] = 0;
-      }
-    }
-
-    continue;
-  }
-
-  const capture =
-    this.phase === 0;
-
-  for (
-    let channel = 0;
-    channel < output.length;
-    channel++
-  ) {
-    const source =
-      input[channel] || input[0];
-
-    const destination =
-      output[channel];
-
-    if (
-      !source ||
-      !destination
-    ) {
-      continue;
-    }
-
-    if (
-      capture ||
-      this.held[channel] ===
-        undefined
-    ) {
-      const sample =
-        source[frame] || 0;
-
-      this.held[channel] =
-        Math.round(
-          sample *
-            quantizer
-        ) /
-        quantizer;
-    }
-
-    destination[frame] =
-      this.held[channel];
-  }
-
-  this.phase =
-    (
-      this.phase + 1
-    ) %
-    rateReduction;
-}
-
-          return true;
-        }
-      }
-
-      registerProcessor(
-        "sprooto-bit-crusher",
-        SprootoBitCrusherProcessor
-      );
-    `;
-
-    const blob = new Blob(
-      [processorSource],
-      { type: "application/javascript" }
-    );
-
-    const url = URL.createObjectURL(blob);
-
-    bitCrusherWorkletReady = context.audioWorklet
-      .addModule(url)
-      .then(() => true)
-      .catch(error => {
-        console.warn("Bit crusher AudioWorklet unavailable:", error);
-        return false;
-      })
-      .finally(() => {
-        URL.revokeObjectURL(url);
-      });
-  }
-
-  return bitCrusherWorkletReady;
-}
-
-function getPersistentCrusher(trackId) {
-  if (
-    !bitCrusherWorkletReady ||
-    !context
-  ) {
-    return null;
-  }
-
-  const key =
-    String(
-      trackId ?? "track"
-    );
-
-  const existing =
-    persistentCrusherByTrack.get(key);
-
-  if (
-    existing &&
-    existing.context === context
-  ) {
-    return existing;
-  }
-
-  try {
-    const input =
-      sprootoDebugNode(
-        context.createGain(),
-        `crusherInput${key}`
-      );
-
-    const worklet =
-      sprootoDebugNode(
-        new AudioWorkletNode(
-          context,
-          "sprooto-bit-crusher",
-          {
-            numberOfInputs: 1,
-            numberOfOutputs: 1,
-            outputChannelCount: [2]
-          }
-        ),
-        `crusherWorklet${key}`
-      );
-
-    input.connect(worklet);
-
-    const entry = {
-      context,
-      input,
-      worklet
-    };
-
-    persistentCrusherByTrack.set(
-      key,
-      entry
-    );
-
-    return entry;
-  } catch (error) {
-    console.warn(
-      "Persistent bit crusher unavailable:",
-      error
-    );
-
-    return null;
-  }
-}
-
 
 export async function initializeAudio() {
   if (!context) {
@@ -1159,15 +867,6 @@ export async function initializeAudio() {
     outputAnalyser.connect(master);
     master.connect(context.destination);
 
-    /*
- * Track Reverb用IRとConvolver Busを
- * Audio開始時にすべて事前生成する。
- *
- * 再生中のSEND / SIZE操作では
- * 既存Busを取得するだけにする。
- */
-initializeTrackReverbBuses();
-
     applyMasterMixSettings();
     document.addEventListener(
   "visibilitychange",
@@ -1202,10 +901,7 @@ context.addEventListener(
 );
   }
 
-  await Promise.all([
-    initializeBitCrusherWorklet(),
-    initializeFmVoiceWorklet()
-  ]);
+  await initializeFmVoiceWorklet();
 
   if (!offlineRenderMode) {
     sprootoDebugStartHeartbeat();
@@ -1598,95 +1294,6 @@ function oneShotPitchDepthToCents(value) {
   );
 }
 
-function getSharedNoiseBuffer() {
-  /*
-   * Offline exportではcontext自体が差し替わるため、
-   * 現在のAudioContext専用Bufferだけを再利用する。
-   */
-  if (
-    sharedNoiseBuffer &&
-    sharedNoiseBufferContext === context
-  ) {
-    return sharedNoiseBuffer;
-  }
-
-  const size =
-    Math.max(
-      1,
-      Math.ceil(
-        context.sampleRate *
-          SHARED_NOISE_SECONDS
-      )
-    );
-
-  const buffer =
-    context.createBuffer(
-      1,
-      size,
-      context.sampleRate
-    );
-
-  const data =
-    buffer.getChannelData(0);
-
-  for (
-    let index = 0;
-    index < size;
-    index++
-  ) {
-    data[index] =
-      Math.random() * 2 - 1;
-  }
-
-  sharedNoiseBuffer =
-    buffer;
-
-  sharedNoiseBufferContext =
-    context;
-
-  return buffer;
-}
-
-function getSharedNoiseSource() {
-  if (
-    sharedNoiseSource &&
-    sharedNoiseSourceContext === context
-  ) {
-    return sharedNoiseSource;
-  }
-
-  const source =
-    sprootoDebugNode(
-      context.createBufferSource(),
-      "noise"
-    );
-
-  source.buffer =
-    getSharedNoiseBuffer();
-
-  source.loop = true;
-
-  /*
-   * 連続Noiseなので、発音ごとのrandom offsetは不要。
-   * 1本を流し続け、各HitはGain envelopeだけで切り出す。
-   */
-  source.start(
-    context.currentTime,
-    Math.random() *
-      Math.max(
-        0.001,
-        source.buffer.duration
-      )
-  );
-
-  sharedNoiseSource =
-    source;
-
-  sharedNoiseSourceContext =
-    context;
-
-  return source;
-}
 
 /*
  * Random LFO
@@ -1766,451 +1373,6 @@ function createSampleAndHoldLfo({
   return source;
 }
 
-function trackReverbBucketIndex(
-  sizeValue
-) {
-  /* UI / 保存値は1〜8。内部bucketは0〜7。 */
-  return clamp(
-    Math.round(Number(sizeValue) || 5) - 1,
-    0,
-    TRACK_REVERB_BUCKET_COUNT - 1
-  );
-}
-
-function createTrackReverbImpulse(
-  bucketIndex
-) {
-  const safeIndex =
-    clamp(
-      Math.round(
-        Number(bucketIndex) || 0
-      ),
-      0,
-      TRACK_REVERB_BUCKET_COUNT - 1
-    );
-
-  const size =
-    TRACK_REVERB_BUCKET_COUNT > 1
-      ? safeIndex /
-        (
-          TRACK_REVERB_BUCKET_COUNT -
-          1
-        )
-      : 0;
-
-  /*
-   * SIZE 0でも明確な小Room。
-   * SIZE 100で長いHall。
-   *
-   * 以前より最小値を長くして、
-   * SENDだけ上げても「残響」と認識できるようにする。
-   */
-  const duration =
-    0.55 +
-    2.45 *
-      Math.pow(
-        size,
-        1.12
-      );
-
-  /*
-   * SIZEが大きいほど
-   * Tailをゆっくり減衰させる。
-   */
-  const decayPower =
-    4.2 -
-    2.35 * size;
-
-  /*
-   * 原音直後にWetを重ねず、
-   * わずかな時間差を作る。
-   *
-   * 小Room：約7ms
-   * 大Hall：約24ms
-   */
-  const preDelaySeconds =
-    0.007 +
-    0.017 * size;
-
-  const sampleRate =
-    context.sampleRate;
-
-  const length =
-    Math.max(
-      1,
-      Math.floor(
-        sampleRate *
-          duration
-      )
-    );
-
-  const preDelaySamples =
-    Math.floor(
-      sampleRate *
-        preDelaySeconds
-    );
-
-  const buffer =
-    context.createBuffer(
-      2,
-      length,
-      sampleRate
-    );
-
-  for (
-    let channel = 0;
-    channel < 2;
-    channel++
-  ) {
-    const data =
-      buffer.getChannelData(
-        channel
-      );
-
-    /*
-     * deterministic LCG
-     */
-    let seed =
-      (
-        0x1234567 +
-        safeIndex * 7919 +
-        channel * 104729
-      ) >>> 0;
-
-    function nextRandom() {
-      seed =
-        (
-          Math.imul(
-            seed,
-            1664525
-          ) +
-          1013904223
-        ) >>> 0;
-
-      return (
-        seed /
-        0xffffffff
-      ) *
-        2 -
-        1;
-    }
-
-    /*
-     * =========================
-     * Early Reflections
-     * =========================
-     *
-     * 数本の反射だけを先に配置。
-     * 「部屋の輪郭」はここで作る。
-     */
-    const reflectionCount =
-      5 +
-      Math.round(
-        size * 5
-      );
-
-    for (
-      let reflectionIndex = 0;
-      reflectionIndex <
-        reflectionCount;
-      reflectionIndex++
-    ) {
-      const reflectionProgress =
-        reflectionCount <= 1
-          ? 0
-          : reflectionIndex /
-            (
-              reflectionCount -
-              1
-            );
-
-      const reflectionDelay =
-        preDelaySeconds +
-        0.012 +
-        reflectionProgress *
-          (
-            0.045 +
-            size * 0.075
-          ) +
-        nextRandom() *
-          0.003;
-
-      const sampleIndex =
-        Math.floor(
-          reflectionDelay *
-            sampleRate
-        );
-
-      if (
-        sampleIndex < 0 ||
-        sampleIndex >= length
-      ) {
-        continue;
-      }
-
-      const reflectionGain =
-        (
-          0.42 -
-          reflectionProgress *
-            0.24
-        ) *
-        (
-          0.85 +
-          nextRandom() *
-            0.15
-        );
-
-      data[sampleIndex] +=
-        reflectionGain;
-    }
-
-    /*
-     * =========================
-     * Diffuse Reverb Tail
-     * =========================
-     */
-    let smoothedNoise = 0;
-
-    for (
-      let index =
-        preDelaySamples;
-      index < length;
-      index++
-    ) {
-      const tailIndex =
-        index -
-        preDelaySamples;
-
-      const tailLength =
-        Math.max(
-          1,
-          length -
-            preDelaySamples
-        );
-
-      const progress =
-        tailIndex /
-        Math.max(
-          1,
-          tailLength - 1
-        );
-
-      /*
-       * ノイズを少し平滑化。
-       */
-      const random =
-        nextRandom();
-
-      smoothedNoise =
-        smoothedNoise * 0.48 +
-        random * 0.52;
-
-      /*
-       * Tail開始直後を少し抑え、
-       * 約20〜45msかけて立ち上げる。
-       *
-       * これで原音に即座に張り付かず、
-       * 「後ろへ残る」感じを作る。
-       */
-      const buildupSeconds =
-        0.020 +
-        size * 0.025;
-
-      const buildupSamples =
-        Math.max(
-          1,
-          buildupSeconds *
-            sampleRate
-        );
-
-      const buildup =
-        Math.min(
-          1,
-          tailIndex /
-            buildupSamples
-        );
-
-      /*
-       * SIZEに応じた減衰。
-       */
-      const envelope =
-        Math.pow(
-          1 - progress,
-          decayPower
-        );
-
-      /*
-       * 大きいSIZEでは少しTailを強調。
-       */
-      const tailLevel =
-        0.58 +
-        size * 0.22;
-
-      data[index] +=
-        smoothedNoise *
-        buildup *
-        envelope *
-        tailLevel;
-    }
-  }
-
-  return buffer;
-}
-
-function initializeTrackReverbImpulses() {
-  if (!context) {
-    return;
-  }
-
-  if (
-    trackReverbImpulseCache.length ===
-    TRACK_REVERB_BUCKET_COUNT
-  ) {
-    return;
-  }
-
-  trackReverbImpulseCache.length = 0;
-
-  for (
-    let index = 0;
-    index <
-      TRACK_REVERB_BUCKET_COUNT;
-    index++
-  ) {
-    trackReverbImpulseCache.push(
-      createTrackReverbImpulse(
-        index
-      )
-    );
-  }
-}
-
-function ensureTrackReverbBus(
-  sizeValue
-) {
-  if (
-    !context ||
-    !mixInput
-  ) {
-    return null;
-  }
-
-  const bucketIndex =
-    trackReverbBucketIndex(
-      sizeValue
-    );
-
-  /*
-   * Offline exportでは使用bucketだけIRを生成する。
-   * 通常再生時の事前生成仕様はinitializeTrackReverbBuses()で維持。
-   */
-  if (!trackReverbImpulseCache[bucketIndex]) {
-    trackReverbImpulseCache[bucketIndex] =
-      createTrackReverbImpulse(bucketIndex);
-  }
-
-  let bus =
-    trackReverbBuses.get(
-      bucketIndex
-    );
-
-  if (bus) {
-    return bus;
-  }
-
-  const input =
-    sprootoDebugNode(context.createGain());
-
-  const highpass =
-    sprootoDebugNode(context.createBiquadFilter());
-
-  const convolver =
-    context.createConvolver();
-
-  const lowpass =
-    sprootoDebugNode(context.createBiquadFilter());
-
-  const output =
-    sprootoDebugNode(context.createGain());
-
-  const size =
-    TRACK_REVERB_BUCKET_COUNT > 1
-      ? bucketIndex /
-        (
-          TRACK_REVERB_BUCKET_COUNT -
-          1
-        )
-      : 0;
-
-  highpass.type =
-    "highpass";
-
-  highpass.frequency.value =
-    100 +
-    size * 90;
-
-  convolver.normalize =
-    true;
-
-  convolver.buffer =
-    trackReverbImpulseCache[
-      bucketIndex
-    ];
-
-  lowpass.type =
-    "lowpass";
-
-  lowpass.frequency.value =
-    7600 -
-    size * 3000;
-
-  /*
-   * Send=100で残響が明確に分かるが、
-   * Dryを押し潰さない程度。
-   */
-  output.gain.value =
-    1.5;
-
-  input
-    .connect(highpass)
-    .connect(convolver)
-    .connect(lowpass)
-    .connect(output)
-    .connect(mixInput);
-
-  bus = {
-    input,
-    bucketIndex
-  };
-
-  trackReverbBuses.set(
-    bucketIndex,
-    bus
-  );
-
-  return bus;
-}
-
-function initializeTrackReverbBuses() {
-  if (
-    !context ||
-    !mixInput
-  ) {
-    return;
-  }
-
-  /*
-   * IR Bufferだけは事前生成しておく。
-   *
-   * Convolver Bus本体はSENDが実際に使われたbucketだけ
-   * ensureTrackReverbBus()で遅延生成する。
-   *
-   * 以前はSIZE 1〜8のConvolverを全て常駐させていたため、
-   * SEND 0でも最大8本のConvolver graphがAudioContext上に
-   * 接続されたままになっていた。
-   */
-  initializeTrackReverbImpulses();
-}
 
 export async function playTrackStep(
   track,
@@ -2732,32 +1894,12 @@ const gate =
       ) / 10
     );
 
-  const noiseVolume =
-    clamp(
-      (soundTrack.base.noiseVolume ?? 0) +
-        offset("noiseVolume"),
-      0,
-      100
-    ) / 100;
-
-  const noiseDecay =
-    Math.max(
-      0.03,
-      clamp(
-        (soundTrack.base.noiseDecay ?? 5) +
-          offset("noiseDecay"),
-        1,
-        100
-      ) / 10
-    );
-
   const commonEnvelopeDuration =
   gate;
 
   const maximumDecay =
     Math.max(
       sineDecay,
-      noiseDecay,
       commonEnvelopeDuration
     );
 
@@ -2793,130 +1935,6 @@ const gate =
     25
   ) / 25;
 
-  /*
- * FX一括ミュート中は、
- * パラメーター値を保持したまま
- * Delay処理だけを停止する。
- */
-const delayLevel =
-  soundTrack.fxMuted
-    ? 0
-    : clamp(
-        (soundTrack.base.delay ?? 0) +
-          offset("delay"),
-        0,
-        100
-      ) / 100;
-
-  /*
-   * UI上の1〜100を
-   * 10ms〜1000msとして扱う。
-   */
-  const delayTimeIndex =
-  clamp(
-    (soundTrack.base.delayTime ?? 4) +
-      offset("delayTime"),
-    0,
-    10
-  );
-  
-const delayRatios = [
-  1 / 16, // 1/64
-  1 / 12, // 1/32T
-  1 / 8,  // 1/32
-  1 / 6,  // 1/16T
-  1 / 4,  // 1/16
-  1 / 3,  // 1/8T
-  1 / 2,  // 1/8
-  2 / 3,  // 1/4T
-  1,      // 1/4
-  4 / 3,  // 1/2T
-  2       // 1/2
-];
-
-const delayTime =
-  (60 / bpm) *
-  delayRatios[delayTimeIndex];
-
-  const delayFeedback =
-  clamp(
-    (soundTrack.base.delayFeedback ?? 35) +
-      offset("delayFeedback"),
-    0,
-    95
-  ) / 100;
-
-  const crushLevel =
-    soundTrack.fxMuted
-      ? 0
-      : clamp(
-          (soundTrack.base.crushLevel ?? 0) +
-            offset("crushLevel"),
-          0,
-          100
-        ) / 100;
-
-  const crushBit = clamp(
-    Math.round(
-      (soundTrack.base.crushBit ?? 8) +
-        offset("crushBit")
-    ),
-    1,
-    16
-  );
-
-  const crushRateValues = [
-    1, 2, 4, 8, 16, 32
-  ];
-
-  const crushRateBaseIndex =
-    crushRateValues.reduce(
-      (bestIndex, value, index) =>
-        Math.abs(value - (soundTrack.base.crushRate ?? 4)) <
-        Math.abs(crushRateValues[bestIndex] - (soundTrack.base.crushRate ?? 4))
-          ? index
-          : bestIndex,
-      0
-    );
-
-  const crushRateIndex = clamp(
-    crushRateBaseIndex +
-      Math.round(offset("crushRate")),
-    0,
-    crushRateValues.length - 1
-  );
-
-  const crushRate =
-    crushRateValues[
-      crushRateIndex
-    ];
-
-  /*
-   * FX3 Reverb
-   *
-   * SENDはDryを維持したまま残響経路へ送る量。
-   * SIZEはDelay Networkの時間とFeedbackを同時に変化させる。
-   * FX一括ミュート中はSENDのみ0として、設定値は保持する。
-   */
-  const reverbSend =
-    soundTrack.fxMuted
-      ? 0
-      : clamp(
-          (soundTrack.base.reverbSend ?? 0) +
-            offset("reverbSend"),
-          0,
-          100
-        ) / 100;
-
-  const reverbSize =
-    clamp(
-      Math.round(
-        (soundTrack.base.reverbSize ?? 5) +
-          offset("reverbSize")
-      ),
-      1,
-      8
-    );
 
   const panLfoActive = [1, 2].some(lfoNumber => {
     const prefix = `lfo${lfoNumber}`;
@@ -3782,394 +2800,39 @@ if (panner) {
   voiceOutputNode = panner;
 }
 
-  /*
-   * FX1 Delay → FX2 CRUSH の順で処理するため、
-   * まずPan後の信号をFXバスへまとめる。
-   */
-  const noTrackFx =
-    delayLevel <= 0 &&
-    crushLevel <= 0 &&
-    reverbSend <= 0;
-
-  const fxInput =
-    noTrackFx
-      ? null
-      : sprootoDebugNode(context.createGain());
-
 /*
- * EXPORT専用Fade。
- *
- * 通常再生ではオフライン化前と同じ
- * panner → fxInput の直結経路を使う。
- *
- * Offline Export時、またはfadeEnvelopeが
- * 明示された場合だけFade用GainNodeを生成する。
- * これにより通常再生の発音ごとのAudioNode生成数を
- * オフライン化前と同じ水準へ戻す。
+ * Track FX廃止後は、Pan後の信号をMaster Mixへ直結する。
+ * Offline Export時だけFade用GainNodeを挟む。
  */
 let exportFadeGain = null;
-let fxSourceNode = voiceOutputNode;
+const fadeEnvelope = options.fadeEnvelope;
 
-const fadeEnvelope =
-  options.fadeEnvelope;
-
-if (
-  offlineRenderMode ||
-  fadeEnvelope
-) {
-  exportFadeGain =
-    sprootoDebugNode(context.createGain());
-
-  exportFadeGain.gain.setValueAtTime(
-    1,
-    0
-  );
+if (offlineRenderMode || fadeEnvelope) {
+  exportFadeGain = sprootoDebugNode(context.createGain());
+  exportFadeGain.gain.setValueAtTime(1, 0);
 
   if (fadeEnvelope) {
-    const fadeInStart =
-      Number(
-        fadeEnvelope.fadeInStart
-      );
+    const fadeInStart = Number(fadeEnvelope.fadeInStart);
+    const fadeInEnd = Number(fadeEnvelope.fadeInEnd);
+    const fadeOutStart = Number(fadeEnvelope.fadeOutStart);
+    const fadeOutEnd = Number(fadeEnvelope.fadeOutEnd);
 
-    const fadeInEnd =
-      Number(
-        fadeEnvelope.fadeInEnd
-      );
-
-    const fadeOutStart =
-      Number(
-        fadeEnvelope.fadeOutStart
-      );
-
-    const fadeOutEnd =
-      Number(
-        fadeEnvelope.fadeOutEnd
-      );
-
-    if (
-      Number.isFinite(fadeInStart) &&
-      Number.isFinite(fadeInEnd) &&
-      fadeInEnd > fadeInStart
-    ) {
-      exportFadeGain.gain
-        .setValueAtTime(
-          0,
-          fadeInStart
-        );
-
-      exportFadeGain.gain
-        .linearRampToValueAtTime(
-          1,
-          fadeInEnd
-        );
+    if (Number.isFinite(fadeInStart) && Number.isFinite(fadeInEnd) && fadeInEnd > fadeInStart) {
+      exportFadeGain.gain.setValueAtTime(0, fadeInStart);
+      exportFadeGain.gain.linearRampToValueAtTime(1, fadeInEnd);
     }
 
-    if (
-      Number.isFinite(fadeOutStart) &&
-      Number.isFinite(fadeOutEnd) &&
-      fadeOutEnd > fadeOutStart
-    ) {
-      exportFadeGain.gain
-        .setValueAtTime(
-          1,
-          fadeOutStart
-        );
-
-      exportFadeGain.gain
-        .linearRampToValueAtTime(
-          0,
-          fadeOutEnd
-        );
+    if (Number.isFinite(fadeOutStart) && Number.isFinite(fadeOutEnd) && fadeOutEnd > fadeOutStart) {
+      exportFadeGain.gain.setValueAtTime(1, fadeOutStart);
+      exportFadeGain.gain.linearRampToValueAtTime(0, fadeOutEnd);
     }
   }
 
-  voiceOutputNode.connect(
-    exportFadeGain
-  );
-
-  fxSourceNode =
-    exportFadeGain;
-}
-
-if (noTrackFx) {
-  fxSourceNode.connect(mixInput);
+  voiceOutputNode.connect(exportFadeGain);
+  exportFadeGain.connect(mixInput);
 } else {
-  fxSourceNode.connect(fxInput);
+  voiceOutputNode.connect(mixInput);
 }
-
-  /*
-   * 共通Audio graphをいつ解放できるか判断するため、
-   * Delay tailの終了予定時刻を保持する。
-   *
-   * DelayなしならreleaseEndで解放できる。
-   */
-  let delayGraphCleanupAt =
-    releaseEnd;
-
-  let delayNodeForCleanup = null;
-  let delayFeedbackGainForCleanup = null;
-  let delayWetGainForCleanup = null;
-
-  /*
-   * クリーンなDelay。
-   *
-   * フィルターや拡散処理を挟まず、
-   * 原音と同じ信号を音量だけ減衰させて
-   * 繰り返す。
-   */
-  if (delayLevel > 0) {
-    const delayNode =
-      sprootoDebugNode(context.createDelay(1.1));
-
-    const feedbackGain =
-      sprootoDebugNode(context.createGain());
-
-    const wetGain =
-      sprootoDebugNode(context.createGain());
-
-    delayNodeForCleanup = delayNode;
-    delayFeedbackGainForCleanup = feedbackGain;
-    delayWetGainForCleanup = wetGain;
-
-    delayNode.delayTime.setValueAtTime(
-      delayTime,
-      now
-    );
-
-    feedbackGain.gain.setValueAtTime(
-      delayFeedback,
-      now
-    );
-
-    wetGain.gain.setValueAtTime(
-      delayLevel,
-      now
-    );
-
-    fxSourceNode.connect(
-      delayNode
-    );
-
-    delayNode
-      .connect(wetGain)
-      .connect(fxInput);
-
-    delayNode
-      .connect(feedbackGain)
-      .connect(delayNode);
-
-    /*
-     * Feedbackが十分小さくなった後に
-     * Delayノードを切り離す。
-     */
-    const repeatCount =
-      delayFeedback <= 0
-        ? 1
-        : Math.min(
-            64,
-            Math.ceil(
-              Math.log(0.001) /
-              Math.log(delayFeedback)
-            )
-          );
-
-    const cleanupSeconds =
-      Math.min(
-        20,
-        attack +
-        maximumDecay +
-        delayTime *
-          (repeatCount + 2)
-      );
-
-    delayGraphCleanupAt =
-      Math.max(
-        delayGraphCleanupAt,
-        now + cleanupSeconds
-      );
-
-  }
-
-  /*
-   * FX2の出力をいったんFX3入力へまとめる。
-   * Reverb SEND 0でも、このGainは単純な通過点だけになる。
-   */
-  const fxOutput =
-    noTrackFx
-      ? null
-      : sprootoDebugNode(context.createGain());
-
-  /*
-   * FX2ノードは発音終了後にまとめて解放するため、
-   * block外から参照できるよう保持する。
-   */
-  let crusherNodeForCleanup = null;
-  let crusherDryGainForCleanup = null;
-  let crusherWetGainForCleanup = null;
-
-  /*
-   * FX2：Bit Crusher
-   *
-   * BIT / RATEで完成したWet音を作り、
-   * CRUSH LEVELでDry/Wetを混ぜる。
-   * LEVEL 0は完全Dry、100は完全Wet。
-   */
-  if (!noTrackFx) {
-    if (
-      crushLevel > 0 &&
-      bitCrusherWorkletReady
-    ) {
-      const dryGain =
-        sprootoDebugNode(
-          context.createGain()
-        );
-
-      const wetGain =
-        sprootoDebugNode(
-          context.createGain()
-        );
-
-      crusherDryGainForCleanup =
-        dryGain;
-
-      crusherWetGainForCleanup =
-        wetGain;
-
-      const persistentCrusher =
-        getPersistentCrusher(
-          track.id
-        );
-
-      if (persistentCrusher) {
-        persistentCrusher.worklet.parameters
-          .get("bitDepth")
-          ?.setValueAtTime(
-            crushBit,
-            now
-          );
-
-        persistentCrusher.worklet.parameters
-          .get("rateReduction")
-          ?.setValueAtTime(
-            crushRate,
-            now
-          );
-
-        dryGain.gain.setValueAtTime(
-          1 - crushLevel,
-          now
-        );
-
-        wetGain.gain.setValueAtTime(
-  crushLevel,
-  now
-);
-
-const crushFadeDuration =
-  0.008;
-
-const crushFadeStart =
-  Math.max(
-    now,
-    releaseEnd -
-      crushFadeDuration
-  );
-
-wetGain.gain.setValueAtTime(
-  crushLevel,
-  crushFadeStart
-);
-
-wetGain.gain.linearRampToValueAtTime(
-  0,
-  releaseEnd
-);
-
-        fxInput
-          .connect(dryGain)
-          .connect(fxOutput);
-
-        fxInput.connect(
-          persistentCrusher.input
-        );
-
-        persistentCrusher.worklet
-          .connect(wetGain)
-          .connect(fxOutput);
-      } else {
-        fxInput.connect(
-          fxOutput
-        );
-      }
-    } else {
-      fxInput.connect(
-        fxOutput
-      );
-    }
-
-  /*
-   * FX3：Track Reverb
-   *
-   * Dryは常にそのままMasterへ送る。
-   * WetだけをSize別の共有Convolver BusへSendする。
-   *
-   * Feedback loopを一切持たないので、
-   * Reverb追加による発振・音切れを起こしにくい構造。
-   */
-  fxOutput.connect(
-    mixInput
-  );
-
-  if (reverbSend > 0) {
-    const reverbBus =
-      ensureTrackReverbBus(
-        reverbSize
-      );
-
-    if (reverbBus) {
-      const sendGain =
-        sprootoDebugNode(context.createGain());
-
-      sendGain.gain.setValueAtTime(
-        reverbSend,
-        now
-      );
-
-      fxOutput
-        .connect(sendGain)
-        .connect(
-          reverbBus.input
-        );
-
-      /*
-       * 元音が終わったらSendノードだけ切る。
-       * Convolver側の残響Tailは独立して最後まで鳴る。
-       */
-      const disconnectDelayMs =
-        Math.max(
-          100,
-          (
-            releaseEnd -
-            context.currentTime +
-            0.12
-          ) *
-            1000
-        );
-
-      if (!offlineRenderMode) {
-        sprootoDebugTimeout(
-          () => {
-            try {
-              fxOutput.disconnect(sendGain);
-              sprootoDebugReleaseNode(sendGain);
-            } catch {}
-          },
-          disconnectDelayMs
-        );
-      }
-    }
-  }
-  }
 
   function scheduleSourceEnvelope(
   gainNode,
@@ -4420,120 +3083,6 @@ wetGain.gain.linearRampToValueAtTime(
     );
   }
 
-  if (noiseVolume > 0) {
-    const noiseGain =
-      sprootoDebugNode(
-        context.createGain(),
-        "noiseGain"
-      );
-
-    const noiseStopAt =
-      releaseEnd + 0.01;
-
-    /*
-     * shared sourceは常時鳴っているため、
-     * 今回の予約開始時刻nowより前に音が漏れないよう
-     * 接続前にGainを0へ固定する。
-     */
-    noiseGain.gain.setValueAtTime(
-      0,
-      context.currentTime
-    );
-
-    scheduleSourceEnvelope(
-      noiseGain,
-      noiseVolume,
-      noiseDecay
-    );
-
-    if (!offlineRenderMode) {
-      /*
-       * =========================
-       * Realtime Noise
-       * =========================
-       *
-       * AudioBufferSourceNodeは1本だけ常駐。
-       * Hitごとに作るのはGainNodeだけ。
-       */
-      const noise =
-        getSharedNoiseSource();
-
-      noise
-        .connect(noiseGain);
-
-      noiseGain
-        .connect(mixGain);
-
-      sprootoDebugTimeout(
-        () => {
-          sprootoDebugNoiseEndedWindow += 1;
-
-          /*
-           * persistent source側の接続も明示的に外す。
-           * noiseGain.disconnect()だけではsource側に
-           * 接続先参照が残る可能性があるため両側を処理する。
-           */
-          try {
-            noise.disconnect(
-              noiseGain
-            );
-          } catch {}
-
-          sprootoDebugReleaseNode(
-            noiseGain
-          );
-        },
-        Math.max(
-          20,
-          (
-            noiseStopAt -
-            context.currentTime +
-            0.05
-          ) * 1000
-        )
-      );
-    } else {
-      /*
-       * =========================
-       * Offline export
-       * =========================
-       *
-       * OfflineAudioContextでは常駐source方式を使わず、
-       * 従来どおり発音ごとに有限Sourceを予約する。
-       */
-      const noise =
-        sprootoDebugNode(
-          context.createBufferSource(),
-          "noise"
-        );
-
-      noise.buffer =
-        getSharedNoiseBuffer();
-
-      noise.loop = true;
-
-      const noiseStartOffset =
-        Math.random() *
-        Math.max(
-          0.001,
-          noise.buffer.duration
-        );
-
-      noise
-        .connect(noiseGain)
-        .connect(mixGain);
-
-      noise.start(
-        now,
-        noiseStartOffset
-      );
-
-      noise.stop(
-        noiseStopAt
-      );
-    }
-  }
-
   /*
  * トラック終了時に
  * Pan LFOも停止する。
@@ -4567,26 +3116,7 @@ if (!offlineRenderMode) {
       (releaseEnd - context.currentTime + 0.05) * 1000
     )
   );
-
-  /*
-   * =========================
-   * Per-voice AudioNode cleanup
-   * =========================
-   *
-   * Source本体が終了しても、接続されたAudioNode graphを
-   * 明示的に切らないまま高密度発音を続けると、
-   * iPhone等でGC / Web Audio資源回収が追いつかない場合がある。
-   *
-   * Delay使用時はtailがfxInput -> fxOutputを通るため、
-   * releaseEndでは切らず、Delay cleanup予定時刻まで待つ。
-   * Track ReverbはSend入力を別timerで切っており、
-   * Convolver Bus自体は共有なのでtailを壊さない。
-   */
-  const graphCleanupAt =
-    Math.max(
-      releaseEnd + 0.15,
-      delayGraphCleanupAt + 0.10
-    );
+  const graphCleanupAt = releaseEnd + 0.15;
 
   sprootoDebugTimeout(
     () => {
@@ -4607,54 +3137,17 @@ if (!offlineRenderMode) {
         sprootoDebugReleaseNode
       );
 
-      /*
-       * CRUSH Worklet本体はTrack常設。
-       * この発音専用のDry/Wet Gainだけ外し、
-       * Worklet -> wetGain の枝も明示的に切る。
-       */
-      if (crusherWetGainForCleanup) {
-  const persistentCrusher =
-    persistentCrusherByTrack.get(
-      String(
-        track.id ?? "track"
-      )
-    );
-
-  try {
-    persistentCrusher?.worklet?.disconnect(
-      crusherWetGainForCleanup
-    );
-  } catch {}
-}
-
-      [
-  crusherDryGainForCleanup,
-  crusherWetGainForCleanup
-].forEach(
-        node => {
-          if (!node) {
-            return;
-          }
-
-          sprootoDebugReleaseNode(node);
-        }
-      );
 
       /*
        * 発音ごとに生成する共通Dry / FX経路。
        * Delay tail終了後なので、ここで切っても音は変わらない。
        */
       [
-  delayNodeForCleanup,
-  delayFeedbackGainForCleanup,
-  delayWetGainForCleanup,
   mixGain,
   filter1,
   filter2,
   panner,
   exportFadeGain,
-  fxInput,
-  fxOutput
 ].forEach(
   sprootoDebugReleaseNode
 );
@@ -4704,35 +3197,24 @@ export async function beginOfflineAudioRender(
     eqNodes,
     spectrumData,
     outputTimeData,
-    bitCrusherWorkletReady,
     fmVoiceWorkletReady,
     audioClockReady,
     audioClockReadyPromise,
     offlineRenderMode,
-    trackReverbImpulseCache: trackReverbImpulseCache.slice(),
-    trackReverbBuses: [...trackReverbBuses.entries()],
     activeTrackVoices: [...activeTrackVoices.entries()]
   };
 
   context = offlineContext;
 
-  persistentCrusherByTrack.clear();
-
-  sharedNoiseBuffer = null;
-  sharedNoiseBufferContext = null;
-
   offlineRenderMode = true;
   audioClockReady = true;
   audioClockReadyPromise = null;
-  bitCrusherWorkletReady = null;
   fmVoiceWorkletReady = null;
   spectrumData = null;
   outputTimeData = null;
   spectrumAnalyser = null;
   outputAnalyser = null;
 
-  trackReverbImpulseCache.length = 0;
-  trackReverbBuses.clear();
   activeTrackVoices.clear();
 
   master = sprootoDebugNode(context.createGain());
@@ -4793,13 +3275,8 @@ export async function beginOfflineAudioRender(
   limiter.connect(master);
   master.connect(context.destination);
 
-  /* Track Reverbは実際に使用されたSIZEだけ遅延生成する。 */
 
-
-  await Promise.all([
-    initializeBitCrusherWorklet(),
-    initializeFmVoiceWorklet()
-  ]);
+  await initializeFmVoiceWorklet();
 
   let restored = false;
 
@@ -4807,25 +3284,12 @@ export async function beginOfflineAudioRender(
     if (restored) return;
     restored = true;
 
-    trackReverbImpulseCache.length = 0;
-    trackReverbImpulseCache.push(...backup.trackReverbImpulseCache);
-
-    trackReverbBuses.clear();
-    backup.trackReverbBuses.forEach(([key, value]) => {
-      trackReverbBuses.set(key, value);
-    });
-
     activeTrackVoices.clear();
     backup.activeTrackVoices.forEach(([key, value]) => {
       activeTrackVoices.set(key, value);
     });
 
     context = backup.context;
-
-    persistentCrusherByTrack.clear();
-
-    sharedNoiseBuffer = null;
-    sharedNoiseBufferContext = null;
 
     master = backup.master;
     mixInput = backup.mixInput;
@@ -4839,7 +3303,6 @@ export async function beginOfflineAudioRender(
     eqNodes = backup.eqNodes;
     spectrumData = backup.spectrumData;
     outputTimeData = backup.outputTimeData;
-    bitCrusherWorkletReady = backup.bitCrusherWorkletReady;
     fmVoiceWorkletReady = backup.fmVoiceWorkletReady;
     audioClockReady = backup.audioClockReady;
     audioClockReadyPromise = backup.audioClockReadyPromise;

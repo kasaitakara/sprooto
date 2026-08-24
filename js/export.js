@@ -155,11 +155,9 @@ function audibleTracks(source) {
 
 function estimateTailSafetySeconds(sources, bpm, masterReverbAmount = 0) {
   let required = Number(masterReverbAmount) > 0 ? 2.7 : EXPORT_TAIL_MIN_SECONDS;
-  const safeBpm = Math.max(1, Number(bpm) || 120);
-  const delayRatios = [1/16, 1/12, 1/8, 1/6, 1/4, 1/3, 1/2, 2/3, 1, 4/3, 2];
 
   const inspectSound = (sound, track, stepIndex, usingPin = false) => {
-    if (!sound?.base || sound.fxMuted) return;
+    if (!sound?.base) return;
 
     const offset = id => usingPin
       ? 0
@@ -169,29 +167,6 @@ function estimateTailSafetySeconds(sources, bpm, masterReverbAmount = 0) {
     const gateNormalized = (gateValue - 1) / 99;
     const gateSeconds = 0.005 + 9.995 * Math.pow(gateNormalized, 3);
     required = Math.max(required, gateSeconds + 0.15);
-
-    const reverbSend = clamp((Number(sound.base.reverbSend) || 0) + offset("reverbSend"), 0, 100);
-    if (reverbSend > 0) {
-      const size = clamp(Math.round((Number(sound.base.reverbSize) || 5) + offset("reverbSize")), 1, 8);
-      const normalizedSize = (size - 1) / 7;
-      const impulseDuration = 0.55 + 2.45 * Math.pow(normalizedSize, 1.12);
-      required = Math.max(required, gateSeconds + impulseDuration + 0.35);
-    }
-
-    const delayLevel = clamp((Number(sound.base.delay) || 0) + offset("delay"), 0, 100);
-    if (delayLevel > 0) {
-      const timeIndex = clamp(Math.round((Number(sound.base.delayTime) || 4) + offset("delayTime")), 0, 10);
-      const feedback = clamp((Number(sound.base.delayFeedback) || 35) + offset("delayFeedback"), 0, 95) / 100;
-      const delayTime = (60 / safeBpm) * delayRatios[timeIndex];
-
-      let repeatTail = delayTime;
-      if (feedback > 0) {
-        const repeatsToMinus80dB = Math.ceil(Math.log(0.0001) / Math.log(feedback));
-        repeatTail = delayTime * Math.max(1, repeatsToMinus80dB);
-      }
-
-      required = Math.max(required, gateSeconds + repeatTail + 0.25);
-    }
   };
 
   sources.forEach(item => {

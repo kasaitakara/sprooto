@@ -4,12 +4,9 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
   voices: 4,
   inversion: 0,
   sineVolume: 100,
-  sineDecay: 5,
   velocity: 70,
   attack: 1,
-  decay: 5,
-  sustain: 0,
-  gate: 5,
+  holdDecay: 0,
   fmDepth: 0,
   fmRatio: 1,
   fmFeedback: 0,
@@ -37,8 +34,8 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
 
 export const SOUND_OFFSET_IDS = Object.freeze([
   "note", "chord", "voices", "inversion", "velocity",
-  "attack", "decay", "sustain", "gate",
-  "sineVolume", "sineDecay",
+  "attack", "holdDecay",
+  "sineVolume",
   "fmDepth", "fmRatio", "fmFeedback",
   "filterCutoff", "filterResonance", "pan",
   "probability",
@@ -59,8 +56,7 @@ export function createDefaultSound() {
   return {
     base: structuredClone(SOUND_BASE_DEFAULTS),
     offsets: zeroOffsets(),
-    envelopeSelectedId: "decay",
-    oscSelectedId: "sineVolume",
+    envelopeSelectedId: "holdDecay",
     articulationSelectedId: "glide",
     lfoSelected: 1
   };
@@ -88,12 +84,8 @@ export function normalizeSound(sound) {
     });
   }
 
-  if (["attack", "decay", "sustain", "gate"].includes(source.envelopeSelectedId)) {
+  if (["attack", "holdDecay"].includes(source.envelopeSelectedId)) {
     normalized.envelopeSelectedId = source.envelopeSelectedId;
-  }
-
-  if (["sineVolume", "sineDecay"].includes(source.oscSelectedId)) {
-    normalized.oscSelectedId = source.oscSelectedId;
   }
 
   if (["glide", "nudge", "strum"].includes(source.articulationSelectedId)) {

@@ -167,8 +167,7 @@ function makeTrack(id) {
     pinSounds: makePinSounds(),
 
     /* ENV親枠へ最後に表示した子パラメーター */
-    envelopeSelectedId: "decay",
-    oscSelectedId: "sineVolume",
+    envelopeSelectedId: "holdDecay",
     articulationSelectedId: "glide",
 
     /* LFO編集画面で最後に選択していた系統 */
@@ -186,12 +185,9 @@ solo: false,
   voices: 4,
   inversion: 0,
   sineVolume: 100,
-  sineDecay: 5,
   velocity: 70,
   attack: 1,
-  decay: 5,
-  sustain: 0,
-  gate: 5,
+  holdDecay: 0,
   fmDepth: 0,
 fmRatio: 1,
 fmFeedback: 0,
@@ -238,20 +234,11 @@ filterCutoff: 0,
   attack:
   filled(0),
 
-decay:
-  filled(0),
-
-sustain:
-  filled(0),
-
-gate:
+holdDecay:
   filled(0),
 
 sineVolume:
   filled(0),
-
-  sineDecay:
-    filled(0),
 
   fmDepth:
     filled(0),
@@ -532,17 +519,6 @@ export const parameters = [
   },
 
   {
-    id: "sineDecay",
-    label: "sine decay",
-    icon: "decay",
-    min: 1,
-    max: 100,
-    step: 1,
-    offsetMode: "offset"
-  },
-
-
-  {
   id: "attack",
   label: "attack",
   icon: "attack",
@@ -553,31 +529,11 @@ export const parameters = [
 },
 
 {
-  id: "decay",
-  label: "decay",
+  id: "holdDecay",
+  label: "h/d",
   icon: "decay",
-  min: 1,
-  max: 100,
-  step: 1,
-  offsetMode: "offset"
-},
-
-{
-  id: "sustain",
-  label: "sustain",
-  icon: "sustain",
-  min: 0,
-  max: 100,
-  step: 1,
-  offsetMode: "offset"
-},
-
-{
-  id: "gate",
-  label: "gate",
-  icon: "gate",
-  min: 1,
-  max: 100,
+  min: -50,
+  max: 50,
   step: 1,
   offsetMode: "offset"
 },
@@ -3164,38 +3120,28 @@ if (
       filled(0);
   }
 
-  if (
-    !["attack", "decay", "sustain", "gate"].includes(
-      track.envelopeSelectedId
-    )
-  ) {
-    track.envelopeSelectedId = "decay";
+  if (!["attack", "holdDecay"].includes(track.envelopeSelectedId)) {
+    track.envelopeSelectedId = "holdDecay";
   }
 
-  if (
-    typeof track.base.sustain !== "number"
-  ) {
-    track.base.sustain = 0;
+  /*
+   * ADSG廃止後のH/D。
+   * 旧データは互換変換せず中央0から開始する。
+   */
+  if (typeof track.base.holdDecay !== "number") {
+    track.base.holdDecay = 0;
   }
 
-  if (
-    typeof track.base.gate !== "number"
-  ) {
-    track.base.gate = 5;
-  }
-
-  ["sustain", "gate"].forEach(
-    parameterId => {
-      if (
-        !Array.isArray(
-          track.offsets[parameterId]
-        )
-      ) {
-        track.offsets[parameterId] =
-          filled(0);
-      }
-    }
+  track.base.holdDecay = clamp(
+    Math.round(track.base.holdDecay),
+    -50,
+    50
   );
+
+  if (!Array.isArray(track.offsets.holdDecay)) {
+    track.offsets.holdDecay = filled(0);
+  }
+
 
   /*
    * 旧OSCデータを新しい音源別パラメーターへ移行する。
@@ -3212,42 +3158,6 @@ if (
         : 100;
   }
 
-  if (
-  typeof track.base.decay !==
-  "number"
-) {
-  track.base.decay = 5;
-}
-
-if (
-  !Array.isArray(
-    track.offsets.decay
-  )
-) {
-  track.offsets.decay =
-    filled(0);
-}
-
-  const legacyDecay =
-    typeof track.base.decay ===
-      "number"
-      ? track.base.decay
-      : 5;
-
-  if (
-    typeof track.base.sineDecay !==
-      "number"
-  ) {
-    track.base.sineDecay =
-      legacyDecay;
-  }
-
-  const legacyDecayOffsets =
-    Array.isArray(
-      track.offsets.decay
-    )
-      ? track.offsets.decay
-      : filled(0);
 
   ["sineVolume"].forEach(parameterId => {
     if (
@@ -3257,19 +3167,6 @@ if (
     ) {
       track.offsets[parameterId] =
         filled(0);
-    }
-  });
-
-  ["sineDecay"].forEach(parameterId => {
-    if (
-      !Array.isArray(
-        track.offsets[parameterId]
-      )
-    ) {
-      track.offsets[parameterId] =
-        [
-          ...legacyDecayOffsets
-        ];
     }
   });
 
@@ -3377,18 +3274,12 @@ if (
        * 旧GateターゲットはAttackへ移行。
        * OSC個別Decayターゲットは共通ENV Decayへ統合。
        */
-      if (target === "gate") {
+      if (target === "gate" || target === "decay") {
         track.base[parameterId] =
           "attack";
         return;
       }
 
-      if (
-        target === "sineDecay"
-      ) {
-        track.base[parameterId] =
-          "decay";
-      }
     }
   );
 
@@ -3413,7 +3304,6 @@ if (
   track.base = normalizedSound.base;
   track.offsets = normalizedSound.offsets;
   track.envelopeSelectedId = normalizedSound.envelopeSelectedId;
-  track.oscSelectedId = normalizedSound.oscSelectedId;
   track.articulationSelectedId = normalizedSound.articulationSelectedId;
   track.lfoSelected = normalizedSound.lfoSelected;
 

@@ -1817,9 +1817,8 @@ const attackNormalized =
   (attackValue - 1) / 99;
 
 /*
+ * Attackは現行仕様を維持：
  * 1〜100を約1ms〜1秒へ非線形変換。
- * 低い値ほど細かく、
- * 高い値ほど長いAttackへ広げる。
  */
 const attack =
   0.001 +
@@ -1829,51 +1828,35 @@ const attack =
       2.4
     );
 
-  const decayValue =
-    envelopeLfoValue(
-      "decay",
-      (soundTrack.base.decay ?? 5) +
-        offset("decay"),
-      1,
-      100
-    );
-
-  const decay =
-    Math.max(
-      0.03,
-      decayValue / 10
-    );
-
-  const sustain =
-    clamp(
-      (soundTrack.base.sustain ?? 0) +
-        offset("sustain"),
-      0,
-      100
-    ) / 100;
-
-  const gateValue =
+/*
+ * H/D：
+ * -50〜-1 = hold
+ * 0       = 最短クリック
+ * +1〜+50 = decay
+ */
+const holdDecayValue =
   clamp(
-    (soundTrack.base.gate ?? 5) +
-      offset("gate"),
-    1,
-    100
+    (soundTrack.base.holdDecay ?? 0) +
+      offset("holdDecay"),
+    -50,
+    50
   );
 
-const gateNormalized =
-  (gateValue - 1) / 99;
+const holdDecayAmount =
+  Math.abs(holdDecayValue);
 
-/*
- * 低い値ほど細かく短音を調整し、
- * 最大値では約10秒まで伸ばす。
- */
-const gate =
-  0.005 +
-  9.995 *
-    Math.pow(
-      gateNormalized,
-      3
-    );
+const holdDecayNormalized =
+  holdDecayAmount / 50;
+
+const envelopeDuration =
+  holdDecayAmount === 0
+    ? 0.005
+    : 0.005 +
+      9.995 *
+        Math.pow(
+          holdDecayNormalized,
+          3
+        );
 
   const sineVolume =
     clamp(
@@ -1883,25 +1866,11 @@ const gate =
       100
     ) / 100;
 
-  const sineDecay =
-    Math.max(
-      0.03,
-      clamp(
-        (soundTrack.base.sineDecay ?? 5) +
-          offset("sineDecay"),
-        1,
-        100
-      ) / 10
-    );
-
   const commonEnvelopeDuration =
-  gate;
+    envelopeDuration;
 
   const maximumDecay =
-    Math.max(
-      sineDecay,
-      commonEnvelopeDuration
-    );
+    commonEnvelopeDuration;
 
   const depth =
     clamp(
@@ -1978,7 +1947,7 @@ const filter2 =
     : null;
 
 const gateEnd =
-  now + gate + maximumStrumDelay;
+  now + envelopeDuration + maximumStrumDelay;
 
   /*
  * クリック防止用のRelease。
@@ -2114,7 +2083,7 @@ if (lfoWave === "random") {
         now,
 
       stopTime:
-        now + gate + 0.05
+        now + envelopeDuration + 0.05
     });
 
   panLfoOscillators.push(
@@ -2622,47 +2591,63 @@ filter2.detune.setValueCurveAtTime(
 const mixGain =
   sprootoDebugNode(context.createGain(), "mix");
 
-/*
- * 同じTrackの前音を、
- * 今回の発音開始時刻までに閉じる。
+ /*
+ * 前のhold音が次トリガーまで残る場合、
+ * 次音直前の4msだけ滑らかに閉じる。
  *
- * 新旧Voiceを重ねないことで、
- * FM波形同士の位相干渉を防ぐ。
+ * linear rampではなく滑らかなカーブを使い、
+ * 急激な傾きによるクリックを抑える。
  */
 if (
-  previousVoice?.gainNode
+  previousVoice?.isHold &&
+  previousVoice?.gainNode &&
+  previousVoice.endTime > now
 ) {
   const previousGain =
     previousVoice.gainNode.gain;
 
-  const chokeStart =
+  const transitionTime =
+    0.004;
+
+  const transitionStart =
     Math.max(
       context.currentTime,
-      now - 0.003
+      now - transitionTime
     );
 
   if (
-    typeof previousGain
-      .cancelAndHoldAtTime ===
+    typeof previousGain.cancelAndHoldAtTime ===
     "function"
   ) {
     previousGain.cancelAndHoldAtTime(
-      chokeStart
+      transitionStart
     );
   } else {
     previousGain.cancelScheduledValues(
-      chokeStart
-    );
-
-    previousGain.setValueAtTime(
-      0.001,
-      chokeStart
+      transitionStart
     );
   }
 
-  previousGain.exponentialRampToValueAtTime(
-    0.0001,
-    now
+  const fadeCurve =
+    new Float32Array([
+      1,
+      0.9619,
+      0.8536,
+      0.6913,
+      0.5,
+      0.3087,
+      0.1464,
+      0.0381,
+      0.0001
+    ]);
+
+  previousGain.setValueCurveAtTime(
+    fadeCurve,
+    transitionStart,
+    Math.max(
+      0.001,
+      now - transitionStart
+    )
   );
 }
   
@@ -2672,22 +2657,8 @@ const peakLevel =
     velocity
   );
 
-const sustainLevel =
-  Math.max(
-    0.0001,
-    velocity * sustain
-  );
-
 const attackEnd =
   now + attack;
-
-const decayEnd =
-  attackEnd + decay;
-
-mixGain.gain.setValueAtTime(
-  0.0001,
-  now
-);
 
 mixGain.gain.setValueAtTime(
   0.0001,
@@ -2699,36 +2670,24 @@ mixGain.gain.exponentialRampToValueAtTime(
   attackEnd
 );
 
-if (gateEnd <= decayEnd) {
-  const decayProgress =
-    clamp(
-      (gateEnd - attackEnd) / decay,
-      0,
-      1
-    );
-
-  const levelAtGate =
+/*
+ * H/D envelope
+ *
+ * decay側：Attack終了後から指定時間で0へ直線減衰。
+ * hold側 ：Attack終了後から指定時間Peakを保持。
+ * 0      ：最短クリック。終了時は共通Releaseで閉じる。
+ */
+if (holdDecayValue > 0) {
+  mixGain.gain.linearRampToValueAtTime(
+    0.0001,
     Math.max(
-      0.0001,
-      peakLevel *
-        Math.pow(
-          sustainLevel / peakLevel,
-          decayProgress
-        )
-    );
-
-  mixGain.gain.exponentialRampToValueAtTime(
-    levelAtGate,
-    gateEnd
+      attackEnd + 0.001,
+      gateEnd
+    )
   );
 } else {
-  mixGain.gain.exponentialRampToValueAtTime(
-    sustainLevel,
-    decayEnd
-  );
-
   mixGain.gain.setValueAtTime(
-    sustainLevel,
+    peakLevel,
     gateEnd
   );
 }

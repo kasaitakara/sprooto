@@ -3131,6 +3131,23 @@ function displayBaseValue(parameter) {
     return `${noteName}${octave}`;
   }
 
+if (parameter.id === "holdDecay") {
+  const amount =
+    clamp(
+      Math.round(Number(value) || 0),
+      -50,
+      50
+    );
+
+  if (amount === 0) {
+    return "0";
+  }
+
+  return amount < 0
+    ? `h${Math.abs(amount)}`
+    : `d${amount}`;
+}
+
   if (parameter.id === "pan") {
   if (value === 0) {
     return "c";
@@ -3600,16 +3617,8 @@ button.addEventListener(
       parameter.id;
 
     const activeId =
-      parameter.id === "envelope"
-        ? (
-            envelopeParameter.children.some(
-              child =>
-                child.id ===
-                editorTrack().envelopeSelectedId
-            )
-              ? editorTrack().envelopeSelectedId
-              : "holdDecay"
-          )
+  parameter.id === "envelope"
+    ? "attack"
         : parameter.id === "osc"
           ? (
               oscParameter.children.some(
@@ -4982,10 +4991,21 @@ const definition = {
 
   function displayValue() {
     if (id === "holdDecay") {
-      const amount = clamp(Math.round(Number(track.base[id]) || 0), -50, 50);
-      if (amount === 0) return "0";
-      return amount < 0 ? `d${Math.abs(amount)}` : `h${amount}`;
-    }
+  const amount =
+    clamp(
+      Math.round(Number(track.base[id]) || 0),
+      -50,
+      50
+    );
+
+  if (amount === 0) {
+    return "0";
+  }
+
+  return amount < 0
+    ? `h${Math.abs(amount)}`
+    : `d${amount}`;
+}
 
     if (id === "chord") {
       return CHORD_NAMES[clamp(Math.round(Number(track.base[id]) || 0), 0, CHORD_NAMES.length - 1)] ?? "off";
@@ -5862,10 +5882,19 @@ function displayStepValue(
         );
 
   if (parameter.id === "holdDecay") {
-    const amount = Math.round(Number(result) || 0);
-    if (amount === 0) return "0";
-    return amount < 0 ? `d${Math.abs(amount)}` : `h${amount}`;
+  const amount =
+    Math.round(
+      Number(result) || 0
+    );
+
+  if (amount === 0) {
+    return "0";
   }
+
+  return amount < 0
+    ? `h${Math.abs(amount)}`
+    : `d${amount}`;
+}
 
   /*
    * NOTEだけは従来どおり
@@ -6500,29 +6529,25 @@ function renderEnvelopeEdit() {
     editorTrack();
 
   const activeId =
-    envelopeParameter.children.some(
-      child =>
-        child.id ===
-        track.envelopeSelectedId
-    )
-      ? track.envelopeSelectedId
-      : "holdDecay";
+    "attack";
 
   track.envelopeSelectedId =
-    activeId;
+    "attack";
 
   state.selectedChildId =
-    activeId;
+    "attack";
 
   const activeDefinition =
     envelopeParameter.children.find(
       child =>
         child.id ===
-        activeId
+        "attack"
     );
 
   const activeParameter =
-    parameterById(activeId);
+    parameterById(
+      "attack"
+    );
 
   const header =
     document.createElement("div");
@@ -6579,10 +6604,7 @@ function renderEnvelopeEdit() {
     "edit-parameter-envelope";
 
   parentButton.innerHTML =
-    getParameterIcon(
-      activeDefinition?.icon ??
-      "decay"
-    );
+  getParameterIcon("attack");
 
   parentButton.setAttribute(
     "aria-label",
@@ -6603,70 +6625,20 @@ function renderEnvelopeEdit() {
     }
   );
 
-  const controls =
-    document.createElement("div");
+  const parameterLabel =
+  document.createElement("span");
 
-  controls.className =
-    "envelope-child-controls";
+parameterLabel.className =
+  "edit-parameter-label";
 
-  envelopeParameter.children.forEach(
-    definition => {
-      const button =
-        document.createElement(
-          "button"
-        );
+parameterLabel.textContent =
+  "attack";
 
-      button.type = "button";
-
-      button.className =
-        "envelope-child-button";
-
-      button.dataset.focusKey =
-        `child-${definition.id}`;
-
-      button.textContent =
-        definition.text;
-
-      button.setAttribute(
-        "aria-label",
-        definition.label
-      );
-
-      if (
-        activeId ===
-        definition.id
-      ) {
-        button.classList.add(
-          "active"
-        );
-      }
-
-      button.addEventListener(
-        "click",
-        () => {
-          track.envelopeSelectedId =
-            definition.id;
-
-          state.selectedChildId =
-            definition.id;
-
-          renderEditorAndRestore(
-            `base-value-${definition.id}`
-          );
-        }
-      );
-
-      controls.appendChild(
-        button
-      );
-    }
-  );
-
-  header.append(
-    trackButton,
-    parentButton,
-    controls
-  );
+header.append(
+  trackButton,
+  parentButton,
+  parameterLabel
+);
 
   const offsetEraseButton =
     document.createElement("button");
@@ -7694,6 +7666,23 @@ icon.innerHTML =
   });
 
   header.append(back, icon);
+
+  if (!parameter.children) {
+  const parameterLabel =
+    document.createElement("span");
+
+  parameterLabel.className =
+    "edit-parameter-label";
+
+  parameterLabel.textContent =
+    parameter.id === "holdDecay"
+    ? "hold/decay"
+    : parameter.label;
+
+  header.appendChild(
+    parameterLabel
+  );
+}
 
   let activeId = parameter.id;
 

@@ -2544,8 +2544,8 @@ input.track-volume-slider::-moz-range-thumb {
 
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
+    justify-content: flex-start;
+    gap: 0;
 
     height: 28px;
 }
@@ -5185,4 +5185,34 @@ input[type="radio"]:focus-visible {
 .sound-preset-save-fields,
 .sound-preset-dialog-buttons button {
     font-size: var(--font-label);
+}
+
+.edit-parameter-label {
+    display: flex;
+    align-items: center;
+
+    height: 28px;
+    padding: 0;
+
+    font-size: var(--font-label);
+    line-height: 1;
+    text-transform: lowercase;
+
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+
+    flex: 0 0 auto;
+}
+
+/* =========================
+   Offset editor parameter labels
+========================= */
+
+.edit-parameter-label,
+.osc-child-button,
+.envelope-child-button,
+.filter-child-button,
+.child-tabs button {
+    font-size: var(--font-label) !important;
+    line-height: 1;
 }

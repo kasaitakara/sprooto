@@ -414,12 +414,12 @@ function startSprootoDebugOverlay() {
         right: "8px",
         zIndex: "999999",
         padding: "6px 8px",
-        fontFamily: "monospace",
-        fontSize: "10px",
+        fontFamily: '"Saira", sans-serif',
+fontSize: "10px",
         lineHeight: "1.25",
         whiteSpace: "pre",
         pointerEvents: "none",
-        background: "rgba(0,0,0,0.78)",
+        background: "rgba(21, 21, 21, 0.78)",
         color: "#fff",
         borderRadius: "6px"
       }

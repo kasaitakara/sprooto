@@ -5252,16 +5252,18 @@ html {
 
 /* Track切替領域を固定幅にして、その右側の開始位置を全画面で統一。 */
 .edit-toolbar > .track-cycle {
-    width: 36px;
-    min-width: 36px;
+    width: 40px;
+    min-width: 40px;
     height: 28px;
 
-    flex: 0 0 36px;
+    flex: 0 0 40px;
 
     margin: 0;
     padding: 4px;
 
     justify-content: flex-start;
+
+    margin-right: 4px;
 }
 
 /* 親パラアイコンの領域を全画面24pxで統一。 */
@@ -5270,11 +5272,11 @@ html {
 .edit-toolbar > .envelope-parent-icon,
 .edit-toolbar > .filter-parent-icon,
 .edit-toolbar > .lfo-parent-icon {
-    width: 24px;
-    min-width: 24px;
+    width: 28px;
+    min-width: 28px;
     height: 28px;
 
-    flex: 0 0 24px;
+    flex: 0 0 28px;
 
     margin: 0;
     padding: 0;
@@ -5450,3 +5452,45 @@ html {
     gap: 4px;
 }
 
+/* =========================
+   Offset editor typography
+   hard unify
+========================= */
+
+.edit-toolbar .edit-parameter-label,
+.edit-toolbar .osc-gain-label,
+.edit-toolbar .osc-child-button,
+.edit-toolbar .envelope-child-button,
+.edit-toolbar .filter-child-button,
+.edit-toolbar .child-tabs button,
+.edit-toolbar .lfo-parameter-button,
+.edit-toolbar .lfo-switch-button,
+.edit-toolbar .lfo-sync-button {
+    font-family: inherit !important;
+    font-size: var(--font-label) !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    font-stretch: normal !important;
+    letter-spacing: 0 !important;
+    line-height: 1 !important;
+
+    text-transform: lowercase;
+
+    -webkit-font-smoothing: antialiased;
+}
+
+.edit-toolbar .osc-child-button,
+.edit-toolbar .envelope-child-button,
+.edit-toolbar .filter-child-button,
+.edit-toolbar .child-tabs button,
+.edit-toolbar .lfo-parameter-button,
+.edit-toolbar .lfo-switch-button,
+.edit-toolbar .lfo-sync-button {
+    appearance: none;
+    -webkit-appearance: none;
+
+    font: inherit;
+    font-size: var(--font-label) !important;
+    font-weight: 400 !important;
+    line-height: 1 !important;
+}

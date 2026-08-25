@@ -1591,7 +1591,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     -webkit-tap-highlight-color: transparent;
 }
 
-.erase-button svg {
+.edit-toolbar .erase-button svg,
+.edit-toolbar .lfo-erase-button svg {
     display: block;
     width: 18px;
     height: 18px;
@@ -2675,10 +2676,18 @@ input.track-volume-slider::-moz-range-thumb {
     flex: 1 1 auto;
 }
 
-.editor-header-secondary .erase-button {
+.edit-toolbar .erase-button,
+.edit-toolbar .lfo-erase-button {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+
+    flex: 0 0 28px;
+
     margin-left: auto;
     margin-right: 0;
-    flex: 0 0 28px;
+
+    padding: 5px;
 }
 
 .track-swing-control,
@@ -5384,12 +5393,10 @@ html {
     padding: 4px;
 }
 
-/* erase SVGも統一。 */
 .edit-toolbar .erase-button svg,
 .edit-toolbar .lfo-erase-button svg {
-    display: block;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
 }
 
 /*
@@ -5398,15 +5405,10 @@ html {
  */
 .edit-toolbar .value-control,
 .edit-toolbar .lfo-base-value-control {
-    width: 72px;
-    min-width: 72px;
+    width: 96px;
+    min-width: 96px;
+    flex: 0 0 96px;
 
-    flex: 0 0 72px;
-
-    margin-left: 0;
-
-    display: flex;
-    align-items: center;
     justify-content: flex-end;
 }
 
@@ -5493,4 +5495,108 @@ html {
     font-size: var(--font-label) !important;
     font-weight: 400 !important;
     line-height: 1 !important;
+}
+
+/* =========================
+   Erase icon unified
+========================= */
+
+/* パラ選択画面 / Offset編集画面 共通 */
+.editor-header-secondary .erase-button,
+.edit-toolbar .erase-button,
+.edit-toolbar .lfo-erase-button {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+
+    flex: 0 0 28px;
+
+    padding: 5px;
+}
+
+/* アイコン本体も完全一致 */
+.editor-header-secondary .erase-button svg,
+.edit-toolbar .erase-button svg,
+.edit-toolbar .lfo-erase-button svg {
+    display: block;
+
+    width: 18px !important;
+    height: 18px !important;
+
+    flex: 0 0 18px;
+}
+
+/* =========================
+   Erase horizontal position
+   parameter / edit unified
+========================= */
+
+.editor-header-secondary,
+.edit-toolbar {
+    position: relative;
+}
+
+/* 両画面の消しゴム中心位置を完全一致 */
+.editor-header-secondary .erase-button,
+.edit-toolbar .erase-button,
+.edit-toolbar .lfo-erase-button {
+    position: absolute;
+
+    right: 86px;
+
+    margin: 0;
+
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+
+    padding: 5px;
+}
+
+/* 消しゴム本体サイズも共通 */
+.editor-header-secondary .erase-button svg,
+.edit-toolbar .erase-button svg,
+.edit-toolbar .lfo-erase-button svg {
+    width: 18px !important;
+    height: 18px !important;
+}
+
+/* erase position + visual size unify */
+
+.editor-header-secondary,
+.edit-toolbar {
+    position: relative;
+}
+
+.editor-header-secondary .erase-button,
+.edit-toolbar .erase-button,
+.edit-toolbar .lfo-erase-button {
+    position: absolute;
+
+    right: 92px;
+
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+
+    margin: 0;
+    padding: 4px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.editor-header-secondary .erase-button svg,
+.edit-toolbar .erase-button svg,
+.edit-toolbar .lfo-erase-button svg {
+    width: 18px !important;
+    height: 18px !important;
+}
+
+/* 編集画面だけ見た目補正 */
+.edit-toolbar .erase-button svg,
+.edit-toolbar .lfo-erase-button svg {
+    transform: scale(1.2);
+    transform-origin: center;
 }

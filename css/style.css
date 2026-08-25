@@ -2596,16 +2596,6 @@ input.track-volume-slider::-moz-range-thumb {
 ========================= */
 
 /*
- * 編集項目は左側。
- * 消しゴム以降を右端へ固定する。
- */
-.edit-toolbar .erase-button {
-    margin-left: auto;
-    margin-right: -6px;
-    flex: 0 0 24px;
-}
-
-/*
  * base表示は必要幅だけ使用。
  * 右側で間延びさせない。
  */
@@ -5498,24 +5488,89 @@ html {
 }
 
 /* =========================
-   Erase icon unified
+   Erase layout final
 ========================= */
 
-/* パラ選択画面 / Offset編集画面 共通 */
-.editor-header-secondary .erase-button,
-.edit-toolbar .erase-button,
-.edit-toolbar .lfo-erase-button {
+/* ---------- parameter select ---------- */
+
+.editor-header-primary .erase-button {
+    position: static;
+
     width: 28px;
     min-width: 28px;
     height: 28px;
 
     flex: 0 0 28px;
 
+    margin-left: auto;
+    margin-right: 28px;
+
     padding: 5px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* アイコン本体も完全一致 */
-.editor-header-secondary .erase-button svg,
+.editor-header-primary .editor-view-toggle {
+    margin-left: 0;
+
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+
+    flex: 0 0 28px;
+}
+
+
+/* ---------- offset edit ---------- */
+
+.edit-toolbar .erase-button,
+.edit-toolbar .lfo-erase-button {
+    position: static;
+
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+
+    flex: 0 0 28px;
+
+    margin-left: auto;
+    margin-right: 0;
+
+    padding: 5px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+/*
+ * parameter select:
+ * erase → 8px margin + 8px gap → song 28px
+ *
+ * offset edit:
+ * erase → 4px gap → base 40px
+ *
+ * どちらもerase右端から画面右端まで44px
+ */
+.edit-toolbar .value-control,
+.edit-toolbar .lfo-base-value-control {
+    width: 60px;
+    min-width: 60px;
+
+    flex: 0 0 60px;
+
+    margin-left: 0;
+
+    justify-content: flex-end;
+}
+
+
+/* ---------- erase icon ---------- */
+
+.editor-header-primary .erase-button svg,
 .edit-toolbar .erase-button svg,
 .edit-toolbar .lfo-erase-button svg {
     display: block;
@@ -5524,79 +5579,6 @@ html {
     height: 18px !important;
 
     flex: 0 0 18px;
-}
 
-/* =========================
-   Erase horizontal position
-   parameter / edit unified
-========================= */
-
-.editor-header-secondary,
-.edit-toolbar {
-    position: relative;
-}
-
-/* 両画面の消しゴム中心位置を完全一致 */
-.editor-header-secondary .erase-button,
-.edit-toolbar .erase-button,
-.edit-toolbar .lfo-erase-button {
-    position: absolute;
-
-    right: 86px;
-
-    margin: 0;
-
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    padding: 5px;
-}
-
-/* 消しゴム本体サイズも共通 */
-.editor-header-secondary .erase-button svg,
-.edit-toolbar .erase-button svg,
-.edit-toolbar .lfo-erase-button svg {
-    width: 18px !important;
-    height: 18px !important;
-}
-
-/* erase position + visual size unify */
-
-.editor-header-secondary,
-.edit-toolbar {
-    position: relative;
-}
-
-.editor-header-secondary .erase-button,
-.edit-toolbar .erase-button,
-.edit-toolbar .lfo-erase-button {
-    position: absolute;
-
-    right: 92px;
-
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    margin: 0;
-    padding: 4px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.editor-header-secondary .erase-button svg,
-.edit-toolbar .erase-button svg,
-.edit-toolbar .lfo-erase-button svg {
-    width: 18px !important;
-    height: 18px !important;
-}
-
-/* 編集画面だけ見た目補正 */
-.edit-toolbar .erase-button svg,
-.edit-toolbar .lfo-erase-button svg {
-    transform: scale(1.2);
-    transform-origin: center;
+    transform: none !important;
 }

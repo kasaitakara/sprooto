@@ -3202,8 +3202,8 @@ if (parameter.id === "crushLevel") {
     }
 
     return value < 0
-      ? `lp${Math.abs(value)}`
-      : `hp${value}`;
+      ? `l${Math.abs(value)}`
+      : `h${value}`;
   }
 
   if (parameter.id === "delayTime") {
@@ -5052,8 +5052,8 @@ const definition = {
       }
 
       return cutoffValue < 0
-        ? `lp${Math.abs(cutoffValue)}`
-        : `hp${cutoffValue}`;
+        ? `l${Math.abs(cutoffValue)}`
+        : `h${cutoffValue}`;
     }
 
     if (id === "pan") {
@@ -5974,8 +5974,8 @@ function displayStepValue(
     }
 
     return result < 0
-      ? `lp${Math.abs(result)}`
-      : `hp${result}`;
+      ? `l${Math.abs(result)}`
+      : `h${result}`;
   }
 
   /*

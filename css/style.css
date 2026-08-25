@@ -4605,7 +4605,6 @@ input[type="radio"]:focus-visible {
     flex: 1 1 0;
     min-width: 0;
     padding: 0 2px;
-    font-size: calc(var(--font-label) - 1px);
 }
 .note-edit-toolbar .value-control {
     flex: 0 0 auto;
@@ -5208,11 +5207,15 @@ input[type="radio"]:focus-visible {
    Offset editor parameter labels
 ========================= */
 
+.osc-gain-label,
 .edit-parameter-label,
-.osc-child-button,
 .envelope-child-button,
 .filter-child-button,
-.child-tabs button {
+.child-tabs button,
+.lfo-parameter-button,
+.lfo-switch-button,
+.lfo-sync-button {
     font-size: var(--font-label) !important;
-    line-height: 1;
+    line-height: 1 !important;
+    font-weight: 400 !important;
 }

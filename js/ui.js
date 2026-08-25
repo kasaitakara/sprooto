@@ -7124,7 +7124,7 @@ const activeParameter =
         activeView === "rate" && syncMode === "bpm"
           ? rateName(value)
           : activeView === "rate"
-            ? `${(Number(value) / 10).toFixed(1)}hz`
+            ? `${(Number(value) / 10).toFixed(1)}`
             : String(value);
     };
     updateBaseValue();

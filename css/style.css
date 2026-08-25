@@ -2499,7 +2499,7 @@ input.track-volume-slider::-moz-range-thumb {
 
 .lfo-base-value {
     min-width: 38px;
-    font-size: var(--font-label);
+    font-size: var(--font-main);
 }
 
 .lfo-menu-icon {
@@ -2583,12 +2583,6 @@ input.track-volume-slider::-moz-range-thumb {
 .filter-edit-toolbar .value-control {
     flex: 0 0 38px;
     margin-left: 0;
-}
-
-.filter-edit-toolbar .value-control button {
-    width: 38px;
-    min-width: 38px;
-    padding: 0;
 }
 
 /* =========================
@@ -5582,3 +5576,82 @@ html {
 
     transform: none !important;
 }
+
+/* =========================
+   Offset editor base layout
+   final unified
+========================= */
+
+/*
+ * 各パラ固有の value-control / button 幅指定を最終段で統一する。
+ * OSC / attack / filter / LFO / note / FM / pan / prob など、
+ * Offset編集画面の base 表示を同じ座標・同じ内訳にする。
+ */
+.edit-toolbar .value-control,
+.edit-toolbar .lfo-base-value-control {
+    width: 60px !important;
+    min-width: 60px !important;
+    flex: 0 0 60px !important;
+
+    margin-left: 0 !important;
+    padding: 0 !important;
+
+    display: flex;
+    align-items: center;
+    justify-content: flex-start !important;
+
+    white-space: nowrap;
+}
+
+/*
+ * base + 値 のまとまりを60px内で共通化。
+ */
+.edit-toolbar .value-control .compact-value,
+.edit-toolbar .lfo-base-value-control {
+    width: 60px !important;
+    min-width: 60px !important;
+
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start !important;
+
+    gap: 0 !important;
+}
+
+/*
+ * "base" の開始位置・占有幅を統一。
+ */
+.edit-toolbar .compact-value-label {
+    width: 24px;
+    min-width: 24px;
+    flex: 0 0 24px;
+
+    margin: 0 !important;
+    padding: 0;
+
+    text-align: left;
+    transform: translateX(3px);
+}
+
+/*
+ * パラ値側も固定領域へ統一。
+ * 個別指定されていた28px / 38px等をここで上書きする。
+ */
+.edit-toolbar .value-control .base-value,
+.edit-toolbar .value-control button,
+.edit-toolbar .lfo-base-value-control .lfo-base-value {
+    width: 33px !important;
+    min-width: 33px !important;
+    max-width: 33px;
+
+    flex: 0 0 33px;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    text-align: center;
+
+    font-size: var(--font-main) !important;
+    line-height: 1;
+}
+

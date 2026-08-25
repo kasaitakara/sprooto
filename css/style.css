@@ -5219,3 +5219,234 @@ input[type="radio"]:focus-visible {
     line-height: 1 !important;
     font-weight: 400 !important;
 }
+
+/* =========================
+   Offset editor header
+   unified layout / typography
+========================= */
+
+/*
+ * iPhone Safariなどの自動文字拡大を抑え、
+ * 端末差で編集ヘッダーの文字サイズが変わらないようにする。
+ */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+/*
+ * 編集画面ヘッダーの共通規格。
+ * Track → 親アイコン → パラ名称/子パラ → erase → base
+ * の座標基準を全編集画面で揃える。
+ */
+.edit-toolbar {
+    width: 100%;
+    height: 28px;
+    min-height: 28px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 4px;
+}
+
+/* Track切替領域を固定幅にして、その右側の開始位置を全画面で統一。 */
+.edit-toolbar > .track-cycle {
+    width: 36px;
+    min-width: 36px;
+    height: 28px;
+
+    flex: 0 0 36px;
+
+    margin: 0;
+    padding: 0;
+
+    justify-content: flex-start;
+}
+
+/* 親パラアイコンの領域を全画面24pxで統一。 */
+.edit-toolbar > .edit-icon,
+.edit-toolbar > .osc-parent-icon,
+.edit-toolbar > .envelope-parent-icon,
+.edit-toolbar > .filter-parent-icon,
+.edit-toolbar > .lfo-parent-icon {
+    width: 24px;
+    min-width: 24px;
+    height: 28px;
+
+    flex: 0 0 24px;
+
+    margin: 0;
+    padding: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 親アイコン自体の見た目サイズも統一。 */
+.edit-toolbar > .edit-icon svg,
+.edit-toolbar > .osc-parent-icon svg,
+.edit-toolbar > .envelope-parent-icon svg,
+.edit-toolbar > .filter-parent-icon svg,
+.edit-toolbar > .lfo-parent-icon svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+/*
+ * パラ名称 / 子パラの開始位置を親アイコン直後に統一。
+ * 旧専用画面の中央寄せを打ち消す。
+ */
+.edit-toolbar .child-tabs,
+.edit-toolbar .osc-source-controls,
+.edit-toolbar .envelope-child-controls,
+.edit-toolbar .filter-child-controls,
+.edit-toolbar .lfo-parameter-controls {
+    min-width: 0;
+    flex: 1 1 auto;
+
+    margin: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+/* 静的名称も子パラと同じ基準線に置く。 */
+.edit-toolbar .edit-parameter-label,
+.edit-toolbar .osc-gain-label {
+    height: 24px;
+
+    margin: 0;
+    padding: 0;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+
+    flex: 0 0 auto;
+}
+
+/*
+ * Offset編集画面のパラ名称文字を完全統一。
+ * gain / attack / hold-decay / filter / fm / pan / prob /
+ * note / articulation / lfo を同一11px・同一ウェイトにする。
+ */
+.edit-toolbar .edit-parameter-label,
+.edit-toolbar .osc-gain-label,
+.edit-toolbar .osc-child-button,
+.edit-toolbar .envelope-child-button,
+.edit-toolbar .filter-child-button,
+.edit-toolbar .child-tabs button,
+.edit-toolbar .lfo-parameter-button,
+.edit-toolbar .lfo-switch-button,
+.edit-toolbar .lfo-sync-button {
+    font-size: var(--font-label) !important;
+    font-weight: 400 !important;
+    line-height: 1 !important;
+
+    text-transform: lowercase;
+}
+
+/*
+ * 子パラボタンの高さを統一。
+ * 横幅は各機能に必要な幅を維持する。
+ */
+.edit-toolbar .osc-child-button,
+.edit-toolbar .envelope-child-button,
+.edit-toolbar .filter-child-button,
+.edit-toolbar .child-tabs button,
+.edit-toolbar .lfo-parameter-button,
+.edit-toolbar .lfo-switch-button,
+.edit-toolbar .lfo-sync-button {
+    height: 24px;
+}
+
+/*
+ * erase位置を全編集画面で統一。
+ * パラ名称領域が余白を受け持ち、eraseは常に右側同位置。
+ */
+.edit-toolbar .erase-button,
+.edit-toolbar .lfo-erase-button {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+
+    flex: 0 0 24px;
+
+    margin-left: auto;
+    margin-right: 0;
+
+    padding: 4px;
+}
+
+/* erase SVGも統一。 */
+.edit-toolbar .erase-button svg,
+.edit-toolbar .lfo-erase-button svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+/*
+ * base表示領域を全編集画面で固定。
+ * 値の桁数やHz/音価表記でerase位置が動かないようにする。
+ */
+.edit-toolbar .value-control,
+.edit-toolbar .lfo-base-value-control {
+    width: 72px;
+    min-width: 72px;
+
+    flex: 0 0 72px;
+
+    margin-left: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* baseラベルと値の間隔も共通化。 */
+.edit-toolbar .value-control .compact-value,
+.edit-toolbar .lfo-base-value-control {
+    width: 100%;
+    gap: 0;
+
+    justify-content: flex-end;
+}
+
+.edit-toolbar .compact-value-label {
+    margin-right: 1px;
+}
+
+/*
+ * 専用編集画面に残っている個別gapを最終的に共通値へ上書き。
+ */
+.osc-edit-toolbar,
+.envelope-edit-toolbar,
+.filter-edit-toolbar,
+.lfo-edit-toolbar,
+.note-edit-toolbar,
+.articulation-edit-toolbar {
+    gap: 4px;
+}
+
+/*
+ * OSC / ENV / FILTER専用の子パラ領域に残っている
+ * 中央配置・独自gapを整理。
+ */
+.osc-source-controls,
+.envelope-child-controls,
+.filter-child-controls {
+    justify-content: flex-start;
+    gap: 4px;
+}
+
+/* LFOも左側の開始基準を合わせる。 */
+.lfo-parameter-controls {
+    justify-content: flex-start;
+    gap: 4px;
+}
+

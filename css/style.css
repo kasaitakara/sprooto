@@ -215,7 +215,7 @@ body {
     background: var(--bg);
 color: var(--text);
 
- font-family: "Saira", sans-serif;
+ font-family: monospace;
 font-weight: 400;
 }
 

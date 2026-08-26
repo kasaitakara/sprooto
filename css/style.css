@@ -386,7 +386,22 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
     min-height: 177px;
     align-content: start;
 }
-.sequence-step { display:grid; grid-template-rows:repeat(4,1fr); gap:2px; aspect-ratio:1/1; padding:0; border:3px solid transparent; background:transparent; }
+.sequence-step {
+    display: grid;
+    grid-template-rows: repeat(4, 1fr);
+
+    width: 100%;
+    height: 28px;
+
+    row-gap: 1px;
+    column-gap: 0;
+
+    aspect-ratio: auto;
+
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
 .sequence-step.playing {
     background: color-mix(
         in srgb,
@@ -5663,3 +5678,93 @@ html {
     line-height: 1;
 }
 
+/* =========================
+   Sequence / Mixer compact
+========================= */
+
+/* ---------- sequence ---------- */
+
+.sequence-section {
+    height: 162px;
+    min-height: 162px;
+}
+
+.sequence-grid {
+    height: 130px;
+    min-height: 130px;
+}
+
+
+/* ---------- mixer ---------- */
+
+.song-master-mix {
+    height: 162px;
+    min-height: 162px;
+}
+
+.master-mix-content,
+.master-eq,
+.master-mix-side,
+.master-mix-fader-control {
+    height: 130px;
+}
+
+
+/* EQ / volume / limiter bar */
+
+.master-eq-band,
+.master-mix-fader-control {
+    grid-template-rows:
+        106px
+        20px;
+
+    row-gap: 4px;
+}
+
+.master-eq-band {
+    height: 130px;
+}
+
+.master-eq-gain,
+.master-mix-fader {
+    height: 106px;
+}
+
+
+/* ---------- EQ marker / meter ---------- */
+
+.master-eq-marker {
+    top:
+        calc(
+            100% -
+            8px -
+            (var(--eq-position) * 90px)
+        );
+}
+
+.master-eq-meter {
+    height:
+        calc(
+            var(--eq-meter) * 94px
+        );
+}
+
+
+/* ---------- volume / limiter marker / meter ---------- */
+
+.master-mix-fader-marker {
+    top:
+        calc(
+            100% -
+            8px -
+            (var(--mix-position) * 90px)
+        );
+}
+
+.master-mix-side
+.master-mix-fader-meter {
+    height:
+        calc(
+            var(--mix-meter) * 94px
+        );
+}

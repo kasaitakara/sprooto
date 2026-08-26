@@ -407,23 +407,32 @@ function startSprootoDebugOverlay() {
       "sprooto-audio-debug-panel";
 
     Object.assign(
-      panel.style,
-      {
-        position: "fixed",
-        top: "8px",
-        right: "8px",
-        zIndex: "999999",
-        padding: "6px 8px",
-        fontFamily: '"DM Mono", monospace',
-fontSize: "10px",
-        lineHeight: "1.25",
-        whiteSpace: "pre",
-        pointerEvents: "none",
-        background: "rgba(21, 21, 21, 0.78)",
-        color: "#fff",
-        borderRadius: "6px"
-      }
-    );
+  panel.style,
+  {
+    position: "fixed",
+
+    /*
+     * sprooto本体は360px幅で画面中央。
+     * 右端 = 50% + 180px。
+     * そこから8px右へ離して配置。
+     */
+    left: "calc(50% + 188px)",
+    top: "8px",
+
+    right: "auto",
+
+    zIndex: "999999",
+    padding: "6px 8px",
+    fontFamily: '"DM Mono", monospace',
+    fontSize: "10px",
+    lineHeight: "1.25",
+    whiteSpace: "pre",
+    pointerEvents: "none",
+    background: "rgba(21, 21, 21, 0.78)",
+    color: "#fff",
+    borderRadius: "6px"
+  }
+);
 
     const debugHost =
       document.body ||

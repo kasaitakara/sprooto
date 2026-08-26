@@ -410,16 +410,8 @@ function startSprootoDebugOverlay() {
   panel.style,
   {
     position: "fixed",
-
-    /*
-     * sprooto本体は360px幅で画面中央。
-     * 右端 = 50% + 180px。
-     * そこから8px右へ離して配置。
-     */
-    left: "calc(50% + 188px)",
     top: "8px",
-
-    right: "auto",
+    right: "calc(50% - 172px)",
 
     zIndex: "999999",
     padding: "6px 8px",

@@ -120,7 +120,6 @@ let pinEditSlot = null;
 const PIN_SOUND_KEYS = new Set([
   "base",
   "offsets",
-  "fxMuted",
   "envelopeSelectedId",
   "articulationSelectedId",
   "lfoSelected",
@@ -467,20 +466,6 @@ function getParameterIcon(iconId) {
       </svg>
     `,
 
-    noise: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M2 13l3-6 3 10 3-12 3 14 3-10 5 5"></path>
-      </svg>
-    `,
-
     decay: `
   <svg
     viewBox="0 0 24 24"
@@ -615,51 +600,6 @@ trash: `
   </svg>
 `,
 
-    sustain: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path
-      d="
-        M4 5
-        L11 15
-        H20
-        V19
-        H4
-        Z
-      "
-    ></path>
-  </svg>
-`,
-
-    gate: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <rect
-      x="4"
-      y="12"
-      width="10"
-      height="6"
-    ></rect>
-
-    <path d="M18 7V19"></path>
-    <path d="M16 7H20"></path>
-  </svg>
-`,
-
     lfo: `
       <svg
         viewBox="0 0 24 24"
@@ -673,53 +613,6 @@ trash: `
         <path d="M2 12c2.5-7 5.5-7 8 0s5.5 7 8 0 4-4 4-4"></path>
         <path d="M2 19h20"></path>
       </svg>
-    `,
-
-    fx: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <rect
-      x="6"
-      y="3"
-      width="12"
-      height="18"
-      rx="2"
-    ></rect>
-
-    <circle
-      cx="12"
-      cy="8"
-      r="2"
-    ></circle>
-
-    <path d="M10 15h4"></path>
-
-    <path d="M9 18h6"></path>
-  </svg>
-`,
-
-
-    delay: `
-      <svg
-  xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 24 24"
-  fill="none"
-  stroke="currentColor"
-  stroke-width="1.8"
-  stroke-linecap="round"
-  stroke-linejoin="round"
->
-  <path d="M4 5.5c4 2.2 4 10.8 0 13" />
-  <path d="M10 7.5c3 1.7 3 7.3 0 9" />
-  <path d="M16 9.5c1.8 1 1.8 4 0 5" />
-</svg>
     `,
 
     articulation: `
@@ -818,114 +711,6 @@ strum: `
   >
     <circle cx="12" cy="6" r="3"></circle>
     <path d="M12 9V21"></path>
-  </svg>
-`,
-
-    reverb: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <circle cx="5" cy="12" r="1.5"></circle>
-        <path d="M9 8.5c2 1.7 2 5.3 0 7"></path>
-        <path d="M13 6c3.5 3 3.5 9 0 12"></path>
-        <path d="M17 3.5c5 4.5 5 12.5 0 17"></path>
-      </svg>
-    `,
-
-    crush: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <!-- head + claw -->
-    <path
-      fill="currentColor"
-      stroke="none"
-      d="
-        M4.2 7.2
-        L7.1 4.3
-        L9.2 5.4
-        L13.8 2.4
-        L17.4 1.7
-        L17.8 3.5
-        L14.8 6.1
-        L13.3 8.3
-        L15.1 10.1
-        L12.8 11.9
-        L10.1 8.8
-        L7.7 10.5
-        Z
-      "
-    ></path>
-
-    <!-- striking face -->
-    <path
-      fill="currentColor"
-      stroke="none"
-      d="
-        M3.1 7.6
-        L6.2 10.7
-        L4.2 12.7
-        L1.3 9.8
-        Z
-      "
-    ></path>
-
-    <!-- metal shaft -->
-    <path
-      fill="currentColor"
-      stroke="none"
-      d="
-        M10.1 9.1
-        L11.8 8.0
-        L17.0 15.6
-        L15.3 16.8
-        Z
-      "
-    ></path>
-
-    <!-- grip -->
-    <path
-      fill="currentColor"
-      stroke="none"
-      d="
-        M14.8 15.5
-        L17.4 13.8
-        L22.1 18.5
-        Q23.0 19.5 22.2 20.5
-        L19.4 23
-        Q18.6 23.7 17.7 22.8
-        L13.5 18.2
-        Z
-      "
-    ></path>
-
-    <!-- grip grooves -->
-    <path
-      d="M15.3 18.2l2.1-1.4"
-      stroke="var(--bg)"
-      stroke-width="0.9"
-    ></path>
-    <path
-      d="M16.4 19.5l2.1-1.4"
-      stroke="var(--bg)"
-      stroke-width="0.9"
-    ></path>
-    <path
-      d="M17.5 20.7l2.1-1.4"
-      stroke="var(--bg)"
-      stroke-width="0.9"
-    ></path>
   </svg>
 `,
 
@@ -1051,55 +836,6 @@ const subParameter = {
   ]
 };
 
-
-const reverbParameter = {
-  id: "reverb",
-  label: "FX3",
-  icon: "reverb",
-  children: [
-    { id: "reverbSend", label: "send", min: 0, max: 100, step: 1, offsetMode: "result" },
-    { id: "reverbSize", label: "size", min: 1, max: 8, step: 1, offsetMode: "result" }
-  ]
-};
-
-const crushParameter = {
-  id: "crush",
-  label: "FX2",
-  icon: "crush",
-  children: [
-    { id: "crushLevel", label: "level", min: 0, max: 100, step: 1, offsetMode: "result" },
-    { id: "crushBit", label: "bit", min: 1, max: 16, step: 1, offsetMode: "result" },
-    { id: "crushRate", label: "rate", min: 1, max: 32, step: 1, offsetMode: "result" }
-  ]
-};
-
-const CRUSH_RATE_VALUES = Object.freeze([
-  1, 2, 4, 8, 16, 32
-]);
-
-function crushRateIndex(value) {
-  const numericValue = Number(value) || 1;
-
-  return CRUSH_RATE_VALUES.reduce(
-    (bestIndex, candidate, index) =>
-      Math.abs(candidate - numericValue) <
-      Math.abs(CRUSH_RATE_VALUES[bestIndex] - numericValue)
-        ? index
-        : bestIndex,
-    0
-  );
-}
-
-function crushRateValue(index) {
-  return CRUSH_RATE_VALUES[
-    clamp(
-      Math.round(Number(index) || 0),
-      0,
-      CRUSH_RATE_VALUES.length - 1
-    )
-  ];
-}
-
 const SUB_PATTERN_FIGURES = Object.freeze([
   { label: "32", divisions: 2, active: [0, 1] },
   { label: "32 back", divisions: 2, active: [1] },
@@ -1184,14 +920,6 @@ function editorParameterById(id) {
 
   if (id === "articulation") {
     return articulationParameter;
-  }
-
-  if (id === "crush") {
-    return crushParameter;
-  }
-
-  if (id === "reverb") {
-    return reverbParameter;
   }
 
   return parameterById(id);
@@ -1642,20 +1370,6 @@ function updateSelectionClasses() {
     });
 
   document
-    .querySelectorAll(".step-edit-cell[data-step-index]")
-    .forEach(button => {
-      const key = selectionKey(
-        state.selectedTrackIndex,
-        Number(button.dataset.stepIndex)
-      );
-
-      button.classList.toggle(
-        "range-selected",
-        false
-      );
-    });
-
-  document
     .querySelectorAll(".offset-step[data-step-index]")
     .forEach(button => {
       const key = selectionKey(
@@ -2103,11 +1817,9 @@ function enableSelectionPointer({
     );
 
     const selector =
-      source === "sequence"
-        ? ".sequence-step[data-step-index]"
-        : source === "step-editor"
-          ? ".step-edit-cell[data-step-index]"
-          : ".offset-step[data-step-index]";
+    source === "sequence"
+    ? ".sequence-step[data-step-index]"
+    : ".offset-step[data-step-index]";
 
     const cellElement =
       target?.closest?.(selector);
@@ -2451,22 +2163,13 @@ function applyOffsetDeltaToSelection(
       ]
     );
 
-  const baseIndex =
-    parameter.id === "crushRate"
-      ? crushRateIndex(baseValue)
-      : null;
-
   const minOffset =
-    parameter.id === "crushRate"
-      ? -baseIndex
-      : parameter.min -
-        baseValue;
+  parameter.min -
+  baseValue;
 
-  const maxOffset =
-    parameter.id === "crushRate"
-      ? CRUSH_RATE_VALUES.length - 1 - baseIndex
-      : parameter.max -
-        baseValue;
+const maxOffset =
+  parameter.max -
+  baseValue;
 
   selectedKeysSorted()
     .forEach(
@@ -3165,18 +2868,6 @@ if (parameter.id === "holdDecay") {
   return `${value}`;
 }
 
-if (parameter.id === "crushLevel") {
-  return String(value);
-}
-
-  if (parameter.id === "crushBit") {
-    return `${Math.round(Number(value) || 1)}bit`;
-  }
-
-  if (parameter.id === "crushRate") {
-    return `x${crushRateValue(crushRateIndex(value))}`;
-  }
-
   if (parameter.id === "subPattern") {
     return subPatternLabel(value);
   }
@@ -3205,24 +2896,6 @@ if (parameter.id === "crushLevel") {
       ? `l${Math.abs(value)}`
       : `h${value}`;
   }
-
-  if (parameter.id === "delayTime") {
-  const delayNames = [
-    "1/64",
-    "1/32T",
-    "1/32",
-    "1/16T",
-    "1/16",
-    "1/8T",
-    "1/8",
-    "1/4T",
-    "1/4",
-    "1/2T",
-    "1/2"
-  ];
-
-  return delayNames[value] ?? "1/16";
-}
 
   if (parameter.id === "fmDepth") {
     return String(track.base.fmDepth);
@@ -3372,121 +3045,6 @@ function parameterButton(menuItem) {
     "parameter-placeholder"
   );
 
-  /*
-   * 左端FXボタンだけは
-   * プレースホルダーではなく、
-   * FX一括ミュート操作として使う。
-   */
-  if (focusId === "fx") {
-    button.classList.remove(
-      "parameter-placeholder"
-    );
-
-    button.setAttribute(
-      "aria-label",
-      editorTrack().fxMuted
-        ? "全FXミュートを解除"
-        : "ダブルタップで全FXをミュート"
-    );
-
-    let firstTapTime = 0;
-    let resetTimer = null;
-
-    function resetFxMuteTap() {
-      firstTapTime = 0;
-
-      if (resetTimer !== null) {
-        clearTimeout(resetTimer);
-        resetTimer = null;
-      }
-
-      button.classList.remove(
-        "delete-armed"
-      );
-    }
-
-    button.addEventListener(
-      "click",
-      event => {
-        event.preventDefault();
-
-        const track =
-          editorTrack();
-
-        /*
-         * ミュート中は
-         * シングルタップで即解除。
-         */
-        if (track.fxMuted) {
-          saveTrackHistory();
-
-          track.fxMuted = false;
-
-          resetFxMuteTap();
-
-          renderEditorAndRestore(
-            "parameter-fx"
-          );
-
-          return;
-        }
-
-        const now =
-          performance.now();
-
-        /*
-         * 1秒以内の2回目タップで
-         * FX一括ミュート。
-         */
-        if (
-          firstTapTime !== 0 &&
-          now - firstTapTime <=
-            DELETE_DOUBLE_TAP_INTERVAL
-        ) {
-          saveTrackHistory();
-
-          track.fxMuted = true;
-
-          resetFxMuteTap();
-
-          renderEditorAndRestore(
-            "parameter-fx"
-          );
-
-          return;
-        }
-
-        /*
-         * 1回目のタップ。
-         * 消しゴムと同じく
-         * 1秒間だけ待機表示する。
-         */
-        firstTapTime = now;
-
-        button.classList.add(
-          "delete-armed"
-        );
-
-        if (resetTimer !== null) {
-          clearTimeout(resetTimer);
-        }
-
-        resetTimer =
-          window.setTimeout(
-            resetFxMuteTap,
-            DELETE_DOUBLE_TAP_INTERVAL
-          );
-      }
-    );
-
-    button.addEventListener(
-      "blur",
-      resetFxMuteTap
-    );
-
-    return button;
-  }
-
   button.setAttribute(
     "aria-disabled",
     "true"
@@ -3568,9 +3126,7 @@ if (parentSweepParameter) {
     step:
       parentSweepParameter.step ?? 1,
 
-    acceleration:
-      parentSweepParameter.id !==
-      "delayTime",
+    acceleration: true,
 
     /*
      * NOTEは短い移動では半音単位の精密操作、
@@ -4887,14 +4443,6 @@ topRow.appendChild(
   grid.className =
     "parameter-menu";
 
-  /*
-   * Step 1: Track FX撤去後は、FXラックという中間レイアウトを使わない。
-   * 残ったパラメーターを8列×2段の通常グリッドへそのまま流す。
-   *
-   * 旧実装の slice(0,8) / slice(8,14) / slice(14,16) を残すと、
-   * art / prob / sub がFXラック側へ誤分類され、初回Editor描画を
-   * 旧FX状態へ依存させてしまうため、ここで完全に切り離す。
-   */
   parameterMenuItems.forEach(menuItem => {
     grid.appendChild(
       parameterButton(menuItem)
@@ -4975,20 +4523,6 @@ const definition = {
   value.dataset.valueControl =
     "true";
 
-  const delayNames = [
-    "1/64",
-    "1/32T",
-    "1/32",
-    "1/16T",
-    "1/16",
-    "1/8T",
-    "1/8",
-    "1/4T",
-    "1/4",
-    "1/2T",
-    "1/2"
-  ];
-
   function displayValue() {
     if (id === "holdDecay") {
   const amount =
@@ -5027,20 +4561,6 @@ const definition = {
 
     if (id === "subProbability") {
       return `${Math.round(Number(track.base[id]) || 0)}`;
-    }
-
-    if (id === "delayTime") {
-      return (
-        delayNames[
-          Math.round(
-            track.base[id]
-          )
-        ] ?? "1/16"
-      );
-    }
-
-    if (id === "crushRate") {
-      return `x${crushRateValue(crushRateIndex(track.base[id]))}`;
     }
 
     if (id === "filterCutoff") {
@@ -5174,12 +4694,6 @@ value.addEventListener(
       return 0;
     }
 
-    if (id === "crushRate") {
-      return crushRateIndex(
-        track.base[id]
-      );
-    }
-
     return Number(
       track.base[id]
     );
@@ -5222,32 +4736,18 @@ if (
     offsetSelectionStartValues
   );
 } else {
-  if (id === "crushRate") {
-    track.base[id] =
-      crushRateValue(
-        finiteValue
-      );
-  } else {
-    const clampedValue =
-      clamp(
-        finiteValue,
-        definition.min,
-        definition.max
-      );
+  const clampedValue =
+  clamp(
+    finiteValue,
+    definition.min,
+    definition.max
+  );
 
-    const correctedValue =
-      id === "delayTime"
-        ? Math.round(
-            clampedValue
-          )
-        : roundToStep(
-            clampedValue,
-            definition.step
-          );
-
-    track.base[id] =
-      correctedValue;
-  }
+track.base[id] =
+  roundToStep(
+    clampedValue,
+    definition.step
+  );
 }
 
       if (id === "subPattern") {
@@ -5331,30 +4831,18 @@ document
   editSelection.mode ===
     "offset"
     ? -10000
-    : id === "crushRate"
-      ? 0
-      : definition.min,
+    : definition.min,
 
 max: () =>
   editSelection.mode ===
     "offset"
     ? 10000
-    : id === "crushRate"
-      ? CRUSH_RATE_VALUES.length - 1
-      : definition.max,
+    : definition.max,
 
 step:
-  id === "crushRate"
-    ? 1
-    : definition.step,
+  definition.step,
 
-    /*
-     * Delay Timeは選択肢が
-     * 11段階だけなので加速しない。
-     */
-    acceleration:
-      id !== "delayTime" &&
-      id !== "crushRate",
+acceleration: true,
 
     accelerationStart:
       id === "note"
@@ -5407,297 +4895,6 @@ step:
         return;
       }
 
-      /*
-       * Delay Timeは
-       * 数値入力ではなく音価選択。
-       */
-      if (id === "delayTime") {
-  const input =
-    document.createElement(
-      "input"
-    );
-
-  input.type = "text";
-  input.readOnly = true;
-
-  input.className =
-    "base-input";
-
-  input.dataset.focusKey =
-    valueKey;
-
-  input.dataset.keyboardEditing =
-    "true";
-
-  let currentIndex =
-    clamp(
-      Math.round(
-        track.base[id] ?? 4
-      ),
-      definition.min,
-      definition.max
-    );
-
-  const startIndex =
-    currentIndex;
-
-  input.value =
-    delayNames[currentIndex];
-
-  value.replaceWith(
-    input
-  );
-
-  input.focus();
-  input.select();
-
-  let finished = false;
-
-  const finish =
-    shouldCommit => {
-      if (finished) {
-        return;
-      }
-
-      finished = true;
-
-      if (shouldCommit) {
-        const previousValue =
-          track.base[id];
-
-        if (
-          currentIndex !==
-          previousValue
-        ) {
-          saveTrackHistory();
-
-          if (
-            editSelection.mode === "offset" &&
-            Array.isArray(track.offsets[id])
-          ) {
-            applyOffsetDeltaToSelection(
-              { ...definition, id },
-              currentIndex - previousValue
-            );
-          } else {
-            track.base[id] = currentIndex;
-          }
-        }
-      } else {
-        currentIndex =
-          startIndex;
-      }
-
-      renderEditorAndRestore(
-        valueKey
-      );
-    };
-
-  input.addEventListener(
-    "keydown",
-    event => {
-      if (
-        event.key === "ArrowUp" ||
-        event.key === "ArrowRight"
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        currentIndex =
-          clamp(
-            currentIndex + 1,
-            definition.min,
-            definition.max
-          );
-
-        input.value =
-          delayNames[currentIndex];
-
-        input.select();
-
-        return;
-      }
-
-      if (
-        event.key === "ArrowDown" ||
-        event.key === "ArrowLeft"
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        currentIndex =
-          clamp(
-            currentIndex - 1,
-            definition.min,
-            definition.max
-          );
-
-        input.value =
-          delayNames[currentIndex];
-
-        input.select();
-
-        return;
-      }
-
-      if (event.key === "Enter") {
-        event.preventDefault();
-        event.stopPropagation();
-
-        finish(true);
-
-        return;
-      }
-
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-
-        finish(false);
-      }
-    }
-  );
-
-  input.addEventListener(
-    "blur",
-    () => finish(true),
-    { once: true }
-  );
-
-  return;
-}
-
-      if (id === "crushRate") {
-        const input =
-          document.createElement(
-            "input"
-          );
-
-        input.type = "text";
-        input.readOnly = true;
-        input.className = "base-input";
-        input.dataset.focusKey = valueKey;
-        input.dataset.keyboardEditing = "true";
-
-        let currentIndex =
-          crushRateIndex(
-            track.base[id]
-          );
-
-        const startIndex =
-          currentIndex;
-
-        input.value =
-          `x${crushRateValue(currentIndex)}`;
-
-        value.replaceWith(input);
-        input.focus();
-        input.select();
-
-        let finished = false;
-
-        const finish =
-          shouldCommit => {
-            if (finished) return;
-            finished = true;
-
-            if (shouldCommit) {
-              const previousIndex =
-                crushRateIndex(
-                  track.base[id]
-                );
-
-              if (
-                currentIndex !==
-                previousIndex
-              ) {
-                saveTrackHistory();
-
-                if (
-                  editSelection.mode === "offset" &&
-                  Array.isArray(track.offsets[id])
-                ) {
-                  applyOffsetDeltaToSelection(
-                    { ...definition, id },
-                    currentIndex - previousIndex
-                  );
-                } else {
-                  track.base[id] =
-                    crushRateValue(currentIndex);
-                }
-              }
-            } else {
-              currentIndex = startIndex;
-            }
-
-            renderEditorAndRestore(
-              valueKey
-            );
-          };
-
-        input.addEventListener(
-          "keydown",
-          event => {
-            if (
-              event.key === "ArrowUp" ||
-              event.key === "ArrowRight"
-            ) {
-              event.preventDefault();
-              event.stopPropagation();
-              currentIndex = clamp(
-                currentIndex + 1,
-                0,
-                CRUSH_RATE_VALUES.length - 1
-              );
-              input.value = `x${crushRateValue(currentIndex)}`;
-              input.select();
-              return;
-            }
-
-            if (
-              event.key === "ArrowDown" ||
-              event.key === "ArrowLeft"
-            ) {
-              event.preventDefault();
-              event.stopPropagation();
-              currentIndex = clamp(
-                currentIndex - 1,
-                0,
-                CRUSH_RATE_VALUES.length - 1
-              );
-              input.value = `x${crushRateValue(currentIndex)}`;
-              input.select();
-              return;
-            }
-
-            if (event.key === "Enter") {
-              event.preventDefault();
-              event.stopPropagation();
-              finish(true);
-              return;
-            }
-
-            if (event.key === "Escape") {
-              event.preventDefault();
-              event.stopPropagation();
-              finish(false);
-            }
-          }
-        );
-
-        input.addEventListener(
-          "blur",
-          () => finish(true),
-          { once: true }
-        );
-
-        return;
-      }
-
-      /*
-       * Delay Time以外は
-       * 従来どおり数値入力。
-       */
       const input =
         document.createElement(
           "input"
@@ -5858,28 +5055,19 @@ function displayStepValue(
     ]?.[stepIndex] ?? 0;
 
   const result =
-    parameter.id === "crushRate"
-      ? crushRateValue(
-          crushRateIndex(
-            track.base.crushRate
-          ) +
-          Math.round(
-            Number(offset) || 0
-          )
-        )
-      : roundToStep(
-          clamp(
-            Number(
-              track.base[
-                parameter.id
-              ]
-            ) +
-              Number(offset),
-            parameter.min,
-            parameter.max
-          ),
-          parameter.step ?? 1
-        );
+  roundToStep(
+    clamp(
+      Number(
+        track.base[
+          parameter.id
+        ]
+      ) +
+        Number(offset),
+      parameter.min,
+      parameter.max
+    ),
+    parameter.step ?? 1
+  );
 
   if (parameter.id === "holdDecay") {
   const amount =
@@ -5933,35 +5121,6 @@ function displayStepValue(
   }
 
   /*
-   * Delay Timeは
-   * 実効値を音価で表示。
-   */
-  if (
-    parameter.id ===
-      "delayTime"
-  ) {
-    const delayNames = [
-      "1/64",
-      "1/32T",
-      "1/32",
-      "1/16T",
-      "1/16",
-      "1/8T",
-      "1/8",
-      "1/4T",
-      "1/4",
-      "1/2T",
-      "1/2"
-    ];
-
-    return (
-      delayNames[
-        Math.round(result)
-      ] ?? "1/16"
-    );
-  }
-
-  /*
    * Filter Cutoffも
    * ベース値表示と同じ形式。
    */
@@ -6001,10 +5160,6 @@ function displayStepValue(
   if (parameter.id === "nudge" || parameter.id === "strum") {
     const amount = Math.round(Number(result) || 0);
     return amount > 0 ? `+${amount}` : String(amount);
-  }
-
-  if (parameter.id === "crushRate") {
-    return `x${result}`;
   }
 
   /*
@@ -6217,35 +5372,25 @@ function renderOffsetGrid(parameter) {
       },
 
       min:
-        parameter.id === "crushRate"
-          ? -crushRateIndex(
-              track.base.crushRate
-            )
-          : parameter.min -
-            Number(
-              track.base[
-                parameter.id
-              ]
-            ),
+  parameter.min -
+  Number(
+    track.base[
+      parameter.id
+    ]
+  ),
 
-      max:
-        parameter.id === "crushRate"
-          ? CRUSH_RATE_VALUES.length - 1 -
-            crushRateIndex(
-              track.base.crushRate
-            )
-          : parameter.max -
-            Number(
-              track.base[
-                parameter.id
-              ]
-            ),
+max:
+  parameter.max -
+  Number(
+    track.base[
+      parameter.id
+    ]
+  ),
 
-      step:
-        parameter.step ?? 1,
+step:
+  parameter.step ?? 1,
 
-      acceleration:
-        parameter.id !== "crushRate",
+acceleration: true,
 
       accelerationStart:
         parameter.id === "note"
@@ -6298,29 +5443,20 @@ function renderOffsetGrid(parameter) {
           ]?.[stepIndex] ?? 0;
 
         const minimumOffset =
-          parameter.id === "crushRate"
-            ? -crushRateIndex(
-                track.base.crushRate
-              )
-            : parameter.min -
-              Number(
-                track.base[
-                  parameter.id
-                ]
-              );
+  parameter.min -
+  Number(
+    track.base[
+      parameter.id
+    ]
+  );
 
-        const maximumOffset =
-          parameter.id === "crushRate"
-            ? CRUSH_RATE_VALUES.length - 1 -
-              crushRateIndex(
-                track.base.crushRate
-              )
-            : parameter.max -
-              Number(
-                track.base[
-                  parameter.id
-                ]
-              );
+const maximumOffset =
+  parameter.max -
+  Number(
+    track.base[
+      parameter.id
+    ]
+  );
 
         const offsetStep =
           parameter.step ?? 1;
@@ -6330,29 +5466,29 @@ function renderOffsetGrid(parameter) {
             "input"
           );
 
-        input.type = "number";
-        input.className =
+         input.type = "number";
+         input.className =
           "offset-step offset-input";
 
-        input.value =
+         input.value =
           currentOffset;
 
-        input.step =
+         input.step =
           String(offsetStep);
 
-        input.min =
+         input.min =
           String(minimumOffset);
 
-        input.max =
+         input.max =
           String(maximumOffset);
 
-        input.dataset.stepIndex =
+         input.dataset.stepIndex =
           stepIndex;
 
-        input.dataset.focusKey =
+         input.dataset.focusKey =
           focusKey;
 
-        input.dataset.keyboardEditing =
+         input.dataset.keyboardEditing =
           "true";
 
         button.replaceWith(input);
@@ -13195,120 +12331,6 @@ modeWrap.appendChild(
 
   renderList();
   closeButton.focus();
-}
-
-function renderStepEditScreen() {
-  const header = document.createElement("div");
-  header.className =
-    "edit-toolbar step-edit-toolbar";
-
-  const trackButton =
-    document.createElement("button");
-
-  trackButton.type = "button";
-  trackButton.className = "track-cycle";
-  trackButton.dataset.focusKey =
-    "step-edit-track";
-
-  trackButton.innerHTML = `
-    <span class="track-icon">
-      ${getParameterIcon("track")}
-    </span>
-    <span class="track-number">
-      ${editorTrack().id}
-    </span>
-  `;
-
-  trackButton.setAttribute(
-    "aria-label",
-    `track ${editorTrack().id}`
-  );
-
-  trackButton.addEventListener(
-    "click",
-    () => {
-      state.selectedTrackIndex =
-        (
-          state.selectedTrackIndex + 1
-        ) % tracks.length;
-
-      renderSequence();
-      renderEditorAndRestore(
-        "step-edit-track"
-      );
-    }
-  );
-
-  const label = document.createElement("span");
-  label.className = "step-edit-label";
-  label.textContent = false
-    ? "paste position"
-    : "step edit";
-
-  header.append(
-    trackButton,
-    label
-  );
-
-  const grid = document.createElement("div");
-  grid.className =
-    "offset-grid step-edit-grid";
-
-  const firstStepIndex =
-    state.sequencePage * PAGE_STEP_COUNT;
-
-  const lastStepIndex = Math.min(
-    firstStepIndex + PAGE_STEP_COUNT,
-    editorTrack().stepLength
-  );
-
-  for (
-    let stepIndex = firstStepIndex;
-    stepIndex < lastStepIndex;
-    stepIndex++
-  ) {
-    const button =
-      document.createElement("button");
-
-    button.type = "button";
-    button.className =
-      "offset-step step-edit-cell";
-    button.dataset.stepIndex = stepIndex;
-    button.dataset.focusKey =
-      `step-edit-${stepIndex}`;
-    button.setAttribute(
-      "aria-label",
-      `track ${editorTrack().id} step ${stepIndex + 1}`
-    );
-
-    enableSelectionPointer({
-      element: button,
-      mode: "step",
-      source: "step-editor",
-      getStepIndex: element =>
-        Number(element.dataset.stepIndex)
-    });
-
-    if (
-      editSelection.selected.has(
-        selectionKey(
-          state.selectedTrackIndex,
-          stepIndex
-        )
-      )
-    ) {
-      button.classList.add(
-        "range-selected"
-      );
-    }
-
-    grid.appendChild(button);
-  }
-
-  editor.append(
-    header,
-    grid
-  );
 }
 
 function renderPinPlacementScreen() {

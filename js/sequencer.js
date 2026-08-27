@@ -138,6 +138,9 @@ function makePinSounds() {
 }
 
 function makeTrack(id) {
+  const sound =
+    createDefaultSound();
+
   return {
     id,
 
@@ -166,12 +169,14 @@ function makeTrack(id) {
     /* Track内で共有する3つの独立Pin Sound。 */
     pinSounds: makePinSounds(),
 
-    /* ENV親枠へ最後に表示した子パラメーター */
-    envelopeSelectedId: "holdDecay",
-    articulationSelectedId: "glide",
+    envelopeSelectedId:
+    sound.envelopeSelectedId,
 
-    /* LFO編集画面で最後に選択していた系統 */
-    lfoSelected: 1,
+    articulationSelectedId:
+    sound.articulationSelectedId,
+
+    lfoSelected:
+    sound.lfoSelected,
 
     steps:
       filled(false),
@@ -179,118 +184,8 @@ function makeTrack(id) {
     muted: false,
 solo: false,
 
-    base: {
-  note: 0,
-  chord: 0,
-  voices: 4,
-  inversion: 0,
-  sineVolume: 100,
-  velocity: 70,
-  attack: 1,
-  holdDecay: 0,
-  fmDepth: 0,
-fmRatio: 1,
-fmFeedback: 0,
-filterCutoff: 0,
-      filterResonance: 0,
-      pan: 0,
-      probability: 100,
-      subPattern: -1,
-      subCrescendo: 0,
-      subProbability: 100,
-      glide: 0,
-      nudge: 0,
-      strum: 0,
-
-      lfo1Target: "pitch",
-      lfo1Wave: "sine",
-      lfo1Depth: 0,
-      lfo1Rate: 25,
-      lfo1SyncMode: "free",
-
-      lfo2Target: "pitch",
-      lfo2Wave: "sine",
-      lfo2Depth: 0,
-      lfo2Rate: 25,
-      lfo2SyncMode: "free"
-    },
-
-    offsets: {
-  note:
-    filled(0),
-
-  chord:
-    filled(0),
-
-  voices:
-    filled(0),
-
-  inversion:
-    filled(0),
-
-  velocity:
-    filled(0),
-
-  attack:
-  filled(0),
-
-holdDecay:
-  filled(0),
-
-sineVolume:
-  filled(0),
-
-  fmDepth:
-    filled(0),
-
-    fmRatio:
-  filled(0),
-
-fmFeedback:
-  filled(0),
-
-  filterCutoff:
-    filled(0),
-
-  filterResonance:
-    filled(0),
-
-  pan:
-    filled(0),
-
-  probability:
-    filled(0),
-
-  subPattern:
-    filled(0),
-
-  subCrescendo:
-    filled(0),
-
-  subProbability:
-    filled(0),
-
-  glide:
-    filled(0),
-
-  nudge:
-    filled(0),
-
-  strum:
-    filled(0),
-
-  lfo1Depth:
-    filled(0),
-
-  lfo1Rate:
-    filled(0),
-
-  lfo2Depth:
-    filled(0),
-
-  lfo2Rate:
-    filled(0)
-}
+    base: sound.base,
+    offsets: sound.offsets,
   };
 }
 
@@ -505,7 +400,6 @@ export const parameters = [
     min: 0,
     max: 150,
     step: 1,
-    offsetMode: "offset"
   },
 
   {
@@ -2421,7 +2315,7 @@ export function currentSourceData() {
  * Pattern / Fillに
  * 実質的な編集情報が入っているか判定する。
  *
- * Mute / Solo / FX Muteや、
+ * Mute / Soloや、
  * 最後に開いていた編集項目などの
  * 一時的なUI・演奏状態は対象外。
  */
@@ -2914,76 +2808,95 @@ function normalizeTrackData(track) {
   track.base ??= {};
   track.offsets ??= {};
 
-  const chordDefaults = { chord: 0, voices: 4, inversion: 0 };
-  Object.entries(chordDefaults).forEach(([id, defaultValue]) => {
-    if (typeof track.base[id] !== "number") {
-      track.base[id] = defaultValue;
-    }
-    if (!Array.isArray(track.offsets[id])) {
-      track.offsets[id] = filled(0);
-    }
-  });
-  track.base.chord = clamp(Math.round(track.base.chord), 0, CHORD_NAMES.length - 1);
-  track.base.voices = clamp(Math.round(track.base.voices), 1, 4);
-  track.base.inversion = clamp(Math.round(track.base.inversion), 0, 3);
+  track.base.chord =
+  clamp(
+    Math.round(
+      Number(track.base.chord) || 0
+    ),
+    0,
+    CHORD_NAMES.length - 1
+  );
 
-  const subDefaults = {
-    subPattern: -1,
-    subCrescendo: 0,
-    subProbability: 100
-  };
+track.base.voices =
+  clamp(
+    Math.round(
+      Number(track.base.voices) || 4
+    ),
+    1,
+    4
+  );
 
-  Object.entries(subDefaults).forEach(([id, defaultValue]) => {
-    if (typeof track.base[id] !== "number") {
-      track.base[id] = defaultValue;
-    }
+track.base.inversion =
+  clamp(
+    Math.round(
+      Number(track.base.inversion) || 0
+    ),
+    0,
+    3
+  );
 
-    if (!Array.isArray(track.offsets[id])) {
-      track.offsets[id] = filled(0);
-    }
-  });
+  track.base.subPattern =
+  clamp(
+    Math.round(
+      Number.isFinite(
+        Number(track.base.subPattern)
+      )
+        ? Number(track.base.subPattern)
+        : -1
+    ),
+    -1,
+    6
+  );
 
-  track.base.subPattern = clamp(Math.round(track.base.subPattern), -1, 6);
-  track.base.subCrescendo = clamp(Math.round(track.base.subCrescendo), -3, 3);
-  track.base.subProbability = clamp(Math.round(track.base.subProbability), 0, 100);
 
-  const articulationDefaults = {
-    glide: 0,
-    nudge: 0,
-    strum: 0
-  };
+track.base.subCrescendo =
+  clamp(
+    Math.round(
+      Number(track.base.subCrescendo) || 0
+    ),
+    -3,
+    3
+  );
 
-  Object.entries(articulationDefaults).forEach(([id, defaultValue]) => {
-    if (typeof track.base[id] !== "number") {
-      track.base[id] = defaultValue;
-    }
+track.base.subProbability =
+  clamp(
+    Math.round(
+      Number.isFinite(
+        Number(track.base.subProbability)
+      )
+        ? Number(track.base.subProbability)
+        : 100
+    ),
+    0,
+    100
+  );
 
-    if (!Array.isArray(track.offsets[id])) {
-      track.offsets[id] = filled(0);
-    }
-  });
+  track.base.glide =
+  clamp(
+    Math.round(
+      Number(track.base.glide) || 0
+    ),
+    0,
+    8
+  );
 
-  track.base.glide = clamp(
-  Math.round(track.base.glide),
-  0,
-  8
-);
+track.base.nudge =
+  clamp(
+    Math.round(
+      Number(track.base.nudge) || 0
+    ),
+    -4,
+    4
+  );
 
-track.base.nudge = clamp(
-  Math.round(track.base.nudge),
-  -4,
-  4
-);
-
-track.base.strum = clamp(
-  Math.round(track.base.strum),
-  -8,
-  8
-);
-
-  if (!["glide", "nudge", "strum"].includes(track.articulationSelectedId)) {
-    track.articulationSelectedId = "glide";
-  }
+track.base.strum =
+  clamp(
+    Math.round(
+      Number(track.base.strum) || 0
+    ),
+    -8,
+    8
+  );
 
   track.pinEnabled =
     Boolean(track.pinEnabled);
@@ -3017,52 +2930,23 @@ track.base.strum = clamp(
     };
   });
 
-  /*
- * FM Feedback実装前の保存データへ
- * 初期値0を補う。
- */
-if (
-  typeof track.base.fmFeedback !==
-    "number"
-) {
-  track.base.fmFeedback = 0;
-}
-
 track.base.fmFeedback =
   clamp(
     Math.round(
-      track.base.fmFeedback
+      Number(track.base.fmFeedback) || 0
     ),
     0,
-    100
+    50
   );
-
-  if (
-  !Array.isArray(
-    track.offsets.fmRatio
-  )
-) {
-  track.offsets.fmRatio =
-    filled(0);
-}
-
-if (
-  !Array.isArray(
-    track.offsets.fmFeedback
-  )
-) {
-  track.offsets.fmFeedback =
-    filled(0);
-}
 
   if (typeof track.soundName !== "string" || !track.soundName.trim()) {
     track.soundName = `sound ${String(track.id ?? 1).padStart(2, "0")}`;
   }
 
   /*
-   * 旧tone（0〜100、50=OFF）を
-   * 新Filter Cutoff（-100〜100、0=OFF）へ移行する。
-   */
+ * 旧tone値を
+ * 現行filterCutoffへ移行する。
+ */
   if (
     typeof track.base.filterCutoff !==
       "number"
@@ -3073,20 +2957,13 @@ if (
         : 50;
 
     track.base.filterCutoff =
-      clamp(
-        Math.round(
-          (legacyTone - 50) * 2
-        ),
-        -100,
-        100
-      );
-  }
-
-  if (
-    typeof track.base.filterResonance !==
-      "number"
-  ) {
-    track.base.filterResonance = 0;
+  clamp(
+    Math.round(
+      legacyTone - 50
+    ),
+    -50,
+    50
+  );
   }
 
   if (
@@ -3100,53 +2977,30 @@ if (
         : filled(0);
 
     track.offsets.filterCutoff =
-      legacyOffsets.map(value =>
-        clamp(
-          Math.round(
-            Number(value || 0) * 2
-          ),
-          -200,
-          200
-        )
-      );
-  }
-
-  if (
-    !Array.isArray(
-      track.offsets.filterResonance
+  legacyOffsets.map(value =>
+    clamp(
+      Math.round(
+        Number(value) || 0
+      ),
+      -100,
+      100
     )
-  ) {
-    track.offsets.filterResonance =
-      filled(0);
+  );
   }
 
-  if (!["attack", "holdDecay"].includes(track.envelopeSelectedId)) {
-    track.envelopeSelectedId = "holdDecay";
-  }
-
-  /*
-   * ADSG廃止後のH/D。
-   * 旧データは互換変換せず中央0から開始する。
-   */
-  if (typeof track.base.holdDecay !== "number") {
-    track.base.holdDecay = 0;
-  }
-
-  track.base.holdDecay = clamp(
-    Math.round(track.base.holdDecay),
+  track.base.holdDecay =
+  clamp(
+    Math.round(
+      Number(track.base.holdDecay) || 0
+    ),
     -50,
     50
   );
 
-  if (!Array.isArray(track.offsets.holdDecay)) {
-    track.offsets.holdDecay = filled(0);
-  }
-
-
   /*
-   * 旧OSCデータを新しい音源別パラメーターへ移行する。
-   * 旧キーは削除せず、既存保存データの復元だけに利用する。
-   */
+ * 旧sine値を
+ * 現行sineVolumeへ移行する。
+ */
   if (
     typeof track.base.sineVolume !==
       "number"
@@ -3157,55 +3011,6 @@ if (
         ? track.base.sine
         : 100;
   }
-
-
-  ["sineVolume"].forEach(parameterId => {
-    if (
-      !Array.isArray(
-        track.offsets[parameterId]
-      )
-    ) {
-      track.offsets[parameterId] =
-        filled(0);
-    }
-  });
-
-  /*
-   * 旧保存データへLFO初期値を補う。
-   */
-  if (
-    track.lfoSelected !== 1 &&
-    track.lfoSelected !== 2
-  ) {
-    track.lfoSelected = 1;
-  }
-
-  const lfoDefaults = {
-    lfo1Target: "pitch",
-    lfo1Wave: "sine",
-    lfo1Depth: 0,
-    lfo1Rate: 25,
-    lfo1SyncMode: "free",
-    lfo2Target: "pitch",
-    lfo2Wave: "sine",
-    lfo2Depth: 0,
-    lfo2Rate: 25,
-    lfo2SyncMode: "free"
-  };
-
-  Object.entries(
-    lfoDefaults
-  ).forEach(
-    ([parameterId, defaultValue]) => {
-      if (
-        typeof track.base[parameterId] !==
-          typeof defaultValue
-      ) {
-        track.base[parameterId] =
-          defaultValue;
-      }
-    }
-  );
 
   ["lfo1SyncMode", "lfo2SyncMode"].forEach(
     parameterId => {
@@ -3256,50 +3061,27 @@ if (
 );
 
   /*
-   * OFF廃止後の旧保存データ補正。
-   * Depth=0で停止するためTargetはPitchへ戻す。
-   */
+ * 旧LFO targetを
+ * 現行targetへ移行する。
+ */
   ["lfo1Target", "lfo2Target"].forEach(
-    parameterId => {
-      const target =
-        track.base[parameterId];
+  parameterId => {
+    const target =
+      track.base[parameterId];
 
-      if (target === "off") {
-        track.base[parameterId] =
-          "pitch";
-        return;
-      }
-
-      /*
-       * 旧GateターゲットはAttackへ移行。
-       * OSC個別Decayターゲットは共通ENV Decayへ統合。
-       */
-      if (target === "gate" || target === "decay") {
-        track.base[parameterId] =
-          "attack";
-        return;
-      }
-
-    }
-  );
-
-  [
-    "lfo1Depth",
-    "lfo1Rate",
-    "lfo2Depth",
-    "lfo2Rate"
-  ].forEach(parameterId => {
-    if (
-      !Array.isArray(
-        track.offsets[parameterId]
-      )
+    if (target === "off") {
+      track.base[parameterId] =
+        "pitch";
+    } else if (
+      target === "gate" ||
+      target === "decay"
     ) {
-      track.offsets[parameterId] =
-        filled(0);
+      track.base[parameterId] =
+        "attack";
     }
-  });
+  }
+);
 
-  /* Step 1: deleted sound fields are stripped from restored legacy projects. */
   const normalizedSound = normalizeSound(track);
   track.base = normalizedSound.base;
   track.offsets = normalizedSound.offsets;

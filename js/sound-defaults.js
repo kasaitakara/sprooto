@@ -33,7 +33,7 @@ export const SOUND_BASE_DEFAULTS = Object.freeze({
 });
 
 export const SOUND_OFFSET_IDS = Object.freeze([
-  "note", "chord", "voices", "inversion", "velocity",
+  "note", "chord", "voices", "inversion",
   "attack", "holdDecay",
   "sineVolume",
   "fmDepth", "fmRatio", "fmFeedback",

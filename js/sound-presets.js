@@ -12,10 +12,6 @@ function sound(
   return result;
 }
 
-/*
- * Factory presetは新音源仕様へ作り直すため、
- * Step 1では初期音色だけ残す。
- */
 export const FACTORY_SOUND_PRESETS = [
   {
     id: "factory-initialize-tone",

@@ -247,7 +247,6 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
     font-size: var(--font-main);
 }
 
-.master-control output { width:24px; }
 .bpm-input {
     width: 42px;
 
@@ -273,6 +272,7 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
     display: flex;
     align-items: center;
     gap: 6px;
+    min-width: 0;
 }
 
 .current-source-display {
@@ -309,9 +309,6 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
     font-size: var(--font-main);
 }
 .pattern-length-input {
-    width: 24px;
-    height: 24px;
-
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -321,16 +318,16 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
 
     text-align: center;
     font-size: var(--font-main);
-    line-height: 24px;
 
     appearance: textfield;
     -moz-appearance: textfield;
 }
+
 .pattern-length-input::-webkit-inner-spin-button,
 .pattern-length-input::-webkit-outer-spin-button {
-  margin:0;
-  appearance:none;
-  -webkit-appearance:none;
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
 }
 
 .pattern-cell.queued {
@@ -439,13 +436,15 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
     min-height: 28px;
 }
 .mini-button {
-    width: 28px;
-    height: 26px;
     border: 0;
     background: var(--cell);
-    font-size: var(--font-main);
 }
-.mini-button.active { background:var(--text); color:var(--bg); }
+
+.mini-button.active {
+    background: var(--text);
+    color: var(--bg);
+}
+
 .parameter-menu {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
@@ -464,7 +463,6 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
     height: 36px;
     min-height: 36px;
 
-    /* 正方形指定を解除 */
     aspect-ratio: auto;
 
     border: 0;
@@ -475,6 +473,7 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
     align-items: center;
     justify-content: center;
 
+    gap: 3px;
     padding: 0;
 }
 .parameter-icon { font-size: var(--font-main); }
@@ -802,29 +801,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     color: var(--play-control);
 }
 
-.track-title {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.track-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.track-icon svg {
-    width: 16px;
-    height: 16px;
-
-    display: block;
-}
-
-.track-number {
-    font-size: var(--font-main);
-}
-
 .track-title,
 .track-cycle {
     display: inline-flex;
@@ -904,10 +880,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
   display: flex;
   align-items: center;
   justify-content: center;
-
-  border: 0;
-  background: transparent;
-  padding: 0;
 }
 
 .base-value {
@@ -941,10 +913,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 }
 
 .track-length-input {
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
-
     margin-left: auto;
 
     padding: 0;
@@ -956,8 +924,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     color: inherit;
 
     font-size: var(--font-main);
-    line-height: 1;
-
     text-align: center;
 }
 
@@ -1135,20 +1101,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
   grid-template-columns: repeat(8, 1fr);
   gap: 5px;
   margin-top: 5px;
-}
-
-.pattern-cell {
-    width: 100%;
-    height: 28px;
-
-    aspect-ratio: auto;
-
-    padding: 0;
-    border: 0;
-    background: var(--cell);
-
-    font-size: var(--font-main);
-    line-height: 1;
 }
 
 .section-selector-cell {
@@ -1648,16 +1600,8 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     min-width: 0;
 }
 
-.editor-header-primary {
-    gap: 8px;
-}
-
 .editor-header-secondary {
     gap: 8px;
-}
-
-.editor-header-spacer {
-    flex: 1 1 auto;
 }
 
 .editor-header-two-row .track-cycle,
@@ -1671,24 +1615,10 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     -webkit-text-fill-color: var(--text);
 }
 
-.track-sound-name {
-    min-width: 0;
-    flex: 1 1 auto;
-
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-
-    font-size: var(--font-main);
-    line-height: 1;
-    color: var(--text);
-    text-transform: lowercase;
-}
-
 .compact-value {
     display: inline-flex;
     align-items: baseline;
-    gap: 3px;
+    gap: 0;
 
     min-width: 0;
     white-space: nowrap;
@@ -1698,7 +1628,7 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
 .track-length-input.compact-value-number,
 .pattern-length-input.compact-value-number {
     width: auto;
-    min-width: 20px;
+    min-width: 0px;
     height: 28px;
 
     margin: 0;
@@ -1733,10 +1663,6 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     color: var(--selected-text);
 }
 
-.sequence-toolbar-controls {
-    min-width: 0;
-}
-
 .sequence-step-value {
     height: 28px;
 }
@@ -1745,50 +1671,17 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
    Editor header 微調整
 ========================= */
 
-/* 1行目：Track No側へM / Sを寄せる */
-.editor-header-primary {
-    justify-content: flex-start;
-    gap: 8px;
-}
-
-/* 既存の右寄せ用スペーサーを無効化 */
-.editor-header-spacer {
-    display: none;
-}
-
-/* 2行目：基本間隔 */
-.editor-header-secondary {
-    gap: 8px;
-}
-
 /* 消しゴムとSWの間だけ少し広げる */
 .editor-header-secondary .erase-button {
     margin-right: 6px;
 }
 
-.track-sound-name {
-    font-size: var(--font-label);
-line-height: 1.25;
-    color: var(--muted);
-
-    transform: translateX(6px);
-}
-
 .compact-value-label {
+    margin-right: 1px;
     font-size: var(--font-label);
     line-height: 1;
     color: var(--muted);
     text-transform: lowercase;
-}
-
-/* SWとSTEPのラベル・数値間隔を統一 */
-.compact-value {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 1px;
-
-    min-width: 0;
-    white-space: nowrap;
 }
 
 /* パラセレクト下のベース値を小さくする */
@@ -1983,10 +1876,6 @@ line-height: 1.25;
     grid-template-rows: repeat(2, 36px);
 }
 
-.parameter-button {
-    gap: 3px;
-}
-
 .parameter-label {
     max-width: 100%;
 
@@ -1998,11 +1887,6 @@ line-height: 1.25;
     line-height: 1;
     color: var(--text);
     -webkit-text-fill-color: var(--text);
-}
-
-.parameter-button .parameter-value {
-    font-size: var(--font-small);
-    line-height: 1;
 }
 
 .parameter-placeholder {
@@ -2094,10 +1978,6 @@ input.track-volume-slider::-moz-range-thumb {
 /* =========================
    OSC source editor
 ========================= */
-
-.osc-edit-toolbar {
-    gap: 5px;
-}
 
 .osc-parent-icon {
     flex: 0 0 24px;
@@ -2195,10 +2075,6 @@ input.track-volume-slider::-moz-range-thumb {
    Envelope editor
 ========================= */
 
-.envelope-edit-toolbar {
-    gap: 5px;
-}
-
 .envelope-parent-icon {
     flex: 0 0 24px;
     min-width: 24px;
@@ -2265,11 +2141,6 @@ input.track-volume-slider::-moz-range-thumb {
 /* =========================
    LFO editor
 ========================= */
-
-.lfo-edit-toolbar {
-    gap: 5px;
-}
-
 .lfo-parent-icon {
     flex: 0 0 24px;
     width: 24px;
@@ -2376,18 +2247,6 @@ input.track-volume-slider::-moz-range-thumb {
 .lfo-parameter-controls {
     justify-content: flex-start;
     gap: 4px;
-}
-
-.lfo-parameter-button {
-    min-width: 44px;
-}
-
-.lfo-base-value {
-    min-width: 28px;
-    height: 28px;
-    margin-left: auto;
-    padding: 0;
-    text-align: center;
 }
 
 .lfo-settings {
@@ -2520,11 +2379,6 @@ input.track-volume-slider::-moz-range-thumb {
     padding: 4px;
 }
 
-.lfo-base-value {
-    min-width: 38px;
-    font-size: var(--font-main);
-}
-
 .lfo-menu-icon {
     position: relative;
     width: 18px;
@@ -2552,10 +2406,6 @@ input.track-volume-slider::-moz-range-thumb {
 /* =========================
    Filter editor
 ========================= */
-.filter-edit-toolbar {
-    gap: 5px;
-}
-
 .filter-parent-icon {
     flex: 0 0 24px;
     width: 24px;
@@ -2613,88 +2463,12 @@ input.track-volume-slider::-moz-range-thumb {
 ========================= */
 
 /*
- * base表示は必要幅だけ使用。
- * 右側で間延びさせない。
- */
-.edit-toolbar .value-control,
-.edit-toolbar .lfo-base-value-control {
-    flex: 0 0 auto;
-    margin-left: 0;
-}
-
-/*
- * base / sw / stepの
- * ラベルと数値を密着させる。
- */
-.compact-value {
-    gap: 0;
-}
-
-.compact-value-label {
-    margin-right: 1px;
-}
-
-/*
- * 数値側の不要な最低幅を縮める。
- */
-.compact-value-number {
-    min-width: 0;
-}
-
-/*
- * base値ボタン自体も
- * 中身に必要な幅だけにする。
- */
-.value-control .base-value {
-    width: auto;
-    min-width: 20px;
-    padding: 0;
-}
-
-/*
- * LFOのbase表示も同じルール。
- */
-.lfo-base-value-control {
-    gap: 0;
-    white-space: nowrap;
-}
-
-.lfo-base-value-control .lfo-base-value {
-    width: auto;
-    min-width: 28px;
-    margin-left: 0;
-    padding: 0;
-}
-
-/*
  * 通常パラメータのタブ領域は
  * 余った幅を左側で受け持つ。
  */
 .edit-toolbar .child-tabs {
     flex: 1 1 auto;
     min-width: 0;
-}
-
-/*
- * メニュー2行目も、
- * 消しゴム以降を右側へ固定。
- */
-.editor-header-secondary .track-sound-name {
-    flex: 1 1 auto;
-}
-
-.edit-toolbar .erase-button,
-.edit-toolbar .lfo-erase-button {
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    flex: 0 0 28px;
-
-    margin-left: auto;
-    margin-right: 0;
-
-    padding: 5px;
 }
 
 .track-swing-control,
@@ -2705,38 +2479,6 @@ input.track-volume-slider::-moz-range-thumb {
 /* =========================
    Base value position fixed
 ========================= */
-
-/*
- * 数値でも音価・Hz表示でも、
- * base領域の横幅を変えない。
- */
-.edit-toolbar .value-control,
-.edit-toolbar .lfo-base-value-control {
-    width: 72px;
-    min-width: 72px;
-    flex: 0 0 72px;
-
-    justify-content: flex-end;
-}
-
-/*
- * base文字と値は右寄せしつつ密着。
- */
-.edit-toolbar
-.value-control
-.compact-value,
-.edit-toolbar
-.lfo-base-value-control {
-    width: 100%;
-
-    justify-content: flex-end;
-    gap: 0;
-}
-
-.edit-toolbar
-.compact-value-label {
-    margin-right: 1px;
-}
 
 /* =========================
    Volume slider flat thumb
@@ -2772,45 +2514,6 @@ input.track-volume-slider::-moz-range-thumb {
  */
 .master-control {
     touch-action: none;
-}
-
-/* =========================
-   FM editor font size
-========================= */
-
-.child-tabs
-button[data-focus-key="child-fmDepth"],
-.child-tabs
-button[data-focus-key="child-fmRatio"],
-.child-tabs
-button[data-focus-key="child-fmFeedback"] {
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-/* =========================
-   FM editor button style
-========================= */
-
-.child-tabs
-button[data-focus-key="child-fmDepth"],
-.child-tabs
-button[data-focus-key="child-fmRatio"],
-.child-tabs
-button[data-focus-key="child-fmFeedback"] {
-    background: transparent;
-}
-
-.child-tabs
-button[data-focus-key="child-fmDepth"].active,
-.child-tabs
-button[data-focus-key="child-fmRatio"].active,
-.child-tabs
-button[data-focus-key="child-fmFeedback"].active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
 }
 
 /* =========================
@@ -2887,6 +2590,7 @@ select[data-focus-key]:focus-visible,
     transform: translate(6px, -1px);
 
     cursor: pointer;
+    text-transform: lowercase;
 }
 
 .sound-preset-overlay {
@@ -3548,7 +3252,6 @@ input[type="radio"]:focus-visible {
 }
 
 /* エディット側の単一Track選択とOffset一括選択 */
-.step-edit-cell.range-selected,
 .offset-step.range-selected {
     border: 1px solid var(--text);
     background: transparent;
@@ -3557,33 +3260,9 @@ input[type="radio"]:focus-visible {
 }
 
 .step-edit-mode .sequence-step,
-.step-edit-mode .step-edit-cell,
 .offset-selection-mode .offset-step {
     touch-action: none;
 }
-
-.step-edit-toolbar {
-    justify-content: flex-start;
-}
-
-.step-edit-label {
-    color: var(--muted);
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.step-edit-cell {
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-}
-
-.step-edit-cell:focus-visible {
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-}
-
-
 
 /* =========================
    Step edit scope v2
@@ -3651,12 +3330,6 @@ input[type="radio"]:focus-visible {
 .step-edit-mode.step-edit-scope-track
 .track-lane.on.selected-track {
     background: var(--selected-bg);
-}
-
-/* 旧Step編集用の空白グリッドは使用しない。 */
-.step-edit-grid,
-.step-edit-toolbar {
-    display: none;
 }
 
 /*
@@ -4340,19 +4013,6 @@ input[type="radio"]:focus-visible {
 }
 
 .master-reverb-value {
-    min-width: 20px;
-    height: 22px;
-
-    padding: 0;
-
-    border: 0;
-    background: transparent;
-
-    font-size: var(--font-small);
-    line-height: 1;
-}
-
-.master-reverb-value {
     min-width: 28px;
     height: 20px;
     padding: 0 2px;
@@ -4560,43 +4220,12 @@ input[type="radio"]:focus-visible {
 ========================= */
 
 /*
- * PinモードONでも、
- * sound / sw / stepの既存配置は崩さない。
- */
-.editor-header-secondary.pin-mode-enabled-row {
-    gap: 8px;
-}
-
-/*
- * sound名は従来どおり余白を受け持つ。
- * 固定幅にはしない。
- */
-.editor-header-secondary.pin-mode-enabled-row
-.track-sound-name {
-    min-width: 0;
-    flex: 1 1 auto;
-
-    transform: translateX(6px);
-}
-
-/*
  * ・ a b c だけ少しゆったり配置。
  */
 .editor-header-secondary.pin-mode-enabled-row
 .pin-sound-tabs {
     gap: 10px;
 
-    flex: 0 0 auto;
-}
-
-/*
- * sw / stepはPinモードでも
- * 元の右側配置を維持。
- */
-.editor-header-secondary.pin-mode-enabled-row
-.track-swing-control,
-.editor-header-secondary.pin-mode-enabled-row
-.track-step-control {
     flex: 0 0 auto;
 }
 
@@ -4609,9 +4238,6 @@ input[type="radio"]:focus-visible {
     opacity: 0.48;
 }
 
-.note-edit-toolbar {
-    gap: 4px;
-}
 .note-edit-toolbar .child-tabs {
     flex: 1 1 auto;
     min-width: 0;
@@ -5220,23 +4846,6 @@ input[type="radio"]:focus-visible {
 }
 
 /* =========================
-   Offset editor parameter labels
-========================= */
-
-.osc-gain-label,
-.edit-parameter-label,
-.envelope-child-button,
-.filter-child-button,
-.child-tabs button,
-.lfo-parameter-button,
-.lfo-switch-button,
-.lfo-sync-button {
-    font-size: var(--font-label) !important;
-    line-height: 1 !important;
-    font-weight: 400 !important;
-}
-
-/* =========================
    Offset editor header
    unified layout / typography
 ========================= */
@@ -5348,27 +4957,6 @@ html {
 }
 
 /*
- * Offset編集画面のパラ名称文字を完全統一。
- * gain / attack / hold-decay / filter / fm / pan / prob /
- * note / articulation / lfo を同一11px・同一ウェイトにする。
- */
-.edit-toolbar .edit-parameter-label,
-.edit-toolbar .osc-gain-label,
-.edit-toolbar .osc-child-button,
-.edit-toolbar .envelope-child-button,
-.edit-toolbar .filter-child-button,
-.edit-toolbar .child-tabs button,
-.edit-toolbar .lfo-parameter-button,
-.edit-toolbar .lfo-switch-button,
-.edit-toolbar .lfo-sync-button {
-    font-size: var(--font-label) !important;
-    font-weight: 400 !important;
-    line-height: 1 !important;
-
-    text-transform: lowercase;
-}
-
-/*
  * 子パラボタンの高さを統一。
  * 横幅は各機能に必要な幅を維持する。
  */
@@ -5380,56 +4968,6 @@ html {
 .edit-toolbar .lfo-switch-button,
 .edit-toolbar .lfo-sync-button {
     height: 24px;
-}
-
-/*
- * erase位置を全編集画面で統一。
- * パラ名称領域が余白を受け持ち、eraseは常に右側同位置。
- */
-.edit-toolbar .erase-button,
-.edit-toolbar .lfo-erase-button {
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
-
-    flex: 0 0 24px;
-
-    margin-left: auto;
-    margin-right: 0;
-
-    padding: 4px;
-}
-
-.edit-toolbar .erase-button svg,
-.edit-toolbar .lfo-erase-button svg {
-    width: 18px;
-    height: 18px;
-}
-
-/*
- * base表示領域を全編集画面で固定。
- * 値の桁数やHz/音価表記でerase位置が動かないようにする。
- */
-.edit-toolbar .value-control,
-.edit-toolbar .lfo-base-value-control {
-    width: 96px;
-    min-width: 96px;
-    flex: 0 0 96px;
-
-    justify-content: flex-end;
-}
-
-/* baseラベルと値の間隔も共通化。 */
-.edit-toolbar .value-control .compact-value,
-.edit-toolbar .lfo-base-value-control {
-    width: 100%;
-    gap: 0;
-
-    justify-content: flex-end;
-}
-
-.edit-toolbar .compact-value-label {
-    margin-right: 1px;
 }
 
 /*
@@ -5562,29 +5100,6 @@ html {
     justify-content: center;
 }
 
-
-/*
- * parameter select:
- * erase → 8px margin + 8px gap → song 28px
- *
- * offset edit:
- * erase → 4px gap → base 40px
- *
- * どちらもerase右端から画面右端まで44px
- */
-.edit-toolbar .value-control,
-.edit-toolbar .lfo-base-value-control {
-    width: 60px;
-    min-width: 60px;
-
-    flex: 0 0 60px;
-
-    margin-left: 0;
-
-    justify-content: flex-end;
-}
-
-
 /* ---------- erase icon ---------- */
 
 .editor-header-primary .erase-button svg,
@@ -5615,15 +5130,16 @@ html {
     width: 60px !important;
     min-width: 60px !important;
     flex: 0 0 60px !important;
-
     margin-left: 0 !important;
     padding: 0 !important;
-
     display: flex;
     align-items: center;
     justify-content: flex-start !important;
-
     white-space: nowrap;
+}
+
+.lfo-base-value {
+    height: 28px;
 }
 
 /*

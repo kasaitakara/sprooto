@@ -16,10 +16,6 @@ let spectrumData;
 let outputTimeData;
 let fmVoiceWorkletReady = null;
 
-/*
- * CRUSHは発音ごとにWorkletを作らず、
- * Trackごとに1台のAudioWorkletNodeを常設して再利用する。
- */
 let audioClockReady = false;
 let audioClockReadyPromise = null;
 let offlineRenderMode = false;
@@ -74,7 +70,6 @@ function sprootoDebugType(node) {
   if (/StereoPannerNode/i.test(name)) return "pan";
   if (/BiquadFilterNode/i.test(name)) return "filter";
   if (/OscillatorNode|AudioBufferSourceNode|ConstantSourceNode/i.test(name)) return "source";
-  if (/DelayNode/i.test(name)) return "delay";
   if (/ConvolverNode/i.test(name)) return "conv";
   return "other";
 }
@@ -1268,35 +1263,6 @@ function lfoRateToHz(
 }
 
 /*
- * 通常LFO用
- * 最大±1200cent（1オクターブ）
- */
-function lfoDepthToCents(value) {
-  return (
-    clamp(
-      Number(value) || 0,
-      0,
-      100
-    ) * 12
-  );
-}
-
-/*
- * Rise / Fall専用
- * 最大±3600cent（3オクターブ）
- */
-function oneShotPitchDepthToCents(value) {
-  return (
-    clamp(
-      Number(value) || 0,
-      0,
-      100
-    ) * 36
-  );
-}
-
-
-/*
  * Random LFO
  *
  * 一定間隔ごとにランダム値を作り、
@@ -1434,21 +1400,12 @@ const now =
 
   const offset = id => {
     /*
-     * Main Sound：従来どおり全Offsetを使用。
-     * Pin Sound ：原則Offset無効。
-     *              ただしTrack Volume（velocity）だけは
-     *              Main側Step Offsetを共通で使用する。
-     */
+ * Main Sound：全Offsetを使用。
+ * Pin Sound ：Offset無効。
+ */
     if (usingPin) {
-      if (id === "velocity") {
-        return (
-          track.offsets.velocity?.[stepIndex] ??
-          0
-        );
-      }
-
-      return 0;
-    }
+  return 0;
+}
 
     return (
       track.offsets[id]?.[stepIndex] ??
@@ -1625,22 +1582,11 @@ const now =
     });
 
   const velocityScale =
-    clamp(
-      Number(options.velocityScale) || 1,
-      0,
-      1
-    );
-
-  const velocity =
-    (
-      clamp(
-        soundTrack.base.velocity +
-        offset("velocity"),
-        0,
-        150
-      ) / 100
-    ) *
-    velocityScale;
+  clamp(
+    Number(options.velocityScale) || 1,
+    0,
+    1
+  );
 
   /*
    * Attack / Decay LFO
@@ -2652,10 +2598,18 @@ if (
   );
 }
   
+const trackVolume =
+  clamp(
+    Number(soundTrack.base.velocity) || 0,
+    0,
+    150
+  ) / 100;
+
 const peakLevel =
   Math.max(
     0.0001,
-    velocity
+    trackVolume *
+      velocityScale
   );
 
 const attackEnd =
@@ -2760,10 +2714,6 @@ if (panner) {
   voiceOutputNode = panner;
 }
 
-/*
- * Track FX廃止後は、Pan後の信号をMaster Mixへ直結する。
- * Offline Export時だけFade用GainNodeを挟む。
- */
 let exportFadeGain = null;
 const fadeEnvelope = options.fadeEnvelope;
 
@@ -2792,64 +2742,6 @@ if (offlineRenderMode || fadeEnvelope) {
   exportFadeGain.connect(mixInput);
 } else {
   voiceOutputNode.connect(mixInput);
-}
-
-  function scheduleSourceEnvelope(
-  gainNode,
-  level,
-  sourceDecay
-) {
-  const safeLevel =
-    Number.isFinite(
-      Number(level)
-    )
-      ? Math.max(
-          0.0001,
-          Number(level)
-        )
-      : 0.0001;
-
-  const safeDecay =
-    Number.isFinite(
-      Number(sourceDecay)
-    )
-      ? Math.max(
-          0.001,
-          Number(sourceDecay)
-        )
-      : 0.5;
-
-  const tailLevel =
-    Math.max(
-      0.0001,
-      safeLevel * 0.1
-    );
-
-  const sourceDecayEnd =
-    Math.min(
-      now + safeDecay,
-      gateEnd
-    );
-
-  gainNode.gain.setValueAtTime(
-    safeLevel,
-    now
-  );
-
-  gainNode.gain.exponentialRampToValueAtTime(
-    tailLevel,
-    sourceDecayEnd
-  );
-
-  if (
-    sourceDecayEnd <
-    gateEnd
-  ) {
-    gainNode.gain.setValueAtTime(
-      tailLevel,
-      gateEnd
-    );
-  }
 }
 
   const fmVoiceNodesForCleanup = [];
@@ -3099,9 +2991,8 @@ if (!offlineRenderMode) {
 
 
       /*
-       * 発音ごとに生成する共通Dry / FX経路。
-       * Delay tail終了後なので、ここで切っても音は変わらない。
-       */
+ * 発音ごとに生成した共通ノードを切断する。
+ */
       [
   mixGain,
   filter1,

@@ -946,6 +946,11 @@ function restoreFocusKey(focusKey) {
 }
 
 function renderEditorAndRestore(focusKey) {
+  /*
+   * Parameter / child / track変更時は、
+   * 上段Sequencerも現在の編集対象へ追従させる。
+   */
+  renderSequence();
   renderEditor();
   restoreFocusKey(focusKey);
 }
@@ -2458,11 +2463,179 @@ if (sourceDisplay) {
 }
 }
 
+function currentSequenceOffsetParameter() {
+  if (
+    !state.selectedParameterId ||
+    pinPlacementMode
+  ) {
+    return null;
+  }
+
+  const track = editorTrack();
+  let parameterId = null;
+
+  switch (state.selectedParameterId) {
+    case "osc":
+      parameterId = "sineVolume";
+      break;
+
+    case "envelope":
+      parameterId = "attack";
+      break;
+
+    case "filterCutoff":
+      parameterId =
+        state.selectedChildId ===
+          "filterResonance"
+          ? "filterResonance"
+          : "filterCutoff";
+      break;
+
+    case "lfo": {
+      if (
+        state.selectedChildId !== "depth" &&
+        state.selectedChildId !== "rate"
+      ) {
+        return null;
+      }
+
+      const lfoNumber =
+        track.lfoSelected === 2
+          ? 2
+          : 1;
+
+      parameterId =
+        `lfo${lfoNumber}${
+          state.selectedChildId === "rate"
+            ? "Rate"
+            : "Depth"
+        }`;
+      break;
+    }
+
+    case "articulation":
+      parameterId =
+        state.selectedChildId ??
+        track.articulationSelectedId ??
+        "glide";
+      break;
+
+    case "sub":
+      parameterId =
+        state.selectedChildId ??
+        "subPattern";
+      break;
+
+    default:
+      parameterId =
+        state.selectedChildId ??
+        state.selectedParameterId;
+      break;
+  }
+
+  if (
+    !parameterId ||
+    !Array.isArray(
+      track?.offsets?.[parameterId]
+    )
+  ) {
+    return null;
+  }
+
+  const directParameter =
+    parameterById(parameterId);
+
+  if (directParameter) {
+    return directParameter;
+  }
+
+  /*
+   * FM ratio / feedbackなど、
+   * parameters内で子としてだけ定義される項目も拾う。
+   */
+  for (const parent of parameters) {
+    const child =
+      parent.children?.find(
+        item =>
+          item.id === parameterId
+      );
+
+    if (!child) {
+      continue;
+    }
+
+    return {
+      ...child,
+      id: parameterId,
+      offsetMode:
+        child.offsetMode ??
+        parent.offsetMode ??
+        "offset"
+    };
+  }
+
+  return null;
+}
+
 export function renderSequence() {
   sequenceGrid.innerHTML = "";
   renderEditActionToolbar();
 
   syncPatternLength();
+
+  const offsetParameter =
+    currentSequenceOffsetParameter();
+
+  if (offsetParameter) {
+    /*
+     * Parameter編集中は、旧Editor内Offset Gridを
+     * 上段Sequencerへそのまま移して使う。
+     */
+    sequenceGrid.classList.add(
+      "sequence-offset-view"
+    );
+
+    const offsetGrid =
+      renderOffsetGrid(
+        offsetParameter
+      );
+
+    sequenceGrid.append(
+      ...Array.from(
+        offsetGrid.children
+      )
+    );
+
+    const trackLength =
+      editorTrack().stepLength;
+
+    patternLengthInput.value =
+      getMaxTrackLength();
+
+    const hasSecondPage =
+      trackLength > PAGE_STEP_COUNT;
+
+    sequencePageButton.hidden =
+      !hasSecondPage;
+
+    sequencePageButton.textContent =
+      state.sequencePage === 0
+        ? "◧"
+        : "◨";
+
+    sequencePageButton.setAttribute(
+      "aria-label",
+      state.sequencePage === 0
+        ? "ステップ1～32を表示中。33～64へ切り替え"
+        : "ステップ33～64を表示中。1～32へ切り替え"
+    );
+
+    return;
+  }
+
+  sequenceGrid.classList.remove(
+    "sequence-offset-view"
+  );
 
   const maximumLength =
     getMaxTrackLength();
@@ -2964,6 +3137,12 @@ function parameterButton(menuItem) {
 
   button.type = "button";
   button.className = "parameter-button";
+
+  button.classList.toggle(
+    "active",
+    state.selectedParameterId ===
+      parameter?.id
+  );
 
   const focusId =
     parameter?.id ??
@@ -4053,6 +4232,22 @@ function createTrackVolumeControl() {
   return wrapper;
 }
 
+function createParameterMenuGrid() {
+  const grid =
+    document.createElement("div");
+
+  grid.className =
+    "parameter-menu";
+
+  parameterMenuItems.forEach(menuItem => {
+    grid.appendChild(
+      parameterButton(menuItem)
+    );
+  });
+
+  return grid;
+}
+
 function renderMenu() {
   const header =
     document.createElement("div");
@@ -4438,16 +4633,7 @@ topRow.appendChild(
     );
 
   const grid =
-    document.createElement("div");
-
-  grid.className =
-    "parameter-menu";
-
-  parameterMenuItems.forEach(menuItem => {
-    grid.appendChild(
-      parameterButton(menuItem)
-    );
-  });
+    createParameterMenuGrid();
 
   editor.append(
     header,
@@ -12497,6 +12683,34 @@ function renderEditorUnsafe() {
 export function renderEditor() {
   try {
     renderEditorUnsafe();
+
+    /*
+     * Offset Gridは上段Sequencerへ表示するため、
+     * Editor側の重複表示を消す。
+     * Toolbar / base値 / 子パラ操作は従来どおり残す。
+     */
+    if (currentSequenceOffsetParameter()) {
+      editor
+        .querySelector(
+          ":scope > .offset-grid"
+        )
+        ?.remove();
+
+      /*
+       * Offsetは上段Sequencerへ移しても、
+       * Parameter Selector自体はEditor下段へ残す。
+       * これで別パラへ1タップで移動できる。
+       */
+      if (
+        !editor.querySelector(
+          ":scope > .parameter-menu"
+        )
+      ) {
+        editor.appendChild(
+          createParameterMenuGrid()
+        );
+      }
+    }
   } catch (error) {
     console.error("sprooto editor render failed:", error);
 

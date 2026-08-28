@@ -2269,6 +2269,17 @@ function stepCell(stepIndex) {
 
     if (track.steps[stepIndex]) {
       lane.classList.add("on");
+
+      const anySolo =
+        tracks.some(item => item.solo);
+
+      const audible =
+        !track.muted &&
+        (!anySolo || track.solo);
+
+      if (!audible) {
+        lane.classList.add("non-sounding");
+      }
     }
 
     if (
@@ -2382,6 +2393,19 @@ function renderCurrentSourceDisplay() {
       ? `Fill ${label}`
       : `Pattern ${label}`
   );
+  
+  currentSourceDisplay.addEventListener(
+  "click",
+  () => {
+    state.selectedParameterId = null;
+    state.selectedChildId = null;
+
+    clearOffsetSelectionMode();
+
+    renderSequence();
+    renderEditor();
+  }
+);
 }
 
 function renderStepEditScopeControl() {
@@ -3348,6 +3372,23 @@ if (parentSweepParameter) {
 button.addEventListener(
   "click",
   () => {
+    const selectedParameterId = parameter?.id;
+
+if (
+  state.selectedParameterId ===
+  selectedParameterId
+) {
+  clearOffsetSelectionMode();
+
+  state.selectedParameterId = null;
+  state.selectedChildId = null;
+
+  renderEditorAndRestore(
+    `parameter-${focusId}`
+  );
+
+  return;
+}
     state.selectedParameterId =
       parameter.id;
 
@@ -3379,9 +3420,7 @@ button.addEventListener(
       activeId;
 
     renderEditorAndRestore(
-      parameter.id === "lfo"
-        ? "edit-parameter-lfo"
-        : `base-value-${activeId}`
+      `parameter-${focusId}`
     );
   }
 );
@@ -4232,6 +4271,154 @@ function createTrackVolumeControl() {
   return wrapper;
 }
 
+function parameterMenuChildItems() {
+  const selectedId = state.selectedParameterId;
+
+  if (!selectedId) return [];
+
+  if (selectedId === "filterCutoff") {
+    return [
+      { id: "filterCutoff", label: "cutoff" },
+      { id: "filterResonance", label: "resonance" }
+    ];
+  }
+
+  if (selectedId === "osc") {
+    return oscParameter.children ?? [];
+  }
+
+  if (selectedId === "envelope") {
+    return envelopeParameter.children ?? [];
+  }
+
+  if (selectedId === "articulation") {
+    return articulationParameter.children ?? [];
+  }
+
+  if (selectedId === "sub") {
+    return subParameter.children ?? [];
+  }
+
+  if (selectedId === "note") {
+    return noteParameter.children ?? [];
+  }
+
+  const parameter =
+    editorParameterById(selectedId);
+
+  return parameter?.children ?? [];
+}
+
+function parameterMenuChildValue(child) {
+  const track = editorTrack();
+  const id = child.id;
+
+  if (id === "lfoTarget") {
+    const n = track.lfoSelected === 2 ? 2 : 1;
+    return String(track.base[`lfo${n}Target`] ?? "pitch");
+  }
+
+  if (id === "lfoWave") {
+    const n = track.lfoSelected === 2 ? 2 : 1;
+    return String(track.base[`lfo${n}Wave`] ?? "sine");
+  }
+
+  if (id === "lfoDepth" || id === "lfoRate") {
+    const n = track.lfoSelected === 2 ? 2 : 1;
+    const actualId = `lfo${n}${id === "lfoRate" ? "Rate" : "Depth"}`;
+    return displayBaseValue(parameterById(actualId));
+  }
+
+  const parameter = parameterById(id) ?? child;
+  return displayBaseValue(parameter);
+}
+
+function parameterMenuChildSweepDefinition(child) {
+  const track = editorTrack();
+  const id = child.id;
+
+  if (id === "lfoTarget") {
+    const n = track.lfoSelected === 2 ? 2 : 1;
+
+    return {
+      actualId: `lfo${n}Target`,
+      values: [
+        "pitch",
+        "fmDepth",
+        "filterCutoff",
+        "pan",
+        "attack"
+      ]
+    };
+  }
+
+  if (id === "lfoWave") {
+    const n = track.lfoSelected === 2 ? 2 : 1;
+
+    return {
+      actualId: `lfo${n}Wave`,
+      values: [
+        "sine",
+        "triangle",
+        "sawUp",
+        "sawDown",
+        "square",
+        "random",
+        "rise",
+        "fall"
+      ]
+    };
+  }
+
+  if (
+    id === "lfoDepth" ||
+    id === "lfoRate"
+  ) {
+    const n = track.lfoSelected === 2 ? 2 : 1;
+    const actualId =
+      `lfo${n}${
+        id === "lfoRate"
+          ? "Rate"
+          : "Depth"
+      }`;
+
+    const parameter =
+      parameterById(actualId);
+
+    if (!parameter) {
+      return null;
+    }
+
+    return {
+      actualId,
+      min: parameter.min,
+      max: parameter.max,
+      step: parameter.step ?? 1
+    };
+  }
+
+  const parameter =
+    parameterById(id) ?? child;
+
+  if (
+    !Number.isFinite(
+      Number(parameter.min)
+    ) ||
+    !Number.isFinite(
+      Number(parameter.max)
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    actualId: id,
+    min: Number(parameter.min),
+    max: Number(parameter.max),
+    step: Number(parameter.step) || 1
+  };
+}
+
 function createParameterMenuGrid() {
   const grid =
     document.createElement("div");
@@ -4244,6 +4431,238 @@ function createParameterMenuGrid() {
       parameterButton(menuItem)
     );
   });
+
+  /* 2段目4列目を境界として、右4枠を子パラ専用にする。 */
+  const spacer =
+    document.createElement("span");
+
+  spacer.className =
+    "parameter-child-spacer";
+
+  grid.appendChild(spacer);
+
+  const children =
+    parameterMenuChildItems().slice(0, 4);
+
+  for (
+    let index = 0;
+    index < 4;
+    index++
+  ) {
+    const child = children[index];
+
+    const button =
+      document.createElement("button");
+
+    button.type = "button";
+    button.className =
+      "parameter-child-slot";
+
+    if (!child) {
+      button.disabled = true;
+      button.classList.add("empty");
+      grid.appendChild(button);
+      continue;
+    }
+
+    const active =
+      state.selectedChildId === child.id ||
+      (
+        state.selectedParameterId ===
+          "filterCutoff" &&
+        (
+          state.selectedChildId ??
+          "filterCutoff"
+        ) === child.id
+      );
+
+    button.classList.toggle(
+      "active",
+      active
+    );
+
+    const focusKey =
+      `child-menu-${child.id}`;
+
+    button.dataset.focusKey =
+      focusKey;
+
+    button.innerHTML = `
+      <span class="parameter-child-label">${child.label ?? child.id}</span>
+      <span class="parameter-child-value">${parameterMenuChildValue(child)}</span>
+    `;
+
+    /*
+     * 子パラ枠そのものを上下スイープして
+     * Base値を変更する。
+     *
+     * 数値パラだけでなく、LFO target / waveも
+     * 候補を順番にスイープできるようにする。
+     */
+    const sweepDefinition =
+      parameterMenuChildSweepDefinition(
+        child
+      );
+
+    if (sweepDefinition) {
+      let childSweepHistorySaved =
+        false;
+
+      const isChoiceParameter =
+        Array.isArray(
+          sweepDefinition.values
+        );
+
+      enableVerticalSweep({
+        element: button,
+
+        getValue: () => {
+          const track = editorTrack();
+
+          if (isChoiceParameter) {
+            const currentValue =
+              track.base[
+                sweepDefinition.actualId
+              ];
+
+            const currentIndex =
+              sweepDefinition.values.indexOf(
+                currentValue
+              );
+
+            return currentIndex >= 0
+              ? currentIndex
+              : 0;
+          }
+
+          return Number(
+            track.base[
+              sweepDefinition.actualId
+            ]
+          );
+        },
+
+        setValue: nextValue => {
+          if (!childSweepHistorySaved) {
+            saveTrackHistory();
+            childSweepHistorySaved = true;
+          }
+
+          const track = editorTrack();
+
+          if (isChoiceParameter) {
+            const choiceIndex =
+              clamp(
+                Math.round(
+                  Number(nextValue) || 0
+                ),
+                0,
+                sweepDefinition.values.length - 1
+              );
+
+            track.base[
+              sweepDefinition.actualId
+            ] =
+              sweepDefinition.values[
+                choiceIndex
+              ];
+          } else {
+            const correctedValue =
+              roundToStep(
+                clamp(
+                  Number(nextValue),
+                  sweepDefinition.min,
+                  sweepDefinition.max
+                ),
+                sweepDefinition.step
+              );
+
+            track.base[
+              sweepDefinition.actualId
+            ] = correctedValue;
+          }
+
+          const valueElement =
+            button.querySelector(
+              ".parameter-child-value"
+            );
+
+          if (valueElement) {
+            valueElement.textContent =
+              parameterMenuChildValue(
+                child
+              );
+          }
+        },
+
+        min: isChoiceParameter
+          ? 0
+          : sweepDefinition.min,
+
+        max: isChoiceParameter
+          ? sweepDefinition.values.length - 1
+          : sweepDefinition.max,
+
+        step: isChoiceParameter
+          ? 1
+          : sweepDefinition.step,
+
+        acceleration: true,
+
+        accelerationStart:
+          sweepDefinition.actualId ===
+            "note"
+            ? 6
+            : SWEEP_ACCELERATION_START,
+
+        accelerationRate:
+          sweepDefinition.actualId ===
+            "note"
+            ? 0.08
+            : SWEEP_ACCELERATION_RATE,
+
+        onCommit: (
+          startValue,
+          currentValue,
+          changed
+        ) => {
+          childSweepHistorySaved =
+            false;
+
+          if (!changed) {
+            return;
+          }
+
+          renderEditorAndRestore(
+            focusKey
+          );
+        }
+      });
+    }
+
+    button.addEventListener(
+      "click",
+      () => {
+        state.selectedChildId =
+          child.id;
+
+        if (
+          state.selectedParameterId ===
+            "articulation"
+        ) {
+          editorTrack()
+            .articulationSelectedId =
+            child.id;
+        }
+
+        renderEditorAndRestore(
+          focusKey
+        );
+      }
+    );
+
+    grid.appendChild(button);
+  }
 
   return grid;
 }
@@ -4610,6 +5029,12 @@ topRow.appendChild(
         editorTrack().muted =
           !editorTrack().muted;
 
+        /* M/Sは音色Offset編集ではなくPattern操作。 */
+        clearOffsetSelectionMode();
+        state.selectedParameterId = null;
+        state.selectedChildId = null;
+
+        renderSequence();
         renderEditorAndRestore(
           "menu-mute"
         );
@@ -4626,6 +5051,12 @@ topRow.appendChild(
         editorTrack().solo =
           !editorTrack().solo;
 
+        /* M/Sは音色Offset編集ではなくPattern操作。 */
+        clearOffsetSelectionMode();
+        state.selectedParameterId = null;
+        state.selectedChildId = null;
+
+        renderSequence();
         renderEditorAndRestore(
           "menu-solo"
         );
@@ -5410,7 +5841,30 @@ function renderOffsetGrid(parameter) {
     button.dataset.focusKey =
       focusKey;
 
-    if (parameter.id === "subPattern") {
+    const stepIsOn = Boolean(track.steps[stepIndex]);
+
+    if (!stepIsOn && [
+      "note", "chord",
+      "subPattern", "subCrescendo", "subProbability",
+      "glide", "nudge", "strum"
+    ].includes(parameter.id)) {
+      button.classList.add("inactive-step-value");
+      button.textContent = "";
+    } else if (parameter.id === "note" || parameter.id === "chord") {
+      const noteText = displayStepValue(parameterById("note"), stepIndex);
+      const chordText = displayStepValue(parameterById("chord"), stepIndex);
+      button.classList.add(
+        "note-chord-step",
+        parameter.id === "note"
+          ? "note-selected"
+          : "chord-selected"
+      );
+
+      button.innerHTML = `
+        <span class="note-chord-note">${noteText}</span>
+        <span class="note-chord-chord">${chordText === "off" ? "" : chordText}</span>
+      `;
+    } else if (parameter.id === "subPattern") {
       const result = clamp(
         Math.round(
           Number(track.base.subPattern) +
@@ -5620,6 +6074,30 @@ acceleration: true,
 
         if (isTouchInput) {
           event.preventDefault();
+
+          /*
+           * Offset画面のタップは、
+           * 対象トラックの同一stepをON/OFFする。
+           * Offset値そのものは保持する。
+           * 選択編集モード中は選択操作を優先する。
+           */
+          if (editSelection.mode === "offset") {
+            return;
+          }
+
+          if (stepIndex >= track.stepLength) {
+            return;
+          }
+
+          saveTrackHistory();
+
+          track.steps[stepIndex] =
+            !track.steps[stepIndex];
+
+          renderSequence();
+          renderEditorAndRestore(
+            focusKey
+          );
           return;
         }
 
@@ -5836,7 +6314,6 @@ function renderOscEdit() {
 
   header.append(
     trackButton,
-    parentButton,
     gainLabel,
     offsetEraseButton,
     editValueControl(oscParameter, activeId)
@@ -5958,7 +6435,6 @@ parameterLabel.textContent =
 
 header.append(
   trackButton,
-  parentButton,
   parameterLabel
 );
 
@@ -6173,7 +6649,6 @@ function renderFilterEdit() {
 
   header.append(
     trackButton,
-    parentButton,
     controls
   );
 
@@ -6277,7 +6752,7 @@ function renderLfoEdit() {
     renderEditorAndRestore("parameter-lfo");
   });
 
-  header.append(trackButton, parentButton);
+  header.append(trackButton);
 
   [1, 2].forEach(lfoNumber => {
     const button = document.createElement("button");
@@ -6987,7 +7462,7 @@ icon.innerHTML =
     );
   });
 
-  header.append(back, icon);
+  header.append(back);
 
   if (!parameter.children) {
   const parameterLabel =
@@ -7049,7 +7524,7 @@ icon.innerHTML =
       tabs.appendChild(tab);
     });
 
-    header.appendChild(tabs);
+    /* 子パラ選択はParameter Menu右下4枠へ集約。 */
 
     activeId =
       parameter.children.some(
@@ -12630,53 +13105,21 @@ function renderEditorUnsafe() {
     pinPlacementMode
   );
 
+  /*
+   * Pin配置だけは専用画面のまま。
+   * 通常のパラメータ選択ではEditor画面を切り替えず、
+   * M / S / Track Volume / Sound名 / Pin / sw / step と
+   * Parameter Selectorを常に残す。
+   *
+   * 選択中パラメータはstateに保持し、
+   * 上段SequencerだけがOffset表示へ切り替わる。
+   */
   if (pinPlacementMode) {
     renderPinPlacementScreen();
     return;
   }
 
-  if (!state.selectedParameterId) {
-    renderMenu();
-    return;
-  }
-
-  if (
-    state.selectedParameterId ===
-      "osc"
-  ) {
-    renderOscEdit();
-    return;
-  }
-
-  if (
-    state.selectedParameterId ===
-      "envelope"
-  ) {
-    renderEnvelopeEdit();
-    return;
-  }
-
-  if (
-    state.selectedParameterId ===
-      "filterCutoff"
-  ) {
-    renderFilterEdit();
-    return;
-  }
-
-  if (
-  state.selectedParameterId ===
-    "lfo"
-) {
-  renderLfoEdit();
-  return;
-}
-
-  renderEdit(
-    editorParameterById(
-      state.selectedParameterId
-    )
-  );
+  renderMenu();
 }
 
 

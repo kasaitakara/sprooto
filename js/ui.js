@@ -1397,6 +1397,7 @@ function beginStepEditMode(stepIndex) {
 function beginOffsetSelectionMode(stepIndex) {
   clearEditSelection();
   editSelection.mode = "offset";
+  editSelection.scope = "track";
 
   document.body.classList.add(
     "offset-selection-mode"
@@ -1426,6 +1427,7 @@ function finishOffsetSelectionMode() {
     "offset-selection-mode"
   );
 
+  renderEditActionToolbar();
   renderEditor();
 }
 
@@ -1440,6 +1442,8 @@ function clearOffsetSelectionMode() {
   document.body.classList.remove(
     "offset-selection-mode"
   );
+
+  renderEditActionToolbar();
 }
 
 function captureClipboard() {
@@ -1458,7 +1462,10 @@ function captureClipboard() {
   );
 
   editSelection.clipboard = {
-    mode: editSelection.scope,
+    mode:
+      editSelection.mode === "offset"
+        ? "track"
+        : editSelection.scope,
     cells: cells.map(
       ({ trackIndex, stepIndex }) => {
         const track = tracks[trackIndex];
@@ -1573,35 +1580,79 @@ function renderEditActionToolbar() {
       ".app-header"
     );
 
-  if (!header) {
+  /*
+   * Headerは編集モード中も通常表示のまま維持する。
+   * 編集操作はPattern / OffsetともSequencer上段へ表示する。
+   */
+  header
+    ?.querySelector(
+      ".edit-action-toolbar"
+    )
+    ?.remove();
+
+  header?.classList.remove(
+    "editing-actions-visible"
+  );
+
+  const sequenceToolbar =
+    document.querySelector(
+      ".sequence-toolbar"
+    );
+
+  if (!sequenceToolbar) {
     return;
   }
 
   let toolbar =
-    header.querySelector(
-      ".edit-action-toolbar"
+    sequenceToolbar.querySelector(
+      ".sequence-edit-action-toolbar"
     );
 
-  if (editSelection.mode !== "step") {
+  const editModeActive =
+    editSelection.mode === "step" ||
+    editSelection.mode === "offset";
+
+  if (!editModeActive) {
     toolbar?.remove();
-
-    header.classList.remove(
-      "editing-actions-visible"
-    );
-
     return;
   }
 
   if (!toolbar) {
-    toolbar = document.createElement("div");
-    toolbar.className =
-      "edit-action-toolbar";
-    header.appendChild(toolbar);
-  }
+    toolbar =
+      document.createElement("div");
 
-  header.classList.add(
-    "editing-actions-visible"
-  );
+    toolbar.className =
+      "sequence-edit-action-toolbar";
+
+    Object.assign(
+      toolbar.style,
+      {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "4px",
+        marginLeft: "auto",
+        marginRight: "4px",
+        flex: "0 0 auto",
+        height: "22px"
+      }
+    );
+
+    const controls =
+      sequenceToolbar.querySelector(
+        ".sequence-toolbar-controls"
+      );
+
+    if (controls) {
+      sequenceToolbar.insertBefore(
+        toolbar,
+        controls
+      );
+    } else {
+      sequenceToolbar.appendChild(
+        toolbar
+      );
+    }
+  }
 
   const hasSelection =
     editSelection.selected.size > 0;
@@ -1614,17 +1665,137 @@ function renderEditActionToolbar() {
   const canPaste =
     hasClipboard && hasSelection;
 
-  toolbar.innerHTML = `
-    <button type="button" data-action="cancel">cancel</button>
-    <button type="button" data-action="copy" ${hasSelection ? "" : "disabled"}>copy</button>
-    <button type="button" data-action="cut" ${hasSelection ? "" : "disabled"}>cut</button>
-    <button type="button" data-action="delete" ${hasSelection ? "" : "disabled"}>delete</button>
-    <button type="button" data-action="paste" ${canPaste ? "" : "disabled"}>paste</button>
+  const iconButton = ({
+    action,
+    label,
+    iconHtml,
+    enabled
+  }) => `
+    <button
+      type="button"
+      data-action="${action}"
+      aria-label="${label}"
+      title="${label}"
+      ${enabled ? "" : "disabled"}
+      style="
+        width:22px;
+        height:22px;
+        min-width:22px;
+        padding:2px;
+        border:0;
+        background:transparent;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        color:var(--text);
+        -webkit-text-fill-color:currentColor;
+      "
+    >
+      <span
+        aria-hidden="true"
+        style="
+          width:18px;
+          height:18px;
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+        "
+      >
+        ${iconHtml}
+      </span>
+    </button>
   `;
 
-  toolbar.querySelector(
-    '[data-action="cancel"]'
-  ).onclick = () => finishEditMode();
+  const inlineSvg = paths => `
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.7"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      style="
+        width:18px;
+        height:18px;
+        display:block;
+      "
+    >
+      ${paths}
+    </svg>
+  `;
+
+  toolbar.innerHTML =
+    iconButton({
+      action: "copy",
+      label: "copy",
+      enabled: hasSelection,
+      iconHtml: inlineSvg(`
+        <rect x="8" y="8" width="10" height="10" rx="1"></rect>
+        <path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"></path>
+      `)
+    }) +
+    iconButton({
+      action: "cut",
+      label: "cut",
+      enabled: hasSelection,
+      iconHtml: inlineSvg(`
+        <circle cx="6" cy="7" r="2.5"></circle>
+        <circle cx="6" cy="17" r="2.5"></circle>
+        <path d="M8.2 8.2 20 20"></path>
+        <path d="M8.2 15.8 20 4"></path>
+      `)
+    }) +
+    iconButton({
+      action: "delete",
+      label: "delete",
+      enabled: hasSelection,
+
+      /*
+       * Sound preset管理画面と同じtrash SVGをそのまま使用。
+       */
+      iconHtml: getParameterIcon(
+        "trash"
+      )
+    }) +
+    iconButton({
+      action: "paste",
+      label: "paste",
+      enabled: canPaste,
+      iconHtml: inlineSvg(`
+        <path d="M9 5h6"></path>
+        <path d="M9 3h6v4H9z"></path>
+        <path d="M8 5H6v16h12V5h-2"></path>
+        <path d="M10 12h6"></path>
+        <path d="M10 16h4"></path>
+      `)
+    });
+
+  /*
+   * Sound preset側のicon規格へ合わせ、
+   * trashを含む編集アイコンを18px領域へ収める。
+   */
+  toolbar
+    .querySelectorAll(
+      "button span > svg"
+    )
+    .forEach(svg => {
+      svg.style.display = "block";
+      svg.style.width = "18px";
+      svg.style.height = "18px";
+    });
+
+  toolbar
+    .querySelectorAll(
+      "button:disabled"
+    )
+    .forEach(button => {
+      button.style.color =
+        "var(--muted)";
+
+      button.style.opacity =
+        "0.45";
+    });
 
   toolbar.querySelector(
     '[data-action="copy"]'
@@ -1647,7 +1818,11 @@ function renderEditActionToolbar() {
     }
 
     saveHistory();
-    deleteSelectedSequenceCells({ save: false });
+
+    deleteSelectedSequenceCells({
+      save: false
+    });
+
     clearEditSelection();
     renderSequence();
     renderEditor();
@@ -1657,7 +1832,9 @@ function renderEditActionToolbar() {
   toolbar.querySelector(
     '[data-action="delete"]'
   ).onclick = () => {
-    if (!deleteSelectedSequenceCells()) {
+    if (
+      !deleteSelectedSequenceCells()
+    ) {
       return;
     }
 
@@ -1680,13 +1857,16 @@ function renderEditActionToolbar() {
     const targetStepIndex =
       Math.min(
         ...targets.map(
-          target => target.stepIndex
+          target =>
+            target.stepIndex
         )
       );
 
-    if (!pasteClipboardAt(
-      targetStepIndex
-    )) {
+    if (
+      !pasteClipboardAt(
+        targetStepIndex
+      )
+    ) {
       return;
     }
 
@@ -2041,6 +2221,19 @@ function enableSelectionPointer({
          * 通常の範囲選択スイープとして扱う。
          */
         if (
+          mode === "step" &&
+          source === "sequence"
+        ) {
+          clearTimer();
+
+          timer = window.setTimeout(
+            () => {
+              interactionActive = false;
+              finishEditMode();
+            },
+            LONG_PRESS_MS
+          );
+        } else if (
           mode === "offset" &&
           source === "offset"
         ) {
@@ -2540,82 +2733,10 @@ function renderCurrentSourceDisplay() {
 }
 
 function renderStepEditScopeControl() {
-  const toolbar =
-    document.querySelector(
-      ".sequence-toolbar"
-    );
-
-  if (!toolbar) {
-    return;
-  }
-
-  toolbar
-    .querySelector(
-      ".step-edit-scope-control"
-    )
-    ?.remove();
-
-  if (editSelection.mode !== "step") {
-    return;
-  }
-
-  const control =
-    document.createElement("div");
-
-  control.className =
-    "step-edit-scope-control";
-
-  ["all", "track"].forEach(scope => {
-    const button =
-      document.createElement("button");
-
-    button.type = "button";
-    button.textContent = scope;
-    button.className =
-      "step-edit-scope-button";
-
-    button.classList.toggle(
-      "active",
-      editSelection.scope === scope
-    );
-
-    button.setAttribute(
-      "aria-pressed",
-      String(
-        editSelection.scope === scope
-      )
-    );
-
-    button.addEventListener(
-      "click",
-      () => {
-        if (editSelection.scope === scope) {
-          return;
-        }
-
-        editSelection.scope = scope;
-        clearEditSelection();
-        applyStepEditScopeClass();
-        renderSequence();
-        updateSelectionClasses();
-      }
-    );
-
-    control.appendChild(button);
-  });
-
-  const sourceDisplay =
-  toolbar.querySelector(
-    ".current-source-display"
-  );
-
-if (sourceDisplay) {
-  sourceDisplay.appendChild(
-    control
-  );
-} else {
-  toolbar.prepend(control);
-}
+  /*
+   * Pattern編集は表示中のPattern Sequencerが対象。
+   * all / track切替は廃止する。
+   */
 }
 
 function currentSequenceOffsetParameter() {

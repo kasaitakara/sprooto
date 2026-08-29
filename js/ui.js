@@ -4648,12 +4648,12 @@ function enableLfoRateSlotInteraction({
 }) {
   let pointerId = null;
   let startY = 0;
+  let branch = null;
   let startRate = 0;
   let currentRate = 0;
-  let selectedAtStart = false;
-  let sweeping = false;
-  let changed = false;
   let historySaved = false;
+  let changed = false;
+  let suppressClick = false;
 
   element.style.touchAction = "none";
 
@@ -4667,20 +4667,14 @@ function enableLfoRateSlotInteraction({
         return;
       }
 
-      const track = editorTrack();
-      const n = track.lfoSelected === 2 ? 2 : 1;
-      const prefix = `lfo${n}`;
-
       pointerId = event.pointerId;
       startY = event.clientY;
-      startRate = Number(track.base[`${prefix}Rate`]) || 0;
-      currentRate = startRate;
-      selectedAtStart =
-        state.selectedParameterId === "lfo" &&
-        state.selectedChildId === "rate";
-      sweeping = false;
-      changed = false;
+      branch = null;
+      startRate = 0;
+      currentRate = 0;
       historySaved = false;
+      changed = false;
+      suppressClick = false;
 
       element.setPointerCapture?.(
         event.pointerId
@@ -4699,51 +4693,125 @@ function enableLfoRateSlotInteraction({
         event.clientY - startY;
 
       if (
-        !sweeping &&
+        branch === null &&
         Math.abs(distance) <
           SWEEP_START_DISTANCE
       ) {
         return;
       }
 
-      if (!sweeping) {
-        sweeping = true;
-        element.classList.add(
-          "is-sweeping"
-        );
-      }
-
       event.preventDefault();
 
       const track = editorTrack();
-      const n = track.lfoSelected === 2 ? 2 : 1;
+      const n =
+        track.lfoSelected === 2
+          ? 2
+          : 1;
       const prefix = `lfo${n}`;
-      const syncMode =
-        track.base[`${prefix}SyncMode`] === "bpm"
+
+      if (branch === null) {
+        branch =
+          distance < 0
+            ? "bpm"
+            : "free";
+
+        suppressClick = true;
+        element.classList.add(
+          "is-sweeping"
+        );
+
+        const currentMode =
+          track.base[
+            `${prefix}SyncMode`
+          ] === "bpm"
+            ? "bpm"
+            : "free";
+
+        if (branch === "bpm") {
+          startRate =
+            currentMode === "bpm"
+              ? clamp(
+                  Math.round(
+                    Number(
+                      track.base[
+                        `${prefix}Rate`
+                      ]
+                    ) || 0
+                  ),
+                  0,
+                  LFO_BPM_RATE_NAMES.length - 1
+                )
+              : freeRateToBpmIndex(
+                  track.base[
+                    `${prefix}Rate`
+                  ]
+                );
+        } else {
+          startRate =
+            currentMode === "free"
+              ? clamp(
+                  Math.round(
+                    Number(
+                      track.base[
+                        `${prefix}Rate`
+                      ]
+                    ) || 1
+                  ),
+                  1,
+                  100
+                )
+              : bpmIndexToFreeRate(
+                  track.base[
+                    `${prefix}Rate`
+                  ]
+                );
+        }
+
+        currentRate = startRate;
+      }
+
+      const stepCount = Math.max(
+        0,
+        Math.round(
+          (
+            Math.abs(distance) -
+            SWEEP_START_DISTANCE
+          ) /
+          SWEEP_PIXELS_PER_STEP
+        )
+      );
+
+      const nextRate =
+        branch === "bpm"
+          ? clamp(
+              startRate + stepCount,
+              0,
+              LFO_BPM_RATE_NAMES.length - 1
+            )
+          : clamp(
+              startRate + stepCount,
+              1,
+              100
+            );
+
+      const previousMode =
+        track.base[
+          `${prefix}SyncMode`
+        ] === "bpm"
           ? "bpm"
           : "free";
 
-      const minimum =
-        syncMode === "bpm"
-          ? 0
-          : 1;
-      const maximum =
-        syncMode === "bpm"
-          ? LFO_BPM_RATE_NAMES.length - 1
-          : 100;
+      const previousRate =
+        Number(
+          track.base[
+            `${prefix}Rate`
+          ]
+        );
 
-      const stepCount = Math.round(
-        -distance /
-          SWEEP_PIXELS_PER_STEP
-      );
-
-      const nextRate = clamp(
-        startRate + stepCount,
-        minimum,
-        maximum
-      );
-
-      if (nextRate === currentRate) {
+      if (
+        previousMode === branch &&
+        previousRate === nextRate
+      ) {
         return;
       }
 
@@ -4752,10 +4820,18 @@ function enableLfoRateSlotInteraction({
         historySaved = true;
       }
 
+      track.base[
+        `${prefix}SyncMode`
+      ] = branch;
+
+      track.base[
+        `${prefix}Rate`
+      ] = nextRate;
+
       currentRate = nextRate;
       changed = true;
-      track.base[`${prefix}Rate`] =
-        nextRate;
+
+      state.selectedChildId = "rate";
 
       const valueElement =
         element.querySelector(
@@ -4791,56 +4867,17 @@ function enableLfoRateSlotInteraction({
       "is-sweeping"
     );
 
-    if (sweeping) {
-      state.selectedChildId = "rate";
+    if (branch !== null) {
+      branch = null;
 
-      if (changed) {
-        renderEditorAndRestore(
-          focusKey
-        );
-      } else {
-        renderEditorAndRestore(
-          focusKey
-        );
-      }
-
-      return;
-    }
-
-    if (!selectedAtStart) {
-      state.selectedChildId = "rate";
       renderEditorAndRestore(
         focusKey
       );
+
       return;
     }
 
-    const track = editorTrack();
-    const n = track.lfoSelected === 2 ? 2 : 1;
-    const prefix = `lfo${n}`;
-    const currentMode =
-      track.base[`${prefix}SyncMode`] === "bpm"
-        ? "bpm"
-        : "free";
-
-    saveTrackHistory();
-
-    if (currentMode === "bpm") {
-      track.base[`${prefix}Rate`] =
-        bpmIndexToFreeRate(
-          track.base[`${prefix}Rate`]
-        );
-      track.base[`${prefix}SyncMode`] =
-        "free";
-    } else {
-      track.base[`${prefix}Rate`] =
-        freeRateToBpmIndex(
-          track.base[`${prefix}Rate`]
-        );
-      track.base[`${prefix}SyncMode`] =
-        "bpm";
-    }
-
+    state.selectedChildId = "rate";
     renderEditorAndRestore(
       focusKey
     );
@@ -4869,22 +4906,23 @@ function enableLfoRateSlotInteraction({
       }
 
       pointerId = null;
+      branch = null;
       element.classList.remove(
         "is-sweeping"
       );
     }
   );
 
-  /*
-   * rateはpointer系列だけで完結させる。
-   * mouse / touchでclick生成条件が違っても
-   * bpm / free切替が端末依存にならないようにする。
-   */
   element.addEventListener(
     "click",
     event => {
+      if (!suppressClick) {
+        return;
+      }
+
       event.preventDefault();
       event.stopImmediatePropagation();
+      suppressClick = false;
     },
     true
   );

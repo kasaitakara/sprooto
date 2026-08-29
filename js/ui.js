@@ -4648,11 +4648,10 @@ function enableLfoRateSlotInteraction({
 }) {
   let pointerId = null;
   let startY = 0;
-  let branch = null;
   let startRate = 0;
-  let currentRate = 0;
+  let startMode = "free";
+  let sweeping = false;
   let historySaved = false;
-  let changed = false;
   let suppressClick = false;
 
   element.style.touchAction = "none";
@@ -4667,13 +4666,24 @@ function enableLfoRateSlotInteraction({
         return;
       }
 
+      const track = editorTrack();
+      const n =
+        track.lfoSelected === 2
+          ? 2
+          : 1;
+      const prefix = `lfo${n}`;
+
       pointerId = event.pointerId;
       startY = event.clientY;
-      branch = null;
-      startRate = 0;
-      currentRate = 0;
+      startMode =
+        track.base[`${prefix}SyncMode`] === "bpm"
+          ? "bpm"
+          : "free";
+      startRate = Number(
+        track.base[`${prefix}Rate`]
+      );
+      sweeping = false;
       historySaved = false;
-      changed = false;
       suppressClick = false;
 
       element.setPointerCapture?.(
@@ -4693,11 +4703,19 @@ function enableLfoRateSlotInteraction({
         event.clientY - startY;
 
       if (
-        branch === null &&
+        !sweeping &&
         Math.abs(distance) <
           SWEEP_START_DISTANCE
       ) {
         return;
+      }
+
+      if (!sweeping) {
+        sweeping = true;
+        suppressClick = true;
+        element.classList.add(
+          "is-sweeping"
+        );
       }
 
       event.preventDefault();
@@ -4709,109 +4727,39 @@ function enableLfoRateSlotInteraction({
           : 1;
       const prefix = `lfo${n}`;
 
-      if (branch === null) {
-        branch =
-          distance < 0
-            ? "bpm"
-            : "free";
-
-        suppressClick = true;
-        element.classList.add(
-          "is-sweeping"
+      /*
+       * Rateのスワイプはmodeを変更しない。
+       * 上=値を増やす、下=値を減らす。
+       * free/bpm切替はタップへ完全分離する。
+       */
+      const stepCount =
+        Math.round(
+          -distance /
+          SWEEP_PIXELS_PER_STEP
         );
 
-        const currentMode =
-          track.base[
-            `${prefix}SyncMode`
-          ] === "bpm"
-            ? "bpm"
-            : "free";
+      const minimum =
+        startMode === "bpm"
+          ? 0
+          : 1;
 
-        if (branch === "bpm") {
-          startRate =
-            currentMode === "bpm"
-              ? clamp(
-                  Math.round(
-                    Number(
-                      track.base[
-                        `${prefix}Rate`
-                      ]
-                    ) || 0
-                  ),
-                  0,
-                  LFO_BPM_RATE_NAMES.length - 1
-                )
-              : freeRateToBpmIndex(
-                  track.base[
-                    `${prefix}Rate`
-                  ]
-                );
-        } else {
-          startRate =
-            currentMode === "free"
-              ? clamp(
-                  Math.round(
-                    Number(
-                      track.base[
-                        `${prefix}Rate`
-                      ]
-                    ) || 1
-                  ),
-                  1,
-                  100
-                )
-              : bpmIndexToFreeRate(
-                  track.base[
-                    `${prefix}Rate`
-                  ]
-                );
-        }
+      const maximum =
+        startMode === "bpm"
+          ? LFO_BPM_RATE_NAMES.length - 1
+          : 100;
 
-        currentRate = startRate;
-      }
-
-      const stepCount = Math.max(
-        0,
-        Math.round(
-          (
-            Math.abs(distance) -
-            SWEEP_START_DISTANCE
-          ) /
-          SWEEP_PIXELS_PER_STEP
-        )
+      const nextRate = clamp(
+        Math.round(startRate) +
+          stepCount,
+        minimum,
+        maximum
       );
 
-      const nextRate =
-        branch === "bpm"
-          ? clamp(
-              startRate + stepCount,
-              0,
-              LFO_BPM_RATE_NAMES.length - 1
-            )
-          : clamp(
-              startRate + stepCount,
-              1,
-              100
-            );
+      const currentRate = Number(
+        track.base[`${prefix}Rate`]
+      );
 
-      const previousMode =
-        track.base[
-          `${prefix}SyncMode`
-        ] === "bpm"
-          ? "bpm"
-          : "free";
-
-      const previousRate =
-        Number(
-          track.base[
-            `${prefix}Rate`
-          ]
-        );
-
-      if (
-        previousMode === branch &&
-        previousRate === nextRate
-      ) {
+      if (currentRate === nextRate) {
         return;
       }
 
@@ -4820,16 +4768,11 @@ function enableLfoRateSlotInteraction({
         historySaved = true;
       }
 
-      track.base[
-        `${prefix}SyncMode`
-      ] = branch;
+      track.base[`${prefix}SyncMode`] =
+        startMode;
 
-      track.base[
-        `${prefix}Rate`
-      ] = nextRate;
-
-      currentRate = nextRate;
-      changed = true;
+      track.base[`${prefix}Rate`] =
+        nextRate;
 
       state.selectedChildId = "rate";
 
@@ -4867,20 +4810,12 @@ function enableLfoRateSlotInteraction({
       "is-sweeping"
     );
 
-    if (branch !== null) {
-      branch = null;
-
+    if (sweeping) {
+      sweeping = false;
       renderEditorAndRestore(
         focusKey
       );
-
-      return;
     }
-
-    state.selectedChildId = "rate";
-    renderEditorAndRestore(
-      focusKey
-    );
   }
 
   element.addEventListener(
@@ -4906,7 +4841,7 @@ function enableLfoRateSlotInteraction({
       }
 
       pointerId = null;
-      branch = null;
+      sweeping = false;
       element.classList.remove(
         "is-sweeping"
       );
@@ -4916,15 +4851,58 @@ function enableLfoRateSlotInteraction({
   element.addEventListener(
     "click",
     event => {
-      if (!suppressClick) {
+      if (suppressClick) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        suppressClick = false;
         return;
       }
 
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      suppressClick = false;
-    },
-    true
+      /*
+       * 他の子パラと同じく、最初のタップは選択だけ。
+       * すでにrate選択中なら、そのタップでfree/bpmを切替。
+       */
+      if (state.selectedChildId !== "rate") {
+        state.selectedChildId = "rate";
+        renderEditorAndRestore(
+          focusKey
+        );
+        return;
+      }
+
+      const track = editorTrack();
+      const n =
+        track.lfoSelected === 2
+          ? 2
+          : 1;
+      const prefix = `lfo${n}`;
+      const currentMode =
+        track.base[`${prefix}SyncMode`] === "bpm"
+          ? "bpm"
+          : "free";
+
+      saveTrackHistory();
+
+      if (currentMode === "bpm") {
+        track.base[`${prefix}Rate`] =
+          bpmIndexToFreeRate(
+            track.base[`${prefix}Rate`]
+          );
+        track.base[`${prefix}SyncMode`] =
+          "free";
+      } else {
+        track.base[`${prefix}Rate`] =
+          freeRateToBpmIndex(
+            track.base[`${prefix}Rate`]
+          );
+        track.base[`${prefix}SyncMode`] =
+          "bpm";
+      }
+
+      renderEditorAndRestore(
+        focusKey
+      );
+    }
   );
 }
 

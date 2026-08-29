@@ -2474,6 +2474,155 @@ function enableSelectionPointer({
   );
 }
 
+function refreshVisibleOffsetValues(
+  parameter
+) {
+  if (!parameter?.id) {
+    return;
+  }
+
+  const track =
+    editorTrack();
+
+  document
+    .querySelectorAll(
+      ".offset-step[data-step-index]"
+    )
+    .forEach(button => {
+      const stepIndex =
+        Number(
+          button.dataset.stepIndex
+        );
+
+      if (
+        !Number.isFinite(stepIndex)
+      ) {
+        return;
+      }
+
+      const stepIsOn =
+        Boolean(
+          track.steps[
+            stepIndex
+          ]
+        );
+
+      if (
+        !stepIsOn &&
+        [
+          "note",
+          "chord",
+          "subPattern",
+          "subCrescendo",
+          "subProbability",
+          "glide",
+          "nudge",
+          "strum"
+        ].includes(
+          parameter.id
+        )
+      ) {
+        button.textContent = "";
+        button.classList.add(
+          "inactive-step-value"
+        );
+        return;
+      }
+
+      button.classList.remove(
+        "inactive-step-value"
+      );
+
+      if (
+        parameter.id === "note" ||
+        parameter.id === "chord"
+      ) {
+        const noteText =
+          displayStepValue(
+            parameterById("note"),
+            stepIndex
+          );
+
+        const chordText =
+          displayStepValue(
+            parameterById("chord"),
+            stepIndex
+          );
+
+        button.classList.add(
+          "note-chord-step"
+        );
+
+        button.classList.toggle(
+          "note-selected",
+          parameter.id === "note"
+        );
+
+        button.classList.toggle(
+          "chord-selected",
+          parameter.id === "chord"
+        );
+
+        button.innerHTML = `
+          <span class="note-chord-note">${noteText}</span>
+          <span class="note-chord-chord">${chordText === "off" ? "" : chordText}</span>
+        `;
+      } else if (
+        parameter.id === "subPattern"
+      ) {
+        const result =
+          clamp(
+            Math.round(
+              Number(
+                track.base
+                  .subPattern
+              ) +
+              Number(
+                track.offsets
+                  .subPattern?.[
+                    stepIndex
+                  ] ?? 0
+              )
+            ),
+            -1,
+            6
+          );
+
+        button.innerHTML =
+          subPatternFigureHtml(
+            result
+          );
+
+        button.setAttribute(
+          "aria-label",
+          subPatternLabel(
+            result
+          )
+        );
+      } else {
+        button.textContent =
+          displayStepValue(
+            parameter,
+            stepIndex
+          );
+      }
+
+      const stepOffset =
+        Number(
+          track.offsets[
+            parameter.id
+          ]?.[
+            stepIndex
+          ]
+        ) || 0;
+
+      button.classList.toggle(
+        "base-value-step",
+        stepOffset === 0
+      );
+    });
+}
+
 function applyOffsetDeltaToSelection(
   parameter,
   delta
@@ -2548,6 +2697,10 @@ function applyOffsetDeltaToSelection(
           );
       }
     );
+
+  refreshVisibleOffsetValues(
+    parameter
+  );
 
   return true;
 }
@@ -3734,6 +3887,10 @@ if (
         track.base[
           parentSweepParameter.id
         ] = correctedValue;
+
+        refreshVisibleOffsetValues(
+          parentSweepParameter
+        );
       }
 
       const valueElement =
@@ -5305,6 +5462,30 @@ function enableLfoRateSlotInteraction({
       track.base[`${prefix}Rate`] =
         nextRate;
 
+      const visibleRateParameter =
+        parameterById(
+          rateId
+        );
+
+      if (
+        visibleRateParameter &&
+        Array.isArray(
+          track.offsets[
+            rateId
+          ]
+        )
+      ) {
+        refreshVisibleOffsetValues(
+          {
+            ...visibleRateParameter,
+            id: rateId,
+            min: minimum,
+            max: maximum,
+            step: 1
+          }
+        );
+      }
+
       state.selectedChildId = "rate";
 
       const valueElement =
@@ -5662,6 +5843,27 @@ function createParameterMenuGrid() {
             track.base[
               sweepDefinition.actualId
             ] = correctedValue;
+
+            if (
+              Array.isArray(
+                track.offsets[
+                  sweepDefinition.actualId
+                ]
+              )
+            ) {
+              refreshVisibleOffsetValues(
+                {
+                  id:
+                    sweepDefinition.actualId,
+                  min:
+                    sweepDefinition.min,
+                  max:
+                    sweepDefinition.max,
+                  step:
+                    sweepDefinition.step
+                }
+              );
+            }
           }
 
           const valueElement =

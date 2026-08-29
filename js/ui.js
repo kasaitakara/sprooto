@@ -1232,6 +1232,21 @@ function selectedKeysSorted() {
     );
 }
 
+function hasActiveOffsetSelection() {
+  if (
+    editSelection.mode !== "offset" ||
+    editSelection.selected.size === 0
+  ) {
+    return false;
+  }
+
+  return selectedKeysSorted().some(
+    ({ trackIndex }) =>
+      trackIndex ===
+      state.selectedTrackIndex
+  );
+}
+
 function isWholeStepSelected(stepIndex) {
   return tracks.every((track, trackIndex) => {
     if (stepIndex >= track.stepLength) {
@@ -1415,6 +1430,7 @@ function beginOffsetSelectionMode(stepIndex) {
     true
   );
 
+  renderEditActionToolbar();
   updateSelectionClasses();
 }
 
@@ -2464,11 +2480,7 @@ function applyOffsetDeltaToSelection(
   startValues
 ) {
   if (
-    editSelection.mode !==
-      "offset" ||
-    editSelection.selected.size ===
-      0 ||
-    !(startValues instanceof Map)
+    !hasActiveOffsetSelection()
   ) {
     return false;
   }
@@ -2520,11 +2532,21 @@ const maxOffset =
           );
 
         const startOffset =
-          Number(
-            startValues.get(
-              key
-            )
-          ) || 0;
+          startValues instanceof Map
+            ? (
+                Number(
+                  startValues.get(
+                    key
+                  )
+                ) || 0
+              )
+            : (
+                Number(
+                  values[
+                    stepIndex
+                  ]
+                ) || 0
+              );
 
         values[
           stepIndex
@@ -6006,8 +6028,7 @@ value.addEventListener(
       null;
 
     if (
-      editSelection.mode !==
-        "offset" ||
+      !hasActiveOffsetSelection() ||
       !Array.isArray(
         track.offsets[id]
       )
@@ -6052,8 +6073,7 @@ value.addEventListener(
 
   getValue: () => {
     if (
-      editSelection.mode ===
-        "offset"
+      hasActiveOffsetSelection()
     ) {
       return 0;
     }
@@ -6079,8 +6099,7 @@ value.addEventListener(
     : 0;
 
 if (
-  editSelection.mode ===
-    "offset" &&
+  hasActiveOffsetSelection() &&
   Array.isArray(
     track.offsets[id]
   )
@@ -6330,7 +6349,7 @@ acceleration: true,
               saveTrackHistory();
 
               if (
-                editSelection.mode === "offset" &&
+                hasActiveOffsetSelection() &&
                 Array.isArray(track.offsets[id])
               ) {
                 applyOffsetDeltaToSelection(
@@ -7757,7 +7776,7 @@ function finishKeyboardEdit(
   ) {
     saveTrackHistory();
 
-    if (editSelection.mode === "offset") {
+    if (hasActiveOffsetSelection()) {
       applyOffsetDeltaToSelection(
         { ...activeParameter, id: activeBaseId },
         keyboardValue - keyboardStartValue
@@ -7883,8 +7902,7 @@ baseValue.addEventListener(
       null;
 
     if (
-      editSelection.mode !==
-        "offset" ||
+      !hasActiveOffsetSelection() ||
       !Array.isArray(
         track.offsets[
           activeBaseId
@@ -7930,8 +7948,7 @@ baseValue.addEventListener(
       element: baseValue,
       getValue: () => {
   if (
-    editSelection.mode ===
-      "offset"
+    hasActiveOffsetSelection()
   ) {
     return 0;
   }
@@ -7955,8 +7972,7 @@ baseValue.addEventListener(
     : 0;
 
 if (
-  editSelection.mode ===
-    "offset"
+  hasActiveOffsetSelection()
 ) {
   const delta =
     roundToStep(

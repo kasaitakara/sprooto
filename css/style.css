@@ -5220,25 +5220,33 @@ html {
     max-width: 100%;
     overflow: hidden;
     white-space: nowrap;
+
     font-size: var(--font-label);
-    line-height: 1;
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
+    line-height: 1.2;
+
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+
     text-transform: lowercase;
+    padding-bottom: 1px;
 }
 
 .parameter-child-slot.active .parameter-child-label {
     color: currentColor;
     -webkit-text-fill-color: currentColor;
-    opacity: .72;
+    opacity: 1;
 }
 
 .parameter-child-value {
     max-width: 100%;
     overflow: hidden;
     white-space: nowrap;
+
     font-size: calc(var(--font-small) - 2px);
     line-height: 1;
+
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
 }
 
 /* Mute / Soloで実際には鳴らないON stepは塗り潰さず輪郭だけ残す。 */

@@ -416,7 +416,7 @@ export const parameters = [
   children: [
     {
       id: "fmDepth",
-      label: "depth",
+      label: "dep",
       min: 0,
       max: 20,
       step: 1
@@ -424,7 +424,7 @@ export const parameters = [
 
     {
       id: "fmRatio",
-      label: "ratio",
+      label: "rati",
       min: 0.25,
       max: 8,
       step: 0.25
@@ -432,7 +432,7 @@ export const parameters = [
 
     {
       id: "fmFeedback",
-      label: "feedback",
+      label: "feed",
       min: 0,
       max: 50,
       step: 1

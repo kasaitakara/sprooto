@@ -641,8 +641,8 @@ const noteParameter = {
   icon: "note",
   children: [
     { id: "note", label: "note", min: -60, max: 67, step: 1, offsetMode: "result" },
-    { id: "chord", label: "chord", min: 0, max: CHORD_NAMES.length - 1, step: 1, offsetMode: "result" },
-    { id: "voices", label: "voices", min: 1, max: 4, step: 1, offsetMode: "result" },
+    { id: "chord", label: "chrd", min: 0, max: CHORD_NAMES.length - 1, step: 1, offsetMode: "result" },
+    { id: "voices", label: "voic", min: 1, max: 4, step: 1, offsetMode: "result" },
     { id: "inversion", label: "inv", min: 0, max: 3, step: 1, offsetMode: "result" },
   ]
 };
@@ -694,7 +694,7 @@ const articulationParameter = {
   children: [
     {
       id: "glide",
-      label: "glide",
+      label: "glde",
       icon: "glide",
       min: 0,
       max: 8,
@@ -703,7 +703,7 @@ const articulationParameter = {
     },
     {
       id: "nudge",
-      label: "nudge",
+      label: "ndge",
       icon: "nudge",
       min: -4,
       max: 4,
@@ -712,7 +712,7 @@ const articulationParameter = {
     },
     {
       id: "strum",
-      label: "strum",
+      label: "strm",
       icon: "strum",
       min: -8,
       max: 8,
@@ -727,8 +727,8 @@ const subParameter = {
   label: "SUB",
   icon: "sub",
   children: [
-    { id: "subPattern", label: "pattern", min: -1, max: 6, step: 1, offsetMode: "result" },
-    { id: "subCrescendo", label: "cres.", min: -3, max: 3, step: 1, offsetMode: "result" },
+    { id: "subPattern", label: "ptn", min: -1, max: 6, step: 1, offsetMode: "result" },
+    { id: "subCrescendo", label: "cres", min: -3, max: 3, step: 1, offsetMode: "result" },
     { id: "subProbability", label: "prob", min: 0, max: 100, step: 1, offsetMode: "result" }
   ]
 };
@@ -1002,6 +1002,17 @@ function enableVerticalSweep({
     event => {
       if (
         pointerId !== event.pointerId
+      ) {
+        return;
+      }
+
+      /*
+       * Sequencer上で横Noteスイープが始まった場合は、
+       * 同じButtonに設定された縦Offsetスイープを止める。
+       */
+      if (
+        element.dataset.noteSweepActive ===
+          "true"
       ) {
         return;
       }
@@ -1695,6 +1706,19 @@ function enableSelectionPointer({
   let startY = 0;
   let interactionActive = false;
 
+  /*
+   * 通常時のNote ON/OFFスイープ。
+   * 最初に触れたStepの状態を基準に、
+   * そのドラッグ中はONまたはOFFへ統一する。
+   */
+  let noteSweepActive = false;
+  let noteSweepValue = false;
+  let noteSweepTrackIndex = null;
+  let noteSweepVisited = new Set();
+  let noteSweepLastStep = null;
+  let noteSweepHistorySaved = false;
+  let suppressNextClick = false;
+
   function clearTimer() {
     if (timer !== null) {
       clearTimeout(timer);
@@ -1723,7 +1747,7 @@ function enableSelectionPointer({
     return {
       trackIndex:
         source === "sequence"
-          ? 0
+          ? state.selectedTrackIndex
           : state.selectedTrackIndex,
       stepIndex:
         Number(cellElement.dataset.stepIndex)
@@ -1827,6 +1851,148 @@ function enableSelectionPointer({
     );
   }
 
+  function applyNoteSweepCell(cell) {
+    if (!cell) {
+      return;
+    }
+
+    const track =
+      tracks[noteSweepTrackIndex];
+
+    if (
+      !track ||
+      cell.stepIndex < 0 ||
+      cell.stepIndex >= track.stepLength ||
+      noteSweepVisited.has(cell.stepIndex)
+    ) {
+      return;
+    }
+
+    const previousStep =
+      noteSweepLastStep;
+
+    const minimumStep =
+      previousStep === null
+        ? cell.stepIndex
+        : Math.min(
+            previousStep,
+            cell.stepIndex
+          );
+
+    const maximumStep =
+      previousStep === null
+        ? cell.stepIndex
+        : Math.max(
+            previousStep,
+            cell.stepIndex
+          );
+
+    noteSweepLastStep =
+      cell.stepIndex;
+
+    for (
+      let stepIndex = minimumStep;
+      stepIndex <= maximumStep;
+      stepIndex++
+    ) {
+      if (
+        stepIndex >= track.stepLength ||
+        noteSweepVisited.has(stepIndex)
+      ) {
+        continue;
+      }
+
+      noteSweepVisited.add(stepIndex);
+
+      if (
+        track.steps[stepIndex] ===
+        noteSweepValue
+      ) {
+        continue;
+      }
+
+      if (!noteSweepHistorySaved) {
+        saveTrackHistory(
+          noteSweepTrackIndex
+        );
+
+        noteSweepHistorySaved = true;
+      }
+
+      track.steps[stepIndex] =
+        noteSweepValue;
+
+      if (source === "sequence") {
+        const stepButton =
+          document.querySelector(
+            `.sequence-step[data-step-index="${stepIndex}"]`
+          );
+
+        const lane =
+          stepButton?.querySelector(
+            `.track-lane[data-track-index="${noteSweepTrackIndex}"]`
+          );
+
+        lane?.classList.toggle(
+          "on",
+          noteSweepValue
+        );
+      } else {
+        const stepButton =
+          document.querySelector(
+            `.offset-step[data-step-index="${stepIndex}"]`
+          );
+
+        stepButton?.classList.toggle(
+          "note-on",
+          noteSweepValue
+        );
+      }
+    }
+
+    return;
+  }
+
+  function startNoteSweep(event, startCell) {
+    const trackIndex =
+      state.selectedTrackIndex;
+
+    const track =
+      tracks[trackIndex];
+
+    if (
+      !track ||
+      startCell.stepIndex < 0 ||
+      startCell.stepIndex >= track.stepLength
+    ) {
+      return false;
+    }
+
+    noteSweepActive = true;
+    noteSweepTrackIndex =
+      trackIndex;
+    noteSweepValue =
+      !Boolean(
+        track.steps[startCell.stepIndex]
+      );
+    noteSweepVisited = new Set();
+    noteSweepLastStep = null;
+    noteSweepHistorySaved = false;
+    suppressNextClick = true;
+    element.dataset.noteSweepActive =
+      "true";
+
+    element.setPointerCapture?.(
+      event.pointerId
+    );
+
+    applyNoteSweepCell(
+      startCell
+    );
+
+    return true;
+  }
+
   element.style.touchAction = "none";
 
   element.addEventListener(
@@ -1843,48 +2009,55 @@ function enableSelectionPointer({
       startX = event.clientX;
       startY = event.clientY;
       interactionActive = false;
+      noteSweepActive = false;
+      noteSweepTrackIndex = null;
+      noteSweepVisited = new Set();
+      noteSweepLastStep = null;
+      noteSweepHistorySaved = false;
+      suppressNextClick = false;
+      delete element.dataset.noteSweepActive;
 
       const cell = {
         trackIndex:
           source === "sequence"
-            ? 0
+            ? state.selectedTrackIndex
             : state.selectedTrackIndex,
         stepIndex: getStepIndex(element)
       };
 
       if (editSelection.mode === mode) {
-  event.preventDefault();
+        event.preventDefault();
 
-  startSelectionInteraction(
-    event,
-    cell
-  );
+        startSelectionInteraction(
+          event,
+          cell
+        );
 
-  /*
-   * Offset選択モード中に
-   * もう一度長押しすると解除する。
-   *
-   * 指を動かした場合は、
-   * 通常の範囲選択スイープとして扱う。
-   */
-  if (
-    mode === "offset" &&
-    source === "offset"
-  ) {
-    clearTimer();
+        /*
+         * Offset選択モード中に
+         * もう一度長押しすると解除する。
+         *
+         * 指を動かした場合は、
+         * 通常の範囲選択スイープとして扱う。
+         */
+        if (
+          mode === "offset" &&
+          source === "offset"
+        ) {
+          clearTimer();
 
-    timer = window.setTimeout(
-      () => {
-        interactionActive = false;
+          timer = window.setTimeout(
+            () => {
+              interactionActive = false;
 
-        finishOffsetSelectionMode();
-      },
-      LONG_PRESS_MS
-    );
-  }
+              finishOffsetSelectionMode();
+            },
+            LONG_PRESS_MS
+          );
+        }
 
-  return;
-}
+        return;
+      }
 
       const canLongPress =
         (
@@ -1938,12 +2111,62 @@ function enableSelectionPointer({
         return;
       }
 
+      const movementX =
+        event.clientX - startX;
+
+      const movementY =
+        event.clientY - startY;
+
       const movement = Math.hypot(
-        event.clientX - startX,
-        event.clientY - startY
+        movementX,
+        movementY
       );
 
       if (!interactionActive) {
+        /*
+         * 通常時は横方向のドラッグだけを
+         * Note ON/OFFスイープとして扱う。
+         * Offset画面の縦ドラッグは従来どおり
+         * Parameter Offset変更へ渡す。
+         */
+        if (
+          !noteSweepActive &&
+          Math.abs(movementX) > 12 &&
+          Math.abs(movementX) >
+            Math.abs(movementY)
+        ) {
+          clearTimer();
+
+          const startCell = {
+            trackIndex:
+              state.selectedTrackIndex,
+            stepIndex:
+              getStepIndex(element)
+          };
+
+          if (
+            startNoteSweep(
+              event,
+              startCell
+            )
+          ) {
+            event.preventDefault();
+          }
+        }
+
+        if (noteSweepActive) {
+          event.preventDefault();
+
+          applyNoteSweepCell(
+            cellFromPoint(
+              event.clientX,
+              event.clientY
+            )
+          );
+
+          return;
+        }
+
         if (movement > 12) {
           clearTimer();
         }
@@ -1952,11 +2175,11 @@ function enableSelectionPointer({
       }
 
       if (
-  interactionActive &&
-  movement > 12
-) {
-  clearTimer();
-}
+        interactionActive &&
+        movement > 12
+      ) {
+        clearTimer();
+      }
 
       if (editSelection.mode !== mode) {
         return;
@@ -1990,11 +2213,25 @@ function enableSelectionPointer({
       );
     }
 
+    const completedNoteSweep =
+      noteSweepActive;
+
     pointerId = null;
     interactionActive = false;
+    noteSweepActive = false;
+    noteSweepTrackIndex = null;
+    noteSweepVisited = new Set();
+    noteSweepLastStep = null;
+    noteSweepHistorySaved = false;
+    delete element.dataset.noteSweepActive;
     editSelection.sweepPointerId = null;
     editSelection.sweepAnchor = null;
     editSelection.sweepBaseline = null;
+
+    if (completedNoteSweep) {
+      renderSequence();
+      renderEditor();
+    }
   }
 
   element.addEventListener(
@@ -2010,6 +2247,13 @@ function enableSelectionPointer({
   element.addEventListener(
     "click",
     event => {
+      if (suppressNextClick) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        suppressNextClick = false;
+        return;
+      }
+
       if (editSelection.mode !== mode) {
         return;
       }
@@ -4317,8 +4561,8 @@ function parameterMenuChildItems() {
 
   if (selectedId === "filterCutoff") {
     return [
-      { id: "filterCutoff", label: "cutoff" },
-      { id: "filterResonance", label: "resonance" }
+      { id: "filterCutoff", label: "cut" },
+      { id: "filterResonance", label: "reso" }
     ];
   }
 
@@ -4344,9 +4588,9 @@ function parameterMenuChildItems() {
 
   if (selectedId === "lfo") {
     return [
-      { id: "target", label: "target", baseOnly: true },
+      { id: "target", label: "trgt", baseOnly: true },
       { id: "wave", label: "wave", baseOnly: true },
-      { id: "depth", label: "depth" },
+      { id: "depth", label: "dep" },
       { id: "rate", label: "rate" }
     ];
   }

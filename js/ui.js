@@ -2476,21 +2476,12 @@ function enableSelectionPointer({
 
 function applyOffsetDeltaToSelection(
   parameter,
-  delta,
-  startValues,
-  selectionCells = null
+  delta
 ) {
-  const cells =
-    Array.isArray(selectionCells)
-      ? selectionCells
-      : selectedKeysSorted();
-
   if (
-    cells.length === 0 ||
-    (
-      !Array.isArray(selectionCells) &&
-      !hasActiveOffsetSelection()
-    )
+    editSelection.mode !== "offset" ||
+    editSelection.selected.size === 0 ||
+    !delta
   ) {
     return false;
   }
@@ -2515,14 +2506,14 @@ function applyOffsetDeltaToSelection(
     );
 
   const minOffset =
-  parameter.min -
-  baseValue;
+    Number(parameter.min) -
+    baseValue;
 
-const maxOffset =
-  parameter.max -
-  baseValue;
+  const maxOffset =
+    Number(parameter.max) -
+    baseValue;
 
-  cells
+  selectedKeysSorted()
     .forEach(
       ({
         trackIndex,
@@ -2535,35 +2526,19 @@ const maxOffset =
           return;
         }
 
-        const key =
-          selectionKey(
-            trackIndex,
-            stepIndex
-          );
-
-        const startOffset =
-          startValues instanceof Map
-            ? (
-                Number(
-                  startValues.get(
-                    key
-                  )
-                ) || 0
-              )
-            : (
-                Number(
-                  values[
-                    stepIndex
-                  ]
-                ) || 0
-              );
+        const currentOffset =
+          Number(
+            values[
+              stepIndex
+            ]
+          ) || 0;
 
         values[
           stepIndex
         ] =
           roundToStep(
             clamp(
-              startOffset +
+              currentOffset +
                 delta,
               minOffset,
               maxOffset
@@ -3669,71 +3644,14 @@ if (
   let parentSweepHistorySaved =
     false;
 
-  let parentOffsetSelectionActive =
-    false;
-
-  let parentOffsetSelectionCells =
-    null;
-
-  let parentOffsetSelectionStartValues =
-    null;
+  let parentOffsetSelectionAppliedDelta =
+    0;
 
   button.addEventListener(
     "pointerdown",
     () => {
-      const track =
-        editorTrack();
-
-      parentOffsetSelectionActive =
-        hasActiveOffsetSelection() &&
-        Array.isArray(
-          track.offsets[
-            parentSweepParameter.id
-          ]
-        );
-
-      parentOffsetSelectionCells =
-        null;
-
-      parentOffsetSelectionStartValues =
-        null;
-
-      if (
-        !parentOffsetSelectionActive
-      ) {
-        return;
-      }
-
-      parentOffsetSelectionCells =
-        selectedKeysSorted()
-          .filter(
-            ({ trackIndex }) =>
-              trackIndex ===
-              state.selectedTrackIndex
-          );
-
-      parentOffsetSelectionStartValues =
-        new Map();
-
-      parentOffsetSelectionCells
-        .forEach(
-          ({
-            trackIndex,
-            stepIndex
-          }) => {
-            parentOffsetSelectionStartValues.set(
-              selectionKey(
-                trackIndex,
-                stepIndex
-              ),
-              Number(
-                track.offsets[
-                  parentSweepParameter.id
-                ][stepIndex]
-              ) || 0
-            );
-          }
-        );
+      parentOffsetSelectionAppliedDelta =
+        0;
     }
   );
 
@@ -3741,12 +3659,6 @@ if (
     element: button,
 
     getValue: () => {
-      if (
-        parentOffsetSelectionActive
-      ) {
-        return 0;
-      }
-
       return Number(
         editorTrack().base[
           parentSweepParameter.id
@@ -3762,25 +3674,8 @@ if (
           true;
       }
 
-      if (
-        parentOffsetSelectionActive
-      ) {
-        const delta =
-          roundToStep(
-            Number(nextValue) || 0,
-            parentSweepParameter.step ??
-              1
-          );
-
-        applyOffsetDeltaToSelection(
-          parentSweepParameter,
-          delta,
-          parentOffsetSelectionStartValues,
-          parentOffsetSelectionCells
-        );
-
-        return;
-      }
+      const track =
+        editorTrack();
 
       const correctedValue =
         roundToStep(
@@ -3792,9 +3687,39 @@ if (
           parentSweepParameter.step ?? 1
         );
 
-      editorTrack().base[
-        parentSweepParameter.id
-      ] = correctedValue;
+      if (
+        editSelection.mode ===
+          "offset" &&
+        Array.isArray(
+          track.offsets[
+            parentSweepParameter.id
+          ]
+        )
+      ) {
+        const totalDelta =
+          correctedValue -
+          Number(
+            track.base[
+              parentSweepParameter.id
+            ]
+          );
+
+        const incrementalDelta =
+          totalDelta -
+          parentOffsetSelectionAppliedDelta;
+
+        applyOffsetDeltaToSelection(
+          parentSweepParameter,
+          incrementalDelta
+        );
+
+        parentOffsetSelectionAppliedDelta =
+          totalDelta;
+      } else {
+        track.base[
+          parentSweepParameter.id
+        ] = correctedValue;
+      }
 
       const valueElement =
         button.querySelector(
@@ -3856,14 +3781,8 @@ if (
       parentSweepHistorySaved =
         false;
 
-      parentOffsetSelectionActive =
-        false;
-
-      parentOffsetSelectionCells =
-        null;
-
-      parentOffsetSelectionStartValues =
-        null;
+      parentOffsetSelectionAppliedDelta =
+        0;
 
       if (!changed) {
         return;
@@ -5153,15 +5072,7 @@ function enableLfoRateSlotInteraction({
   let sweeping = false;
   let historySaved = false;
   let suppressClick = false;
-
-  let offsetSelectionActive =
-    false;
-
-  let offsetSelectionCells =
-    null;
-
-  let offsetSelectionStartValues =
-    null;
+  let offsetSelectionAppliedDelta = 0;
 
   element.style.touchAction = "none";
 
@@ -5188,69 +5099,13 @@ function enableLfoRateSlotInteraction({
         track.base[`${prefix}SyncMode`] === "bpm"
           ? "bpm"
           : "free";
-      const rateId =
-        `${prefix}Rate`;
-
-      offsetSelectionActive =
-        hasActiveOffsetSelection() &&
-        Array.isArray(
-          track.offsets[
-            rateId
-          ]
-        );
-
-      offsetSelectionCells =
-        null;
-
-      offsetSelectionStartValues =
-        null;
-
-      if (
-        offsetSelectionActive
-      ) {
-        offsetSelectionCells =
-          selectedKeysSorted()
-            .filter(
-              ({ trackIndex }) =>
-                trackIndex ===
-                state.selectedTrackIndex
-            );
-
-        offsetSelectionStartValues =
-          new Map();
-
-        offsetSelectionCells
-          .forEach(
-            ({
-              trackIndex,
-              stepIndex
-            }) => {
-              offsetSelectionStartValues.set(
-                selectionKey(
-                  trackIndex,
-                  stepIndex
-                ),
-                Number(
-                  track.offsets[
-                    rateId
-                  ][stepIndex]
-                ) || 0
-              );
-            }
-          );
-
-        startRate = 0;
-      } else {
-        startRate = Number(
-          track.base[
-            rateId
-          ]
-        );
-      }
-
+      startRate = Number(
+        track.base[`${prefix}Rate`]
+      );
       sweeping = false;
       historySaved = false;
       suppressClick = false;
+      offsetSelectionAppliedDelta = 0;
 
       element.setPointerCapture?.(
         event.pointerId
@@ -5325,40 +5180,51 @@ function enableLfoRateSlotInteraction({
         `${prefix}Rate`;
 
       if (
-        offsetSelectionActive
+        editSelection.mode ===
+          "offset" &&
+        Array.isArray(
+          track.offsets[
+            rateId
+          ]
+        )
       ) {
-        if (!historySaved) {
-          saveTrackHistory();
-          historySaved = true;
-        }
+        const correctedRate =
+          clamp(
+            nextRate,
+            minimum,
+            maximum
+          );
+
+        const totalDelta =
+          correctedRate -
+          Number(
+            track.base[
+              rateId
+            ]
+          );
+
+        const incrementalDelta =
+          totalDelta -
+          offsetSelectionAppliedDelta;
 
         const sourceParameter =
           parameterById(
             rateId
           );
 
-        const rateParameter =
-          startMode === "bpm"
-            ? {
-                ...sourceParameter,
-                id: rateId,
-                min: 0,
-                max:
-                  LFO_BPM_RATE_NAMES.length -
-                  1,
-                step: 1
-              }
-            : {
-                ...sourceParameter,
-                id: rateId
-              };
-
         applyOffsetDeltaToSelection(
-          rateParameter,
-          nextRate,
-          offsetSelectionStartValues,
-          offsetSelectionCells
+          {
+            ...sourceParameter,
+            id: rateId,
+            min: minimum,
+            max: maximum,
+            step: 1
+          },
+          incrementalDelta
         );
+
+        offsetSelectionAppliedDelta =
+          totalDelta;
 
         state.selectedChildId =
           "rate";
@@ -5367,9 +5233,7 @@ function enableLfoRateSlotInteraction({
       }
 
       const currentRate = Number(
-        track.base[
-          rateId
-        ]
+        track.base[`${prefix}Rate`]
       );
 
       if (currentRate === nextRate) {
@@ -5384,9 +5248,7 @@ function enableLfoRateSlotInteraction({
       track.base[`${prefix}SyncMode`] =
         startMode;
 
-      track.base[
-        rateId
-      ] =
+      track.base[`${prefix}Rate`] =
         nextRate;
 
       state.selectedChildId = "rate";
@@ -5421,16 +5283,7 @@ function enableLfoRateSlotInteraction({
     }
 
     pointerId = null;
-
-    offsetSelectionActive =
-      false;
-
-    offsetSelectionCells =
-      null;
-
-    offsetSelectionStartValues =
-      null;
-
+    offsetSelectionAppliedDelta = 0;
     element.classList.remove(
       "is-sweeping"
     );
@@ -5467,16 +5320,6 @@ function enableLfoRateSlotInteraction({
 
       pointerId = null;
       sweeping = false;
-
-      offsetSelectionActive =
-        false;
-
-      offsetSelectionCells =
-        null;
-
-      offsetSelectionStartValues =
-        null;
-
       element.classList.remove(
         "is-sweeping"
       );
@@ -5629,91 +5472,27 @@ function createParameterMenuGrid() {
       let childSweepHistorySaved =
         false;
 
-      let childOffsetSelectionActive =
-        false;
+      let childOffsetSelectionAppliedDelta =
+        0;
 
-      let childOffsetSelectionCells =
-        null;
-
-      let childOffsetSelectionStartValues =
-        null;
+      button.addEventListener(
+        "pointerdown",
+        () => {
+          childOffsetSelectionAppliedDelta =
+            0;
+        }
+      );
 
       const isChoiceParameter =
         Array.isArray(
           sweepDefinition.values
         );
 
-      button.addEventListener(
-        "pointerdown",
-        () => {
-          const track =
-            editorTrack();
-
-          childOffsetSelectionActive =
-            !isChoiceParameter &&
-            hasActiveOffsetSelection() &&
-            Array.isArray(
-              track.offsets[
-                sweepDefinition.actualId
-              ]
-            );
-
-          childOffsetSelectionCells =
-            null;
-
-          childOffsetSelectionStartValues =
-            null;
-
-          if (
-            !childOffsetSelectionActive
-          ) {
-            return;
-          }
-
-          childOffsetSelectionCells =
-            selectedKeysSorted()
-              .filter(
-                ({ trackIndex }) =>
-                  trackIndex ===
-                  state.selectedTrackIndex
-              );
-
-          childOffsetSelectionStartValues =
-            new Map();
-
-          childOffsetSelectionCells
-            .forEach(
-              ({
-                trackIndex,
-                stepIndex
-              }) => {
-                childOffsetSelectionStartValues.set(
-                  selectionKey(
-                    trackIndex,
-                    stepIndex
-                  ),
-                  Number(
-                    track.offsets[
-                      sweepDefinition.actualId
-                    ][stepIndex]
-                  ) || 0
-                );
-              }
-            );
-        }
-      );
-
       enableVerticalSweep({
         element: button,
 
         getValue: () => {
           const track = editorTrack();
-
-          if (
-            childOffsetSelectionActive
-          ) {
-            return 0;
-          }
 
           if (isChoiceParameter) {
             const currentValue =
@@ -5747,13 +5526,36 @@ function createParameterMenuGrid() {
           const track = editorTrack();
 
           if (
-            childOffsetSelectionActive
+            !isChoiceParameter &&
+            editSelection.mode ===
+              "offset" &&
+            Array.isArray(
+              track.offsets[
+                sweepDefinition.actualId
+              ]
+            )
           ) {
-            const delta =
+            const correctedValue =
               roundToStep(
-                Number(nextValue) || 0,
+                clamp(
+                  Number(nextValue),
+                  sweepDefinition.min,
+                  sweepDefinition.max
+                ),
                 sweepDefinition.step
               );
+
+            const totalDelta =
+              correctedValue -
+              Number(
+                track.base[
+                  sweepDefinition.actualId
+                ]
+              );
+
+            const incrementalDelta =
+              totalDelta -
+              childOffsetSelectionAppliedDelta;
 
             applyOffsetDeltaToSelection(
               {
@@ -5766,10 +5568,11 @@ function createParameterMenuGrid() {
                 step:
                   sweepDefinition.step
               },
-              delta,
-              childOffsetSelectionStartValues,
-              childOffsetSelectionCells
+              incrementalDelta
             );
+
+            childOffsetSelectionAppliedDelta =
+              totalDelta;
 
             return;
           }
@@ -5853,14 +5656,8 @@ function createParameterMenuGrid() {
           childSweepHistorySaved =
             false;
 
-          childOffsetSelectionActive =
-            false;
-
-          childOffsetSelectionCells =
-            null;
-
-          childOffsetSelectionStartValues =
-            null;
+          childOffsetSelectionAppliedDelta =
+            0;
 
           if (!changed) {
             return;
@@ -6378,81 +6175,19 @@ const definition = {
    * ベース値上下スイープ。
    */
   let sweepHistorySaved = false;
-let offsetSelectionStartValues =
-  null;
-let offsetSelectionGestureActive =
-  false;
-let offsetSelectionGestureCells =
-  null;
-let offsetSelectionBaseValue =
-  null;
+  let offsetSelectionAppliedDelta = 0;
 
-value.addEventListener(
-  "pointerdown",
-  () => {
-    offsetSelectionStartValues =
-      null;
-    offsetSelectionGestureCells =
-      null;
-    offsetSelectionGestureActive =
-      hasActiveOffsetSelection() &&
-      Array.isArray(
-        track.offsets[id]
-      );
-    offsetSelectionBaseValue =
-      Number(
-        track.base[id]
-      );
-
-    if (
-      !offsetSelectionGestureActive
-    ) {
-      return;
+  value.addEventListener(
+    "pointerdown",
+    () => {
+      offsetSelectionAppliedDelta = 0;
     }
-
-    offsetSelectionGestureCells =
-      selectedKeysSorted()
-        .filter(
-          ({ trackIndex }) =>
-            trackIndex ===
-            state.selectedTrackIndex
-        );
-
-    offsetSelectionStartValues =
-      new Map();
-
-    offsetSelectionGestureCells
-      .forEach(
-        ({
-          trackIndex,
-          stepIndex
-        }) => {
-          offsetSelectionStartValues.set(
-            selectionKey(
-              trackIndex,
-              stepIndex
-            ),
-            Number(
-              track.offsets[id][
-                stepIndex
-              ]
-            ) || 0
-          );
-        }
-      );
-  }
-);
+  );
 
   enableVerticalSweep({
   element: value,
 
   getValue: () => {
-    if (
-      offsetSelectionGestureActive
-    ) {
-      return 0;
-    }
-
     return Number(
       track.base[id]
     );
@@ -6466,55 +6201,47 @@ value.addEventListener(
           true;
       }
 
-      const finiteValue =
-  Number.isFinite(
-    Number(nextValue)
-  )
-    ? Number(nextValue)
-    : 0;
+      const correctedValue =
+        roundToStep(
+          clamp(
+            Number(nextValue),
+            definition.min,
+            definition.max
+          ),
+          definition.step
+        );
 
-if (
-  offsetSelectionGestureActive &&
-  Array.isArray(
-    track.offsets[id]
-  )
-) {
-  const delta =
-    roundToStep(
-      finiteValue,
-      definition.step
-    );
+      if (
+        editSelection.mode ===
+          "offset" &&
+        Array.isArray(
+          track.offsets[id]
+        )
+      ) {
+        const totalDelta =
+          correctedValue -
+          Number(
+            track.base[id]
+          );
 
-  /*
-   * 選択編集ジェスチャー中はbaseを絶対に変更しない。
-   * pointerdown時に固定した選択stepだけへOffset差分を適用する。
-   */
-  track.base[id] =
-    offsetSelectionBaseValue;
+        const incrementalDelta =
+          totalDelta -
+          offsetSelectionAppliedDelta;
 
-  applyOffsetDeltaToSelection(
-    {
-      ...definition,
-      id
-    },
-    delta,
-    offsetSelectionStartValues,
-    offsetSelectionGestureCells
-  );
-} else {
-  const clampedValue =
-  clamp(
-    finiteValue,
-    definition.min,
-    definition.max
-  );
+        applyOffsetDeltaToSelection(
+          {
+            ...definition,
+            id
+          },
+          incrementalDelta
+        );
 
-track.base[id] =
-  roundToStep(
-    clampedValue,
-    definition.step
-  );
-}
+        offsetSelectionAppliedDelta =
+          totalDelta;
+      } else {
+        track.base[id] =
+          correctedValue;
+      }
 
       if (id === "subPattern") {
         value.innerHTML =
@@ -6593,17 +6320,8 @@ document
   );
     },
 
-    min: () =>
-  editSelection.mode ===
-    "offset"
-    ? -10000
-    : definition.min,
-
-max: () =>
-  editSelection.mode ===
-    "offset"
-    ? 10000
-    : definition.max,
+    min: definition.min,
+    max: definition.max,
 
 step:
   definition.step,
@@ -6628,14 +6346,7 @@ acceleration: true,
       sweepHistorySaved =
         false;
 
-      offsetSelectionStartValues =
-  null;
-      offsetSelectionGestureCells =
-        null;
-      offsetSelectionGestureActive =
-        false;
-      offsetSelectionBaseValue =
-        null;
+      offsetSelectionAppliedDelta = 0;
 
       if (changed) {
         renderEditorAndRestore(
@@ -8281,143 +7992,77 @@ baseValue.addEventListener(
 );
 
     let sweepHistorySaved = false;
-let offsetSelectionStartValues =
-  null;
-let offsetSelectionGestureActive =
-  false;
-let offsetSelectionGestureCells =
-  null;
-let offsetSelectionBaseValue =
-  null;
+    let offsetSelectionAppliedDelta = 0;
 
-baseValue.addEventListener(
-  "pointerdown",
-  () => {
-    offsetSelectionStartValues =
-      null;
-    offsetSelectionGestureCells =
-      null;
-    offsetSelectionGestureActive =
-      hasActiveOffsetSelection() &&
-      Array.isArray(
-        track.offsets[
-          activeBaseId
-        ]
-      );
-    offsetSelectionBaseValue =
-      Number(
-        track.base[
-          activeBaseId
-        ]
-      );
-
-    if (
-      !offsetSelectionGestureActive
-    ) {
-      return;
-    }
-
-    offsetSelectionGestureCells =
-      selectedKeysSorted()
-        .filter(
-          ({ trackIndex }) =>
-            trackIndex ===
-            state.selectedTrackIndex
-        );
-
-    offsetSelectionStartValues =
-      new Map();
-
-    offsetSelectionGestureCells
-      .forEach(
-        ({
-          trackIndex,
-          stepIndex
-        }) => {
-          offsetSelectionStartValues.set(
-            selectionKey(
-              trackIndex,
-              stepIndex
-            ),
-            Number(
-              track.offsets[
-                activeBaseId
-              ][stepIndex]
-            ) || 0
-          );
-        }
-      );
-  }
-);
+    baseValue.addEventListener(
+      "pointerdown",
+      () => {
+        offsetSelectionAppliedDelta = 0;
+      }
+    );
 
     enableVerticalSweep({
       element: baseValue,
       getValue: () => {
-  if (
-    offsetSelectionGestureActive
-  ) {
-    return 0;
-  }
-
-  return Number(
-    track.base[
-      activeBaseId
-    ]
-  );
-},
+        return Number(
+          track.base[
+            activeBaseId
+          ]
+        );
+      },
       setValue: nextValue => {
         if (!sweepHistorySaved) {
           saveTrackHistory();
           sweepHistorySaved = true;
         }
-        const finiteValue =
-  Number.isFinite(
-    Number(nextValue)
-  )
-    ? Number(nextValue)
-    : 0;
+        const correctedValue =
+          roundToStep(
+            clamp(
+              Number(nextValue),
+              activeParameter.min,
+              activeParameter.max
+            ),
+            activeParameter.step ??
+              1
+          );
 
-if (
-  offsetSelectionGestureActive
-) {
-  const delta =
-    roundToStep(
-      finiteValue,
-      activeParameter.step ??
-        1
-    );
+        if (
+          editSelection.mode ===
+            "offset" &&
+          Array.isArray(
+            track.offsets[
+              activeBaseId
+            ]
+          )
+        ) {
+          const totalDelta =
+            correctedValue -
+            Number(
+              track.base[
+                activeBaseId
+              ]
+            );
 
-  track.base[
-    activeBaseId
-  ] =
-    offsetSelectionBaseValue;
+          const incrementalDelta =
+            totalDelta -
+            offsetSelectionAppliedDelta;
 
-  applyOffsetDeltaToSelection(
-    {
-      ...activeParameter,
-      id: activeBaseId
-    },
-    delta,
-    offsetSelectionStartValues,
-    offsetSelectionGestureCells
-  );
-} else {
-  const correctedValue =
-    roundToStep(
-      clamp(
-        finiteValue,
-        activeParameter.min,
-        activeParameter.max
-      ),
-      activeParameter.step ??
-        1
-    );
+          applyOffsetDeltaToSelection(
+            {
+              ...activeParameter,
+              id: activeBaseId
+            },
+            incrementalDelta
+          );
 
-  track.base[
-    activeBaseId
-  ] =
-    correctedValue;
-}
+          offsetSelectionAppliedDelta =
+            totalDelta;
+        } else {
+          track.base[
+            activeBaseId
+          ] =
+            correctedValue;
+        }
         updateBaseValue();
 
 /*
@@ -8456,30 +8101,15 @@ document
     }
   );
       },
-      min: () =>
-  editSelection.mode ===
-    "offset"
-    ? -10000
-    : activeParameter.min,
-
-max: () =>
-  editSelection.mode ===
-    "offset"
-    ? 10000
-    : activeParameter.max,
+      min: activeParameter.min,
+      max: activeParameter.max,
 
 step:
   activeParameter.step ?? 1,
       onCommit: (startValue, currentValue, changed) => {
         sweepHistorySaved = false;
-        offsetSelectionStartValues =
-  null;
-        offsetSelectionGestureCells =
-          null;
-        offsetSelectionGestureActive =
-          false;
-        offsetSelectionBaseValue =
-          null;
+        offsetSelectionAppliedDelta =
+          0;
 
         if (changed) {
           renderEditorAndRestore(

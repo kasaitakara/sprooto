@@ -16,7 +16,8 @@ import {
   initializeAudio,
   playTrackStep,
   setMasterVolume,
-  resumeAudio
+  resumeAudio,
+  resetTrackPitchHistory
 } from "./audio.js";
 
 import {
@@ -593,6 +594,7 @@ function scheduleAudioAhead(
 function stopPlayback() {
   state.isPlaying = false;
 
+  resetTrackPitchHistory();
   releaseScreenWakeLock();
 
   state.playingStepIndex =
@@ -767,6 +769,8 @@ async function togglePlayback() {
   }
 
   await initializeAudio();
+
+resetTrackPitchHistory();
 
 setMasterVolumeValue(
   Number(

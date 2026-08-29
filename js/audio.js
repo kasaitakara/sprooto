@@ -578,6 +578,20 @@ const masterMixSettings = {
 const activeTrackVoices =
   new Map();
 
+/*
+ * Glide用の「最後に鳴ったピッチ」は、
+ * 発音中Voiceの寿命とは分離して保持する。
+ *
+ * H/Dで短音になって前Voiceが終了しても、
+ * 次の同一Trackノートは最後の実音からGlideできる。
+ */
+const lastTrackPitchTrajectories =
+  new Map();
+
+export function resetTrackPitchHistory() {
+  lastTrackPitchTrajectories.clear();
+}
+
 
 async function ensureAudioClockReady() {
   if (!context) {
@@ -1526,10 +1540,16 @@ const now =
       progress;
   }
 
+  const storedPitchTrajectories =
+    lastTrackPitchTrajectories.get(
+      voiceStreamKey
+    );
+
   const previousTrajectories =
-    previousVoice?.endTime > now &&
-    Array.isArray(previousVoice.pitchTrajectories)
-      ? previousVoice.pitchTrajectories
+    Array.isArray(
+      storedPitchTrajectories
+    )
+      ? storedPitchTrajectories
       : [];
 
   const glideStartNotes =
@@ -2639,6 +2659,38 @@ mixGain.gain.exponentialRampToValueAtTime(
  * 次の同一Track発音時に、
  * このGainが短く閉じられる。
  */
+const currentPitchTrajectories =
+  sineVolume > 0
+    ? chordNotes.map(
+        (targetNote, voiceIndex) => {
+          const strumVoiceIndex =
+            strumValue < 0
+              ? chordNotes.length - 1 - voiceIndex
+              : voiceIndex;
+
+          const voiceDelay =
+            chordNotes.length > 1
+              ? strumVoiceIndex * strumGapSeconds
+              : 0;
+
+          const trajectoryStart =
+            now + voiceDelay;
+
+          return {
+            startNote:
+              glideStartNotes[voiceIndex] ??
+              targetNote,
+            targetNote,
+            startTime: trajectoryStart,
+            endTime:
+              glideDuration > 0
+                ? trajectoryStart + glideDuration
+                : trajectoryStart
+          };
+        }
+      )
+    : [];
+
 activeTrackVoices.set(
   voiceStreamKey,
   {
@@ -2646,36 +2698,16 @@ activeTrackVoices.set(
     startTime: now,
     endTime: releaseEnd,
     pitchTrajectories:
-      sineVolume > 0
-        ? chordNotes.map(
-            (targetNote, voiceIndex) => {
-              const strumVoiceIndex =
-                strumValue < 0
-                  ? chordNotes.length - 1 - voiceIndex
-                  : voiceIndex;
-
-              const voiceDelay =
-                chordNotes.length > 1
-                  ? strumVoiceIndex * strumGapSeconds
-                  : 0;
-
-              const trajectoryStart =
-                now + voiceDelay;
-
-              return {
-                startNote: glideStartNotes[voiceIndex] ?? targetNote,
-                targetNote,
-                startTime: trajectoryStart,
-                endTime:
-                  glideDuration > 0
-                    ? trajectoryStart + glideDuration
-                    : trajectoryStart
-              };
-            }
-          )
-        : []
+      currentPitchTrajectories
   }
 );
+
+if (currentPitchTrajectories.length > 0) {
+  lastTrackPitchTrajectories.set(
+    voiceStreamKey,
+    currentPitchTrajectories
+  );
+}
 
 let voiceOutputNode = mixGain;
 
@@ -3030,7 +3062,9 @@ export async function beginOfflineAudioRender(
     audioClockReady,
     audioClockReadyPromise,
     offlineRenderMode,
-    activeTrackVoices: [...activeTrackVoices.entries()]
+    activeTrackVoices: [...activeTrackVoices.entries()],
+    lastTrackPitchTrajectories:
+      [...lastTrackPitchTrajectories.entries()]
   };
 
   context = offlineContext;
@@ -3045,6 +3079,7 @@ export async function beginOfflineAudioRender(
   outputAnalyser = null;
 
   activeTrackVoices.clear();
+  lastTrackPitchTrajectories.clear();
 
   master = sprootoDebugNode(context.createGain());
   master.gain.value = clamp(Number(masterVolume) || 0, 0, 100) / 100;
@@ -3116,6 +3151,11 @@ export async function beginOfflineAudioRender(
     activeTrackVoices.clear();
     backup.activeTrackVoices.forEach(([key, value]) => {
       activeTrackVoices.set(key, value);
+    });
+
+    lastTrackPitchTrajectories.clear();
+    backup.lastTrackPitchTrajectories.forEach(([key, value]) => {
+      lastTrackPitchTrajectories.set(key, value);
     });
 
     context = backup.context;

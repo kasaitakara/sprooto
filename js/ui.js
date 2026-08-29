@@ -787,11 +787,12 @@ const parameterMenuItems = [
   { label: "FM", parameterId: "fmDepth", icon: "fm" },
   { label: "FILTER", parameterId: "filterCutoff", icon: "tone" },
   { label: "PAN", parameterId: "pan", icon: "pan" },
-  { label: "LFO", parameterId: "lfo", icon: "lfo" },
+  { label: "art", parameter: articulationParameter, icon: "articulation" },
 
   { label: "prob", parameterId: "probability", icon: "probability" },
   { label: "sub", parameter: subParameter, icon: "sub" },
-  { label: "art", parameter: articulationParameter, icon: "articulation" }
+  { label: "lfo1", parameterId: "lfo", icon: "lfo", lfoNumber: 1 },
+  { label: "lfo2", parameterId: "lfo", icon: "lfo", lfoNumber: 2 }
 ];
 
 function editorParameterById(id) {
@@ -2402,8 +2403,8 @@ function currentSequenceOffsetParameter() {
 
     case "lfo": {
       if (
-        state.selectedChildId !== "depth" &&
-        state.selectedChildId !== "rate"
+        state.selectedChildId === "target" ||
+        state.selectedChildId === "wave"
       ) {
         return null;
       }
@@ -2455,6 +2456,21 @@ function currentSequenceOffsetParameter() {
     parameterById(parameterId);
 
   if (directParameter) {
+    if (
+      state.selectedParameterId === "lfo" &&
+      state.selectedChildId === "rate" &&
+      track.base[
+        `lfo${track.lfoSelected === 2 ? 2 : 1}SyncMode`
+      ] === "bpm"
+    ) {
+      return {
+        ...directParameter,
+        min: 0,
+        max: LFO_BPM_RATE_NAMES.length - 1,
+        step: 1
+      };
+    }
+
     return directParameter;
   }
 
@@ -2486,16 +2502,106 @@ function currentSequenceOffsetParameter() {
   return null;
 }
 
+function renderLfoBaseOnlySequenceGrid() {
+  const grid = document.createElement("div");
+  grid.className = "offset-grid lfo-base-only-grid";
+
+  const firstStepIndex =
+    state.sequencePage * PAGE_STEP_COUNT;
+
+  const lastStepIndex = Math.min(
+    firstStepIndex + PAGE_STEP_COUNT,
+    editorTrack().stepLength
+  );
+
+  for (
+    let stepIndex = firstStepIndex;
+    stepIndex < lastStepIndex;
+    stepIndex++
+  ) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "offset-step lfo-base-only-step";
+    button.dataset.stepIndex = stepIndex;
+    button.textContent = "-";
+    button.disabled = true;
+
+    if (editorTrack().steps[stepIndex]) {
+      button.classList.add("note-on");
+    }
+
+    const playingStep =
+      state.playbackTickIndex === null
+        ? -1
+        : state.playbackTickIndex % editorTrack().stepLength;
+
+    if (stepIndex === playingStep) {
+      button.classList.add("playing");
+    }
+
+    grid.appendChild(button);
+  }
+
+  return grid;
+}
+
+function lfoBaseOnlyChildSelected() {
+  return (
+    state.selectedParameterId === "lfo" &&
+    (
+      state.selectedChildId === "target" ||
+      state.selectedChildId === "wave"
+    )
+  );
+}
+
 export function renderSequence() {
   sequenceGrid.innerHTML = "";
   renderEditActionToolbar();
 
   syncPatternLength();
 
-  sequenceGrid.classList.remove("sequence-pin-view");
-
   const offsetParameter =
     currentSequenceOffsetParameter();
+
+  /*
+   * LFO target / waveはBase専用でStep Offsetを持たない。
+   * ただしLFO編集中に上段が全Track表示へ戻ると文脈が切れるため、
+   * 選択TrackのOffset Grid形状を維持して「-」を表示する。
+   */
+  if (lfoBaseOnlyChildSelected()) {
+    sequenceGrid.classList.add(
+      "sequence-offset-view"
+    );
+
+    const baseOnlyGrid =
+      renderLfoBaseOnlySequenceGrid();
+
+    sequenceGrid.append(
+      ...Array.from(
+        baseOnlyGrid.children
+      )
+    );
+
+    const trackLength =
+      editorTrack().stepLength;
+
+    patternLengthInput.value =
+      getMaxTrackLength();
+
+    const hasSecondPage =
+      trackLength > PAGE_STEP_COUNT;
+
+    sequencePageButton.hidden =
+      !hasSecondPage;
+
+    sequencePageButton.textContent =
+      state.sequencePage === 0
+        ? "◧"
+        : "◨";
+
+    return;
+  }
 
   if (offsetParameter) {
     /*
@@ -3012,6 +3118,9 @@ function parameterButton(menuItem) {
   menuItem.parameter ??
   parameterById(menuItem.parameterId);
 
+  const lfoNumber =
+    menuItem.lfoNumber ?? null;
+
   const articulationSelectedId =
     articulationParameter.children.some(
       child => child.id === editorTrack().articulationSelectedId
@@ -3034,7 +3143,7 @@ function parameterButton(menuItem) {
     )
     : parameter?.id === "lfo"
     ? parameterById(
-        editorTrack().lfoSelected === 2
+        (lfoNumber ?? editorTrack().lfoSelected) === 2
           ? "lfo2Depth"
           : "lfo1Depth"
       )
@@ -3049,15 +3158,27 @@ function parameterButton(menuItem) {
   button.type = "button";
   button.className = "parameter-button";
 
-  button.classList.toggle(
-    "active",
-    state.selectedParameterId ===
-      parameter?.id
+  const isLfoParent =
+  parameter?.id === "lfo";
+
+const isThisLfoSelected =
+  state.selectedParameterId === parameter?.id &&
+  (
+    !isLfoParent ||
+    lfoNumber === null ||
+    editorTrack().lfoSelected === lfoNumber
   );
 
+button.classList.toggle(
+  "active",
+  isThisLfoSelected
+);
+
   const focusId =
-    parameter?.id ??
-    menuItem.placeholderId;
+    parameter?.id === "lfo" && lfoNumber !== null
+      ? `lfo${lfoNumber}`
+      : parameter?.id ??
+        menuItem.placeholderId;
 
   button.dataset.focusKey =
     `parameter-${focusId}`;
@@ -3106,18 +3227,18 @@ function parameterButton(menuItem) {
     displayedParameter
       ? displayBaseValue(
           displayedParameter
-        )
-      : menuItem.label;
+         )
+         : menuItem.label;
 
-  button.innerHTML = `
-    <span class="parameter-icon${parameter?.id === "lfo" ? " lfo-menu-icon" : ""}">
-      ${getParameterIcon(displayedIcon)}
-      ${
-        parameter?.id === "lfo"
-          ? `<span class="lfo-menu-number">${editorTrack().lfoSelected === 2 ? "2" : "1"}</span>`
+         button.innerHTML = `
+         <span class="parameter-icon${parameter?.id === "lfo" ? " lfo-menu-icon" : ""}">
+         ${getParameterIcon(displayedIcon)}
+         ${
+         parameter?.id === "lfo" && menuItem.lfoNumber
+          ? `<span class="lfo-menu-number">${menuItem.lfoNumber}</span>`
           : ""
-      }
-    </span>
+          }
+         </span>
 
     <span class="parameter-value">
   ${
@@ -3262,6 +3383,35 @@ button.addEventListener(
   "click",
   () => {
     const selectedParameterId = parameter?.id;
+
+    if (
+      selectedParameterId === "lfo" &&
+      lfoNumber !== null
+    ) {
+      const sameLfoSelected =
+        state.selectedParameterId === "lfo" &&
+        editorTrack().lfoSelected === lfoNumber;
+
+      if (sameLfoSelected) {
+        clearOffsetSelectionMode();
+        state.selectedParameterId = null;
+        state.selectedChildId = null;
+      } else {
+        editorTrack().lfoSelected = lfoNumber;
+        state.selectedParameterId = "lfo";
+        /*
+         * LFOも他パラと同じく、親タップ後は
+         * 子パラ側で編集対象を明示する。
+         */
+        state.selectedChildId = "depth";
+      }
+
+      renderEditorAndRestore(
+        `parameter-${focusId}`
+      );
+
+      return;
+    }
 
 if (
   state.selectedParameterId ===
@@ -4177,8 +4327,8 @@ function parameterMenuChildItems() {
   }
 
   if (selectedId === "envelope") {
-    return envelopeParameter.children ?? [];
-  }
+    return [];
+}
 
   if (selectedId === "articulation") {
     return articulationParameter.children ?? [];
@@ -4192,6 +4342,15 @@ function parameterMenuChildItems() {
     return noteParameter.children ?? [];
   }
 
+  if (selectedId === "lfo") {
+    return [
+      { id: "target", label: "target", baseOnly: true },
+      { id: "wave", label: "wave", baseOnly: true },
+      { id: "depth", label: "depth" },
+      { id: "rate", label: "rate" }
+    ];
+  }
+
   const parameter =
     editorParameterById(selectedId);
 
@@ -4201,6 +4360,51 @@ function parameterMenuChildItems() {
 function parameterMenuChildValue(child) {
   const track = editorTrack();
   const id = child.id;
+
+  if (
+    state.selectedParameterId === "lfo" &&
+    ["target", "wave", "depth", "rate"].includes(id)
+  ) {
+    const n = track.lfoSelected === 2 ? 2 : 1;
+    const prefix = `lfo${n}`;
+
+    if (id === "target") {
+      return String(track.base[`${prefix}Target`] ?? "pitch");
+    }
+
+    if (id === "wave") {
+      return String(track.base[`${prefix}Wave`] ?? "sine");
+    }
+
+    if (id === "depth") {
+      return displayBaseValue(
+        parameterById(`${prefix}Depth`)
+      );
+    }
+
+    const syncMode =
+      track.base[`${prefix}SyncMode`] === "bpm"
+        ? "bpm"
+        : "free";
+
+    if (syncMode === "bpm") {
+      const index = clamp(
+        Math.round(Number(track.base[`${prefix}Rate`]) || 0),
+        0,
+        LFO_BPM_RATE_NAMES.length - 1
+      );
+
+      return LFO_BPM_RATE_NAMES[index];
+    }
+
+    const hz = clamp(
+      Number(track.base[`${prefix}Rate`]) || 1,
+      1,
+      100
+    ) / 10;
+
+    return `${Number(hz.toFixed(1))}hz`;
+  }
 
   if (id === "lfoTarget") {
     const n = track.lfoSelected === 2 ? 2 : 1;
@@ -4222,10 +4426,137 @@ function parameterMenuChildValue(child) {
   return displayBaseValue(parameter);
 }
 
+function lfoTargetVisualHtml(value) {
+  const iconMap = {
+    pitch: "note",
+    fmDepth: "fm",
+    filterCutoff: "tone",
+    pan: "pan",
+    attack: "attack"
+  };
+
+  return `
+    <span class="lfo-child-visual lfo-target-visual">
+      ${getParameterIcon(iconMap[value] ?? "note")}
+    </span>
+  `;
+}
+
+function lfoWaveVisualHtml(value) {
+  const paths = {
+    sine: `<path d="M1 8c3-7 5-7 8 0s5 7 8 0 5-7 8 0"></path>`,
+    triangle: `<path d="M1 12L7 4l6 8 6-8 6 8"></path>`,
+    sawUp: `<path d="M1 12L8 4v8l8-8v8l8-8"></path>`,
+    sawDown: `<path d="M1 4l7 8V4l8 8V4l8 8"></path>`,
+    square: `<path d="M1 12V4h8v8h8V4h8"></path>`,
+    random: `<path d="M1 9h4V4h4v9h4V7h4v5h4V3h4"></path>`,
+    rise: `<path d="M1 12L25 4"></path>`,
+    fall: `<path d="M1 4l24 8"></path>`
+  };
+
+  return `
+    <span class="lfo-child-visual lfo-wave-visual">
+      <svg
+        viewBox="0 0 26 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        ${paths[value] ?? paths.sine}
+      </svg>
+    </span>
+  `;
+}
+
+function parameterMenuChildDisplayHtml(child) {
+  const value = parameterMenuChildValue(child);
+
+  if (
+    state.selectedParameterId === "lfo" &&
+    child.id === "target"
+  ) {
+    return lfoTargetVisualHtml(value);
+  }
+
+  if (
+    state.selectedParameterId === "lfo" &&
+    child.id === "wave"
+  ) {
+    return lfoWaveVisualHtml(value);
+  }
+
+  return String(value);
+}
+
 function parameterMenuChildSweepDefinition(child) {
   const track = editorTrack();
   const id = child.id;
 
+  if (state.selectedParameterId === "lfo") {
+    const n = track.lfoSelected === 2 ? 2 : 1;
+
+    if (id === "target") {
+      return {
+        actualId: `lfo${n}Target`,
+        values: [
+          "pitch",
+          "fmDepth",
+          "filterCutoff",
+          "pan",
+          "attack"
+        ]
+      };
+    }
+
+    if (id === "wave") {
+      return {
+        actualId: `lfo${n}Wave`,
+        values: [
+          "sine",
+          "triangle",
+          "sawUp",
+          "sawDown",
+          "square",
+          "random",
+          "rise",
+          "fall"
+        ]
+      };
+    }
+
+    if (id === "depth") {
+      const parameter =
+        parameterById(`lfo${n}Depth`);
+
+      return {
+        actualId: `lfo${n}Depth`,
+        min: parameter?.min ?? 0,
+        max: parameter?.max ?? 100,
+        step: parameter?.step ?? 1
+      };
+    }
+
+    if (id === "rate") {
+      const syncMode =
+        track.base[`lfo${n}SyncMode`] === "bpm"
+          ? "bpm"
+          : "free";
+
+      return {
+        actualId: `lfo${n}Rate`,
+        min: syncMode === "bpm"
+          ? 0
+          : 1,
+        max: syncMode === "bpm"
+          ? LFO_BPM_RATE_NAMES.length - 1
+          : 100,
+        step: 1
+      };
+    }
+  }
 
   if (id === "lfoTarget") {
     const n = track.lfoSelected === 2 ? 2 : 1;
@@ -4322,15 +4653,7 @@ function createParameterMenuGrid() {
     );
   });
 
-  /* 2段目4列目を境界として、右4枠を子パラ専用にする。 */
-  const spacer =
-    document.createElement("span");
-
-  spacer.className =
-    "parameter-child-spacer";
-
-  grid.appendChild(spacer);
-
+  /* 2段目左4枠=親パラ、右4枠=選択中パラの子パラ。 */
   const children =
     parameterMenuChildItems().slice(0, 4);
 
@@ -4379,7 +4702,7 @@ function createParameterMenuGrid() {
 
     button.innerHTML = `
       <span class="parameter-child-label">${child.label ?? child.id}</span>
-      <span class="parameter-child-value">${parameterMenuChildValue(child)}</span>
+      <span class="parameter-child-value">${parameterMenuChildDisplayHtml(child)}</span>
     `;
 
     /*
@@ -4478,8 +4801,8 @@ function createParameterMenuGrid() {
             );
 
           if (valueElement) {
-            valueElement.textContent =
-              parameterMenuChildValue(
+            valueElement.innerHTML =
+              parameterMenuChildDisplayHtml(
                 child
               );
           }
@@ -4533,6 +4856,49 @@ function createParameterMenuGrid() {
     button.addEventListener(
       "click",
       () => {
+        /*
+         * rateは通常どおり1回目のタップで選択。
+         * 選択中のrateをもう一度タップした時だけ
+         * bpm / freeを切り替える。
+         */
+        if (
+          state.selectedParameterId === "lfo" &&
+          child.id === "rate" &&
+          state.selectedChildId === "rate"
+        ) {
+          const track = editorTrack();
+          const n =
+            track.lfoSelected === 2 ? 2 : 1;
+          const prefix = `lfo${n}`;
+          const currentMode =
+            track.base[`${prefix}SyncMode`] === "bpm"
+              ? "bpm"
+              : "free";
+
+          saveTrackHistory();
+
+          if (currentMode === "bpm") {
+            track.base[`${prefix}Rate`] =
+              bpmIndexToFreeRate(
+                track.base[`${prefix}Rate`]
+              );
+            track.base[`${prefix}SyncMode`] =
+              "free";
+          } else {
+            track.base[`${prefix}Rate`] =
+              freeRateToBpmIndex(
+                track.base[`${prefix}Rate`]
+              );
+            track.base[`${prefix}SyncMode`] =
+              "bpm";
+          }
+
+          renderEditorAndRestore(
+            focusKey
+          );
+          return;
+        }
+
         state.selectedChildId =
           child.id;
 
@@ -12783,12 +13149,11 @@ modeWrap.appendChild(
 function renderEditorUnsafe() {
   editor.innerHTML = "";
 
-  document.body.classList.remove("pin-sound-edit-mode");
-
-  document.body.classList.remove(
-    "pin-placement-mode"
-  );
-
+  /*
+   * LFOも通常のParameter Selector内で編集する。
+   * lfo1 / lfo2を親アイコンとして常時表示し、
+   * target / wave / depth / rateは右4枠へ展開する。
+   */
   renderMenu();
 }
 

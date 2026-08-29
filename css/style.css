@@ -522,7 +522,7 @@ h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02e
     border: 2px solid transparent;
     background: var(--cell);
 
-    font-size: var(--font-small);
+    font-size: calc(var(--font-small) - 2px);
     line-height: 1;
 
     padding: 0 1px;
@@ -2385,27 +2385,21 @@ input.track-volume-slider::-moz-range-thumb {
 
 .lfo-menu-icon {
     position: relative;
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     overflow: visible;
 }
 
+.lfo-menu-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
 .lfo-menu-number {
-    position: absolute;
-    top: -1px;
-    right: -2px;
-
-    min-width: 10px;
-    height: 10px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
     font-size: 10px;
-    font-weight: 600;
     line-height: 1;
 }
+
 
 /* =========================
    Filter editor
@@ -4133,107 +4127,6 @@ input[type="radio"]:focus-visible {
     height: 18px;
 }
 /* =========================
-   Pin
-========================= */
-.pin-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    flex: 0 0 28px;
-    padding: 4px;
-
-    border: 0;
-    background: transparent;
-    color: var(--text);
-}
-
-.pin-button svg {
-    display: block;
-    width: 18px;
-    height: 18px;
-}
-
-.pin-button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-}
-
-.pin-sound-tabs {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-
-    flex: 0 0 auto;
-}
-
-.pin-sound-tabs[hidden] {
-    display: none;
-}
-
-.pin-sound-tab {
-    width: 18px;
-    min-width: 18px;
-    height: 24px;
-
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-
-    font-size: var(--font-small);
-    line-height: 24px;
-    text-align: center;
-}
-
-.pin-sound-tab.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-}
-
-/* Pin編集中はStep Offsetを出さない。 */
-.pin-sound-edit-mode .offset-grid:not(.pin-selector-grid),
-.pin-sound-edit-mode .edit-toolbar .erase-button {
-    display: none;
-}
-
-.pin-placement-toolbar {
-    gap: 8px;
-}
-
-.pin-placement-label {
-    font-size: var(--font-small);
-    color: var(--muted);
-    text-transform: lowercase;
-}
-
-.pin-selector-step {
-    text-transform: lowercase;
-}
-
-.pin-selector-step:not(.base-value-step) {
-    background: color-mix(
-        in srgb,
-        var(--selected-bg) 22%,
-        var(--cell)
-    );
-}
-
-/* =========================
-   Pin mode layout adjustment
-========================= */
-
-/*
- * ・ a b c だけ少しゆったり配置。
- */
-.editor-header-secondary.pin-mode-enabled-row
-.pin-sound-tabs {
-    gap: 10px;
-
-    flex: 0 0 auto;
-}
-
-/* =========================
    NOTE / Chord
 ========================= */
 .child-tabs .chord-inactive,
@@ -5292,18 +5185,13 @@ html {
    Parameter selector / sequence v4
    ========================= */
 
-/* 2段目: 左3枠=親パラ、4列目=境界、右4枠=子パラ。 */
-.parameter-menu .parameter-child-spacer {
-    grid-column: 4;
-    grid-row: 2;
-}
-
+/* 2段目: 左4枠=親パラ、右4枠=選択中パラの子パラ。 */
 .parameter-menu .parameter-child-slot {
     height: 36px;
     min-height: 36px;
     padding: 2px 1px;
     border: 0;
-    background: transparent;
+    background: var(--cell);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -5324,6 +5212,7 @@ html {
 }
 
 .parameter-child-slot.empty {
+    background: transparent;
     pointer-events: none;
 }
 
@@ -5348,7 +5237,7 @@ html {
     max-width: 100%;
     overflow: hidden;
     white-space: nowrap;
-    font-size: var(--font-small);
+    font-size: calc(var(--font-small) - 2px);
     line-height: 1;
 }
 
@@ -5405,3 +5294,73 @@ html {
     color: transparent;
     -webkit-text-fill-color: transparent;
 }
+
+/* =========================
+   LFO base-only step display
+========================= */
+.lfo-base-only-step:disabled {
+    opacity: 1;
+    color: var(--muted);
+    -webkit-text-fill-color: var(--muted);
+    cursor: default;
+}
+
+
+/* =========================
+   Inline LFO visual values
+   ========================= */
+.parameter-child-value:has(.lfo-child-visual) {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+}
+
+.lfo-child-visual {
+    width: 24px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+    -webkit-text-fill-color: currentColor;
+}
+
+.lfo-target-visual svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+.lfo-wave-visual {
+    width: 20px;
+    height: 12px;
+}
+
+.lfo-wave-visual svg {
+    width: 20px;
+    height: 12px;
+    display: block;
+}
+
+.lfo-parent-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lfo-parent-number {
+    position: absolute;
+    right: -5px;
+    bottom: -2px;
+
+    font-size: 8px;
+    line-height: 1;
+    font-weight: 500;
+
+    color: currentColor;
+    pointer-events: none;
+}
+

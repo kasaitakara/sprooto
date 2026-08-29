@@ -4,8 +4,7 @@ import {
   sections,
   song,
   state,
-  clamp,
-  resolveStepSound
+  clamp
 } from "./sequencer.js";
 
 import {
@@ -96,17 +95,9 @@ function flattenTarget(target) {
   }].filter(item => sourceData(item.type, item.index));
 }
 
-function resolvedSoundValue(soundTrack, track, stepIndex, id, min, max) {
-  const usingPin = soundTrack !== track;
-  const offset = usingPin
-    ? 0
-    : Number(track.offsets[id]?.[stepIndex]) || 0;
-
-  return clamp(
-    Number(soundTrack.base[id]) + offset,
-    min,
-    max
-  );
+function resolvedSoundValue(track, stepIndex, id, min, max) {
+  const offset = Number(track.offsets[id]?.[stepIndex]) || 0;
+  return clamp(Number(track.base[id]) + offset, min, max);
 }
 
 function subVelocityScale(crescendo, hitIndex, hitCount) {
@@ -126,23 +117,10 @@ function timingOffsetSeconds(track, stepIndex, bpm) {
   const unitSeconds = quarterSeconds / 64;
   const swingValue = clamp(Number(track.swing) || 0, -8, 8);
 
-  const soundTrack =
-    resolveStepSound(
-      track,
-      stepIndex
-    );
-
-  const usingPin =
-    soundTrack !== track;
-
   const nudgeValue = clamp(
     Math.round(
-      (Number(soundTrack.base.nudge) || 0) +
-      (
-        usingPin
-          ? 0
-          : (Number(track.offsets.nudge?.[stepIndex]) || 0)
-      )
+      (Number(track.base.nudge) || 0) +
+      (Number(track.offsets.nudge?.[stepIndex]) || 0)
     ),
     -4,
     4
@@ -170,12 +148,10 @@ function audibleTracks(source) {
 function estimateTailSafetySeconds(sources, bpm, masterReverbAmount = 0) {
   let required = Number(masterReverbAmount) > 0 ? 2.7 : EXPORT_TAIL_MIN_SECONDS;
 
-  const inspectSound = (sound, track, stepIndex, usingPin = false) => {
+  const inspectSound = (sound, track, stepIndex) => {
     if (!sound?.base) return;
 
-    const offset = id => usingPin
-      ? 0
-      : (Number(track.offsets?.[id]?.[stepIndex]) || 0);
+    const offset = id => Number(track.offsets?.[id]?.[stepIndex]) || 0;
 
     const gateValue = clamp((Number(sound.base.gate) || 5) + offset("gate"), 1, 100);
     const gateNormalized = (gateValue - 1) / 99;
@@ -188,16 +164,8 @@ function estimateTailSafetySeconds(sources, bpm, masterReverbAmount = 0) {
     audibleTracks(source).forEach(track => {
       const length = clamp(Math.round(Number(track.stepLength) || 1), 1, 64);
       for (let stepIndex = 0; stepIndex < length; stepIndex++) {
-        const pinSlot = track.pins?.[stepIndex] ?? null;
-        const hasSound = Boolean(
-          track.steps?.[stepIndex] ||
-          pinSlot === "a" ||
-          pinSlot === "b" ||
-          pinSlot === "c"
-        );
-        if (!hasSound) continue;
-        const sound = resolveStepSound(track, stepIndex);
-        inspectSound(sound, track, stepIndex, sound !== track);
+        if (!track.steps?.[stepIndex]) continue;
+        inspectSound(track, track, stepIndex);
       }
     });
   });
@@ -222,18 +190,8 @@ async function scheduleSource({
 
     for (const track of sourceTracks) {
       const trackStepIndex = tick % clamp(Math.round(Number(track.stepLength) || 1), 1, 64);
-      const pinSlot = track.pins?.[trackStepIndex] ?? null;
-      const hasSound = Boolean(
-        track.steps?.[trackStepIndex] ||
-        pinSlot === "a" ||
-        pinSlot === "b" ||
-        pinSlot === "c"
-      );
-      if (!hasSound) continue;
-
-      const soundTrack = resolveStepSound(track, trackStepIndex);
+      if (!track.steps?.[trackStepIndex]) continue;
       const probability = resolvedSoundValue(
-        soundTrack,
         track,
         trackStepIndex,
         "probability",
@@ -252,7 +210,6 @@ async function scheduleSource({
 
       const patternIndex = Math.round(
         resolvedSoundValue(
-          soundTrack,
           track,
           trackStepIndex,
           "subPattern",
@@ -271,7 +228,6 @@ async function scheduleSource({
       }
 
       const subProbability = resolvedSoundValue(
-        soundTrack,
         track,
         trackStepIndex,
         "subProbability",
@@ -285,7 +241,6 @@ async function scheduleSource({
       }
 
       const crescendo = resolvedSoundValue(
-        soundTrack,
         track,
         trackStepIndex,
         "subCrescendo",

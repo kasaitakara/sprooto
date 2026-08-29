@@ -120,23 +120,6 @@ export function resolveChordNoteOffsets(
   .sort((a, b) => a - b);
 }
 
-function makePinSound(slot) {
-  const sound = createDefaultSound();
-
-  return {
-    ...sound,
-    soundName: `pin ${slot}`
-  };
-}
-
-function makePinSounds() {
-  return {
-    a: makePinSound("a"),
-    b: makePinSound("b"),
-    c: makePinSound("c")
-  };
-}
-
 function makeTrack(id) {
   const sound =
     createDefaultSound();
@@ -157,11 +140,6 @@ function makeTrack(id) {
      */
     soundName: `sound ${String(id).padStart(2, "0")}`,
 
-    /* StepごとのPin Sound指定。nullはMain。 */
-    pins: filled(null),
-
-    /* Track内で共有する3つの独立Pin Sound。 */
-    pinSounds: makePinSounds(),
 
     envelopeSelectedId:
     sound.envelopeSelectedId,
@@ -769,22 +747,6 @@ export const state =
 
 
 
-export function resolveStepSound(
-  track,
-  stepIndex
-) {
-  const slot =
-    track?.pins?.[stepIndex];
-
-  if (
-    (slot === "a" || slot === "b" || slot === "c") &&
-    track?.pinSounds?.[slot]
-  ) {
-    return track.pinSounds[slot];
-  }
-
-  return track;
-}
 
 function sourceData(
   type,
@@ -2406,18 +2368,6 @@ export function sourceHasData(
         return true;
       }
 
-      if (track.pins?.some(Boolean)) {
-        return true;
-      }
-
-      const pinSoundChanged = ["a", "b", "c"].some(slot => {
-        return JSON.stringify(track.pinSounds?.[slot]) !==
-          JSON.stringify(initial.pinSounds?.[slot]);
-      });
-
-      if (pinSoundChanged) {
-        return true;
-      }
 
       return false;
     }
@@ -2883,37 +2833,10 @@ track.base.strum =
     8
   );
 
-  /* legacy pinEnabled is intentionally ignored. Pin placement is always active. */
+  /* Remove legacy Pin data when opening older projects. */
   delete track.pinEnabled;
-
-  if (!Array.isArray(track.pins)) {
-    track.pins = filled(null);
-  } else {
-    track.pins = Array.from(
-      { length: STEP_COUNT },
-      (_, index) => {
-        const value = track.pins[index];
-        return value === "a" || value === "b" || value === "c"
-          ? value
-          : null;
-      }
-    );
-  }
-
-  track.pinSounds ??= {};
-
-  ["a", "b", "c"].forEach(slot => {
-    const source = track.pinSounds[slot];
-    const normalized = normalizeSound(source);
-
-    track.pinSounds[slot] = {
-      ...normalized,
-      soundName:
-        typeof source?.soundName === "string" && source.soundName.trim()
-          ? source.soundName
-          : `pin ${slot}`
-    };
-  });
+  delete track.pins;
+  delete track.pinSounds;
 
 track.base.fmFeedback =
   clamp(
@@ -3669,19 +3592,13 @@ export function clearSelectedTrackSequence() {
   const hasActiveStep =
     track.steps.some(Boolean);
 
-  const hasPin =
-    track.pins?.some(Boolean);
-
-  if (!hasActiveStep && !hasPin) {
+  if (!hasActiveStep) {
     return false;
   }
 
   saveTrackHistory();
   track.steps.fill(false);
 
-  if (Array.isArray(track.pins)) {
-    track.pins.fill(null);
-  }
 
   return true;
 }

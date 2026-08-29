@@ -114,69 +114,8 @@ const songEditorViewToggle =
   let mixerView = false;
 let songEditorView = false;
 
-/*
- * Pin edit state. null = Main, a/b/c = selected Pin sound.
- * Pin placement itself is always active; there is no Pin ON/OFF mode.
- */
-let pinPlacementMode = false; // legacy reset target; dedicated placement screen is no longer used.
-let pinEditSlot = null;
-
-const PIN_SOUND_KEYS = new Set([
-  "base",
-  "offsets",
-  "envelopeSelectedId",
-  "articulationSelectedId",
-  "lfoSelected",
-  "soundName"
-]);
-
-function currentPinSound(track = mainSelectedTrack()) {
-  if (!pinEditSlot) {
-    return null;
-  }
-
-  return track?.pinSounds?.[pinEditSlot] ?? null;
-}
-
 function editorTrack() {
-  const track = mainSelectedTrack();
-  const pinSound = currentPinSound(track);
-
-  if (!pinSound) {
-    return track;
-  }
-
-  return new Proxy(track, {
-    get(target, property) {
-      if (PIN_SOUND_KEYS.has(property)) {
-        return pinSound[property];
-      }
-
-      return target[property];
-    },
-
-    set(target, property, value) {
-      if (PIN_SOUND_KEYS.has(property)) {
-        pinSound[property] = value;
-        return true;
-      }
-
-      target[property] = value;
-      return true;
-    }
-  });
-}
-
-function setPinEditSlot(slot) {
-  pinEditSlot =
-    slot === "a" || slot === "b" || slot === "c"
-      ? slot
-      : null;
-
-  document.body.classList.toggle(
-    "pin-sound-edit-mode",
-    Boolean(pinEditSlot)
-  );
+  return mainSelectedTrack();
 }
 
 const patternGrid =
@@ -671,21 +610,6 @@ strum: `
         <path d="M20 5v14"></path>
       </svg>
     `,
-
-    pin: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <circle cx="12" cy="6" r="3"></circle>
-    <path d="M12 9V21"></path>
-  </svg>
-`,
 
     probability: `
       <svg
@@ -1534,8 +1458,6 @@ function captureClipboard() {
             stepIndex - minStep,
           stepOn:
             Boolean(track.steps[stepIndex]),
-          pin:
-            track.pins?.[stepIndex] ?? null,
           offsets:
             Object.fromEntries(
               Object.entries(track.offsets)
@@ -1568,9 +1490,6 @@ function deleteSelectedSequenceCells({ save = true } = {}) {
 
     track.steps[stepIndex] = false;
 
-    if (Array.isArray(track.pins)) {
-      track.pins[stepIndex] = null;
-    }
 
     Object.values(track.offsets)
       .forEach(values => {
@@ -1624,12 +1543,6 @@ function pasteClipboardAt(targetStepIndex) {
     track.steps[stepIndex] =
       cell.stepOn;
 
-    if (Array.isArray(track.pins)) {
-      track.pins[stepIndex] =
-        cell.pin === "a" || cell.pin === "b" || cell.pin === "c"
-          ? cell.pin
-          : null;
-    }
 
     Object.entries(cell.offsets)
       .forEach(([id, value]) => {
@@ -2462,8 +2375,7 @@ if (sourceDisplay) {
 
 function currentSequenceOffsetParameter() {
   if (
-    !state.selectedParameterId ||
-    pinEditSlot
+    !state.selectedParameterId
   ) {
     return null;
   }
@@ -2574,284 +2486,11 @@ function currentSequenceOffsetParameter() {
   return null;
 }
 
-function renderPinSequenceGrid() {
-  const grid = document.createElement("div");
-  grid.className = "offset-grid pin-sequence-grid";
-
-  const track = mainSelectedTrack();
-  if (!track) return grid;
-
-  const firstStepIndex =
-    state.sequencePage * PAGE_STEP_COUNT;
-
-  const lastStepIndex = Math.min(
-    firstStepIndex + PAGE_STEP_COUNT,
-    track.stepLength
-  );
-
-  for (
-    let stepIndex = firstStepIndex;
-    stepIndex < lastStepIndex;
-    stepIndex++
-  ) {
-    const button =
-      document.createElement("button");
-
-    button.type = "button";
-    button.className =
-      "offset-step pin-sequence-step";
-
-    button.dataset.stepIndex =
-      String(stepIndex);
-
-    const renderCell = () => {
-      const slot =
-        track.pins?.[stepIndex] ?? null;
-
-      const sound =
-        slot
-          ? track.pinSounds?.[slot]
-          : null;
-
-      const baseGain =
-  clamp(
-    Number(
-      sound?.base
-        ?.sineVolume
-    ) || 0,
-    0,
-    100
-  );
-
-const gainOffset =
-  Number(
-    sound?.offsets
-      ?.sineVolume?.[
-        stepIndex
-      ]
-  ) || 0;
-
-const stepGain =
-  clamp(
-    baseGain +
-      gainOffset,
-    0,
-    100
-  );
-
-      button.classList.toggle(
-        "note-on",
-        Boolean(
-          track.steps[stepIndex] ||
-          slot
-        )
-      );
-
-      if (!slot) {
-        button.textContent = "";
-        return;
-      }
-
-      button.innerHTML = `
-        <span
-          class="pin-step-slot"
-          style="display:block;line-height:1.05"
-        >${slot}</span>
-        <span
-          class="pin-step-gain"
-          style="display:block;line-height:1.05"
-        >${stepGain}</span>
-      `;
-    };
-
-    renderCell();
-
-    if (
-      state.playbackTickIndex !==
-        null &&
-      stepIndex ===
-        state.playbackTickIndex %
-          track.stepLength
-    ) {
-      button.classList.add(
-        "playing"
-      );
-    }
-
-    let sweepHistorySaved =
-      false;
-
-    enableVerticalSweep({
-      element: button,
-
-      getValue: () => {
-  const slot =
-    track.pins?.[
-      stepIndex
-    ];
-
-  const sound =
-    slot
-      ? track.pinSounds?.[
-          slot
-        ]
-      : null;
-
-  if (!sound) {
-    return 0;
-  }
-
-  const baseGain =
-    clamp(
-      Number(
-        sound.base
-          ?.sineVolume
-      ) || 0,
-      0,
-      100
-    );
-
-  const gainOffset =
-    Number(
-      sound.offsets
-        ?.sineVolume?.[
-          stepIndex
-        ]
-    ) || 0;
-
-  return clamp(
-    baseGain +
-      gainOffset,
-    0,
-    100
-  );
-},
-
-      setValue: nextGain => {
-        const slot =
-          track.pins?.[
-            stepIndex
-          ];
-
-        const sound =
-          slot
-            ? track.pinSounds?.[
-                slot
-              ]
-            : null;
-
-        const values =
-          sound?.offsets
-            ?.sineVolume;
-
-        if (
-          !slot ||
-          !Array.isArray(values)
-        ) {
-          return;
-        }
-
-        if (
-          !sweepHistorySaved
-        ) {
-          saveTrackHistory();
-          sweepHistorySaved =
-            true;
-        }
-
-        const baseGain =
-  clamp(
-    Number(
-      sound.base
-        ?.sineVolume
-    ) || 0,
-    0,
-    100
-  );
-
-const effectiveGain =
-  Math.round(
-    clamp(
-      Number(nextGain) || 0,
-      0,
-      100
-    )
-  );
-
-/*
- * Pin stepには実効gainではなく、
- * Pin BASE gainとの差分を保存する。
- */
-values[stepIndex] =
-  effectiveGain -
-  baseGain;
-
-renderCell();
-      },
-
-      min: 0,
-      max: 100,
-      step: 1,
-
-      onCommit: () => {
-        sweepHistorySaved =
-          false;
-      }
-    });
-
-    button.addEventListener(
-      "click",
-      () => {
-        if (!pinEditSlot) {
-          return;
-        }
-
-        saveTrackHistory();
-
-        const current =
-          track.pins?.[
-            stepIndex
-          ] ?? null;
-
-        const next =
-          current ===
-            pinEditSlot
-            ? null
-            : pinEditSlot;
-
-        track.pins[
-          stepIndex
-        ] = next;
-
-        renderCell();
-      }
-    );
-
-    grid.appendChild(
-      button
-    );
-  }
-
-  return grid;
-}
-
 export function renderSequence() {
   sequenceGrid.innerHTML = "";
   renderEditActionToolbar();
 
   syncPatternLength();
-
-  if (pinEditSlot) {
-    sequenceGrid.classList.add("sequence-offset-view", "sequence-pin-view");
-    const pinGrid = renderPinSequenceGrid();
-    sequenceGrid.append(...Array.from(pinGrid.children));
-
-    const trackLength = mainSelectedTrack()?.stepLength ?? getMaxTrackLength();
-    patternLengthInput.value = getMaxTrackLength();
-    sequencePageButton.hidden = trackLength <= PAGE_STEP_COUNT;
-    sequencePageButton.textContent = state.sequencePage === 0 ? "◧" : "◨";
-    return;
-  }
 
   sequenceGrid.classList.remove("sequence-pin-view");
 
@@ -3323,10 +2962,6 @@ if (parameter.id === "holdDecay") {
   }
 
   if (parameter.id === "glide") {
-    if (pinEditSlot) {
-      return "-";
-    }
-
     const amount = Math.round(Number(value) || 0);
     return amount === 0 ? "off" : String(amount);
   }
@@ -3511,8 +3146,7 @@ function parameterButton(menuItem) {
  * 親パラアイコンの上下スイープ。
  */
 if (
-  parentSweepParameter &&
-  !(pinEditSlot && parentSweepParameter.id === "glide")
+  parentSweepParameter
 ) {
   let parentSweepHistorySaved =
     false;
@@ -4592,9 +4226,6 @@ function parameterMenuChildSweepDefinition(child) {
   const track = editorTrack();
   const id = child.id;
 
-  if (pinEditSlot && id === "glide") {
-    return null;
-  }
 
   if (id === "lfoTarget") {
     const n = track.lfoSelected === 2 ? 2 : 1;
@@ -5098,67 +4729,6 @@ topRow.appendChild(
     openSoundPresetModal
   );
 
-  const pinButton =
-    document.createElement("button");
-
-  pinButton.type = "button";
-  pinButton.className = "mini-button pin-button";
-  pinButton.dataset.focusKey = "menu-pin";
-  pinButton.innerHTML = getParameterIcon("pin");
-  pinButton.classList.toggle(
-    "active",
-    Boolean(pinEditSlot)
-  );
-  pinButton.setAttribute(
-    "aria-label",
-    pinEditSlot
-      ? `pin ${pinEditSlot} editing; return to main`
-      : "edit pin sounds"
-  );
-
-  pinButton.addEventListener("click", () => {
-    clearOffsetSelectionMode();
-
-    setPinEditSlot(
-      pinEditSlot ? null : "a"
-    );
-
-    renderSequence();
-    renderEditorAndRestore("menu-pin");
-  });
-
-  const pinTabs =
-    document.createElement("div");
-
-  pinTabs.className = "pin-sound-tabs";
-  pinTabs.hidden = !pinEditSlot;
-
-  ["a", "b", "c"].forEach(slot => {
-    const button =
-      document.createElement("button");
-
-    button.type = "button";
-    button.textContent = slot;
-    button.className = "pin-sound-tab";
-    button.classList.toggle(
-      "active",
-      pinEditSlot === slot
-    );
-    button.setAttribute(
-      "aria-label",
-      `pin ${slot}`
-    );
-
-    button.addEventListener("click", () => {
-      setPinEditSlot(slot);
-      clearOffsetSelectionMode();
-      renderSequence();
-      renderEditor();
-    });
-
-    pinTabs.appendChild(button);
-  });
-
   const swingControl =
     createCompactValue({
       label: "sw",
@@ -5183,8 +4753,6 @@ topRow.appendChild(
 
   bottomRow.append(
     soundName,
-    pinTabs,
-    pinButton,
     swingControl,
     trackLengthControl
   );
@@ -11733,16 +11301,6 @@ projectButton?.addEventListener(
 window.addEventListener(
   "projectchange",
   () => {
-    /*
-     * Project切替時は、Projectデータ外にある
-     * Pin編集UIの一時状態をMain Soundへ戻す。
-     *
-     * pinEditSlot / pinPlacementModeを持ち越すと、
-     * 新しいProjectでPreset適用先が意図せず
-     * Pin Soundになる可能性がある。
-     */
-    pinPlacementMode = false;
-    setPinEditSlot(null);
 
     /*
      * Project切替中にSound Preset画面が残っていた場合、
@@ -13222,100 +12780,10 @@ modeWrap.appendChild(
   closeButton.focus();
 }
 
-function renderPinPlacementScreen() {
-  const track = mainSelectedTrack();
-
-  const header = document.createElement("div");
-  header.className = "edit-toolbar pin-placement-toolbar";
-
-  const trackButton = document.createElement("button");
-  trackButton.type = "button";
-  trackButton.className = "track-cycle";
-  trackButton.innerHTML = `
-    <span class="track-icon">${getParameterIcon("track")}</span>
-    <span class="track-number">${track.id}</span>
-  `;
-
-  trackButton.addEventListener("click", () => {
-    state.selectedTrackIndex =
-      (state.selectedTrackIndex + 1) % tracks.length;
-    renderSequence();
-    renderEditor();
-  });
-
-  const pinBack = document.createElement("button");
-  pinBack.type = "button";
-  pinBack.className = "edit-icon pin-button active";
-  pinBack.innerHTML = getParameterIcon("pin");
-  pinBack.setAttribute("aria-label", "pin selector close");
-  pinBack.addEventListener("click", () => {
-    pinPlacementMode = false;
-    renderEditor();
-  });
-
-  const label = document.createElement("span");
-  label.className = "pin-placement-label";
-  label.textContent = "pin";
-
-  header.append(trackButton, pinBack, label);
-
-  const grid = document.createElement("div");
-  grid.className = "offset-grid pin-selector-grid";
-
-  const firstStepIndex = state.sequencePage * PAGE_STEP_COUNT;
-  const lastStepIndex = Math.min(
-    firstStepIndex + PAGE_STEP_COUNT,
-    track.stepLength
-  );
-
-  const values = [null, "a", "b", "c"];
-
-  for (let stepIndex = firstStepIndex; stepIndex < lastStepIndex; stepIndex++) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "offset-step pin-selector-step";
-    button.dataset.stepIndex = String(stepIndex);
-
-    const value = track.pins?.[stepIndex] ?? null;
-    button.textContent = value ?? "・";
-    button.classList.toggle("base-value-step", value === null);
-
-    if (track.steps[stepIndex]) {
-      button.classList.add("note-on");
-    }
-
-    if (
-      state.playbackTickIndex !== null &&
-      stepIndex === state.playbackTickIndex % track.stepLength
-    ) {
-      button.classList.add("playing");
-    }
-
-    button.addEventListener("click", () => {
-      saveTrackHistory();
-
-      const current = track.pins?.[stepIndex] ?? null;
-      const currentIndex = values.indexOf(current);
-      const next = values[(currentIndex + 1) % values.length];
-
-      track.pins[stepIndex] = next;
-      button.textContent = next ?? "・";
-      button.classList.toggle("base-value-step", next === null);
-    });
-
-    grid.appendChild(button);
-  }
-
-  editor.append(header, grid);
-}
-
 function renderEditorUnsafe() {
   editor.innerHTML = "";
 
-  document.body.classList.toggle(
-    "pin-sound-edit-mode",
-    Boolean(pinEditSlot)
-  );
+  document.body.classList.remove("pin-sound-edit-mode");
 
   document.body.classList.remove(
     "pin-placement-mode"

@@ -1,4 +1,4 @@
-import { clamp, resolveStepSound, resolveChordNoteOffsets, CHORD_NAMES } from "./sequencer.js";
+import { clamp, resolveChordNoteOffsets, CHORD_NAMES } from "./sequencer.js";
 
 
 let context;
@@ -1352,16 +1352,7 @@ export async function playTrackStep(
 
   await initializeAudio();
 
-  /*
-   * Pin指定があるStepだけ、Sound一式をPinへ完全置換する。
-   * Main Trackのstep/length/mute等はそのまま使い、
-   * 音色データだけを差し替える。
-   */
-  const soundTrack =
-    resolveStepSound(
-      track,
-      stepIndex
-    );
+  const soundTrack = track;
 
   /*
  * Oscillator、Envelope、FM変調を
@@ -1395,25 +1386,8 @@ const now =
       document.getElementById("bpm-input")?.value
     ) || 120;
 
-  const usingPin =
-    soundTrack !== track;
-
-  const offset = id => {
-    /*
-     * Main Sound: existing per-step offsets.
-     * Pin Sound : only OSC gain (sineVolume) has a per-step offset.
-     */
-    if (usingPin) {
-      return id === "sineVolume"
-        ? (soundTrack.offsets?.sineVolume?.[stepIndex] ?? 0)
-        : 0;
-    }
-
-    return (
-      track.offsets[id]?.[stepIndex] ??
-      0
-    );
-  };
+  const offset = id =>
+    track.offsets[id]?.[stepIndex] ?? 0;
 
   const note =
     60 +
@@ -1458,16 +1432,14 @@ const now =
   /* =========================
    * Articulation
    * ========================= */
-  const glideValue = usingPin
-    ? 0
-    : clamp(
-        Math.round(
-          (soundTrack.base.glide ?? 0) +
-          offset("glide")
-        ),
-        0,
-        8
-      );
+  const glideValue = clamp(
+    Math.round(
+      (soundTrack.base.glide ?? 0) +
+      offset("glide")
+    ),
+    0,
+    8
+  );
 
   const strumValue = clamp(
   Math.round(
@@ -1509,13 +1481,7 @@ const now =
         strumGapSeconds
       : 0;
 
-  const pinSlot = usingPin
-    ? track?.pins?.[stepIndex]
-    : null;
-
-  const voiceStreamKey = usingPin
-    ? `${track.id}:pin:${pinSlot}`
-    : `${track.id}:main`;
+  const voiceStreamKey = track.id;
 
   const previousVoice =
     activeTrackVoices.get(voiceStreamKey);
@@ -1819,26 +1785,8 @@ const envelopeDuration =
 
   const sineVolume =
   clamp(
-    usingPin
-      ? (
-          soundTrack.offsets
-            ?.sineVolume?.[
-              stepIndex
-            ] ??
-          soundTrack.base
-            .sineVolume ??
-          100
-        )
-      : (
-          (
-            soundTrack.base
-              .sineVolume ??
-            100
-          ) +
-          offset(
-            "sineVolume"
-          )
-        ),
+    (soundTrack.base.sineVolume ?? 100) +
+      offset("sineVolume"),
     0,
     100
   ) / 100;

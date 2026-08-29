@@ -9,8 +9,7 @@ import {
   canRedo,
   beginSelectedPlayback,
 advancePlaybackSource,
-clearQueuedSource,
-resolveStepSound
+clearQueuedSource
 } from "./sequencer.js";
 
 import {
@@ -248,17 +247,9 @@ const SUB_PATTERNS = Object.freeze([
   { divisions: 6, hits: [0, 1, 2, 3, 4, 5] }
 ]);
 
-function resolvedSoundValue(soundTrack, track, stepIndex, id, min, max) {
-  const usingPin = soundTrack !== track;
-  const offset = usingPin
-    ? 0
-    : Number(track.offsets[id]?.[stepIndex]) || 0;
-
-  return clamp(
-    Number(soundTrack.base[id]) + offset,
-    min,
-    max
-  );
+function resolvedSoundValue(track, stepIndex, id, min, max) {
+  const offset = Number(track.offsets[id]?.[stepIndex]) || 0;
+  return clamp(Number(track.base[id]) + offset, min, max);
 }
 
 function subVelocityScale(crescendo, hitIndex, hitCount) {
@@ -278,13 +269,11 @@ function subVelocityScale(crescendo, hitIndex, hitCount) {
 
 function scheduleSubStep(
   track,
-  soundTrack,
   stepIndex,
   baseDelaySeconds
 ) {
   const patternIndex = Math.round(
     resolvedSoundValue(
-      soundTrack,
       track,
       stepIndex,
       "subPattern",
@@ -321,7 +310,6 @@ function scheduleSubStep(
 
   const subProbability =
     resolvedSoundValue(
-      soundTrack,
       track,
       stepIndex,
       "subProbability",
@@ -331,7 +319,6 @@ function scheduleSubStep(
 
   const crescendo =
     resolvedSoundValue(
-      soundTrack,
       track,
       stepIndex,
       "subCrescendo",
@@ -433,34 +420,11 @@ function swingDelaySeconds(track, stepIndex) {
   const isOffbeat =
     stepIndex % 2 === 1;
 
-  const soundTrack =
-    resolveStepSound(
-      track,
-      stepIndex
-    );
-
-  const usingPin =
-    soundTrack !== track;
-
   const nudgeValue =
     clamp(
       Math.round(
-        (
-          Number(
-            soundTrack.base.nudge
-          ) || 0
-        ) +
-        (
-          usingPin
-            ? 0
-            : (
-                Number(
-                  track.offsets.nudge?.[
-                    stepIndex
-                  ]
-                ) || 0
-              )
-        )
+        (Number(track.base.nudge) || 0) +
+        (Number(track.offsets.nudge?.[stepIndex]) || 0)
       ),
       -4,
       4
@@ -503,34 +467,15 @@ function playStepAtTick(
       playbackTickIndex %
       track.stepLength;
 
-    const pinSlot =
-      track.pins?.[trackStepIndex] ??
-      null;
-
-    const hasSound =
-      Boolean(
-        track.steps[trackStepIndex] ||
-        pinSlot === "a" ||
-        pinSlot === "b" ||
-        pinSlot === "c"
-      );
-
     if (
       !audible(track) ||
-      !hasSound
+      !track.steps[trackStepIndex]
     ) {
       return;
     }
 
-    const soundTrack =
-      resolveStepSound(
-        track,
-        trackStepIndex
-      );
-
     const probability =
       resolvedSoundValue(
-        soundTrack,
         track,
         trackStepIndex,
         "probability",
@@ -544,7 +489,6 @@ function playStepAtTick(
     ) {
       scheduleSubStep(
         track,
-        soundTrack,
         trackStepIndex,
         scheduleDelaySeconds +
           swingDelaySeconds(

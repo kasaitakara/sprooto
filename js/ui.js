@@ -6622,6 +6622,19 @@ function renderOffsetGrid(parameter) {
         if (!sweepHistorySaved) {
           saveTrackHistory();
           sweepHistorySaved = true;
+
+          /*
+           * OFF stepでOffsetの縦スイープを始めた場合は、
+           * 「値を編集する = 発音させたい」とみなし、
+           * 同じ操作の中でstepもONにする。
+           *
+           * UndoはOffset変更とまとめて1回分。
+           */
+          if (!track.steps[stepIndex]) {
+            track.steps[stepIndex] = true;
+            button.classList.add("note-on");
+            button.classList.remove("inactive-step-value");
+          }
         }
 
         track.offsets[

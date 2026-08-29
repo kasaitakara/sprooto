@@ -42,6 +42,8 @@ import {
   selectEditingSection,
   currentEditingSection,
   currentEditingSectionLabel,
+  clearSelectedTrackSequence,
+  clearSelectedParameterOffsets,
 } from "./sequencer.js";
 
 
@@ -443,6 +445,22 @@ function getParameterIcon(iconId) {
         <path d="M8 8l-4 4 4 4"></path>
         <path d="M16 8l4 4-4 4"></path>
         <circle cx="12" cy="12" r="2"></circle>
+      </svg>
+    `,
+
+    erase: `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M3 17l8.5-10.5a2 2 0 0 1 3-.2l3.2 3.2a2 2 0 0 1 .1 2.7L10 21H5z"></path>
+        <path d="M8.5 20.5l-4-4"></path>
+        <path d="M13 18h8"></path>
       </svg>
     `,
 
@@ -7451,7 +7469,6 @@ function renderOscEdit() {
   header.append(
     trackButton,
     gainLabel,
-    offsetEraseButton,
     editValueControl(oscParameter, activeId)
   );
 
@@ -7574,7 +7591,1083 @@ header.append(
   parameterLabel
 );
 
-te.index = index;
+  header.appendChild(
+    editValueControl(
+      activeParameter,
+      activeId
+    )
+  );
+
+  editor.appendChild(
+    header
+  );
+
+  editor.appendChild(
+    renderOffsetGrid(
+      activeParameter
+    )
+  );
+}
+
+function renderFilterEdit() {
+  const track = editorTrack();
+
+  const filterChildren = [
+    {
+      id: "filterCutoff",
+      label: "cutoff"
+    },
+    {
+      id: "filterResonance",
+      label: "reso"
+    }
+  ];
+
+  const activeId =
+    filterChildren.some(
+      child =>
+        child.id ===
+        state.selectedChildId
+    )
+      ? state.selectedChildId
+      : "filterCutoff";
+
+  state.selectedChildId = activeId;
+
+  const activeParameter =
+    parameterById(activeId);
+
+  const header =
+    document.createElement("div");
+
+  header.className =
+    "edit-toolbar filter-edit-toolbar";
+
+  const trackButton =
+    document.createElement("button");
+
+  trackButton.type = "button";
+  trackButton.className =
+    "track-cycle";
+  trackButton.dataset.focusKey =
+    "edit-track";
+
+  trackButton.innerHTML = `
+    <span class="track-icon">
+      ${getParameterIcon("track")}
+    </span>
+    <span class="track-number">
+      ${track.id}
+    </span>
+  `;
+
+  trackButton.addEventListener(
+    "click",
+    () => {
+      state.selectedTrackIndex =
+        (
+          state.selectedTrackIndex +
+          1
+        ) % tracks.length;
+
+      renderSequence();
+      renderEditorAndRestore(
+        "edit-track"
+      );
+    }
+  );
+
+  const parentButton =
+    document.createElement("button");
+
+  parentButton.type = "button";
+  parentButton.className =
+    "edit-icon filter-parent-icon";
+  parentButton.dataset.focusKey =
+    "edit-parameter-filterCutoff";
+  parentButton.innerHTML =
+    getParameterIcon("tone");
+  parentButton.setAttribute(
+    "aria-label",
+    "フィルター編集を閉じる"
+  );
+
+  parentButton.addEventListener(
+    "click",
+    () => {
+      clearOffsetSelectionMode();
+
+      state.selectedParameterId = null;
+
+      renderEditorAndRestore(
+        "parameter-filterCutoff"
+      );
+    }
+  );
+
+  const controls =
+    document.createElement("div");
+
+  controls.className =
+    "filter-child-controls";
+
+  filterChildren.forEach(
+    definition => {
+      const button =
+        document.createElement(
+          "button"
+        );
+
+      button.type = "button";
+      button.className =
+        "filter-child-button";
+      button.dataset.focusKey =
+        `child-${definition.id}`;
+      button.textContent =
+        definition.label;
+
+      if (
+        definition.id === activeId
+      ) {
+        button.classList.add(
+          "active"
+        );
+      }
+
+      button.addEventListener(
+        "click",
+        () => {
+          state.selectedChildId =
+            definition.id;
+
+          renderEditorAndRestore(
+            `base-value-${definition.id}`
+          );
+        }
+      );
+
+      controls.appendChild(button);
+    }
+  );
+
+  header.append(
+    trackButton,
+    controls
+  );
+
+  header.appendChild(
+    editValueControl(
+      activeParameter,
+      activeId
+    )
+  );
+
+  editor.appendChild(header);
+  editor.appendChild(
+    renderOffsetGrid(
+      activeParameter
+    )
+  );
+}
+
+function renderLfoEdit() {
+  const track = editorTrack();
+  const activeLfo = track.lfoSelected === 2 ? 2 : 1;
+  const activeView =
+    state.selectedChildId === "depth" ||
+    state.selectedChildId === "rate"
+      ? state.selectedChildId
+      : "settings";
+
+  state.selectedChildId = activeView;
+
+  const prefix = `lfo${activeLfo}`;
+  const parameterKeys = {
+    target: `${prefix}Target`,
+    wave: `${prefix}Wave`,
+    depth: `${prefix}Depth`,
+    rate: `${prefix}Rate`,
+    syncMode: `${prefix}SyncMode`
+  };
+
+  const header = document.createElement("div");
+  header.className = "edit-toolbar lfo-edit-toolbar";
+
+  const trackButton = document.createElement("button");
+  trackButton.type = "button";
+  trackButton.className = "track-cycle";
+  trackButton.dataset.focusKey = "edit-track";
+  trackButton.innerHTML = `
+    <span class="track-icon">${getParameterIcon("track")}</span>
+    <span class="track-number">${track.id}</span>
+  `;
+  trackButton.addEventListener("click", () => {
+    state.selectedTrackIndex =
+      (state.selectedTrackIndex + 1) % tracks.length;
+    renderSequence();
+    renderEditorAndRestore("edit-track");
+  });
+
+  const parentButton = document.createElement("button");
+  parentButton.type = "button";
+  parentButton.className = "edit-icon lfo-parent-icon";
+  parentButton.dataset.focusKey = "edit-parameter-lfo";
+  parentButton.innerHTML = getParameterIcon("lfo");
+  parentButton.setAttribute("aria-label", "LFO編集を閉じる");
+  parentButton.addEventListener("click", () => {
+    clearOffsetSelectionMode();
+
+    state.selectedParameterId = null;
+
+    renderEditorAndRestore("parameter-lfo");
+  });
+
+  header.append(trackButton);
+
+  [1, 2].forEach(lfoNumber => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lfo-switch-button";
+    button.dataset.focusKey = `lfo-switch-${lfoNumber}`;
+    button.textContent = String(lfoNumber);
+    button.setAttribute("aria-label", `lfo ${lfoNumber}を選択`);
+    if (activeLfo === lfoNumber) button.classList.add("active");
+    button.addEventListener("click", () => {
+      track.lfoSelected = lfoNumber;
+      state.selectedChildId = "settings";
+      renderEditorAndRestore(`lfo-switch-${lfoNumber}`);
+    });
+    header.appendChild(button);
+  });
+
+  ["depth", "rate"].forEach(id => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lfo-parameter-button";
+    button.dataset.focusKey = `lfo-parameter-${id}`;
+    button.textContent = id;
+    button.setAttribute("aria-label", `lfo ${activeLfo} ${id}`);
+    if (activeView === id) button.classList.add("active");
+    button.addEventListener("click", () => {
+      state.selectedChildId = id;
+      renderEditorAndRestore(`lfo-parameter-${id}`);
+    });
+    header.appendChild(button);
+  });
+
+  const syncMode =
+    track.base[parameterKeys.syncMode] === "bpm"
+      ? "bpm"
+      : "free";
+
+  /*
+   * bpm / freeはRateの単位と動作だけに関係するため、
+   * Rate編集時だけ表示する。
+   */
+  if (activeView === "rate") {
+    const syncButton =
+      document.createElement("button");
+
+    syncButton.type = "button";
+    syncButton.className =
+      "lfo-sync-button";
+
+    syncButton.dataset.focusKey =
+      "lfo-sync-mode";
+
+    syncButton.textContent =
+      syncMode;
+
+    syncButton.setAttribute(
+      "aria-label",
+      `lfo ${activeLfo} rate ${syncMode}`
+    );
+
+    syncButton.addEventListener(
+  "click",
+  () => {
+    saveTrackHistory();
+
+    const rateId =
+      parameterKeys.rate;
+
+    if (syncMode === "bpm") {
+      /*
+       * BPM → FREE
+       * 現在の音価に近いHzへ変換する。
+       */
+      track.base[rateId] =
+        bpmIndexToFreeRate(
+          track.base[rateId]
+        );
+
+      track.base[
+        parameterKeys.syncMode
+      ] = "free";
+    } else {
+      /*
+       * FREE → BPM
+       * 現在のHzに最も近い音価へ変換する。
+       */
+      track.base[rateId] =
+        freeRateToBpmIndex(
+          track.base[rateId]
+        );
+
+      track.base[
+        parameterKeys.syncMode
+      ] = "bpm";
+    }
+
+    renderEditorAndRestore(
+      "lfo-sync-mode"
+    );
+  }
+);
+
+    header.appendChild(
+      syncButton
+    );
+  }
+
+  if (activeView === "depth" || activeView === "rate") {
+    const activeBaseId = parameterKeys[activeView];
+    const sourceParameter =
+  parameterById(
+    activeBaseId
+  );
+
+const activeParameter =
+  activeView === "rate" &&
+  syncMode === "bpm"
+    ? {
+        ...sourceParameter,
+        min: 0,
+        max:
+          LFO_BPM_RATE_NAMES.length -
+          1,
+        step: 1
+      }
+    : sourceParameter;
+
+    const baseValue = document.createElement("button");
+    baseValue.type = "button";
+    baseValue.className = "base-value lfo-base-value";
+    baseValue.dataset.focusKey = "lfo-base-value";
+
+    const rateName = value => {
+  const index =
+    clamp(
+      Math.round(
+        Number(value) || 0
+      ),
+      0,
+      LFO_BPM_RATE_NAMES.length - 1
+    );
+
+  return (
+    LFO_BPM_RATE_NAMES[index] ??
+    "1/4"
+  );
+};
+    const updateBaseValue = () => {
+      const value = track.base[activeBaseId];
+      baseValue.textContent =
+        activeView === "rate" && syncMode === "bpm"
+          ? rateName(value)
+          : activeView === "rate"
+            ? `${(Number(value) / 10).toFixed(1)}`
+            : String(value);
+    };
+    updateBaseValue();
+    /*
+ * LFO Depth / Rate
+ * キーボード編集。
+ *
+ * Enter：編集開始／確定
+ * 矢印：値変更
+ * Escape：キャンセル
+ */
+let keyboardEditing = false;
+let keyboardStartValue =
+  Number(
+    track.base[activeBaseId]
+  );
+
+let keyboardValue =
+  keyboardStartValue;
+
+function displayKeyboardValue() {
+  baseValue.textContent =
+    activeView === "rate" &&
+    syncMode === "bpm"
+      ? rateName(
+          keyboardValue
+        )
+      : activeView === "rate"
+        ? `${(
+            Number(
+              keyboardValue
+            ) / 10
+          ).toFixed(1)}hz`
+        : String(
+            keyboardValue
+          );
+}
+
+function finishKeyboardEdit(
+  shouldCommit
+) {
+  if (!keyboardEditing) {
+    return;
+  }
+
+  keyboardEditing = false;
+
+  delete baseValue.dataset
+    .keyboardEditing;
+
+  if (
+    shouldCommit &&
+    keyboardValue !==
+      keyboardStartValue
+  ) {
+    saveTrackHistory();
+
+    if (hasActiveOffsetSelection()) {
+      applyOffsetDeltaToSelection(
+        { ...activeParameter, id: activeBaseId },
+        keyboardValue - keyboardStartValue
+      );
+    } else {
+      track.base[activeBaseId] = keyboardValue;
+    }
+  } else {
+    keyboardValue =
+      keyboardStartValue;
+  }
+
+  renderEditorAndRestore(
+    "lfo-base-value"
+  );
+}
+
+baseValue.addEventListener(
+  "keydown",
+  event => {
+    if (
+      event.key === "Enter"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!keyboardEditing) {
+        keyboardEditing = true;
+
+        keyboardStartValue =
+          Number(
+            track.base[
+              activeBaseId
+            ]
+          );
+
+        keyboardValue =
+          keyboardStartValue;
+
+        baseValue.dataset
+          .keyboardEditing =
+            "true";
+
+        return;
+      }
+
+      finishKeyboardEdit(
+        true
+      );
+
+      return;
+    }
+
+    if (
+      keyboardEditing &&
+      (
+        event.key ===
+          "ArrowUp" ||
+        event.key ===
+          "ArrowRight" ||
+        event.key ===
+          "ArrowDown" ||
+        event.key ===
+          "ArrowLeft"
+      )
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const amount =
+        (
+          event.key ===
+            "ArrowUp" ||
+          event.key ===
+            "ArrowRight"
+        )
+          ? activeParameter.step ??
+            1
+          : -(
+              activeParameter.step ??
+              1
+            );
+
+      keyboardValue =
+        roundToStep(
+          clamp(
+            keyboardValue +
+              amount,
+            activeParameter.min,
+            activeParameter.max
+          ),
+          activeParameter.step ??
+            1
+        );
+
+      displayKeyboardValue();
+
+      return;
+    }
+
+    if (
+      keyboardEditing &&
+      event.key === "Escape"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      finishKeyboardEdit(
+        false
+      );
+    }
+  }
+);
+
+    let sweepHistorySaved = false;
+    let offsetSelectionAppliedDelta = 0;
+
+    baseValue.addEventListener(
+      "pointerdown",
+      () => {
+        offsetSelectionAppliedDelta = 0;
+      }
+    );
+
+    enableVerticalSweep({
+      element: baseValue,
+      getValue: () => {
+        if (
+          editSelection.mode ===
+            "offset" &&
+          Array.isArray(
+            track.offsets[
+              activeBaseId
+            ]
+          )
+        ) {
+          return 0;
+        }
+
+        return Number(
+          track.base[
+            activeBaseId
+          ]
+        );
+      },
+      setValue: nextValue => {
+        if (!sweepHistorySaved) {
+          saveTrackHistory();
+          sweepHistorySaved = true;
+        }
+        if (
+          editSelection.mode ===
+            "offset" &&
+          Array.isArray(
+            track.offsets[
+              activeBaseId
+            ]
+          )
+        ) {
+          const totalDelta =
+            roundToStep(
+              Number(nextValue) || 0,
+              activeParameter.step ??
+                1
+            );
+
+          const incrementalDelta =
+            totalDelta -
+            offsetSelectionAppliedDelta;
+
+          applyOffsetDeltaToSelection(
+            {
+              ...activeParameter,
+              id: activeBaseId
+            },
+            incrementalDelta
+          );
+
+          offsetSelectionAppliedDelta =
+            totalDelta;
+        } else {
+          const correctedValue =
+            roundToStep(
+              clamp(
+                Number(nextValue),
+                activeParameter.min,
+                activeParameter.max
+              ),
+              activeParameter.step ??
+                1
+            );
+
+          track.base[
+            activeBaseId
+          ] =
+            correctedValue;
+        }
+        updateBaseValue();
+
+/*
+ * LFOのベース値変更中も、
+ * 各ステップの実効値をリアルタイム更新。
+ */
+document
+  .querySelectorAll(
+    ".offset-step[data-step-index]"
+  )
+  .forEach(
+    offsetButton => {
+      const stepIndex =
+        Number(
+          offsetButton.dataset
+            .stepIndex
+        );
+
+      offsetButton.textContent =
+        displayStepValue(
+          activeParameter,
+          stepIndex
+        );
+
+      const stepOffset =
+        Number(
+          track.offsets[
+            activeBaseId
+          ]?.[stepIndex]
+        ) || 0;
+
+      offsetButton.classList.toggle(
+        "base-value-step",
+        stepOffset === 0
+      );
+    }
+  );
+      },
+      min: () =>
+        (
+          editSelection.mode ===
+            "offset" &&
+          Array.isArray(
+            track.offsets[
+              activeBaseId
+            ]
+          )
+        )
+          ? -10000
+          : activeParameter.min,
+
+      max: () =>
+        (
+          editSelection.mode ===
+            "offset" &&
+          Array.isArray(
+            track.offsets[
+              activeBaseId
+            ]
+          )
+        )
+          ? 10000
+          : activeParameter.max,
+
+step:
+  activeParameter.step ?? 1,
+      onCommit: (startValue, currentValue, changed) => {
+        sweepHistorySaved = false;
+        offsetSelectionAppliedDelta =
+          0;
+
+        if (changed) {
+          renderEditorAndRestore(
+            "lfo-base-value"
+          );
+        }
+      }
+    });
+
+    const baseValueWrapper =
+  createCompactValue({
+    label: "base",
+    control: baseValue,
+    className:
+      "lfo-base-value-control"
+  });
+
+header.appendChild(
+  baseValueWrapper
+);
+
+editor.append(
+  header,
+  renderOffsetGrid(
+    activeParameter
+  )
+);
+    return;
+  }
+
+  editor.appendChild(header);
+
+  const settings = document.createElement("div");
+  settings.className = "lfo-settings";
+  const createSectionLabel = text => {
+    const label = document.createElement("div");
+    label.className = "lfo-settings-label";
+    label.textContent = text;
+    return label;
+  };
+  const setLfoOption = (baseId, value, focusKey) => {
+    if (track.base[baseId] === value) return;
+    saveTrackHistory();
+    track.base[baseId] = value;
+    renderEditorAndRestore(focusKey);
+  };
+
+  const targetGrid = document.createElement("div");
+  targetGrid.className = "lfo-target-grid";
+  [
+    ["pitch", "Pitch", "note"],
+    ["fmDepth", "FM", "fm"],
+    ["filterCutoff", "Filter", "tone"],
+    ["pan", "Pan", "pan"],
+    ["attack", "Attack", "attack"]
+  ].forEach(([value, label, icon]) => {
+    const button = document.createElement("button");
+    const focusKey = `lfo-target-${value}`;
+    button.type = "button";
+    button.className = "lfo-target-button";
+    button.dataset.focusKey = focusKey;
+    button.innerHTML = `<span class="lfo-target-icon">${getParameterIcon(icon)}</span>`;
+    button.setAttribute("aria-label", label);
+    const currentTarget = track.base[parameterKeys.target];
+    if (
+      currentTarget === value ||
+      (value === "attack" && ["gate", "decay"].includes(currentTarget))
+    ) button.classList.add("active");
+    button.addEventListener("click", () => setLfoOption(parameterKeys.target, value, focusKey));
+    targetGrid.appendChild(button);
+  });
+
+  function getWaveSvg(waveId) {
+    const paths = {
+      sine: `<path d="M2 14 C8 3 14 3 20 14 S32 25 38 14 S50 3 56 14 S68 25 74 14" />`,
+      triangle: `<path d="M2 14 L11 5 L20 23 L29 5 L38 23 L47 5 L56 23 L65 5 L74 14" />`,
+      sawUp: `<path d="M2 23 L20 5 L20 23 L38 5 L38 23 L56 5 L56 23 L74 5" />`,
+      sawDown: `<path d="M2 5 L2 23 L20 5 L20 23 L38 5 L38 23 L56 5 L56 23 L74 5" />`,
+      square: `<path d="M2 22 V6 H14 V22 H26 V6 H38 V22 H50 V6 H62 V22 H74" />`,
+      random: `<path d="M2 18 H12 V8 H24 V21 H36 V11 H48 V5 H60 V19 H74" />`,
+      rise: `<path d="M2 23 C10 23 14 18 20 12 S34 4 50 4 S66 4 74 4"/>`,
+      fall: `<path d="M2 4 C10 4 14 9 20 15 S34 23 50 23 S66 23 74 23"/>`,
+    };
+    return `<svg viewBox="0 0 76 28" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[waveId] ?? paths.sine}</svg>`;
+  }
+
+  const waveGrid = document.createElement("div");
+  waveGrid.className = "lfo-wave-grid";
+  [
+  ["sine", "Sine"],
+  ["triangle", "Triangle"],
+  ["sawUp", "Saw Up"],
+  ["sawDown", "Saw Down"],
+  ["square", "Square"],
+  ["random", "Random"],
+  ["rise", "Rise"],
+  ["fall", "Fall"]
+].forEach(([value, label]) => {
+    const button = document.createElement("button");
+    const focusKey = `lfo-wave-${value}`;
+    button.type = "button";
+    button.className = "lfo-wave-button";
+    button.dataset.focusKey = focusKey;
+    button.innerHTML = getWaveSvg(value);
+    button.setAttribute("aria-label", label);
+    if (track.base[parameterKeys.wave] === value) button.classList.add("active");
+    button.addEventListener("click", () => setLfoOption(parameterKeys.wave, value, focusKey));
+    waveGrid.appendChild(button);
+  });
+
+  settings.append(
+    createSectionLabel("target"), targetGrid,
+    createSectionLabel("wave"), waveGrid
+  );
+  editor.appendChild(settings);
+}
+
+function renderEdit(parameter) {
+  const header = document.createElement("div");
+  header.className = "edit-toolbar";
+  if (parameter.id === "note") {
+    header.classList.add("note-edit-toolbar");
+  }
+
+  if (parameter.id === "articulation") {
+    header.classList.add("articulation-edit-toolbar");
+
+    const selectedId =
+      articulationParameter.children.some(
+        child => child.id === editorTrack().articulationSelectedId
+      )
+        ? editorTrack().articulationSelectedId
+        : "glide";
+
+    editorTrack().articulationSelectedId = selectedId;
+    state.selectedChildId = selectedId;
+  }
+
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "track-cycle";
+  back.dataset.focusKey = "edit-track";
+
+  back.innerHTML = `
+    <span class="track-icon">
+      ${getParameterIcon("track")}
+    </span>
+
+    <span class="track-number">
+      ${editorTrack().id}
+    </span>
+  `;
+
+  back.addEventListener("click", () => {
+    state.selectedTrackIndex =
+        (state.selectedTrackIndex + 1) %
+        tracks.length;
+
+    renderSequence();
+
+    renderEditorAndRestore(
+        "edit-track"
+    );
+});
+
+  const icon = document.createElement("button");
+  icon.type = "button";
+  icon.className = "edit-icon";
+  icon.dataset.focusKey = `edit-parameter-${parameter.id}`;
+
+  const editIconId =
+  parameter.id === "articulation"
+    ? (
+        articulationParameter.children.find(
+          child =>
+            child.id ===
+            editorTrack().articulationSelectedId
+        )?.icon ?? "glide"
+      )
+    : parameter.icon;
+
+icon.innerHTML =
+  getParameterIcon(editIconId);
+
+  icon.addEventListener("click", () => {
+    clearOffsetSelectionMode();
+
+    state.selectedParameterId = null;
+
+    renderEditorAndRestore(
+      `parameter-${parameter.id}`
+    );
+  });
+
+  header.append(back);
+
+  if (!parameter.children) {
+  const parameterLabel =
+    document.createElement("span");
+
+  parameterLabel.className =
+    "edit-parameter-label";
+
+  parameterLabel.textContent =
+    parameter.id === "holdDecay"
+    ? "hold/decay"
+    : parameter.label;
+
+  header.appendChild(
+    parameterLabel
+  );
+}
+
+  let activeId = parameter.id;
+
+  if (parameter.children) {
+    const tabs = document.createElement("div");
+    tabs.className = "child-tabs";
+
+    parameter.children.forEach(child => {
+      const tab = document.createElement("button");
+
+      tab.dataset.focusKey =
+        `child-${child.id}`;
+
+      tab.type = "button";
+      tab.textContent =
+  child.label;
+
+      if (state.selectedChildId === child.id) {
+        tab.classList.add("active");
+      }
+
+      if (
+        parameter.id === "note" &&
+        Number(editorTrack().base.chord) === 0 &&
+        ["voices", "inversion",].includes(child.id)
+      ) {
+        tab.classList.add("chord-inactive");
+      }
+
+      tab.addEventListener("click", () => {
+        state.selectedChildId = child.id;
+
+        if (parameter.id === "articulation") {
+          editorTrack().articulationSelectedId = child.id;
+        }
+
+        renderEditorAndRestore(
+          `base-value-${child.id}`
+        );
+      });
+
+      tabs.appendChild(tab);
+    });
+
+    /* 子パラ選択はParameter Menu右下4枠へ集約。 */
+
+    activeId =
+      parameter.children.some(
+        child =>
+          child.id ===
+          state.selectedChildId
+      )
+        ? state.selectedChildId
+        : parameter.children[0].id;
+
+    state.selectedChildId =
+      activeId;
+  }
+
+  const activeChild =
+    parameter.children?.find(
+      item => item.id === activeId
+    );
+
+  const activeOffsetId =
+  activeChild?.id ??
+  parameter.id;
+
+const hasOffsets =
+  !parameter.baseOnly &&
+  !activeChild?.baseOnly &&
+  Boolean(
+    editorTrack().offsets[
+      activeOffsetId
+    ]
+  );
+
+  if (!activeChild?.stepOnly) {
+    header.appendChild(
+      editValueControl(parameter, activeId)
+    );
+  }
+
+  editor.appendChild(header);
+
+  const child =
+    parameter.children?.find(
+      item => item.id === activeId
+    );
+
+  const baseOnly =
+    parameter.baseOnly ||
+    child?.baseOnly;
+
+  if (
+  !baseOnly &&
+  editorTrack().offsets[
+    activeOffsetId
+  ]
+) {
+  const offsetParameter =
+    activeChild
+      ? {
+          ...parameter,
+          ...activeChild,
+          id: activeOffsetId,
+          offsetMode: activeChild.offsetMode ?? parameter.offsetMode ?? "offset"
+        }
+      : parameter;
+
+  editor.appendChild(
+    renderOffsetGrid(
+      offsetParameter
+    )
+  );
+}
+}
+
+
+function restorePatternFocus(focusKey) {
+  restoreFocusKey(focusKey);
+}
+
+const SOURCE_EDIT_LONG_PRESS_MS = 450;
+
+const sourceEditState = {
+  active: false,
+  type: null,
+  index: null
+};
+
+function closeSourceEditMode() {
+  sourceEditState.active = false;
+  sourceEditState.type = null;
+  sourceEditState.index = null;
+
+  document
+    .querySelector(
+      ".source-edit-toolbar"
+    )
+    ?.remove();
+
+  document.body.classList.remove(
+    "source-edit-mode"
+  );
+}
+
+function openSourceEditMode(
+  type,
+  index
+) {
+  sourceEditState.active = true;
+  sourceEditState.type = type;
+  sourceEditState.index = index;
 
   document.body.classList.add(
     "source-edit-mode"

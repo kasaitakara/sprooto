@@ -3669,10 +3669,84 @@ if (
   let parentSweepHistorySaved =
     false;
 
+  let parentOffsetSelectionActive =
+    false;
+
+  let parentOffsetSelectionCells =
+    null;
+
+  let parentOffsetSelectionStartValues =
+    null;
+
+  button.addEventListener(
+    "pointerdown",
+    () => {
+      const track =
+        editorTrack();
+
+      parentOffsetSelectionActive =
+        hasActiveOffsetSelection() &&
+        Array.isArray(
+          track.offsets[
+            parentSweepParameter.id
+          ]
+        );
+
+      parentOffsetSelectionCells =
+        null;
+
+      parentOffsetSelectionStartValues =
+        null;
+
+      if (
+        !parentOffsetSelectionActive
+      ) {
+        return;
+      }
+
+      parentOffsetSelectionCells =
+        selectedKeysSorted()
+          .filter(
+            ({ trackIndex }) =>
+              trackIndex ===
+              state.selectedTrackIndex
+          );
+
+      parentOffsetSelectionStartValues =
+        new Map();
+
+      parentOffsetSelectionCells
+        .forEach(
+          ({
+            trackIndex,
+            stepIndex
+          }) => {
+            parentOffsetSelectionStartValues.set(
+              selectionKey(
+                trackIndex,
+                stepIndex
+              ),
+              Number(
+                track.offsets[
+                  parentSweepParameter.id
+                ][stepIndex]
+              ) || 0
+            );
+          }
+        );
+    }
+  );
+
   enableVerticalSweep({
     element: button,
 
     getValue: () => {
+      if (
+        parentOffsetSelectionActive
+      ) {
+        return 0;
+      }
+
       return Number(
         editorTrack().base[
           parentSweepParameter.id
@@ -3686,6 +3760,26 @@ if (
 
         parentSweepHistorySaved =
           true;
+      }
+
+      if (
+        parentOffsetSelectionActive
+      ) {
+        const delta =
+          roundToStep(
+            Number(nextValue) || 0,
+            parentSweepParameter.step ??
+              1
+          );
+
+        applyOffsetDeltaToSelection(
+          parentSweepParameter,
+          delta,
+          parentOffsetSelectionStartValues,
+          parentOffsetSelectionCells
+        );
+
+        return;
       }
 
       const correctedValue =
@@ -3761,6 +3855,15 @@ if (
     ) => {
       parentSweepHistorySaved =
         false;
+
+      parentOffsetSelectionActive =
+        false;
+
+      parentOffsetSelectionCells =
+        null;
+
+      parentOffsetSelectionStartValues =
+        null;
 
       if (!changed) {
         return;
@@ -5051,6 +5154,15 @@ function enableLfoRateSlotInteraction({
   let historySaved = false;
   let suppressClick = false;
 
+  let offsetSelectionActive =
+    false;
+
+  let offsetSelectionCells =
+    null;
+
+  let offsetSelectionStartValues =
+    null;
+
   element.style.touchAction = "none";
 
   element.addEventListener(
@@ -5076,9 +5188,66 @@ function enableLfoRateSlotInteraction({
         track.base[`${prefix}SyncMode`] === "bpm"
           ? "bpm"
           : "free";
-      startRate = Number(
-        track.base[`${prefix}Rate`]
-      );
+      const rateId =
+        `${prefix}Rate`;
+
+      offsetSelectionActive =
+        hasActiveOffsetSelection() &&
+        Array.isArray(
+          track.offsets[
+            rateId
+          ]
+        );
+
+      offsetSelectionCells =
+        null;
+
+      offsetSelectionStartValues =
+        null;
+
+      if (
+        offsetSelectionActive
+      ) {
+        offsetSelectionCells =
+          selectedKeysSorted()
+            .filter(
+              ({ trackIndex }) =>
+                trackIndex ===
+                state.selectedTrackIndex
+            );
+
+        offsetSelectionStartValues =
+          new Map();
+
+        offsetSelectionCells
+          .forEach(
+            ({
+              trackIndex,
+              stepIndex
+            }) => {
+              offsetSelectionStartValues.set(
+                selectionKey(
+                  trackIndex,
+                  stepIndex
+                ),
+                Number(
+                  track.offsets[
+                    rateId
+                  ][stepIndex]
+                ) || 0
+              );
+            }
+          );
+
+        startRate = 0;
+      } else {
+        startRate = Number(
+          track.base[
+            rateId
+          ]
+        );
+      }
+
       sweeping = false;
       historySaved = false;
       suppressClick = false;
@@ -5152,8 +5321,55 @@ function enableLfoRateSlotInteraction({
         maximum
       );
 
+      const rateId =
+        `${prefix}Rate`;
+
+      if (
+        offsetSelectionActive
+      ) {
+        if (!historySaved) {
+          saveTrackHistory();
+          historySaved = true;
+        }
+
+        const sourceParameter =
+          parameterById(
+            rateId
+          );
+
+        const rateParameter =
+          startMode === "bpm"
+            ? {
+                ...sourceParameter,
+                id: rateId,
+                min: 0,
+                max:
+                  LFO_BPM_RATE_NAMES.length -
+                  1,
+                step: 1
+              }
+            : {
+                ...sourceParameter,
+                id: rateId
+              };
+
+        applyOffsetDeltaToSelection(
+          rateParameter,
+          nextRate,
+          offsetSelectionStartValues,
+          offsetSelectionCells
+        );
+
+        state.selectedChildId =
+          "rate";
+
+        return;
+      }
+
       const currentRate = Number(
-        track.base[`${prefix}Rate`]
+        track.base[
+          rateId
+        ]
       );
 
       if (currentRate === nextRate) {
@@ -5168,7 +5384,9 @@ function enableLfoRateSlotInteraction({
       track.base[`${prefix}SyncMode`] =
         startMode;
 
-      track.base[`${prefix}Rate`] =
+      track.base[
+        rateId
+      ] =
         nextRate;
 
       state.selectedChildId = "rate";
@@ -5203,6 +5421,16 @@ function enableLfoRateSlotInteraction({
     }
 
     pointerId = null;
+
+    offsetSelectionActive =
+      false;
+
+    offsetSelectionCells =
+      null;
+
+    offsetSelectionStartValues =
+      null;
+
     element.classList.remove(
       "is-sweeping"
     );
@@ -5239,6 +5467,16 @@ function enableLfoRateSlotInteraction({
 
       pointerId = null;
       sweeping = false;
+
+      offsetSelectionActive =
+        false;
+
+      offsetSelectionCells =
+        null;
+
+      offsetSelectionStartValues =
+        null;
+
       element.classList.remove(
         "is-sweeping"
       );
@@ -5391,16 +5629,91 @@ function createParameterMenuGrid() {
       let childSweepHistorySaved =
         false;
 
+      let childOffsetSelectionActive =
+        false;
+
+      let childOffsetSelectionCells =
+        null;
+
+      let childOffsetSelectionStartValues =
+        null;
+
       const isChoiceParameter =
         Array.isArray(
           sweepDefinition.values
         );
+
+      button.addEventListener(
+        "pointerdown",
+        () => {
+          const track =
+            editorTrack();
+
+          childOffsetSelectionActive =
+            !isChoiceParameter &&
+            hasActiveOffsetSelection() &&
+            Array.isArray(
+              track.offsets[
+                sweepDefinition.actualId
+              ]
+            );
+
+          childOffsetSelectionCells =
+            null;
+
+          childOffsetSelectionStartValues =
+            null;
+
+          if (
+            !childOffsetSelectionActive
+          ) {
+            return;
+          }
+
+          childOffsetSelectionCells =
+            selectedKeysSorted()
+              .filter(
+                ({ trackIndex }) =>
+                  trackIndex ===
+                  state.selectedTrackIndex
+              );
+
+          childOffsetSelectionStartValues =
+            new Map();
+
+          childOffsetSelectionCells
+            .forEach(
+              ({
+                trackIndex,
+                stepIndex
+              }) => {
+                childOffsetSelectionStartValues.set(
+                  selectionKey(
+                    trackIndex,
+                    stepIndex
+                  ),
+                  Number(
+                    track.offsets[
+                      sweepDefinition.actualId
+                    ][stepIndex]
+                  ) || 0
+                );
+              }
+            );
+        }
+      );
 
       enableVerticalSweep({
         element: button,
 
         getValue: () => {
           const track = editorTrack();
+
+          if (
+            childOffsetSelectionActive
+          ) {
+            return 0;
+          }
 
           if (isChoiceParameter) {
             const currentValue =
@@ -5432,6 +5745,34 @@ function createParameterMenuGrid() {
           }
 
           const track = editorTrack();
+
+          if (
+            childOffsetSelectionActive
+          ) {
+            const delta =
+              roundToStep(
+                Number(nextValue) || 0,
+                sweepDefinition.step
+              );
+
+            applyOffsetDeltaToSelection(
+              {
+                id:
+                  sweepDefinition.actualId,
+                min:
+                  sweepDefinition.min,
+                max:
+                  sweepDefinition.max,
+                step:
+                  sweepDefinition.step
+              },
+              delta,
+              childOffsetSelectionStartValues,
+              childOffsetSelectionCells
+            );
+
+            return;
+          }
 
           if (isChoiceParameter) {
             const choiceIndex =
@@ -5511,6 +5852,15 @@ function createParameterMenuGrid() {
         ) => {
           childSweepHistorySaved =
             false;
+
+          childOffsetSelectionActive =
+            false;
+
+          childOffsetSelectionCells =
+            null;
+
+          childOffsetSelectionStartValues =
+            null;
 
           if (!changed) {
             return;

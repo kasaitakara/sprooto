@@ -3659,8 +3659,23 @@ if (
     element: button,
 
     getValue: () => {
+      const track =
+        editorTrack();
+
+      if (
+        editSelection.mode ===
+          "offset" &&
+        Array.isArray(
+          track.offsets[
+            parentSweepParameter.id
+          ]
+        )
+      ) {
+        return 0;
+      }
+
       return Number(
-        editorTrack().base[
+        track.base[
           parentSweepParameter.id
         ]
       );
@@ -3677,16 +3692,6 @@ if (
       const track =
         editorTrack();
 
-      const correctedValue =
-        roundToStep(
-          clamp(
-            Number(nextValue),
-            parentSweepParameter.min,
-            parentSweepParameter.max
-          ),
-          parentSweepParameter.step ?? 1
-        );
-
       if (
         editSelection.mode ===
           "offset" &&
@@ -3697,11 +3702,10 @@ if (
         )
       ) {
         const totalDelta =
-          correctedValue -
-          Number(
-            track.base[
-              parentSweepParameter.id
-            ]
+          roundToStep(
+            Number(nextValue) || 0,
+            parentSweepParameter.step ??
+              1
           );
 
         const incrementalDelta =
@@ -3716,6 +3720,17 @@ if (
         parentOffsetSelectionAppliedDelta =
           totalDelta;
       } else {
+        const correctedValue =
+          roundToStep(
+            clamp(
+              Number(nextValue),
+              parentSweepParameter.min,
+              parentSweepParameter.max
+            ),
+            parentSweepParameter.step ??
+              1
+          );
+
         track.base[
           parentSweepParameter.id
         ] = correctedValue;
@@ -3750,8 +3765,39 @@ if (
       );
     },
 
-    min: parentSweepParameter.min,
-    max: parentSweepParameter.max,
+    min: () => {
+      const track =
+        editorTrack();
+
+      return (
+        editSelection.mode ===
+          "offset" &&
+        Array.isArray(
+          track.offsets[
+            parentSweepParameter.id
+          ]
+        )
+      )
+        ? -10000
+        : parentSweepParameter.min;
+    },
+
+    max: () => {
+      const track =
+        editorTrack();
+
+      return (
+        editSelection.mode ===
+          "offset" &&
+        Array.isArray(
+          track.offsets[
+            parentSweepParameter.id
+          ]
+        )
+      )
+        ? 10000
+        : parentSweepParameter.max;
+    },
     step:
       parentSweepParameter.step ?? 1,
 
@@ -5099,9 +5145,23 @@ function enableLfoRateSlotInteraction({
         track.base[`${prefix}SyncMode`] === "bpm"
           ? "bpm"
           : "free";
-      startRate = Number(
-        track.base[`${prefix}Rate`]
-      );
+      startRate =
+        (
+          editSelection.mode ===
+            "offset" &&
+          Array.isArray(
+            track.offsets[
+              `${prefix}Rate`
+            ]
+          )
+        )
+          ? 0
+          : Number(
+              track.base[
+                `${prefix}Rate`
+              ]
+            );
+
       sweeping = false;
       historySaved = false;
       suppressClick = false;
@@ -5169,39 +5229,33 @@ function enableLfoRateSlotInteraction({
           ? LFO_BPM_RATE_NAMES.length - 1
           : 100;
 
-      const nextRate = clamp(
-        Math.round(startRate) +
-          stepCount,
-        minimum,
-        maximum
-      );
-
       const rateId =
         `${prefix}Rate`;
 
-      if (
+      const offsetSelectionActive =
         editSelection.mode ===
           "offset" &&
         Array.isArray(
           track.offsets[
             rateId
           ]
-        )
-      ) {
-        const correctedRate =
-          clamp(
-            nextRate,
-            minimum,
-            maximum
-          );
+        );
 
+      const nextRate =
+        offsetSelectionActive
+          ? stepCount
+          : clamp(
+              Math.round(startRate) +
+                stepCount,
+              minimum,
+              maximum
+            );
+
+      if (
+        offsetSelectionActive
+      ) {
         const totalDelta =
-          correctedRate -
-          Number(
-            track.base[
-              rateId
-            ]
-          );
+          nextRate;
 
         const incrementalDelta =
           totalDelta -
@@ -5494,6 +5548,19 @@ function createParameterMenuGrid() {
         getValue: () => {
           const track = editorTrack();
 
+          if (
+            !isChoiceParameter &&
+            editSelection.mode ===
+              "offset" &&
+            Array.isArray(
+              track.offsets[
+                sweepDefinition.actualId
+              ]
+            )
+          ) {
+            return 0;
+          }
+
           if (isChoiceParameter) {
             const currentValue =
               track.base[
@@ -5535,22 +5602,10 @@ function createParameterMenuGrid() {
               ]
             )
           ) {
-            const correctedValue =
-              roundToStep(
-                clamp(
-                  Number(nextValue),
-                  sweepDefinition.min,
-                  sweepDefinition.max
-                ),
-                sweepDefinition.step
-              );
-
             const totalDelta =
-              correctedValue -
-              Number(
-                track.base[
-                  sweepDefinition.actualId
-                ]
+              roundToStep(
+                Number(nextValue) || 0,
+                sweepDefinition.step
               );
 
             const incrementalDelta =
@@ -5622,13 +5677,50 @@ function createParameterMenuGrid() {
           }
         },
 
-        min: isChoiceParameter
-          ? 0
-          : sweepDefinition.min,
+        min: () => {
+          const track =
+            editorTrack();
 
-        max: isChoiceParameter
-          ? sweepDefinition.values.length - 1
-          : sweepDefinition.max,
+          if (isChoiceParameter) {
+            return 0;
+          }
+
+          return (
+            editSelection.mode ===
+              "offset" &&
+            Array.isArray(
+              track.offsets[
+                sweepDefinition.actualId
+              ]
+            )
+          )
+            ? -10000
+            : sweepDefinition.min;
+        },
+
+        max: () => {
+          const track =
+            editorTrack();
+
+          if (isChoiceParameter) {
+            return (
+              sweepDefinition.values.length -
+              1
+            );
+          }
+
+          return (
+            editSelection.mode ===
+              "offset" &&
+            Array.isArray(
+              track.offsets[
+                sweepDefinition.actualId
+              ]
+            )
+          )
+            ? 10000
+            : sweepDefinition.max;
+        },
 
         step: isChoiceParameter
           ? 1
@@ -6188,6 +6280,16 @@ const definition = {
   element: value,
 
   getValue: () => {
+    if (
+      editSelection.mode ===
+        "offset" &&
+      Array.isArray(
+        track.offsets[id]
+      )
+    ) {
+      return 0;
+    }
+
     return Number(
       track.base[id]
     );
@@ -6201,16 +6303,6 @@ const definition = {
           true;
       }
 
-      const correctedValue =
-        roundToStep(
-          clamp(
-            Number(nextValue),
-            definition.min,
-            definition.max
-          ),
-          definition.step
-        );
-
       if (
         editSelection.mode ===
           "offset" &&
@@ -6219,9 +6311,9 @@ const definition = {
         )
       ) {
         const totalDelta =
-          correctedValue -
-          Number(
-            track.base[id]
+          roundToStep(
+            Number(nextValue) || 0,
+            definition.step
           );
 
         const incrementalDelta =
@@ -6239,6 +6331,16 @@ const definition = {
         offsetSelectionAppliedDelta =
           totalDelta;
       } else {
+        const correctedValue =
+          roundToStep(
+            clamp(
+              Number(nextValue),
+              definition.min,
+              definition.max
+            ),
+            definition.step
+          );
+
         track.base[id] =
           correctedValue;
       }
@@ -6320,8 +6422,27 @@ document
   );
     },
 
-    min: definition.min,
-    max: definition.max,
+    min: () =>
+      (
+        editSelection.mode ===
+          "offset" &&
+        Array.isArray(
+          track.offsets[id]
+        )
+      )
+        ? -10000
+        : definition.min,
+
+    max: () =>
+      (
+        editSelection.mode ===
+          "offset" &&
+        Array.isArray(
+          track.offsets[id]
+        )
+      )
+        ? 10000
+        : definition.max,
 
 step:
   definition.step,
@@ -8004,6 +8125,18 @@ baseValue.addEventListener(
     enableVerticalSweep({
       element: baseValue,
       getValue: () => {
+        if (
+          editSelection.mode ===
+            "offset" &&
+          Array.isArray(
+            track.offsets[
+              activeBaseId
+            ]
+          )
+        ) {
+          return 0;
+        }
+
         return Number(
           track.base[
             activeBaseId
@@ -8015,17 +8148,6 @@ baseValue.addEventListener(
           saveTrackHistory();
           sweepHistorySaved = true;
         }
-        const correctedValue =
-          roundToStep(
-            clamp(
-              Number(nextValue),
-              activeParameter.min,
-              activeParameter.max
-            ),
-            activeParameter.step ??
-              1
-          );
-
         if (
           editSelection.mode ===
             "offset" &&
@@ -8036,11 +8158,10 @@ baseValue.addEventListener(
           )
         ) {
           const totalDelta =
-            correctedValue -
-            Number(
-              track.base[
-                activeBaseId
-              ]
+            roundToStep(
+              Number(nextValue) || 0,
+              activeParameter.step ??
+                1
             );
 
           const incrementalDelta =
@@ -8058,6 +8179,17 @@ baseValue.addEventListener(
           offsetSelectionAppliedDelta =
             totalDelta;
         } else {
+          const correctedValue =
+            roundToStep(
+              clamp(
+                Number(nextValue),
+                activeParameter.min,
+                activeParameter.max
+              ),
+              activeParameter.step ??
+                1
+            );
+
           track.base[
             activeBaseId
           ] =
@@ -8101,8 +8233,31 @@ document
     }
   );
       },
-      min: activeParameter.min,
-      max: activeParameter.max,
+      min: () =>
+        (
+          editSelection.mode ===
+            "offset" &&
+          Array.isArray(
+            track.offsets[
+              activeBaseId
+            ]
+          )
+        )
+          ? -10000
+          : activeParameter.min,
+
+      max: () =>
+        (
+          editSelection.mode ===
+            "offset" &&
+          Array.isArray(
+            track.offsets[
+              activeBaseId
+            ]
+          )
+        )
+          ? 10000
+          : activeParameter.max,
 
 step:
   activeParameter.step ?? 1,

@@ -2477,10 +2477,20 @@ function enableSelectionPointer({
 function applyOffsetDeltaToSelection(
   parameter,
   delta,
-  startValues
+  startValues,
+  selectionCells = null
 ) {
+  const cells =
+    Array.isArray(selectionCells)
+      ? selectionCells
+      : selectedKeysSorted();
+
   if (
-    !hasActiveOffsetSelection()
+    cells.length === 0 ||
+    (
+      !Array.isArray(selectionCells) &&
+      !hasActiveOffsetSelection()
+    )
   ) {
     return false;
   }
@@ -2512,7 +2522,7 @@ const maxOffset =
   parameter.max -
   baseValue;
 
-  selectedKeysSorted()
+  cells
     .forEach(
       ({
         trackIndex,
@@ -6020,38 +6030,53 @@ const definition = {
   let sweepHistorySaved = false;
 let offsetSelectionStartValues =
   null;
+let offsetSelectionGestureActive =
+  false;
+let offsetSelectionGestureCells =
+  null;
+let offsetSelectionBaseValue =
+  null;
 
 value.addEventListener(
   "pointerdown",
   () => {
     offsetSelectionStartValues =
       null;
+    offsetSelectionGestureCells =
+      null;
+    offsetSelectionGestureActive =
+      hasActiveOffsetSelection() &&
+      Array.isArray(
+        track.offsets[id]
+      );
+    offsetSelectionBaseValue =
+      Number(
+        track.base[id]
+      );
 
     if (
-      !hasActiveOffsetSelection() ||
-      !Array.isArray(
-        track.offsets[id]
-      )
+      !offsetSelectionGestureActive
     ) {
       return;
     }
 
+    offsetSelectionGestureCells =
+      selectedKeysSorted()
+        .filter(
+          ({ trackIndex }) =>
+            trackIndex ===
+            state.selectedTrackIndex
+        );
+
     offsetSelectionStartValues =
       new Map();
 
-    selectedKeysSorted()
+    offsetSelectionGestureCells
       .forEach(
         ({
           trackIndex,
           stepIndex
         }) => {
-          if (
-            trackIndex !==
-            state.selectedTrackIndex
-          ) {
-            return;
-          }
-
           offsetSelectionStartValues.set(
             selectionKey(
               trackIndex,
@@ -6073,7 +6098,7 @@ value.addEventListener(
 
   getValue: () => {
     if (
-      hasActiveOffsetSelection()
+      offsetSelectionGestureActive
     ) {
       return 0;
     }
@@ -6099,7 +6124,7 @@ value.addEventListener(
     : 0;
 
 if (
-  hasActiveOffsetSelection() &&
+  offsetSelectionGestureActive &&
   Array.isArray(
     track.offsets[id]
   )
@@ -6110,13 +6135,21 @@ if (
       definition.step
     );
 
+  /*
+   * 選択編集ジェスチャー中はbaseを絶対に変更しない。
+   * pointerdown時に固定した選択stepだけへOffset差分を適用する。
+   */
+  track.base[id] =
+    offsetSelectionBaseValue;
+
   applyOffsetDeltaToSelection(
     {
       ...definition,
       id
     },
     delta,
-    offsetSelectionStartValues
+    offsetSelectionStartValues,
+    offsetSelectionGestureCells
   );
 } else {
   const clampedValue =
@@ -6247,6 +6280,12 @@ acceleration: true,
 
       offsetSelectionStartValues =
   null;
+      offsetSelectionGestureCells =
+        null;
+      offsetSelectionGestureActive =
+        false;
+      offsetSelectionBaseValue =
+        null;
 
       if (changed) {
         renderEditorAndRestore(
@@ -7894,40 +7933,57 @@ baseValue.addEventListener(
     let sweepHistorySaved = false;
 let offsetSelectionStartValues =
   null;
+let offsetSelectionGestureActive =
+  false;
+let offsetSelectionGestureCells =
+  null;
+let offsetSelectionBaseValue =
+  null;
 
 baseValue.addEventListener(
   "pointerdown",
   () => {
     offsetSelectionStartValues =
       null;
-
-    if (
-      !hasActiveOffsetSelection() ||
-      !Array.isArray(
+    offsetSelectionGestureCells =
+      null;
+    offsetSelectionGestureActive =
+      hasActiveOffsetSelection() &&
+      Array.isArray(
         track.offsets[
           activeBaseId
         ]
-      )
+      );
+    offsetSelectionBaseValue =
+      Number(
+        track.base[
+          activeBaseId
+        ]
+      );
+
+    if (
+      !offsetSelectionGestureActive
     ) {
       return;
     }
 
+    offsetSelectionGestureCells =
+      selectedKeysSorted()
+        .filter(
+          ({ trackIndex }) =>
+            trackIndex ===
+            state.selectedTrackIndex
+        );
+
     offsetSelectionStartValues =
       new Map();
 
-    selectedKeysSorted()
+    offsetSelectionGestureCells
       .forEach(
         ({
           trackIndex,
           stepIndex
         }) => {
-          if (
-            trackIndex !==
-            state.selectedTrackIndex
-          ) {
-            return;
-          }
-
           offsetSelectionStartValues.set(
             selectionKey(
               trackIndex,
@@ -7948,7 +8004,7 @@ baseValue.addEventListener(
       element: baseValue,
       getValue: () => {
   if (
-    hasActiveOffsetSelection()
+    offsetSelectionGestureActive
   ) {
     return 0;
   }
@@ -7972,7 +8028,7 @@ baseValue.addEventListener(
     : 0;
 
 if (
-  hasActiveOffsetSelection()
+  offsetSelectionGestureActive
 ) {
   const delta =
     roundToStep(
@@ -7981,13 +8037,19 @@ if (
         1
     );
 
+  track.base[
+    activeBaseId
+  ] =
+    offsetSelectionBaseValue;
+
   applyOffsetDeltaToSelection(
     {
       ...activeParameter,
       id: activeBaseId
     },
     delta,
-    offsetSelectionStartValues
+    offsetSelectionStartValues,
+    offsetSelectionGestureCells
   );
 } else {
   const correctedValue =
@@ -8062,6 +8124,12 @@ step:
         sweepHistorySaved = false;
         offsetSelectionStartValues =
   null;
+        offsetSelectionGestureCells =
+          null;
+        offsetSelectionGestureActive =
+          false;
+        offsetSelectionBaseValue =
+          null;
 
         if (changed) {
           renderEditorAndRestore(

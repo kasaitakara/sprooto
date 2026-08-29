@@ -1400,12 +1400,14 @@ const now =
 
   const offset = id => {
     /*
- * Main Sound：全Offsetを使用。
- * Pin Sound ：Offset無効。
- */
+     * Main Sound: existing per-step offsets.
+     * Pin Sound : only OSC gain (sineVolume) has a per-step offset.
+     */
     if (usingPin) {
-  return 0;
-}
+      return id === "sineVolume"
+        ? (soundTrack.offsets?.sineVolume?.[stepIndex] ?? 0)
+        : 0;
+    }
 
     return (
       track.offsets[id]?.[stepIndex] ??
@@ -1456,14 +1458,16 @@ const now =
   /* =========================
    * Articulation
    * ========================= */
-  const glideValue = clamp(
-    Math.round(
-      (soundTrack.base.glide ?? 0) +
-      offset("glide")
-    ),
-    0,
-    8
-  );
+  const glideValue = usingPin
+    ? 0
+    : clamp(
+        Math.round(
+          (soundTrack.base.glide ?? 0) +
+          offset("glide")
+        ),
+        0,
+        8
+      );
 
   const strumValue = clamp(
   Math.round(
@@ -1505,8 +1509,16 @@ const now =
         strumGapSeconds
       : 0;
 
+  const pinSlot = usingPin
+    ? track?.pins?.[stepIndex]
+    : null;
+
+  const voiceStreamKey = usingPin
+    ? `${track.id}:pin:${pinSlot}`
+    : `${track.id}:main`;
+
   const previousVoice =
-    activeTrackVoices.get(track.id);
+    activeTrackVoices.get(voiceStreamKey);
 
   function previousPitchAt(trajectory, time) {
     if (!trajectory) {
@@ -1806,12 +1818,30 @@ const envelopeDuration =
         );
 
   const sineVolume =
-    clamp(
-      (soundTrack.base.sineVolume ?? 100) +
-        offset("sineVolume"),
-      0,
-      100
-    ) / 100;
+  clamp(
+    usingPin
+      ? (
+          soundTrack.offsets
+            ?.sineVolume?.[
+              stepIndex
+            ] ??
+          soundTrack.base
+            .sineVolume ??
+          100
+        )
+      : (
+          (
+            soundTrack.base
+              .sineVolume ??
+            100
+          ) +
+          offset(
+            "sineVolume"
+          )
+        ),
+    0,
+    100
+  ) / 100;
 
   const commonEnvelopeDuration =
     envelopeDuration;
@@ -2662,7 +2692,7 @@ mixGain.gain.exponentialRampToValueAtTime(
  * このGainが短く閉じられる。
  */
 activeTrackVoices.set(
-  track.id,
+  voiceStreamKey,
   {
     gainNode: mixGain,
     startTime: now,
@@ -2953,14 +2983,14 @@ panLfoOscillators.forEach(
  */
 const registeredVoice =
   activeTrackVoices.get(
-    track.id
+    voiceStreamKey
   );
 
 if (!offlineRenderMode) {
   sprootoDebugTimeout(
     () => {
-      if (activeTrackVoices.get(track.id) === registeredVoice) {
-        activeTrackVoices.delete(track.id);
+      if (activeTrackVoices.get(voiceStreamKey) === registeredVoice) {
+        activeTrackVoices.delete(voiceStreamKey);
       }
     },
     Math.max(

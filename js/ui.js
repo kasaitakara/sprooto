@@ -114,7 +114,11 @@ const songEditorViewToggle =
   let mixerView = false;
 let songEditorView = false;
 
-let pinPlacementMode = false;
+/*
+ * Pin edit state. null = Main, a/b/c = selected Pin sound.
+ * Pin placement itself is always active; there is no Pin ON/OFF mode.
+ */
+let pinPlacementMode = false; // legacy reset target; dedicated placement screen is no longer used.
 let pinEditSlot = null;
 
 const PIN_SOUND_KEYS = new Set([
@@ -126,19 +130,8 @@ const PIN_SOUND_KEYS = new Set([
   "soundName"
 ]);
 
-function isPinModeEnabled(
-  track = mainSelectedTrack()
-) {
-  return Boolean(
-    track?.pinEnabled
-  );
-}
-
 function currentPinSound(track = mainSelectedTrack()) {
-  if (
-    !isPinModeEnabled(track) ||
-    !pinEditSlot
-  ) {
+  if (!pinEditSlot) {
     return null;
   }
 
@@ -184,26 +177,6 @@ function setPinEditSlot(slot) {
     "pin-sound-edit-mode",
     Boolean(pinEditSlot)
   );
-}
-
-function setPinModeEnabled(enabled) {
-  const track =
-    mainSelectedTrack();
-
-  if (!track) {
-    return;
-  }
-
-  track.pinEnabled =
-    Boolean(enabled);
-
-  pinPlacementMode = false;
-
-  /*
-   * ON直後はMain Sound（・）を編集対象にする。
-   * OFF時もMainへ戻す。
-   */
-  setPinEditSlot(null);
 }
 
 const patternGrid =
@@ -2268,19 +2241,19 @@ function stepCell(stepIndex) {
     }
 
     if (track.steps[stepIndex]) {
-      lane.classList.add("on");
+  lane.classList.add("on");
 
-      const anySolo =
-        tracks.some(item => item.solo);
+  const anySolo =
+    tracks.some(item => item.solo);
 
-      const audible =
-        !track.muted &&
-        (!anySolo || track.solo);
+  const audible =
+    !track.muted &&
+    (!anySolo || track.solo);
 
-      if (!audible) {
-        lane.classList.add("non-sounding");
-      }
-    }
+  if (!audible) {
+    lane.classList.add("non-sounding");
+  }
+}
 
     if (
       trackIndex === state.selectedTrackIndex
@@ -2490,7 +2463,7 @@ if (sourceDisplay) {
 function currentSequenceOffsetParameter() {
   if (
     !state.selectedParameterId ||
-    pinPlacementMode
+    pinEditSlot
   ) {
     return null;
   }
@@ -2601,11 +2574,286 @@ function currentSequenceOffsetParameter() {
   return null;
 }
 
+function renderPinSequenceGrid() {
+  const grid = document.createElement("div");
+  grid.className = "offset-grid pin-sequence-grid";
+
+  const track = mainSelectedTrack();
+  if (!track) return grid;
+
+  const firstStepIndex =
+    state.sequencePage * PAGE_STEP_COUNT;
+
+  const lastStepIndex = Math.min(
+    firstStepIndex + PAGE_STEP_COUNT,
+    track.stepLength
+  );
+
+  for (
+    let stepIndex = firstStepIndex;
+    stepIndex < lastStepIndex;
+    stepIndex++
+  ) {
+    const button =
+      document.createElement("button");
+
+    button.type = "button";
+    button.className =
+      "offset-step pin-sequence-step";
+
+    button.dataset.stepIndex =
+      String(stepIndex);
+
+    const renderCell = () => {
+      const slot =
+        track.pins?.[stepIndex] ?? null;
+
+      const sound =
+        slot
+          ? track.pinSounds?.[slot]
+          : null;
+
+      const baseGain =
+  clamp(
+    Number(
+      sound?.base
+        ?.sineVolume
+    ) || 0,
+    0,
+    100
+  );
+
+const gainOffset =
+  Number(
+    sound?.offsets
+      ?.sineVolume?.[
+        stepIndex
+      ]
+  ) || 0;
+
+const stepGain =
+  clamp(
+    baseGain +
+      gainOffset,
+    0,
+    100
+  );
+
+      button.classList.toggle(
+        "note-on",
+        Boolean(
+          track.steps[stepIndex] ||
+          slot
+        )
+      );
+
+      if (!slot) {
+        button.textContent = "";
+        return;
+      }
+
+      button.innerHTML = `
+        <span
+          class="pin-step-slot"
+          style="display:block;line-height:1.05"
+        >${slot}</span>
+        <span
+          class="pin-step-gain"
+          style="display:block;line-height:1.05"
+        >${stepGain}</span>
+      `;
+    };
+
+    renderCell();
+
+    if (
+      state.playbackTickIndex !==
+        null &&
+      stepIndex ===
+        state.playbackTickIndex %
+          track.stepLength
+    ) {
+      button.classList.add(
+        "playing"
+      );
+    }
+
+    let sweepHistorySaved =
+      false;
+
+    enableVerticalSweep({
+      element: button,
+
+      getValue: () => {
+  const slot =
+    track.pins?.[
+      stepIndex
+    ];
+
+  const sound =
+    slot
+      ? track.pinSounds?.[
+          slot
+        ]
+      : null;
+
+  if (!sound) {
+    return 0;
+  }
+
+  const baseGain =
+    clamp(
+      Number(
+        sound.base
+          ?.sineVolume
+      ) || 0,
+      0,
+      100
+    );
+
+  const gainOffset =
+    Number(
+      sound.offsets
+        ?.sineVolume?.[
+          stepIndex
+        ]
+    ) || 0;
+
+  return clamp(
+    baseGain +
+      gainOffset,
+    0,
+    100
+  );
+},
+
+      setValue: nextGain => {
+        const slot =
+          track.pins?.[
+            stepIndex
+          ];
+
+        const sound =
+          slot
+            ? track.pinSounds?.[
+                slot
+              ]
+            : null;
+
+        const values =
+          sound?.offsets
+            ?.sineVolume;
+
+        if (
+          !slot ||
+          !Array.isArray(values)
+        ) {
+          return;
+        }
+
+        if (
+          !sweepHistorySaved
+        ) {
+          saveTrackHistory();
+          sweepHistorySaved =
+            true;
+        }
+
+        const baseGain =
+  clamp(
+    Number(
+      sound.base
+        ?.sineVolume
+    ) || 0,
+    0,
+    100
+  );
+
+const effectiveGain =
+  Math.round(
+    clamp(
+      Number(nextGain) || 0,
+      0,
+      100
+    )
+  );
+
+/*
+ * Pin stepには実効gainではなく、
+ * Pin BASE gainとの差分を保存する。
+ */
+values[stepIndex] =
+  effectiveGain -
+  baseGain;
+
+renderCell();
+      },
+
+      min: 0,
+      max: 100,
+      step: 1,
+
+      onCommit: () => {
+        sweepHistorySaved =
+          false;
+      }
+    });
+
+    button.addEventListener(
+      "click",
+      () => {
+        if (!pinEditSlot) {
+          return;
+        }
+
+        saveTrackHistory();
+
+        const current =
+          track.pins?.[
+            stepIndex
+          ] ?? null;
+
+        const next =
+          current ===
+            pinEditSlot
+            ? null
+            : pinEditSlot;
+
+        track.pins[
+          stepIndex
+        ] = next;
+
+        renderCell();
+      }
+    );
+
+    grid.appendChild(
+      button
+    );
+  }
+
+  return grid;
+}
+
 export function renderSequence() {
   sequenceGrid.innerHTML = "";
   renderEditActionToolbar();
 
   syncPatternLength();
+
+  if (pinEditSlot) {
+    sequenceGrid.classList.add("sequence-offset-view", "sequence-pin-view");
+    const pinGrid = renderPinSequenceGrid();
+    sequenceGrid.append(...Array.from(pinGrid.children));
+
+    const trackLength = mainSelectedTrack()?.stepLength ?? getMaxTrackLength();
+    patternLengthInput.value = getMaxTrackLength();
+    sequencePageButton.hidden = trackLength <= PAGE_STEP_COUNT;
+    sequencePageButton.textContent = state.sequencePage === 0 ? "◧" : "◨";
+    return;
+  }
+
+  sequenceGrid.classList.remove("sequence-pin-view");
 
   const offsetParameter =
     currentSequenceOffsetParameter();
@@ -3075,6 +3323,10 @@ if (parameter.id === "holdDecay") {
   }
 
   if (parameter.id === "glide") {
+    if (pinEditSlot) {
+      return "-";
+    }
+
     const amount = Math.round(Number(value) || 0);
     return amount === 0 ? "off" : String(amount);
   }
@@ -3258,7 +3510,10 @@ function parameterButton(menuItem) {
     /*
  * 親パラアイコンの上下スイープ。
  */
-if (parentSweepParameter) {
+if (
+  parentSweepParameter &&
+  !(pinEditSlot && parentSweepParameter.id === "glide")
+) {
   let parentSweepHistorySaved =
     false;
 
@@ -4337,6 +4592,10 @@ function parameterMenuChildSweepDefinition(child) {
   const track = editorTrack();
   const id = child.id;
 
+  if (pinEditSlot && id === "glide") {
+    return null;
+  }
+
   if (id === "lfoTarget") {
     const n = track.lfoSelected === 2 ? 2 : 1;
 
@@ -4846,103 +5105,54 @@ topRow.appendChild(
   pinButton.className = "mini-button pin-button";
   pinButton.dataset.focusKey = "menu-pin";
   pinButton.innerHTML = getParameterIcon("pin");
-
-  const pinEnabled =
-    isPinModeEnabled();
-
-  bottomRow.classList.toggle(
-    "pin-mode-enabled-row",
-    pinEnabled
-  );
-
   pinButton.classList.toggle(
     "active",
-    pinEnabled
+    Boolean(pinEditSlot)
   );
-
   pinButton.setAttribute(
     "aria-label",
-    pinEnabled
-      ? pinEditSlot
-        ? `pin ${pinEditSlot} editing`
-        : "pin main editing"
-      : "pin off"
+    pinEditSlot
+      ? `pin ${pinEditSlot} editing; return to main`
+      : "edit pin sounds"
   );
 
-  let pinLongPressTimer = null;
-  let pinLongPressTriggered = false;
+  pinButton.addEventListener("click", () => {
+    clearOffsetSelectionMode();
 
-  pinButton.addEventListener("pointerdown", event => {
-    if (event.pointerType === "mouse" && event.button !== 0) {
-      return;
-    }
+    setPinEditSlot(
+      pinEditSlot ? null : "a"
+    );
 
-    pinLongPressTriggered = false;
-
-    pinLongPressTimer = window.setTimeout(() => {
-      pinLongPressTriggered = true;
-
-      saveTrackHistory();
-
-      setPinModeEnabled(
-        !isPinModeEnabled()
-      );
-
-      state.selectedParameterId = null;
-      state.selectedChildId = null;
-
-      renderEditorAndRestore("menu-pin");
-    }, LONG_PRESS_MS);
-  });
-
-  function clearPinLongPress() {
-    if (pinLongPressTimer !== null) {
-      clearTimeout(pinLongPressTimer);
-      pinLongPressTimer = null;
-    }
-  }
-
-  pinButton.addEventListener("pointerup", clearPinLongPress);
-  pinButton.addEventListener("pointercancel", clearPinLongPress);
-  pinButton.addEventListener("pointerleave", clearPinLongPress);
-
-  pinButton.addEventListener("click", event => {
-    if (pinLongPressTriggered) {
-      event.preventDefault();
-      pinLongPressTriggered = false;
-      return;
-    }
-
-    if (!isPinModeEnabled()) {
-      return;
-    }
-
-    pinPlacementMode = true;
-    renderEditor();
+    renderSequence();
+    renderEditorAndRestore("menu-pin");
   });
 
   const pinTabs =
     document.createElement("div");
 
   pinTabs.className = "pin-sound-tabs";
-  pinTabs.hidden = !pinEnabled;
+  pinTabs.hidden = !pinEditSlot;
 
-  [null, "a", "b", "c"].forEach(slot => {
+  ["a", "b", "c"].forEach(slot => {
     const button =
       document.createElement("button");
 
     button.type = "button";
-    button.textContent = slot ?? "・";
+    button.textContent = slot;
     button.className = "pin-sound-tab";
-    button.classList.toggle("active", pinEditSlot === slot);
+    button.classList.toggle(
+      "active",
+      pinEditSlot === slot
+    );
     button.setAttribute(
       "aria-label",
-      slot ? `pin ${slot}` : "main sound"
+      `pin ${slot}`
     );
 
     button.addEventListener("click", () => {
       setPinEditSlot(slot);
-      state.selectedParameterId = null;
+      clearOffsetSelectionMode();
+      renderSequence();
       renderEditor();
     });
 
@@ -5840,6 +6050,24 @@ function renderOffsetGrid(parameter) {
       stepIndex;
     button.dataset.focusKey =
       focusKey;
+
+    const mainPinSlot =
+      track.pins?.[stepIndex] ?? null;
+
+    if (mainPinSlot) {
+      button.textContent = mainPinSlot;
+      button.classList.add("note-on", "pin-main-step");
+
+      if (
+        state.playbackTickIndex !== null &&
+        stepIndex === state.playbackTickIndex % track.stepLength
+      ) {
+        button.classList.add("playing");
+      }
+
+      grid.appendChild(button);
+      continue;
+    }
 
     const stepIsOn = Boolean(track.steps[stepIndex]);
 
@@ -13084,40 +13312,14 @@ function renderPinPlacementScreen() {
 function renderEditorUnsafe() {
   editor.innerHTML = "";
 
-  const pinEnabled =
-    isPinModeEnabled();
-
-  if (
-    pinPlacementMode &&
-    !pinEnabled
-  ) {
-    pinPlacementMode = false;
-  }
-
   document.body.classList.toggle(
     "pin-sound-edit-mode",
-    pinEnabled &&
-      Boolean(pinEditSlot)
+    Boolean(pinEditSlot)
   );
 
-  document.body.classList.toggle(
-    "pin-placement-mode",
-    pinPlacementMode
+  document.body.classList.remove(
+    "pin-placement-mode"
   );
-
-  /*
-   * Pin配置だけは専用画面のまま。
-   * 通常のパラメータ選択ではEditor画面を切り替えず、
-   * M / S / Track Volume / Sound名 / Pin / sw / step と
-   * Parameter Selectorを常に残す。
-   *
-   * 選択中パラメータはstateに保持し、
-   * 上段SequencerだけがOffset表示へ切り替わる。
-   */
-  if (pinPlacementMode) {
-    renderPinPlacementScreen();
-    return;
-  }
 
   renderMenu();
 }

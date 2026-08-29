@@ -157,12 +157,6 @@ function makeTrack(id) {
      */
     soundName: `sound ${String(id).padStart(2, "0")}`,
 
-    /*
-     * Pin機能の有効／無効。
-     * Pattern / Fillごとの各Trackで独立して保持する。
-     */
-    pinEnabled: false,
-
     /* StepごとのPin Sound指定。nullはMain。 */
     pins: filled(null),
 
@@ -779,15 +773,6 @@ export function resolveStepSound(
   track,
   stepIndex
 ) {
-
-  /*
-   * PinモードOFF中は、Stepにa/b/cの配置情報が残っていても
-   * 完全に無視してMain Soundを使う。
-   */
-  if (!track?.pinEnabled) {
-    return track;
-  }
-
   const slot =
     track?.pins?.[stepIndex];
 
@@ -2898,8 +2883,8 @@ track.base.strum =
     8
   );
 
-  track.pinEnabled =
-    Boolean(track.pinEnabled);
+  /* legacy pinEnabled is intentionally ignored. Pin placement is always active. */
+  delete track.pinEnabled;
 
   if (!Array.isArray(track.pins)) {
     track.pins = filled(null);

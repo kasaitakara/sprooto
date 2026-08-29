@@ -433,25 +433,38 @@ function swingDelaySeconds(track, stepIndex) {
   const isOffbeat =
     stepIndex % 2 === 1;
 
+  const soundTrack =
+    resolveStepSound(
+      track,
+      stepIndex
+    );
+
+  const usingPin =
+    soundTrack !== track;
+
   const nudgeValue =
-  clamp(
-    Math.round(
-      (
-        Number(
-          track.base.nudge
-        ) || 0
-      ) +
-      (
-        Number(
-          track.offsets.nudge?.[
-            stepIndex
-          ]
-        ) || 0
-      )
-    ),
-    -4,
-    4
-  );
+    clamp(
+      Math.round(
+        (
+          Number(
+            soundTrack.base.nudge
+          ) || 0
+        ) +
+        (
+          usingPin
+            ? 0
+            : (
+                Number(
+                  track.offsets.nudge?.[
+                    stepIndex
+                  ]
+                ) || 0
+              )
+        )
+      ),
+      -4,
+      4
+    );
 
   return (
     maximumAdvanceSeconds +
@@ -490,9 +503,21 @@ function playStepAtTick(
       playbackTickIndex %
       track.stepLength;
 
+    const pinSlot =
+      track.pins?.[trackStepIndex] ??
+      null;
+
+    const hasSound =
+      Boolean(
+        track.steps[trackStepIndex] ||
+        pinSlot === "a" ||
+        pinSlot === "b" ||
+        pinSlot === "c"
+      );
+
     if (
       !audible(track) ||
-      !track.steps[trackStepIndex]
+      !hasSound
     ) {
       return;
     }
@@ -503,14 +528,15 @@ function playStepAtTick(
         trackStepIndex
       );
 
-    const probability = clamp(
-      (soundTrack.base.probability ?? 100) +
-        (soundTrack.offsets.probability?.[
-          trackStepIndex
-        ] ?? 0),
-      0,
-      100
-    );
+    const probability =
+      resolvedSoundValue(
+        soundTrack,
+        track,
+        trackStepIndex,
+        "probability",
+        0,
+        100
+      );
 
     if (
       Math.random() * 100 <

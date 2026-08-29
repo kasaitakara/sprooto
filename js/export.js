@@ -125,10 +125,24 @@ function timingOffsetSeconds(track, stepIndex, bpm) {
   const quarterSeconds = 60 / Math.max(1, bpm);
   const unitSeconds = quarterSeconds / 64;
   const swingValue = clamp(Number(track.swing) || 0, -8, 8);
+
+  const soundTrack =
+    resolveStepSound(
+      track,
+      stepIndex
+    );
+
+  const usingPin =
+    soundTrack !== track;
+
   const nudgeValue = clamp(
     Math.round(
-      (Number(track.base.nudge) || 0) +
-      (Number(track.offsets.nudge?.[stepIndex]) || 0)
+      (Number(soundTrack.base.nudge) || 0) +
+      (
+        usingPin
+          ? 0
+          : (Number(track.offsets.nudge?.[stepIndex]) || 0)
+      )
     ),
     -4,
     4
@@ -174,7 +188,14 @@ function estimateTailSafetySeconds(sources, bpm, masterReverbAmount = 0) {
     audibleTracks(source).forEach(track => {
       const length = clamp(Math.round(Number(track.stepLength) || 1), 1, 64);
       for (let stepIndex = 0; stepIndex < length; stepIndex++) {
-        if (!track.steps?.[stepIndex]) continue;
+        const pinSlot = track.pins?.[stepIndex] ?? null;
+        const hasSound = Boolean(
+          track.steps?.[stepIndex] ||
+          pinSlot === "a" ||
+          pinSlot === "b" ||
+          pinSlot === "c"
+        );
+        if (!hasSound) continue;
         const sound = resolveStepSound(track, stepIndex);
         inspectSound(sound, track, stepIndex, sound !== track);
       }
@@ -201,12 +222,21 @@ async function scheduleSource({
 
     for (const track of sourceTracks) {
       const trackStepIndex = tick % clamp(Math.round(Number(track.stepLength) || 1), 1, 64);
-      if (!track.steps?.[trackStepIndex]) continue;
+      const pinSlot = track.pins?.[trackStepIndex] ?? null;
+      const hasSound = Boolean(
+        track.steps?.[trackStepIndex] ||
+        pinSlot === "a" ||
+        pinSlot === "b" ||
+        pinSlot === "c"
+      );
+      if (!hasSound) continue;
 
       const soundTrack = resolveStepSound(track, trackStepIndex);
-      const probability = clamp(
-        (soundTrack.base.probability ?? 100) +
-        (soundTrack.offsets.probability?.[trackStepIndex] ?? 0),
+      const probability = resolvedSoundValue(
+        soundTrack,
+        track,
+        trackStepIndex,
+        "probability",
         0,
         100
       );

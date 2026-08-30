@@ -1405,15 +1405,35 @@ function renderClipIndicator() {
         <path d="M9.5 12.5l5.9-5.9a3.2 3.2 0 0 1 4.5 4.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.2-8.2a2.8 2.8 0 0 1 4 4l-7.6 7.6a1.6 1.6 0 0 1-2.3-2.3l6.9-6.9"></path>
       </svg>
     `;
+    /*
+     * Mobile SafariではToolbarが詰まるとflex itemが縮小され、
+     * SVGごと実質0幅になることがある。
+     * Clip indicatorだけは固定寸法で縮ませない。
+     */
     button.style.width = "24px";
     button.style.height = "24px";
+    button.style.minWidth = "24px";
+    button.style.maxWidth = "24px";
+    button.style.flex = "0 0 24px";
+    button.style.flexShrink = "0";
     button.style.padding = "2px";
     button.style.border = "0";
     button.style.background = "transparent";
-    button.style.color = "currentColor";
     button.style.display = "inline-flex";
     button.style.alignItems = "center";
     button.style.justifyContent = "center";
+
+    const clipSvg =
+      button.querySelector("svg");
+
+    if (clipSvg) {
+      clipSvg.style.width = "18px";
+      clipSvg.style.height = "18px";
+      clipSvg.style.minWidth = "18px";
+      clipSvg.style.display = "block";
+      clipSvg.style.flex = "0 0 18px";
+      clipSvg.style.overflow = "visible";
+    }
     button.setAttribute(
       "aria-label",
       "クリップを解除"

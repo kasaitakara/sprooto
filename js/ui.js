@@ -1634,19 +1634,32 @@ function enableSelectionPointer({
           discardLatestUndoEntry();
 
           if (source === "sequence") {
-            const lane = element.querySelector(
-              `.track-lane[data-track-index="${trackIndex}"]`
-            );
-            lane?.classList.toggle(
-              "on",
-              Boolean(restoredSnapshot.stepOn)
-            );
-          } else {
-            element.classList.toggle(
-              "note-on",
-              Boolean(restoredSnapshot.stepOn)
-            );
-          }
+
+  const lane = element.querySelector(
+    `.track-lane[data-track-index="${trackIndex}"]`
+  );
+
+  lane?.classList.toggle(
+    "on",
+    Boolean(restoredSnapshot.stepOn)
+  );
+
+} else {
+
+  element.classList.toggle(
+    "note-on",
+    Boolean(restoredSnapshot.stepOn)
+  );
+
+  const offsetParameter =
+    currentSequenceOffsetParameter();
+
+  if (offsetParameter) {
+    refreshVisibleOffsetValues(
+      offsetParameter
+    );
+  }
+}
 
           stepClipSweep = {
             pointerId: event.pointerId,

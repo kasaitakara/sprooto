@@ -32,8 +32,8 @@ import {
   removeSectionSource,
   copySource,
   pasteSource,
-    clearSource,
   hasSourceClipboard,
+  clearSourceClipboard,
   sourceHasData,
   sectionHasData,
   currentSourceLabel,
@@ -51,8 +51,6 @@ import {
   copyStepRangeToEditClipboard,
   editClipboardOriginIsStep,
   pasteStepFromEditClipboard,
-  copySongPartToEditClipboard,
-  pasteSongPartFromEditClipboard,
   discardLatestUndoEntry,
 } from "./sequencer.js";
 
@@ -8011,183 +8009,170 @@ function restorePatternFocus(focusKey) {
   restoreFocusKey(focusKey);
 }
 
-const SOURCE_EDIT_LONG_PRESS_MS = 450;
+const SOURCE_DOUBLE_TAP_INTERVAL = 320;
+let lastSourceTap = null;
 
-const sourceEditState = {
-  active: false,
-  type: null,
-  index: null
-};
-
-function closeSourceEditMode() {
-  sourceEditState.active = false;
-  sourceEditState.type = null;
-  sourceEditState.index = null;
-
-  document
-    .querySelector(
-      ".source-edit-toolbar"
-    )
-    ?.remove();
-
-  document.body.classList.remove(
-    "source-edit-mode"
-  );
-}
-
-function openSourceEditMode(
+function sourceTapKey(
   type,
-  index
+  sourceIndex
 ) {
-  sourceEditState.active = true;
-  sourceEditState.type = type;
-  sourceEditState.index = index;
-
-  document.body.classList.add(
-    "source-edit-mode"
-  );
-
-  renderSourceEditToolbar();
+  return `${type}:${sourceIndex}`;
 }
 
-function renderSourceEditToolbar() {
-  document
-    .querySelector(
-      ".source-edit-toolbar"
-    )
-    ?.remove();
+function renderSourceClipIndicator() {
+  const header =
+    patternGrid
+      ?.closest(".pattern-section")
+      ?.querySelector(
+        ".pattern-section-header"
+      );
 
-  if (!sourceEditState.active) {
+  if (!header) {
     return;
   }
 
-  const patternHeader =
-  patternGrid
-    ?.closest(".pattern-section")
-    ?.querySelector(
-      ".pattern-section-header"
+  let button =
+    header.querySelector(
+      ".source-clip-indicator-button"
     );
 
-if (!patternHeader) {
-  return;
-}
+  if (!hasSourceClipboard()) {
+    button?.remove();
+    return;
+  }
 
-  const toolbar =
-    document.createElement("div");
+  if (!button) {
+    button =
+      document.createElement(
+        "button"
+      );
 
-  toolbar.className =
-    "source-edit-toolbar";
+    button.type = "button";
+    button.className =
+      "source-clip-indicator-button";
 
-  toolbar.innerHTML = `
-    <button type="button" data-action="cancel">
-      cancel
-    </button>
+    button.setAttribute(
+      "aria-label",
+      "Pattern / Fillクリップを解除"
+    );
 
-    <button type="button" data-action="copy">
-      copy
-    </button>
+    button.title = "clip clear";
 
-    <button type="button" data-action="delete">
-      delete
-    </button>
+    button.innerHTML = `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M9.5 12.5l5.9-5.9a3.2 3.2 0 0 1 4.5 4.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.2-8.2a2.8 2.8 0 0 1 4 4l-7.6 7.6a1.6 1.6 0 0 1-2.3-2.3l6.9-6.9"></path>
+      </svg>
+    `;
 
-    <button
-      type="button"
-      data-action="paste"
-      ${
-        hasSourceClipboard()
-          ? ""
-          : "disabled"
-      }
-    >
-      paste
-    </button>
-  `;
+    /*
+     * Pattern / Fill / Sectionエリア右上。
+     * Page切替ボタンの直前へ配置する。
+     */
+    if (
+      patternPageButton &&
+      patternPageButton.parentElement ===
+        header
+    ) {
+      header.insertBefore(
+        button,
+        patternPageButton
+      );
+    } else {
+      header.appendChild(
+        button
+      );
+    }
 
-  toolbar
-    .querySelector(
-      '[data-action="cancel"]'
-    )
-    .addEventListener(
+    button.addEventListener(
       "click",
-      () => {
-        closeSourceEditMode();
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        clearSourceClipboard();
+        lastSourceTap = null;
+
         renderPatternManager();
       }
     );
-
-    toolbar
-  .querySelector(
-    '[data-action="copy"]'
-  )
-  .addEventListener(
-    "click",
-    () => {
-      const copied =
-        copySource(
-          sourceEditState.type,
-          sourceEditState.index
-        );
-
-      if (!copied) {
-        return;
-      }
-
-      renderSourceEditToolbar();
-    }
-  );
-
-toolbar
-  .querySelector(
-    '[data-action="delete"]'
-  )
-  .addEventListener(
-    "click",
-    () => {
-      const cleared =
-        clearSource(
-          sourceEditState.type,
-          sourceEditState.index
-        );
-
-      if (!cleared) {
-        return;
-      }
-
-      closeSourceEditMode();
-
-      render();
-    }
-  );
-
-toolbar
-  .querySelector(
-    '[data-action="paste"]'
-  )
-  .addEventListener(
-    "click",
-    () => {
-      const pasted =
-        pasteSource(
-          sourceEditState.type,
-          sourceEditState.index
-        );
-
-      if (!pasted) {
-        return;
-      }
-
-      closeSourceEditMode();
-
-      render();
-    }
-  );
-
-  patternHeader.appendChild(
-  toolbar
-);
+  }
 }
 
+function enableSourceDoubleTapClip(
+  button,
+  sourceType,
+  sourceIndex
+) {
+  button.addEventListener(
+    "pointerdown",
+    event => {
+      if (
+        event.pointerType === "mouse" &&
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      /*
+       * 再生中はPattern / Fill予約操作を優先する。
+       * クリップ保持中は貼り付け操作を優先する。
+       */
+      if (
+        state.isPlaying ||
+        hasSourceClipboard()
+      ) {
+        return;
+      }
+
+      const key =
+        sourceTapKey(
+          sourceType,
+          sourceIndex
+        );
+
+      const now =
+        performance.now();
+
+      if (
+        !lastSourceTap ||
+        lastSourceTap.key !== key ||
+        now - lastSourceTap.time >
+          SOURCE_DOUBLE_TAP_INTERVAL
+      ) {
+        return;
+      }
+
+      if (
+        !copySource(
+          sourceType,
+          sourceIndex
+        )
+      ) {
+        return;
+      }
+
+      lastSourceTap = null;
+
+      /*
+       * 2回目pointerdownで即クリップ成立。
+       * 同じpointerdownをDragへ渡さない。
+       */
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      renderPatternManager();
+      renderSourceClipIndicator();
+    }
+  );
+}
 
 /* =========================
  * Song editor - stage 1
@@ -8367,6 +8352,7 @@ function enableExternalSourceDragToSong(
 
   button.addEventListener("pointerdown", event => {
     if (!songEditorView) return;
+    if (hasSourceClipboard()) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
 
     pointerId = event.pointerId;
@@ -9573,137 +9559,35 @@ title.append(
   startMasterMixMeterAnimation();
 }
 
-const PART_DOUBLE_TAP_INTERVAL = 320;
-let lastPartTap = null;
-let suppressedPartClick = null;
-
-function enableSongPartDoubleTapPointer(
-  cell,
+function handleSongPartTap(
   globalIndex,
-  source
+  hasSource
 ) {
-  if (
-    !source ||
-    (
-      source.type !== "pattern" &&
-      source.type !== "fill"
-    )
-  ) {
-    return;
-  }
-
-  cell.addEventListener(
-    "pointerdown",
-    event => {
-      if (
-        event.pointerType === "mouse" &&
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      if (
-        state.isPlaying ||
-        (
-          hasEditClipboard() &&
-          editClipboardType() === "part"
-        )
-      ) {
-        return;
-      }
-
-      const now =
-        performance.now();
-
-      if (
-        !lastPartTap ||
-        lastPartTap.index !==
-          globalIndex ||
-        now - lastPartTap.time >
-          PART_DOUBLE_TAP_INTERVAL
-      ) {
-        return;
-      }
-
-      if (
-        !copySongPartToEditClipboard(
-          globalIndex
-        )
-      ) {
-        return;
-      }
-
-      suppressedPartClick = {
-        index: globalIndex,
-        until: now + 500
-      };
-
-      lastPartTap = null;
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      renderSongGrid();
-      renderClipIndicator();
-    }
-  );
-}
-
-function handleSongPartTap(globalIndex, hasSource) {
-  if (
-    suppressedPartClick &&
-    suppressedPartClick.index ===
-      globalIndex &&
-    performance.now() <=
-      suppressedPartClick.until
-  ) {
-    suppressedPartClick = null;
+  if (!hasSource) {
     return;
   }
 
   if (state.isPlaying) {
-    if (hasSource) {
-      queueSongPart(globalIndex);
-      renderPatternManager();
-      renderSongGrid();
-    }
-    return;
-  }
+    queueSongPart(
+      globalIndex
+    );
 
-  if (
-    hasEditClipboard() &&
-    editClipboardType() === "part"
-  ) {
-    if (
-      pasteSongPartFromEditClipboard(
-        globalIndex
-      )
-    ) {
-      clearEditClipboard();
-      lastPartTap = null;
-      renderPatternManager();
-      renderSongGrid();
-      renderClipIndicator();
-    }
-    return;
-  }
-
-  lastPartTap = {
-    index: globalIndex,
-    time: performance.now()
-  };
-
-  if (hasSource) {
-    selectSongPart(globalIndex);
     renderPatternManager();
     renderSongGrid();
+    return;
   }
+
+  selectSongPart(
+    globalIndex
+  );
+
+  renderPatternManager();
+  renderSongGrid();
 }
 
 function renderSongGrid() {
   if (!songGrid) return;
 
-  renderClipIndicator();
   songGrid.innerHTML = "";
   const pageStart = state.songPage * SONG_PARTS_PER_PAGE;
 
@@ -9749,13 +9633,6 @@ function renderSongGrid() {
         "aria-label",
         `song part ${globalIndex + 1}: ${source.type} ${songPartLabel(source)}`
       );
-
-      enableSongPartDoubleTapPointer(
-        cell,
-        globalIndex,
-        source
-      );
-
       enableSongItemDrag(cell, globalIndex);
 
       cell.addEventListener(
@@ -9884,6 +9761,8 @@ export function renderPatternManager() {
   if (!patternGrid || !sectionList) {
     return;
   }
+
+  renderSourceClipIndicator();
 
   patternGrid.innerHTML = "";
     function enablePatternSourceDrag(
@@ -10202,6 +10081,10 @@ export function renderPatternManager() {
         return;
       }
 
+      if (hasSourceClipboard()) {
+        return;
+      }
+
       if (
         event.pointerType ===
           "mouse" &&
@@ -10339,17 +10222,6 @@ for (
   );
 }
 
-if (
-  sourceEditState.active &&
-  sourceEditState.type ===
-    sourceType &&
-  sourceEditState.index ===
-    slotIndex
-) {
-  button.classList.add(
-    "source-edit-target"
-  );
-}
 
     if (isFill) {
   button.textContent =
@@ -10431,197 +10303,99 @@ if (
 }
     }
 
-    button.addEventListener(
-  "click",
-  () => {
     /*
-     * Pattern / Fill編集モード中。
-     * 通常選択は動かさず、
-     * 編集対象の枠だけ移動する。
+     * Pattern / Fillのみダブルタップでクリップ。
+     * Sectionは対象外。
      */
-    if (sourceEditState.active) {
-      sourceEditState.type =
-        isFill
-          ? "fill"
-          : "pattern";
-
-      sourceEditState.index =
-        slotIndex;
-
-      renderPatternManager();
-
-      restorePatternFocus(
-        isFill
-          ? `fill-${slotIndex}`
-          : `pattern-${slotIndex}`
-      );
-
-      return;
-    }
-
-    /*
-     * 通常モード：Fill
-     */
-    if (isFill) {
-      if (state.isPlaying) {
-        queueFill(
-          slotIndex
-        );
-
-        renderPatternManager();
-        renderSongGrid();
-
-        restorePatternFocus(
-          `fill-${slotIndex}`
-        );
-
-        return;
-      }
-
-      selectFill(
-        slotIndex
-      );
-
-      render();
-
-      restorePatternFocus(
-        `fill-${slotIndex}`
-      );
-
-      return;
-    }
-
-    /*
-     * 通常モード：Pattern再生中
-     */
-    if (state.isPlaying) {
-      queuePattern(
-        slotIndex
-      );
-
-      renderPatternManager();
-      renderSongGrid();
-
-      restorePatternFocus(
-        `pattern-${slotIndex}`
-      );
-
-      return;
-    }
-
-    /*
-     * 通常モード：Pattern停止中
-     */
-    selectPattern(
+    enableSourceDoubleTapClip(
+      button,
+      sourceType,
       slotIndex
     );
 
-    render();
+    button.addEventListener(
+      "click",
+      () => {
+        const focusKey =
+          isFill
+            ? `fill-${slotIndex}`
+            : `pattern-${slotIndex}`;
 
-    restorePatternFocus(
-      `pattern-${slotIndex}`
-    );
-  }
-);
-
-let sourceLongPressTimer = null;
-let sourceLongPressStartX = 0;
-let sourceLongPressStartY = 0;
-let sourceLongPressTriggered = false;
-
-button.addEventListener(
-  "pointerdown",
-  event => {
-    if (
-      event.pointerType === "mouse" &&
-      event.button !== 0
-    ) {
-      return;
-    }
-
-    sourceLongPressTriggered =
-      false;
-
-    sourceLongPressStartX =
-      event.clientX;
-
-    sourceLongPressStartY =
-      event.clientY;
-
-    clearTimeout(
-      sourceLongPressTimer
-    );
-
-    sourceLongPressTimer =
-      window.setTimeout(
-        () => {
-          sourceLongPressTriggered =
-            true;
-
-          openSourceEditMode(
-            isFill
-              ? "fill"
-              : "pattern",
-            slotIndex
-          );
+        /*
+         * 再生中は従来どおり予約操作を優先。
+         */
+        if (state.isPlaying) {
+          if (isFill) {
+            queueFill(
+              slotIndex
+            );
+          } else {
+            queuePattern(
+              slotIndex
+            );
+          }
 
           renderPatternManager();
-        },
-        SOURCE_EDIT_LONG_PRESS_MS
-      );
-  }
-);
+          renderSongGrid();
 
-button.addEventListener(
-  "pointermove",
-  event => {
-    const movement =
-      Math.hypot(
-        event.clientX -
-          sourceLongPressStartX,
-        event.clientY -
-          sourceLongPressStartY
-      );
+          restorePatternFocus(
+            focusKey
+          );
 
-    if (movement > 10) {
-      clearTimeout(
-        sourceLongPressTimer
-      );
-    }
-  }
-);
+          return;
+        }
 
-function clearSourceLongPress() {
-  clearTimeout(
-    sourceLongPressTimer
-  );
-}
+        /*
+         * Sourceクリップ保持中はタップ先へ貼り付け。
+         * クリップは保持し、連続スタンプ可能。
+         */
+        if (hasSourceClipboard()) {
+          if (
+            pasteSource(
+              sourceType,
+              slotIndex
+            )
+          ) {
+            lastSourceTap = null;
 
-button.addEventListener(
-  "pointerup",
-  clearSourceLongPress
-);
+            render();
+            renderSourceClipIndicator();
 
-button.addEventListener(
-  "pointercancel",
-  clearSourceLongPress
-);
+            restorePatternFocus(
+              focusKey
+            );
+          }
 
-button.addEventListener(
-  "click",
-  event => {
-    if (!sourceLongPressTriggered) {
-      return;
-    }
+          return;
+        }
 
-    event.preventDefault();
-    event.stopImmediatePropagation();
+        lastSourceTap = {
+          key:
+            sourceTapKey(
+              sourceType,
+              slotIndex
+            ),
+          time:
+            performance.now()
+        };
 
-    sourceLongPressTriggered =
-      false;
-  },
-  true
-);
+        if (isFill) {
+          selectFill(
+            slotIndex
+          );
+        } else {
+          selectPattern(
+            slotIndex
+          );
+        }
+
+        render();
+
+        restorePatternFocus(
+          focusKey
+        );
+      }
+    );
 
 enablePatternSourceDrag(
   button,

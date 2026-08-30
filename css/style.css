@@ -1444,6 +1444,50 @@ button:focus-visible,input:focus-visible,select:focus-visible { outline:1px soli
     color: var(--selected-bg);
 }
 
+
+.source-clip-indicator-button {
+    width: 24px;
+    height: 22px;
+    min-width: 24px;
+
+    margin-left: auto;
+    padding: 2px;
+
+    border: 0;
+    background: transparent;
+    color: var(--text);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    appearance: none;
+    -webkit-appearance: none;
+
+    cursor: pointer;
+}
+
+.source-clip-indicator-button svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+    flex: 0 0 18px;
+}
+
+.source-clip-indicator-button:hover,
+.source-clip-indicator-button:focus-visible {
+    color: var(--selected-bg);
+}
+
+/*
+ * Clip表示時はClip側が右寄せを担当し、
+ * Page切替をその直後へ並べる。
+ */
+.source-clip-indicator-button +
+.pattern-page-button {
+    margin-left: 0;
+}
+
 /* =========================
    14px化に伴うレイアウト修正
 ========================= */
@@ -3451,61 +3495,6 @@ input[type="radio"]:focus-visible {
         var(--selected-text);
 }
 
-/* =========================
-   Pattern / Fill edit toolbar
-========================= */
-
-.source-edit-toolbar {
-    flex: 1 1 auto;
-    min-width: 0;
-    height: 28px;
-
-    margin-left: 10px;
-    padding: 0;
-
-    display: grid;
-    grid-template-columns:
-        repeat(4, minmax(0, 1fr));
-
-    align-items: center;
-    gap: 4px;
-}
-
-.source-edit-toolbar button {
-    width: 100%;
-    height: 24px;
-
-    margin: 0;
-    padding: 0 2px;
-
-    border: 0;
-    background: transparent;
-
-    color: var(--text);
-    -webkit-text-fill-color:
-        var(--text);
-
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.source-edit-toolbar button:disabled {
-    color: var(--muted);
-    -webkit-text-fill-color:
-        var(--muted);
-
-    opacity: 0.45;
-}
-
-/* =========================
-   Pattern / Fill edit target
-========================= */
-
-.pattern-cell.source-edit-target {
-    outline: 1px solid var(--text);
-    outline-offset: -1px;
-}
 
 /* =========================
    Empty Pattern / Fill / Section

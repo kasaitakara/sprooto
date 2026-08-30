@@ -2672,111 +2672,6 @@ export function pasteStepFromEditClipboard(
   return true;
 }
 
-export function copySongPartToEditClipboard(
-  songPartIndex
-) {
-  if (state.isPlaying) {
-    return false;
-  }
-
-  const index = clamp(
-    Math.round(Number(songPartIndex) || 0),
-    0,
-    SONG_PART_COUNT - 1
-  );
-
-  const part =
-    song.sequence[index];
-
-  /*
-   * PARTクリップは実在するPattern / Fillのみ。
-   * Sectionと空枠は通常の選択・編集操作を維持する。
-   */
-  if (
-    !part ||
-    (
-      part.type !== "pattern" &&
-      part.type !== "fill"
-    )
-  ) {
-    return false;
-  }
-
-  editClipboard = {
-    type: "part",
-    origin: {
-      songPartIndex: index
-    },
-    data:
-      structuredClone(part)
-  };
-
-  return true;
-}
-
-export function pasteSongPartFromEditClipboard(
-  songPartIndex
-) {
-  if (
-    state.isPlaying ||
-    editClipboard?.type !== "part"
-  ) {
-    return false;
-  }
-
-  const part =
-    editClipboard.data;
-
-  if (
-    !part ||
-    (
-      part.type !== "pattern" &&
-      part.type !== "fill"
-    )
-  ) {
-    return false;
-  }
-
-  const targetIndex = clamp(
-    Math.round(Number(songPartIndex) || 0),
-    0,
-    SONG_PART_COUNT - 1
-  );
-
-  /*
-   * Songは詰め配列。
-   * 既存PARTなら置換、末尾の次枠なら追加する。
-   * 途中の空きを作る貼り付けは行わない。
-   */
-  if (targetIndex > song.sequence.length) {
-    return false;
-  }
-
-  saveHistory();
-
-  if (targetIndex < song.sequence.length) {
-    song.sequence[targetIndex] =
-      structuredClone(part);
-  } else {
-    if (
-      song.sequence.length >=
-      SONG_PART_COUNT
-    ) {
-      return false;
-    }
-
-    song.sequence.push(
-      structuredClone(part)
-    );
-  }
-
-  state.selectedPlaybackType = "song";
-  state.selectedSongPartIndex =
-    targetIndex;
-
-  return true;
-}
-
 export function discardLatestUndoEntry() {
   if (undoStack.length === 0) {
     return false;
@@ -2798,6 +2693,10 @@ export function hasSourceClipboard() {
   return Boolean(
     sourceClipboard
   );
+}
+
+export function clearSourceClipboard() {
+  sourceClipboard = null;
 }
 
 export function copySource(

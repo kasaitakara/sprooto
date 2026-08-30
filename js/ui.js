@@ -52,6 +52,7 @@ import {
   editClipboardOriginIsStep,
   pasteStepFromEditClipboard,
   copySongPartToEditClipboard,
+  copySongPartRangeToEditClipboard,
   pasteSongPartFromEditClipboard,
   discardLatestUndoEntry,
 } from "./sequencer.js";
@@ -1240,8 +1241,7 @@ function isSecondStepTap(trackIndex, stepIndex) {
     lastStepTap.key ===
       currentSourceTapKey(trackIndex, stepIndex) &&
     performance.now() - lastStepTap.time <=
-      STEP_DOUBLE_TAP_INTERVAL &&
-    lastStepTap.snapshot.stepOn
+      STEP_DOUBLE_TAP_INTERVAL
   );
 }
 
@@ -1325,8 +1325,7 @@ function handleStepTap({
     lastStepTap &&
     lastStepTap.key === key &&
     now - lastStepTap.time <=
-      STEP_DOUBLE_TAP_INTERVAL &&
-    lastStepTap.snapshot.stepOn
+      STEP_DOUBLE_TAP_INTERVAL
   ) {
     restoreStepSnapshot(
       track,
@@ -1342,7 +1341,10 @@ function handleStepTap({
 
     copyStepToEditClipboard(
       trackIndex,
-      stepIndex
+      stepIndex,
+      currentSequenceOffsetParameter()
+        ? "track"
+        : "pattern"
     );
 
     lastStepTap = null;
@@ -1390,7 +1392,28 @@ function renderClipIndicator() {
     button.type = "button";
     button.className =
       "clip-indicator-button";
-    button.textContent = "📎";
+    button.innerHTML = `
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M9.5 12.5l5.9-5.9a3.2 3.2 0 0 1 4.5 4.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.2-8.2a2.8 2.8 0 0 1 4 4l-7.6 7.6a1.6 1.6 0 0 1-2.3-2.3l6.9-6.9"></path>
+      </svg>
+    `;
+    button.style.width = "24px";
+    button.style.height = "24px";
+    button.style.padding = "2px";
+    button.style.border = "0";
+    button.style.background = "transparent";
+    button.style.color = "currentColor";
+    button.style.display = "inline-flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
     button.setAttribute(
       "aria-label",
       "クリップを解除"
@@ -1560,7 +1583,7 @@ function enableSelectionPointer({
       suppressNextClick = false;
       delete element.dataset.noteSweepActive;
 
-      if (source === "sequence") {
+      {
         const trackIndex = state.selectedTrackIndex;
         const stepIndex = getStepIndex(element);
         const track = tracks[trackIndex];
@@ -1570,22 +1593,48 @@ function enableSelectionPointer({
           isSecondStepTap(trackIndex, stepIndex)
         ) {
           /*
-           * ダブルタップ2回目のpointerdownでコピー操作へ確定。
-           * 1回目tapで一時的にOFFになったSTEPを元へ戻す。
+           * 2回目pointerdown時点で1回目の仮ON/OFFを戻す。
+           * 再描画するとpointer captureが切れるため、DOMも直接復元する。
            */
+          const restoredSnapshot =
+            lastStepTap.snapshot;
+
           restoreStepSnapshot(
             track,
             stepIndex,
-            lastStepTap.snapshot
+            restoredSnapshot
           );
           discardLatestUndoEntry();
+
+          if (source === "sequence") {
+            const lane = element.querySelector(
+              `.track-lane[data-track-index="${trackIndex}"]`
+            );
+            lane?.classList.toggle(
+              "on",
+              Boolean(restoredSnapshot.stepOn)
+            );
+          } else {
+            element.classList.toggle(
+              "note-on",
+              Boolean(restoredSnapshot.stepOn)
+            );
+          }
 
           stepClipSweep = {
             pointerId: event.pointerId,
             trackIndex,
             startStepIndex: stepIndex,
-            endStepIndex: stepIndex
+            endStepIndex: stepIndex,
+            scope:
+              source === "sequence"
+                ? "pattern"
+                : "track"
           };
+
+          element.classList.add(
+            "range-selected"
+          );
 
           suppressNextClick = true;
           lastStepTap = null;
@@ -1619,6 +1668,32 @@ function enableSelectionPointer({
         if (cell) {
           stepClipSweep.endStepIndex =
             cell.stepIndex;
+
+          const minimum = Math.min(
+            stepClipSweep.startStepIndex,
+            stepClipSweep.endStepIndex
+          );
+          const maximum = Math.max(
+            stepClipSweep.startStepIndex,
+            stepClipSweep.endStepIndex
+          );
+
+          document
+            .querySelectorAll(
+              source === "sequence"
+                ? ".sequence-step[data-step-index]"
+                : ".offset-step[data-step-index]"
+            )
+            .forEach(candidate => {
+              const candidateStep = Number(
+                candidate.dataset.stepIndex
+              );
+              candidate.classList.toggle(
+                "range-selected",
+                candidateStep >= minimum &&
+                candidateStep <= maximum
+              );
+            });
         }
 
         return;
@@ -1701,7 +1776,8 @@ function enableSelectionPointer({
       copyStepRangeToEditClipboard(
         stepClipSweep.trackIndex,
         stepClipSweep.startStepIndex,
-        stepClipSweep.endStepIndex
+        stepClipSweep.endStepIndex,
+        stepClipSweep.scope
       );
       stepClipSweep = null;
       renderSequence();
@@ -9450,6 +9526,176 @@ title.append(
 
 const PART_DOUBLE_TAP_INTERVAL = 320;
 let lastPartTap = null;
+let partClipSweep = null;
+
+function enableSongPartClipPointer(
+  cell,
+  globalIndex
+) {
+  let suppressClick = false;
+
+  cell.addEventListener(
+    "pointerdown",
+    event => {
+      if (state.isPlaying) {
+        return;
+      }
+
+      if (
+        event.pointerType === "mouse" &&
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      if (
+        !lastPartTap ||
+        lastPartTap.index !== globalIndex ||
+        performance.now() - lastPartTap.time >
+          PART_DOUBLE_TAP_INTERVAL
+      ) {
+        return;
+      }
+
+      partClipSweep = {
+        pointerId: event.pointerId,
+        startIndex: globalIndex,
+        endIndex: globalIndex
+      };
+
+      suppressClick = true;
+      lastPartTap = null;
+      cell.classList.add("range-selected");
+      cell.setPointerCapture?.(
+        event.pointerId
+      );
+
+      /*
+       * 2回目タップはコピー操作。
+       * Song並べ替えDragへ流さない。
+       */
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    true
+  );
+
+  cell.addEventListener(
+    "pointermove",
+    event => {
+      if (
+        !partClipSweep ||
+        partClipSweep.pointerId !== event.pointerId
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const target = document
+        .elementFromPoint(
+          event.clientX,
+          event.clientY
+        )
+        ?.closest?.(
+          ".song-part-cell[data-song-index]"
+        );
+
+      if (!target || !songGrid?.contains(target)) {
+        return;
+      }
+
+      const nextIndex = Number(
+        target.dataset.songIndex
+      );
+
+      if (!Number.isFinite(nextIndex)) {
+        return;
+      }
+
+      partClipSweep.endIndex =
+        nextIndex;
+
+      const minimum = Math.min(
+        partClipSweep.startIndex,
+        partClipSweep.endIndex
+      );
+      const maximum = Math.max(
+        partClipSweep.startIndex,
+        partClipSweep.endIndex
+      );
+
+      songGrid
+        .querySelectorAll(
+          ".song-part-cell[data-song-index]"
+        )
+        .forEach(candidate => {
+          const index = Number(
+            candidate.dataset.songIndex
+          );
+          candidate.classList.toggle(
+            "range-selected",
+            index >= minimum &&
+            index <= maximum
+          );
+        });
+    }
+  );
+
+  function finishPartClip(event) {
+    if (
+      !partClipSweep ||
+      partClipSweep.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    if (
+      cell.hasPointerCapture?.(
+        event.pointerId
+      )
+    ) {
+      cell.releasePointerCapture(
+        event.pointerId
+      );
+    }
+
+    copySongPartRangeToEditClipboard(
+      partClipSweep.startIndex,
+      partClipSweep.endIndex
+    );
+
+    partClipSweep = null;
+    renderSongGrid();
+    renderClipIndicator();
+  }
+
+  cell.addEventListener(
+    "pointerup",
+    finishPartClip,
+    true
+  );
+
+  cell.addEventListener(
+    "pointercancel",
+    finishPartClip,
+    true
+  );
+
+  cell.addEventListener(
+    "click",
+    event => {
+      if (!suppressClick) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressClick = false;
+    },
+    true
+  );
+}
 
 function handleSongPartTap(globalIndex, hasSource) {
   if (state.isPlaying) {
@@ -9524,6 +9770,11 @@ function renderSongGrid() {
     cell.dataset.songLocalIndex = String(localIndex);
     cell.dataset.songIndex = String(globalIndex);
     cell.dataset.focusKey = `song-part-${globalIndex}`;
+
+    enableSongPartClipPointer(
+      cell,
+      globalIndex
+    );
 
     if (source) {
       cell.classList.add("filled");

@@ -2432,45 +2432,83 @@ function captureStepData(track, stepIndex) {
 export function copyStepRangeToEditClipboard(
   trackIndex = state.selectedTrackIndex,
   startStepIndex,
-  endStepIndex = startStepIndex
+  endStepIndex = startStepIndex,
+  scope = "track"
 ) {
-  const track = tracks[trackIndex];
+  const sourceTrack = tracks[trackIndex];
 
-  if (!track) {
+  if (!sourceTrack) {
     return false;
   }
 
-  const minimumStep = Math.max(
+  const requestedMinimum = Math.max(
     0,
     Math.min(startStepIndex, endStepIndex)
   );
-  const maximumStep = Math.min(
-    track.stepLength - 1,
+  const requestedMaximum = Math.min(
+    STEP_COUNT - 1,
     Math.max(startStepIndex, endStepIndex)
   );
 
-  /*
-   * 起点はON STEP限定。範囲内はOFF STEPも含め、
-   * ON/OFFと全offsetをそのままフレーズとして保持する。
-   */
-  if (!track.steps?.[startStepIndex]) {
+  if (requestedMaximum < requestedMinimum) {
     return false;
   }
 
-  const cells = [];
+  const normalizedScope =
+    scope === "pattern"
+      ? "pattern"
+      : "track";
 
-  for (
-    let stepIndex = minimumStep;
-    stepIndex <= maximumStep;
-    stepIndex++
-  ) {
-    cells.push(
-      captureStepData(track, stepIndex)
+  let cells;
+
+  if (normalizedScope === "pattern") {
+    cells = [];
+
+    for (
+      let stepIndex = requestedMinimum;
+      stepIndex <= requestedMaximum;
+      stepIndex++
+    ) {
+      cells.push({
+        tracks: tracks.map(track => ({
+          exists:
+            stepIndex < track.stepLength,
+          data:
+            stepIndex < track.stepLength
+              ? captureStepData(track, stepIndex)
+              : null
+        }))
+      });
+    }
+  } else {
+    const maximumStep = Math.min(
+      sourceTrack.stepLength - 1,
+      requestedMaximum
     );
+
+    if (maximumStep < requestedMinimum) {
+      return false;
+    }
+
+    cells = [];
+
+    for (
+      let stepIndex = requestedMinimum;
+      stepIndex <= maximumStep;
+      stepIndex++
+    ) {
+      cells.push(
+        captureStepData(
+          sourceTrack,
+          stepIndex
+        )
+      );
+    }
   }
 
   editClipboard = {
     type: "step",
+    scope: normalizedScope,
     origin: {
       sourceType:
         state.selectedSourceType,
@@ -2479,8 +2517,9 @@ export function copyStepRangeToEditClipboard(
           ? state.selectedFillIndex ?? 0
           : state.selectedPatternIndex ?? 0,
       trackIndex,
-      stepIndex: minimumStep,
-      endStepIndex: maximumStep
+      anchorStepIndex: startStepIndex,
+      minimumStep: requestedMinimum,
+      maximumStep: requestedMaximum
     },
     data: {
       cells: structuredClone(cells)
@@ -2492,12 +2531,14 @@ export function copyStepRangeToEditClipboard(
 
 export function copyStepToEditClipboard(
   trackIndex = state.selectedTrackIndex,
-  stepIndex
+  stepIndex,
+  scope = "track"
 ) {
   return copyStepRangeToEditClipboard(
     trackIndex,
     stepIndex,
-    stepIndex
+    stepIndex,
+    scope
   );
 }
 
@@ -2521,8 +2562,27 @@ export function editClipboardOriginIsStep(
       state.selectedSourceType &&
     origin.sourceIndex === sourceIndex &&
     origin.trackIndex === trackIndex &&
-    origin.stepIndex === stepIndex
+    (origin.anchorStepIndex ?? origin.stepIndex) === stepIndex
   );
+}
+
+function applyCapturedStepData(
+  track,
+  targetStepIndex,
+  data
+) {
+  track.steps[targetStepIndex] =
+    Boolean(data?.stepOn);
+
+  Object.entries(track.offsets ?? {})
+    .forEach(([parameterId, values]) => {
+      if (!Array.isArray(values)) {
+        return;
+      }
+
+      values[targetStepIndex] =
+        Number(data?.offsets?.[parameterId]) || 0;
+    });
 }
 
 export function pasteStepFromEditClipboard(
@@ -2533,12 +2593,9 @@ export function pasteStepFromEditClipboard(
     return false;
   }
 
-  const track = tracks[trackIndex];
-
   if (
-    !track ||
     stepIndex < 0 ||
-    stepIndex >= track.stepLength
+    stepIndex >= STEP_COUNT
   ) {
     return false;
   }
@@ -2553,6 +2610,48 @@ export function pasteStepFromEditClipboard(
     return false;
   }
 
+  if (editClipboard.scope === "pattern") {
+    saveHistory();
+
+    cells.forEach((cell, offsetIndex) => {
+      const targetStepIndex =
+        stepIndex + offsetIndex;
+
+      if (targetStepIndex >= STEP_COUNT) {
+        return;
+      }
+
+      tracks.forEach((track, targetTrackIndex) => {
+        const captured =
+          cell?.tracks?.[targetTrackIndex];
+
+        if (
+          !captured?.exists ||
+          targetStepIndex >= track.stepLength
+        ) {
+          return;
+        }
+
+        applyCapturedStepData(
+          track,
+          targetStepIndex,
+          captured.data
+        );
+      });
+    });
+
+    return true;
+  }
+
+  const track = tracks[trackIndex];
+
+  if (
+    !track ||
+    stepIndex >= track.stepLength
+  ) {
+    return false;
+  }
+
   saveTrackHistory(trackIndex);
 
   cells.forEach((data, offsetIndex) => {
@@ -2563,19 +2662,66 @@ export function pasteStepFromEditClipboard(
       return;
     }
 
-    track.steps[targetStepIndex] =
-      Boolean(data?.stepOn);
-
-    Object.entries(track.offsets ?? {})
-      .forEach(([parameterId, values]) => {
-        if (!Array.isArray(values)) {
-          return;
-        }
-
-        values[targetStepIndex] =
-          Number(data?.offsets?.[parameterId]) || 0;
-      });
+    applyCapturedStepData(
+      track,
+      targetStepIndex,
+      data
+    );
   });
+
+  return true;
+}
+
+export function copySongPartRangeToEditClipboard(
+  startSongPartIndex,
+  endSongPartIndex = startSongPartIndex
+) {
+  if (state.isPlaying) {
+    return false;
+  }
+
+  const minimumIndex = clamp(
+    Math.min(startSongPartIndex, endSongPartIndex),
+    0,
+    SONG_PART_COUNT - 1
+  );
+  const maximumIndex = clamp(
+    Math.max(startSongPartIndex, endSongPartIndex),
+    0,
+    SONG_PART_COUNT - 1
+  );
+
+  const cells = [];
+
+  for (
+    let index = minimumIndex;
+    index <= maximumIndex;
+    index++
+  ) {
+    const part =
+      song.sequence[index] ?? null;
+
+    cells.push(
+      part
+        ? structuredClone(part)
+        : null
+    );
+  }
+
+  editClipboard = {
+    type: "part",
+    origin: {
+      anchorSongPartIndex:
+        startSongPartIndex,
+      minimumSongPartIndex:
+        minimumIndex,
+      maximumSongPartIndex:
+        maximumIndex
+    },
+    data: {
+      cells
+    }
+  };
 
   return true;
 }
@@ -2583,21 +2729,10 @@ export function pasteStepFromEditClipboard(
 export function copySongPartToEditClipboard(
   songPartIndex
 ) {
-  if (state.isPlaying) {
-    return false;
-  }
-
-  const part =
-    song.sequence[songPartIndex] ?? null;
-
-  editClipboard = {
-    type: "part",
-    data: part
-      ? structuredClone(part)
-      : null
-  };
-
-  return true;
+  return copySongPartRangeToEditClipboard(
+    songPartIndex,
+    songPartIndex
+  );
 }
 
 export function pasteSongPartFromEditClipboard(
@@ -2616,9 +2751,23 @@ export function pasteSongPartFromEditClipboard(
     SONG_PART_COUNT - 1
   );
 
-  const data = editClipboard.data;
+  const cells = Array.isArray(
+    editClipboard.data?.cells
+  )
+    ? editClipboard.data.cells
+    : [editClipboard.data ?? null];
 
-  if (data === null) {
+  if (cells.length === 0) {
+    return false;
+  }
+
+  /*
+   * 単一の空PARTは従来どおりDELETEとして扱う。
+   */
+  if (
+    cells.length === 1 &&
+    cells[0] === null
+  ) {
     if (targetIndex >= song.sequence.length) {
       return false;
     }
@@ -2637,20 +2786,43 @@ export function pasteSongPartFromEditClipboard(
 
   saveHistory();
 
-  if (targetIndex < song.sequence.length) {
-    song.sequence[targetIndex] =
-      structuredClone(data);
-  } else {
-    song.sequence.push(
-      structuredClone(data)
-    );
-  }
+  cells.forEach((part, offsetIndex) => {
+    const destination =
+      targetIndex + offsetIndex;
+
+    if (destination >= SONG_PART_COUNT) {
+      return;
+    }
+
+    if (part === null) {
+      /*
+       * Songは詰め配列なので、範囲コピー内の空枠は
+       * 既存PARTを勝手に詰めず、その位置を変更しない。
+       */
+      return;
+    }
+
+    if (destination < song.sequence.length) {
+      song.sequence[destination] =
+        structuredClone(part);
+      return;
+    }
+
+    if (
+      destination === song.sequence.length &&
+      song.sequence.length < SONG_PART_COUNT
+    ) {
+      song.sequence.push(
+        structuredClone(part)
+      );
+    }
+  });
 
   state.selectedPlaybackType = "song";
   state.selectedSongPartIndex =
     Math.min(
       targetIndex,
-      song.sequence.length - 1
+      Math.max(0, song.sequence.length - 1)
     );
 
   return true;

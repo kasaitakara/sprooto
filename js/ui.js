@@ -1023,6 +1023,13 @@ function enableVerticalSweep({
        */
       if (
         element.dataset.noteSweepActive ===
+          "true" ||
+        (
+          stepClipSweep &&
+          stepClipSweep.pointerId ===
+            event.pointerId
+        ) ||
+        element.dataset.clipSweepActive ===
           "true"
       ) {
         return;
@@ -1652,6 +1659,14 @@ function enableSelectionPointer({
                 : "track"
           };
 
+          /*
+           * Offset/Track画面では、クリップスイープ中の
+           * 上下移動をparameter sweepへ渡さない。
+           * 指が斜めにずれてもコピー操作だけを優先する。
+           */
+          element.dataset.clipSweepActive =
+            "true";
+
           element.classList.add(
             "range-selected"
           );
@@ -1725,6 +1740,7 @@ function enableSelectionPointer({
         event.clientY - startY;
 
       if (
+        source === "sequence" &&
         !noteSweepActive &&
         Math.abs(movementX) > 12 &&
         Math.abs(movementX) >
@@ -1815,6 +1831,7 @@ function enableSelectionPointer({
     noteSweepLastStep = null;
     noteSweepHistorySaved = false;
     delete element.dataset.noteSweepActive;
+    delete element.dataset.clipSweepActive;
 
     if (completed) {
       renderSequence();

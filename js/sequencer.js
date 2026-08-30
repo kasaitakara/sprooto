@@ -2672,67 +2672,46 @@ export function pasteStepFromEditClipboard(
   return true;
 }
 
-export function copySongPartRangeToEditClipboard(
-  startSongPartIndex,
-  endSongPartIndex = startSongPartIndex
+export function copySongPartToEditClipboard(
+  songPartIndex
 ) {
   if (state.isPlaying) {
     return false;
   }
 
-  const minimumIndex = clamp(
-    Math.min(startSongPartIndex, endSongPartIndex),
-    0,
-    SONG_PART_COUNT - 1
-  );
-  const maximumIndex = clamp(
-    Math.max(startSongPartIndex, endSongPartIndex),
+  const index = clamp(
+    Math.round(Number(songPartIndex) || 0),
     0,
     SONG_PART_COUNT - 1
   );
 
-  const cells = [];
+  const part =
+    song.sequence[index];
 
-  for (
-    let index = minimumIndex;
-    index <= maximumIndex;
-    index++
+  /*
+   * PARTクリップは実在するPattern / Fillのみ。
+   * Sectionと空枠は通常の選択・編集操作を維持する。
+   */
+  if (
+    !part ||
+    (
+      part.type !== "pattern" &&
+      part.type !== "fill"
+    )
   ) {
-    const part =
-      song.sequence[index] ?? null;
-
-    cells.push(
-      part
-        ? structuredClone(part)
-        : null
-    );
+    return false;
   }
 
   editClipboard = {
     type: "part",
     origin: {
-      anchorSongPartIndex:
-        startSongPartIndex,
-      minimumSongPartIndex:
-        minimumIndex,
-      maximumSongPartIndex:
-        maximumIndex
+      songPartIndex: index
     },
-    data: {
-      cells
-    }
+    data:
+      structuredClone(part)
   };
 
   return true;
-}
-
-export function copySongPartToEditClipboard(
-  songPartIndex
-) {
-  return copySongPartRangeToEditClipboard(
-    songPartIndex,
-    songPartIndex
-  );
 }
 
 export function pasteSongPartFromEditClipboard(
@@ -2745,85 +2724,55 @@ export function pasteSongPartFromEditClipboard(
     return false;
   }
 
+  const part =
+    editClipboard.data;
+
+  if (
+    !part ||
+    (
+      part.type !== "pattern" &&
+      part.type !== "fill"
+    )
+  ) {
+    return false;
+  }
+
   const targetIndex = clamp(
     Math.round(Number(songPartIndex) || 0),
     0,
     SONG_PART_COUNT - 1
   );
 
-  const cells = Array.isArray(
-    editClipboard.data?.cells
-  )
-    ? editClipboard.data.cells
-    : [editClipboard.data ?? null];
-
-  if (cells.length === 0) {
-    return false;
-  }
-
   /*
-   * 単一の空PARTは従来どおりDELETEとして扱う。
+   * Songは詰め配列。
+   * 既存PARTなら置換、末尾の次枠なら追加する。
+   * 途中の空きを作る貼り付けは行わない。
    */
-  if (
-    cells.length === 1 &&
-    cells[0] === null
-  ) {
-    if (targetIndex >= song.sequence.length) {
-      return false;
-    }
-
-    saveHistory();
-    song.sequence.splice(targetIndex, 1);
-
-    state.selectedSongPartIndex = clamp(
-      state.selectedSongPartIndex,
-      0,
-      Math.max(0, song.sequence.length - 1)
-    );
-
-    return true;
+  if (targetIndex > song.sequence.length) {
+    return false;
   }
 
   saveHistory();
 
-  cells.forEach((part, offsetIndex) => {
-    const destination =
-      targetIndex + offsetIndex;
-
-    if (destination >= SONG_PART_COUNT) {
-      return;
-    }
-
-    if (part === null) {
-      /*
-       * Songは詰め配列なので、範囲コピー内の空枠は
-       * 既存PARTを勝手に詰めず、その位置を変更しない。
-       */
-      return;
-    }
-
-    if (destination < song.sequence.length) {
-      song.sequence[destination] =
-        structuredClone(part);
-      return;
-    }
-
+  if (targetIndex < song.sequence.length) {
+    song.sequence[targetIndex] =
+      structuredClone(part);
+  } else {
     if (
-      destination === song.sequence.length &&
-      song.sequence.length < SONG_PART_COUNT
+      song.sequence.length >=
+      SONG_PART_COUNT
     ) {
-      song.sequence.push(
-        structuredClone(part)
-      );
+      return false;
     }
-  });
+
+    song.sequence.push(
+      structuredClone(part)
+    );
+  }
 
   state.selectedPlaybackType = "song";
   state.selectedSongPartIndex =
-    Math.min(
-      targetIndex,
-      Math.max(0, song.sequence.length - 1)
-    );
+    targetIndex;
 
   return true;
 }

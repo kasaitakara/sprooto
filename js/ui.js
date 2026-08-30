@@ -52,7 +52,6 @@ import {
   editClipboardOriginIsStep,
   pasteStepFromEditClipboard,
   copySongPartToEditClipboard,
-  copySongPartRangeToEditClipboard,
   pasteSongPartFromEditClipboard,
   discardLatestUndoEntry,
 } from "./sequencer.js";
@@ -9576,177 +9575,6 @@ title.append(
 
 const PART_DOUBLE_TAP_INTERVAL = 320;
 let lastPartTap = null;
-let partClipSweep = null;
-
-function enableSongPartClipPointer(
-  cell,
-  globalIndex
-) {
-  let suppressClick = false;
-
-  cell.addEventListener(
-    "pointerdown",
-    event => {
-      if (state.isPlaying) {
-        return;
-      }
-
-      if (
-        event.pointerType === "mouse" &&
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      if (
-        !lastPartTap ||
-        lastPartTap.index !== globalIndex ||
-        performance.now() - lastPartTap.time >
-          PART_DOUBLE_TAP_INTERVAL
-      ) {
-        return;
-      }
-
-      partClipSweep = {
-        pointerId: event.pointerId,
-        startIndex: globalIndex,
-        endIndex: globalIndex
-      };
-
-      suppressClick = true;
-      lastPartTap = null;
-      cell.classList.add("range-selected");
-      cell.setPointerCapture?.(
-        event.pointerId
-      );
-
-      /*
-       * 2回目タップはコピー操作。
-       * Song並べ替えDragへ流さない。
-       */
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    },
-    true
-  );
-
-  cell.addEventListener(
-    "pointermove",
-    event => {
-      if (
-        !partClipSweep ||
-        partClipSweep.pointerId !== event.pointerId
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-
-      const target = document
-        .elementFromPoint(
-          event.clientX,
-          event.clientY
-        )
-        ?.closest?.(
-          ".song-part-cell[data-song-index]"
-        );
-
-      if (!target || !songGrid?.contains(target)) {
-        return;
-      }
-
-      const nextIndex = Number(
-        target.dataset.songIndex
-      );
-
-      if (!Number.isFinite(nextIndex)) {
-        return;
-      }
-
-      partClipSweep.endIndex =
-        nextIndex;
-
-      const minimum = Math.min(
-        partClipSweep.startIndex,
-        partClipSweep.endIndex
-      );
-      const maximum = Math.max(
-        partClipSweep.startIndex,
-        partClipSweep.endIndex
-      );
-
-      songGrid
-        .querySelectorAll(
-          ".song-part-cell[data-song-index]"
-        )
-        .forEach(candidate => {
-          const index = Number(
-            candidate.dataset.songIndex
-          );
-          candidate.classList.toggle(
-            "range-selected",
-            index >= minimum &&
-            index <= maximum
-          );
-        });
-    }
-  );
-
-  function finishPartClip(event) {
-    if (
-      !partClipSweep ||
-      partClipSweep.pointerId !== event.pointerId
-    ) {
-      return;
-    }
-
-    if (
-      cell.hasPointerCapture?.(
-        event.pointerId
-      )
-    ) {
-      cell.releasePointerCapture(
-        event.pointerId
-      );
-    }
-
-    copySongPartRangeToEditClipboard(
-      partClipSweep.startIndex,
-      partClipSweep.endIndex
-    );
-
-    partClipSweep = null;
-    renderSongGrid();
-    renderClipIndicator();
-  }
-
-  cell.addEventListener(
-    "pointerup",
-    finishPartClip,
-    true
-  );
-
-  cell.addEventListener(
-    "pointercancel",
-    finishPartClip,
-    true
-  );
-
-  cell.addEventListener(
-    "click",
-    event => {
-      if (!suppressClick) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      suppressClick = false;
-    },
-    true
-  );
-}
-
 function handleSongPartTap(globalIndex, hasSource) {
   if (state.isPlaying) {
     if (hasSource) {
@@ -9766,6 +9594,7 @@ function handleSongPartTap(globalIndex, hasSource) {
         globalIndex
       )
     ) {
+      clearEditClipboard();
       lastPartTap = null;
       renderPatternManager();
       renderSongGrid();
@@ -9782,13 +9611,24 @@ function handleSongPartTap(globalIndex, hasSource) {
     now - lastPartTap.time <=
       PART_DOUBLE_TAP_INTERVAL
   ) {
-    copySongPartToEditClipboard(
-      globalIndex
-    );
-    lastPartTap = null;
-    renderSongGrid();
-    renderClipIndicator();
-    return;
+    const part =
+      song.sequence[globalIndex];
+
+    if (
+      part &&
+      (
+        part.type === "pattern" ||
+        part.type === "fill"
+      ) &&
+      copySongPartToEditClipboard(
+        globalIndex
+      )
+    ) {
+      lastPartTap = null;
+      renderSongGrid();
+      renderClipIndicator();
+      return;
+    }
   }
 
   lastPartTap = {
@@ -9820,11 +9660,6 @@ function renderSongGrid() {
     cell.dataset.songLocalIndex = String(localIndex);
     cell.dataset.songIndex = String(globalIndex);
     cell.dataset.focusKey = `song-part-${globalIndex}`;
-
-    enableSongPartClipPointer(
-      cell,
-      globalIndex
-    );
 
     if (source) {
       cell.classList.add("filled");

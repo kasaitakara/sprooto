@@ -2388,6 +2388,289 @@ export function sectionHasData(
   );
 }
 
+let editClipboard = null;
+
+export function hasEditClipboard() {
+  return Boolean(editClipboard);
+}
+
+export function editClipboardType() {
+  return editClipboard?.type ?? null;
+}
+
+export function clearEditClipboard() {
+  if (!editClipboard) {
+    return false;
+  }
+
+  editClipboard = null;
+  return true;
+}
+
+function captureStepData(track, stepIndex) {
+  if (
+    !track ||
+    stepIndex < 0 ||
+    stepIndex >= STEP_COUNT
+  ) {
+    return null;
+  }
+
+  return {
+    stepOn: Boolean(track.steps?.[stepIndex]),
+    offsets: Object.fromEntries(
+      Object.entries(track.offsets ?? {})
+        .filter(([, values]) => Array.isArray(values))
+        .map(([parameterId, values]) => [
+          parameterId,
+          Number(values[stepIndex]) || 0
+        ])
+    )
+  };
+}
+
+export function copyStepRangeToEditClipboard(
+  trackIndex = state.selectedTrackIndex,
+  startStepIndex,
+  endStepIndex = startStepIndex
+) {
+  const track = tracks[trackIndex];
+
+  if (!track) {
+    return false;
+  }
+
+  const minimumStep = Math.max(
+    0,
+    Math.min(startStepIndex, endStepIndex)
+  );
+  const maximumStep = Math.min(
+    track.stepLength - 1,
+    Math.max(startStepIndex, endStepIndex)
+  );
+
+  /*
+   * 起点はON STEP限定。範囲内はOFF STEPも含め、
+   * ON/OFFと全offsetをそのままフレーズとして保持する。
+   */
+  if (!track.steps?.[startStepIndex]) {
+    return false;
+  }
+
+  const cells = [];
+
+  for (
+    let stepIndex = minimumStep;
+    stepIndex <= maximumStep;
+    stepIndex++
+  ) {
+    cells.push(
+      captureStepData(track, stepIndex)
+    );
+  }
+
+  editClipboard = {
+    type: "step",
+    origin: {
+      sourceType:
+        state.selectedSourceType,
+      sourceIndex:
+        state.selectedSourceType === "fill"
+          ? state.selectedFillIndex ?? 0
+          : state.selectedPatternIndex ?? 0,
+      trackIndex,
+      stepIndex: minimumStep,
+      endStepIndex: maximumStep
+    },
+    data: {
+      cells: structuredClone(cells)
+    }
+  };
+
+  return true;
+}
+
+export function copyStepToEditClipboard(
+  trackIndex = state.selectedTrackIndex,
+  stepIndex
+) {
+  return copyStepRangeToEditClipboard(
+    trackIndex,
+    stepIndex,
+    stepIndex
+  );
+}
+
+export function editClipboardOriginIsStep(
+  trackIndex = state.selectedTrackIndex,
+  stepIndex
+) {
+  if (editClipboard?.type !== "step") {
+    return false;
+  }
+
+  const origin = editClipboard.origin;
+  const sourceIndex =
+    state.selectedSourceType === "fill"
+      ? state.selectedFillIndex ?? 0
+      : state.selectedPatternIndex ?? 0;
+
+  return Boolean(
+    origin &&
+    origin.sourceType ===
+      state.selectedSourceType &&
+    origin.sourceIndex === sourceIndex &&
+    origin.trackIndex === trackIndex &&
+    origin.stepIndex === stepIndex
+  );
+}
+
+export function pasteStepFromEditClipboard(
+  trackIndex = state.selectedTrackIndex,
+  stepIndex
+) {
+  if (editClipboard?.type !== "step") {
+    return false;
+  }
+
+  const track = tracks[trackIndex];
+
+  if (
+    !track ||
+    stepIndex < 0 ||
+    stepIndex >= track.stepLength
+  ) {
+    return false;
+  }
+
+  const cells = Array.isArray(
+    editClipboard.data?.cells
+  )
+    ? editClipboard.data.cells
+    : [editClipboard.data];
+
+  if (cells.length === 0) {
+    return false;
+  }
+
+  saveTrackHistory(trackIndex);
+
+  cells.forEach((data, offsetIndex) => {
+    const targetStepIndex =
+      stepIndex + offsetIndex;
+
+    if (targetStepIndex >= track.stepLength) {
+      return;
+    }
+
+    track.steps[targetStepIndex] =
+      Boolean(data?.stepOn);
+
+    Object.entries(track.offsets ?? {})
+      .forEach(([parameterId, values]) => {
+        if (!Array.isArray(values)) {
+          return;
+        }
+
+        values[targetStepIndex] =
+          Number(data?.offsets?.[parameterId]) || 0;
+      });
+  });
+
+  return true;
+}
+
+export function copySongPartToEditClipboard(
+  songPartIndex
+) {
+  if (state.isPlaying) {
+    return false;
+  }
+
+  const part =
+    song.sequence[songPartIndex] ?? null;
+
+  editClipboard = {
+    type: "part",
+    data: part
+      ? structuredClone(part)
+      : null
+  };
+
+  return true;
+}
+
+export function pasteSongPartFromEditClipboard(
+  songPartIndex
+) {
+  if (
+    state.isPlaying ||
+    editClipboard?.type !== "part"
+  ) {
+    return false;
+  }
+
+  const targetIndex = clamp(
+    Math.round(Number(songPartIndex) || 0),
+    0,
+    SONG_PART_COUNT - 1
+  );
+
+  const data = editClipboard.data;
+
+  if (data === null) {
+    if (targetIndex >= song.sequence.length) {
+      return false;
+    }
+
+    saveHistory();
+    song.sequence.splice(targetIndex, 1);
+
+    state.selectedSongPartIndex = clamp(
+      state.selectedSongPartIndex,
+      0,
+      Math.max(0, song.sequence.length - 1)
+    );
+
+    return true;
+  }
+
+  saveHistory();
+
+  if (targetIndex < song.sequence.length) {
+    song.sequence[targetIndex] =
+      structuredClone(data);
+  } else {
+    song.sequence.push(
+      structuredClone(data)
+    );
+  }
+
+  state.selectedPlaybackType = "song";
+  state.selectedSongPartIndex =
+    Math.min(
+      targetIndex,
+      song.sequence.length - 1
+    );
+
+  return true;
+}
+
+export function discardLatestUndoEntry() {
+  if (undoStack.length === 0) {
+    return false;
+  }
+
+  undoStack.pop();
+  redoStack.length = 0;
+
+  window.dispatchEvent(
+    new Event("historychange")
+  );
+
+  return true;
+}
+
 let sourceClipboard = null;
 
 export function hasSourceClipboard() {

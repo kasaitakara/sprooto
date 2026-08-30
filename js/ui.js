@@ -44,6 +44,16 @@ import {
   currentEditingSectionLabel,
   clearSelectedTrackSequence,
   clearSelectedParameterOffsets,
+  hasEditClipboard,
+  editClipboardType,
+  clearEditClipboard,
+  copyStepToEditClipboard,
+  copyStepRangeToEditClipboard,
+  editClipboardOriginIsStep,
+  pasteStepFromEditClipboard,
+  copySongPartToEditClipboard,
+  pasteSongPartFromEditClipboard,
+  discardLatestUndoEntry,
 } from "./sequencer.js";
 
 
@@ -1175,738 +1185,256 @@ const nextValue =
 
 
 /* =========================
- * Range selection / clipboard
+ * Direct STEP clip / note sweep
  * ========================= */
-const LONG_PRESS_MS = 450;
+const STEP_DOUBLE_TAP_INTERVAL = 320;
 
+/*
+ * 旧編集モード互換の最小スタブ。
+ * 範囲選択状態は今後作らない。
+ */
 const editSelection = {
-  mode: null, // null | "step" | "offset"
-  scope: "all", // step mode: "all" | "track"
-  selected: new Set(),
-  clipboard: null,
-  sweepPointerId: null,
-  sweepValue: true,
-  sweepAnchor: null,
-  sweepBaseline: null
+  mode: null,
+  scope: "track",
+  selected: new Set()
 };
 
 function selectionKey(trackIndex, stepIndex) {
   return `${trackIndex}:${stepIndex}`;
 }
 
-function parseSelectionKey(key) {
-  const [trackIndex, stepIndex] = key.split(":").map(Number);
-  return { trackIndex, stepIndex };
-}
-
 function clearEditSelection() {
   editSelection.selected.clear();
 }
 
-function finishEditMode({ returnToMenu = false } = {}) {
-  clearEditSelection();
-  editSelection.mode = null;
-  document.body.classList.remove(
-    "step-edit-mode",
-    "step-edit-scope-all",
-    "step-edit-scope-track",
-    "offset-selection-mode"
-  );
-  renderEditActionToolbar();
-
-  if (returnToMenu) {
-    state.selectedParameterId = null;
-  }
-
-  renderSequence();
-  renderEditor();
-}
-
-function selectedKeysSorted() {
-  return Array.from(editSelection.selected)
-    .map(parseSelectionKey)
-    .sort(
-      (a, b) =>
-        a.stepIndex - b.stepIndex ||
-        a.trackIndex - b.trackIndex
-    );
-}
-
-function hasActiveOffsetSelection() {
-  if (
-    editSelection.mode !== "offset" ||
-    editSelection.selected.size === 0
-  ) {
-    return false;
-  }
-
-  return selectedKeysSorted().some(
-    ({ trackIndex }) =>
-      trackIndex ===
-      state.selectedTrackIndex
-  );
-}
-
-function isWholeStepSelected(stepIndex) {
-  return tracks.every((track, trackIndex) => {
-    if (stepIndex >= track.stepLength) {
-      return true;
-    }
-
-    return editSelection.selected.has(
-      selectionKey(trackIndex, stepIndex)
-    );
-  });
-}
-
-function updateSelectionClasses() {
-  document
-    .querySelectorAll(".sequence-step[data-step-index]")
-    .forEach(button => {
-      const stepIndex = Number(button.dataset.stepIndex);
-
-      button.classList.toggle(
-        "range-selected",
-        editSelection.mode === "step" &&
-          editSelection.scope === "all" &&
-          isWholeStepSelected(stepIndex)
-      );
-
-      button
-        .querySelectorAll(
-          ".track-lane[data-track-index]"
-        )
-        .forEach(lane => {
-          const trackIndex =
-            Number(
-              lane.dataset.trackIndex
-            );
-
-          lane.classList.toggle(
-            "range-selected",
-            editSelection.mode === "step" &&
-              editSelection.scope === "track" &&
-              trackIndex ===
-                state.selectedTrackIndex &&
-              editSelection.selected.has(
-                selectionKey(
-                  trackIndex,
-                  stepIndex
-                )
-              )
-          );
-        });
-    });
-
-  document
-    .querySelectorAll(".offset-step[data-step-index]")
-    .forEach(button => {
-      const key = selectionKey(
-        state.selectedTrackIndex,
-        Number(button.dataset.stepIndex)
-      );
-
-      button.classList.toggle(
-        "range-selected",
-        editSelection.mode === "offset" &&
-          editSelection.selected.has(key)
-      );
-    });
-
-  renderEditActionToolbar();
-}
-
-function setSelectionCell(trackIndex, stepIndex, selected) {
-  if (
-    trackIndex < 0 ||
-    trackIndex >= tracks.length ||
-    stepIndex < 0 ||
-    stepIndex >= STEP_COUNT
-  ) {
-    return;
-  }
-
-  const key = selectionKey(trackIndex, stepIndex);
-
-  if (selected) {
-    editSelection.selected.add(key);
-  } else {
-    editSelection.selected.delete(key);
-  }
-}
-
-function setWholeStepSelection(stepIndex, selected) {
-  tracks.forEach((track, trackIndex) => {
-    if (stepIndex >= track.stepLength) {
-      return;
-    }
-
-    setSelectionCell(
-      trackIndex,
-      stepIndex,
-      selected
-    );
-  });
-}
-
-function applyStepEditScopeClass() {
-  document.body.classList.toggle(
-    "step-edit-scope-all",
-    editSelection.mode === "step" &&
-      editSelection.scope === "all"
-  );
-
-  document.body.classList.toggle(
-    "step-edit-scope-track",
-    editSelection.mode === "step" &&
-      editSelection.scope === "track"
-  );
-}
-
-function selectStepForCurrentScope(stepIndex, selected) {
-  if (editSelection.scope === "all") {
-    setWholeStepSelection(stepIndex, selected);
-    return;
-  }
-
-  setSelectionCell(
-    state.selectedTrackIndex,
-    stepIndex,
-    selected
-  );
-}
-
-function isStepSelectedForCurrentScope(stepIndex) {
-  if (editSelection.scope === "all") {
-    return isWholeStepSelected(stepIndex);
-  }
-
-  return editSelection.selected.has(
-    selectionKey(
-      state.selectedTrackIndex,
-      stepIndex
-    )
-  );
-}
-
-function beginStepEditMode(stepIndex) {
-  clearEditSelection();
-  editSelection.mode = "step";
-  editSelection.scope = "all";
-
-  document.body.classList.add(
-    "step-edit-mode"
-  );
-
-  document.body.classList.remove(
-    "offset-selection-mode"
-  );
-
-  applyStepEditScopeClass();
-  selectStepForCurrentScope(stepIndex, true);
-  renderSequence();
-  renderEditor();
-  updateSelectionClasses();
-}
-
-function beginOffsetSelectionMode(stepIndex) {
-  clearEditSelection();
-  editSelection.mode = "offset";
-  editSelection.scope = "track";
-
-  document.body.classList.add(
-    "offset-selection-mode"
-  );
-
-  document.body.classList.remove(
-    "step-edit-mode",
-    "step-edit-scope-all",
-    "step-edit-scope-track"
-  );
-
-  setSelectionCell(
-    state.selectedTrackIndex,
-    stepIndex,
-    true
-  );
-
-  renderEditActionToolbar();
-  updateSelectionClasses();
-}
-
-function finishOffsetSelectionMode() {
-  clearEditSelection();
-
-  editSelection.mode = null;
-
-  document.body.classList.remove(
-    "offset-selection-mode"
-  );
-
-  renderEditActionToolbar();
-  renderEditor();
-}
-
 function clearOffsetSelectionMode() {
-  if (editSelection.mode !== "offset") {
-    return;
-  }
-
-  clearEditSelection();
   editSelection.mode = null;
-
-  document.body.classList.remove(
-    "offset-selection-mode"
-  );
-
-  renderEditActionToolbar();
+  clearEditSelection();
 }
 
-function captureClipboard() {
-  const cells = selectedKeysSorted();
+function finishEditMode() {
+  clearOffsetSelectionMode();
+}
 
-  if (!cells.length) {
-    return false;
-  }
+function updateSelectionClasses() {}
+function selectedKeysSorted() {
+  return [];
+}
+function hasActiveOffsetSelection() {
+  return false;
+}
+function isWholeStepSelected() {
+  return false;
+}
+function renderEditActionToolbar() {
+  renderClipIndicator();
+}
 
-  const minTrack = Math.min(
-    ...cells.map(cell => cell.trackIndex)
+let lastStepTap = null;
+let stepClipSweep = null;
+
+function isSecondStepTap(trackIndex, stepIndex) {
+  if (!lastStepTap) return false;
+
+  return (
+    lastStepTap.key ===
+      currentSourceTapKey(trackIndex, stepIndex) &&
+    performance.now() - lastStepTap.time <=
+      STEP_DOUBLE_TAP_INTERVAL &&
+    lastStepTap.snapshot.stepOn
   );
+}
 
-  const minStep = Math.min(
-    ...cells.map(cell => cell.stepIndex)
-  );
-
-  editSelection.clipboard = {
-    mode:
-      editSelection.mode === "offset"
-        ? "track"
-        : editSelection.scope,
-    cells: cells.map(
-      ({ trackIndex, stepIndex }) => {
-        const track = tracks[trackIndex];
-
-        return {
-          trackOffset:
-            trackIndex - minTrack,
-          stepOffset:
-            stepIndex - minStep,
-          stepOn:
-            Boolean(track.steps[stepIndex]),
-          offsets:
-            Object.fromEntries(
-              Object.entries(track.offsets)
-                .map(([id, values]) => [
-                  id,
-                  Number(values?.[stepIndex]) || 0
-                ])
-            )
-        };
-      }
+function stepSnapshot(track, stepIndex) {
+  return {
+    stepOn: Boolean(track.steps[stepIndex]),
+    offsets: Object.fromEntries(
+      Object.entries(track.offsets ?? {})
+        .filter(([, values]) => Array.isArray(values))
+        .map(([id, values]) => [
+          id,
+          Number(values[stepIndex]) || 0
+        ])
     )
   };
-
-  return true;
 }
 
-function deleteSelectedSequenceCells({ save = true } = {}) {
-  const cells = selectedKeysSorted();
+function restoreStepSnapshot(track, stepIndex, snapshot) {
+  track.steps[stepIndex] = Boolean(snapshot.stepOn);
 
-  if (!cells.length) {
-    return false;
-  }
-
-  if (save) {
-    saveHistory();
-  }
-
-  cells.forEach(({ trackIndex, stepIndex }) => {
-    const track = tracks[trackIndex];
-
-    track.steps[stepIndex] = false;
-
-
-    Object.values(track.offsets)
-      .forEach(values => {
-        if (Array.isArray(values)) {
-          values[stepIndex] = 0;
-        }
-      });
-  });
-
-  return true;
-}
-
-function pasteClipboardAt(targetStepIndex) {
-  const clipboard = editSelection.clipboard;
-
-  if (!clipboard?.cells?.length) {
-    return false;
-  }
-
-  const minimumSourceTrack =
-    Math.min(
-      ...clipboard.cells.map(
-        cell => cell.trackOffset
-      )
-    );
-
-  saveHistory();
-
-  clipboard.cells.forEach(cell => {
-    const trackIndex =
-      clipboard.mode === "all"
-        ? cell.trackOffset -
-          minimumSourceTrack
-        : state.selectedTrackIndex;
-
-    const stepIndex =
-      targetStepIndex +
-      cell.stepOffset;
-
-    if (
-      trackIndex < 0 ||
-      trackIndex >= tracks.length ||
-      stepIndex < 0 ||
-      stepIndex >= STEP_COUNT
-    ) {
-      return;
+  Object.entries(track.offsets ?? {}).forEach(
+    ([id, values]) => {
+      if (!Array.isArray(values)) return;
+      values[stepIndex] =
+        Number(snapshot.offsets?.[id]) || 0;
     }
-
-    const track = tracks[trackIndex];
-
-    track.steps[stepIndex] =
-      cell.stepOn;
-
-
-    Object.entries(cell.offsets)
-      .forEach(([id, value]) => {
-        if (Array.isArray(track.offsets[id])) {
-          track.offsets[id][stepIndex] = value;
-        }
-      });
-  });
-
-  return true;
+  );
 }
 
-function renderEditActionToolbar() {
-  const header =
-    document.querySelector(
-      ".app-header"
+function currentSourceTapKey(trackIndex, stepIndex) {
+  return [
+    state.selectedSourceType,
+    state.selectedSourceType === "fill"
+      ? state.selectedFillIndex ?? 0
+      : state.selectedPatternIndex ?? 0,
+    trackIndex,
+    stepIndex
+  ].join(":");
+}
+
+function handleStepTap({
+  track,
+  trackIndex,
+  stepIndex,
+  renderAfter,
+  focusKey = null
+}) {
+  if (!track || stepIndex >= track.stepLength) {
+    return;
+  }
+
+  if (
+    hasEditClipboard() &&
+    editClipboardType() === "step" &&
+    !editClipboardOriginIsStep(
+      trackIndex,
+      stepIndex
+    )
+  ) {
+    if (
+      pasteStepFromEditClipboard(
+        trackIndex,
+        stepIndex
+      )
+    ) {
+      lastStepTap = null;
+      renderAfter?.(focusKey);
+      renderClipIndicator();
+    }
+    return;
+  }
+
+  const now = performance.now();
+  const key =
+    currentSourceTapKey(
+      trackIndex,
+      stepIndex
     );
 
-  /*
-   * Headerは編集モード中も通常表示のまま維持する。
-   * 編集操作はPattern / OffsetともSequencer上段へ表示する。
-   */
-  header
-    ?.querySelector(
-      ".edit-action-toolbar"
-    )
-    ?.remove();
+  if (
+    lastStepTap &&
+    lastStepTap.key === key &&
+    now - lastStepTap.time <=
+      STEP_DOUBLE_TAP_INTERVAL &&
+    lastStepTap.snapshot.stepOn
+  ) {
+    restoreStepSnapshot(
+      track,
+      stepIndex,
+      lastStepTap.snapshot
+    );
 
-  header?.classList.remove(
-    "editing-actions-visible"
-  );
+    /*
+     * 1回目の通常タップ用Undo履歴は、
+     * ダブルタップ成立時には実編集ではないため破棄。
+     */
+    discardLatestUndoEntry();
 
-  const sequenceToolbar =
+    copyStepToEditClipboard(
+      trackIndex,
+      stepIndex
+    );
+
+    lastStepTap = null;
+    renderAfter?.(focusKey);
+    renderClipIndicator();
+    return;
+  }
+
+  const snapshot =
+    stepSnapshot(track, stepIndex);
+
+  saveTrackHistory(trackIndex);
+  track.steps[stepIndex] =
+    !track.steps[stepIndex];
+
+  lastStepTap = {
+    key,
+    time: now,
+    snapshot
+  };
+
+  renderAfter?.(focusKey);
+}
+
+function renderClipIndicator() {
+  const toolbar =
     document.querySelector(
       ".sequence-toolbar"
     );
 
-  if (!sequenceToolbar) {
+  if (!toolbar) return;
+
+  let button =
+    toolbar.querySelector(
+      ".clip-indicator-button"
+    );
+
+  if (!hasEditClipboard()) {
+    button?.remove();
     return;
   }
 
-  let toolbar =
-    sequenceToolbar.querySelector(
-      ".sequence-edit-action-toolbar"
+  if (!button) {
+    button = document.createElement("button");
+    button.type = "button";
+    button.className =
+      "clip-indicator-button";
+    button.textContent = "📎";
+    button.setAttribute(
+      "aria-label",
+      "クリップを解除"
     );
-
-  const editModeActive =
-    editSelection.mode === "step" ||
-    editSelection.mode === "offset";
-
-  if (!editModeActive) {
-    toolbar?.remove();
-    return;
-  }
-
-  if (!toolbar) {
-    toolbar =
-      document.createElement("div");
-
-    toolbar.className =
-      "sequence-edit-action-toolbar";
-
-    Object.assign(
-      toolbar.style,
-      {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "4px",
-        marginLeft: "auto",
-        marginRight: "4px",
-        flex: "0 0 auto",
-        height: "22px"
-      }
-    );
+    button.title = "clip clear";
+    button.style.marginLeft = "auto";
 
     const controls =
-      sequenceToolbar.querySelector(
+      toolbar.querySelector(
         ".sequence-toolbar-controls"
       );
 
     if (controls) {
-      sequenceToolbar.insertBefore(
-        toolbar,
+      toolbar.insertBefore(
+        button,
         controls
       );
     } else {
-      sequenceToolbar.appendChild(
-        toolbar
-      );
+      toolbar.appendChild(button);
     }
+
+    button.addEventListener(
+      "click",
+      () => {
+        clearEditClipboard();
+        lastStepTap = null;
+        renderSequence();
+        renderSongMode();
+      }
+    );
   }
 
-  const hasSelection =
-    editSelection.selected.size > 0;
-
-  const hasClipboard =
-    Boolean(
-      editSelection.clipboard?.cells?.length
-    );
-
-  const canPaste =
-    hasClipboard && hasSelection;
-
-  const iconButton = ({
-    action,
-    label,
-    iconHtml,
-    enabled
-  }) => `
-    <button
-      type="button"
-      data-action="${action}"
-      aria-label="${label}"
-      title="${label}"
-      ${enabled ? "" : "disabled"}
-      style="
-        width:22px;
-        height:22px;
-        min-width:22px;
-        padding:2px;
-        border:0;
-        background:transparent;
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        color:var(--text);
-        -webkit-text-fill-color:currentColor;
-      "
-    >
-      <span
-        aria-hidden="true"
-        style="
-          width:18px;
-          height:18px;
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-        "
-      >
-        ${iconHtml}
-      </span>
-    </button>
-  `;
-
-  const inlineSvg = paths => `
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.7"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-      style="
-        width:18px;
-        height:18px;
-        display:block;
-      "
-    >
-      ${paths}
-    </svg>
-  `;
-
-  toolbar.innerHTML =
-    iconButton({
-      action: "copy",
-      label: "copy",
-      enabled: hasSelection,
-      iconHtml: inlineSvg(`
-        <rect x="8" y="8" width="10" height="10" rx="1"></rect>
-        <path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"></path>
-      `)
-    }) +
-    iconButton({
-      action: "cut",
-      label: "cut",
-      enabled: hasSelection,
-      iconHtml: inlineSvg(`
-        <circle cx="6" cy="7" r="2.5"></circle>
-        <circle cx="6" cy="17" r="2.5"></circle>
-        <path d="M8.2 8.2 20 20"></path>
-        <path d="M8.2 15.8 20 4"></path>
-      `)
-    }) +
-    iconButton({
-      action: "delete",
-      label: "delete",
-      enabled: hasSelection,
-
-      /*
-       * Sound preset管理画面と同じtrash SVGをそのまま使用。
-       */
-      iconHtml: getParameterIcon(
-        "trash"
-      )
-    }) +
-    iconButton({
-      action: "paste",
-      label: "paste",
-      enabled: canPaste,
-      iconHtml: inlineSvg(`
-        <path d="M9 5h6"></path>
-        <path d="M9 3h6v4H9z"></path>
-        <path d="M8 5H6v16h12V5h-2"></path>
-        <path d="M10 12h6"></path>
-        <path d="M10 16h4"></path>
-      `)
-    });
-
-  /*
-   * Sound preset側のicon規格へ合わせ、
-   * trashを含む編集アイコンを18px領域へ収める。
-   */
-  toolbar
-    .querySelectorAll(
-      "button span > svg"
-    )
-    .forEach(svg => {
-      svg.style.display = "block";
-      svg.style.width = "18px";
-      svg.style.height = "18px";
-    });
-
-  toolbar
-    .querySelectorAll(
-      "button:disabled"
-    )
-    .forEach(button => {
-      button.style.color =
-        "var(--muted)";
-
-      button.style.opacity =
-        "0.45";
-    });
-
-  toolbar.querySelector(
-    '[data-action="copy"]'
-  ).onclick = () => {
-    if (!captureClipboard()) {
-      return;
-    }
-
-    clearEditSelection();
-    renderSequence();
-    renderEditor();
-    updateSelectionClasses();
-  };
-
-  toolbar.querySelector(
-    '[data-action="cut"]'
-  ).onclick = () => {
-    if (!captureClipboard()) {
-      return;
-    }
-
-    saveHistory();
-
-    deleteSelectedSequenceCells({
-      save: false
-    });
-
-    clearEditSelection();
-    renderSequence();
-    renderEditor();
-    updateSelectionClasses();
-  };
-
-  toolbar.querySelector(
-    '[data-action="delete"]'
-  ).onclick = () => {
-    if (
-      !deleteSelectedSequenceCells()
-    ) {
-      return;
-    }
-
-    clearEditSelection();
-    renderSequence();
-    renderEditor();
-    updateSelectionClasses();
-  };
-
-  toolbar.querySelector(
-    '[data-action="paste"]'
-  ).onclick = () => {
-    const targets =
-      selectedKeysSorted();
-
-    if (!targets.length) {
-      return;
-    }
-
-    const targetStepIndex =
-      Math.min(
-        ...targets.map(
-          target =>
-            target.stepIndex
-        )
-      );
-
-    if (
-      !pasteClipboardAt(
-        targetStepIndex
-      )
-    ) {
-      return;
-    }
-
-    finishEditMode();
-  };
+  button.dataset.clipType =
+    editClipboardType() ?? "";
 }
 
 function enableSelectionPointer({
   element,
-  mode,
   source,
   getStepIndex
 }) {
   let pointerId = null;
-  let timer = null;
   let startX = 0;
   let startY = 0;
-  let interactionActive = false;
-
-  /*
-   * 通常時のNote ON/OFFスイープ。
-   * 最初に触れたStepの状態を基準に、
-   * そのドラッグ中はONまたはOFFへ統一する。
-   */
   let noteSweepActive = false;
   let noteSweepValue = false;
   let noteSweepTrackIndex = null;
@@ -1915,142 +1443,33 @@ function enableSelectionPointer({
   let noteSweepHistorySaved = false;
   let suppressNextClick = false;
 
-  function clearTimer() {
-    if (timer !== null) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  }
-
   function cellFromPoint(clientX, clientY) {
-    const target = document.elementFromPoint(
-      clientX,
-      clientY
-    );
+    const target =
+      document.elementFromPoint(
+        clientX,
+        clientY
+      );
 
     const selector =
-    source === "sequence"
-    ? ".sequence-step[data-step-index]"
-    : ".offset-step[data-step-index]";
+      source === "sequence"
+        ? ".sequence-step[data-step-index]"
+        : ".offset-step[data-step-index]";
 
     const cellElement =
       target?.closest?.(selector);
 
-    if (!cellElement) {
-      return null;
-    }
+    if (!cellElement) return null;
 
     return {
-      trackIndex:
-        source === "sequence"
-          ? state.selectedTrackIndex
-          : state.selectedTrackIndex,
-      stepIndex:
-        Number(cellElement.dataset.stepIndex)
+      trackIndex: state.selectedTrackIndex,
+      stepIndex: Number(
+        cellElement.dataset.stepIndex
+      )
     };
   }
 
-  function keySelected(cell) {
-    if (source === "sequence") {
-      return isStepSelectedForCurrentScope(
-        cell.stepIndex
-      );
-    }
-
-    return editSelection.selected.has(
-      selectionKey(
-        cell.trackIndex,
-        cell.stepIndex
-      )
-    );
-  }
-
-  function applyCell(cell, selected) {
-    if (source === "sequence") {
-      selectStepForCurrentScope(
-        cell.stepIndex,
-        selected
-      );
-      return;
-    }
-
-    setSelectionCell(
-      cell.trackIndex,
-      cell.stepIndex,
-      selected
-    );
-  }
-
-  function applySweep(currentCell) {
-    const anchor = editSelection.sweepAnchor;
-    const baseline =
-      editSelection.sweepBaseline ?? new Set();
-
-    if (!anchor || !currentCell) {
-      return;
-    }
-
-    editSelection.selected =
-      new Set(baseline);
-
-    const minimumStep = Math.min(
-      anchor.stepIndex,
-      currentCell.stepIndex
-    );
-
-    const maximumStep = Math.max(
-      anchor.stepIndex,
-      currentCell.stepIndex
-    );
-
-    for (
-      let stepIndex = minimumStep;
-      stepIndex <= maximumStep;
-      stepIndex++
-    ) {
-      applyCell(
-        {
-          trackIndex:
-            source === "sequence"
-              ? 0
-              : state.selectedTrackIndex,
-          stepIndex
-        },
-        editSelection.sweepValue
-      );
-    }
-
-    updateSelectionClasses();
-  }
-
-  function startSelectionInteraction(
-    event,
-    cell
-  ) {
-    interactionActive = true;
-
-    editSelection.sweepPointerId =
-      event.pointerId;
-
-    editSelection.sweepAnchor = cell;
-
-    editSelection.sweepBaseline =
-      new Set(editSelection.selected);
-
-    editSelection.sweepValue =
-      !keySelected(cell);
-
-    applySweep(cell);
-
-    element.setPointerCapture?.(
-      event.pointerId
-    );
-  }
-
   function applyNoteSweepCell(cell) {
-    if (!cell) {
-      return;
-    }
+    if (!cell) return;
 
     const track =
       tracks[noteSweepTrackIndex];
@@ -2058,8 +1477,7 @@ function enableSelectionPointer({
     if (
       !track ||
       cell.stepIndex < 0 ||
-      cell.stepIndex >= track.stepLength ||
-      noteSweepVisited.has(cell.stepIndex)
+      cell.stepIndex >= track.stepLength
     ) {
       return;
     }
@@ -2111,82 +1529,12 @@ function enableSelectionPointer({
         saveTrackHistory(
           noteSweepTrackIndex
         );
-
         noteSweepHistorySaved = true;
       }
 
       track.steps[stepIndex] =
         noteSweepValue;
-
-      if (source === "sequence") {
-        const stepButton =
-          document.querySelector(
-            `.sequence-step[data-step-index="${stepIndex}"]`
-          );
-
-        const lane =
-          stepButton?.querySelector(
-            `.track-lane[data-track-index="${noteSweepTrackIndex}"]`
-          );
-
-        lane?.classList.toggle(
-          "on",
-          noteSweepValue
-        );
-      } else {
-        const stepButton =
-          document.querySelector(
-            `.offset-step[data-step-index="${stepIndex}"]`
-          );
-
-        stepButton?.classList.toggle(
-          "note-on",
-          noteSweepValue
-        );
-      }
     }
-
-    return;
-  }
-
-  function startNoteSweep(event, startCell) {
-    const trackIndex =
-      state.selectedTrackIndex;
-
-    const track =
-      tracks[trackIndex];
-
-    if (
-      !track ||
-      startCell.stepIndex < 0 ||
-      startCell.stepIndex >= track.stepLength
-    ) {
-      return false;
-    }
-
-    noteSweepActive = true;
-    noteSweepTrackIndex =
-      trackIndex;
-    noteSweepValue =
-      !Boolean(
-        track.steps[startCell.stepIndex]
-      );
-    noteSweepVisited = new Set();
-    noteSweepLastStep = null;
-    noteSweepHistorySaved = false;
-    suppressNextClick = true;
-    element.dataset.noteSweepActive =
-      "true";
-
-    element.setPointerCapture?.(
-      event.pointerId
-    );
-
-    applyNoteSweepCell(
-      startCell
-    );
-
-    return true;
   }
 
   element.style.touchAction = "none";
@@ -2204,7 +1552,6 @@ function enableSelectionPointer({
       pointerId = event.pointerId;
       startX = event.clientX;
       startY = event.clientY;
-      interactionActive = false;
       noteSweepActive = false;
       noteSweepTrackIndex = null;
       noteSweepVisited = new Set();
@@ -2213,103 +1560,41 @@ function enableSelectionPointer({
       suppressNextClick = false;
       delete element.dataset.noteSweepActive;
 
-      const cell = {
-        trackIndex:
-          source === "sequence"
-            ? state.selectedTrackIndex
-            : state.selectedTrackIndex,
-        stepIndex: getStepIndex(element)
-      };
+      if (source === "sequence") {
+        const trackIndex = state.selectedTrackIndex;
+        const stepIndex = getStepIndex(element);
+        const track = tracks[trackIndex];
 
-      if (editSelection.mode === mode) {
-        event.preventDefault();
-
-        startSelectionInteraction(
-          event,
-          cell
-        );
-
-        /*
-         * Offset選択モード中に
-         * もう一度長押しすると解除する。
-         *
-         * 指を動かした場合は、
-         * 通常の範囲選択スイープとして扱う。
-         */
         if (
-          mode === "step" &&
-          source === "sequence"
+          track &&
+          isSecondStepTap(trackIndex, stepIndex)
         ) {
-          clearTimer();
-
-          timer = window.setTimeout(
-            () => {
-              interactionActive = false;
-              finishEditMode();
-            },
-            LONG_PRESS_MS
+          /*
+           * ダブルタップ2回目のpointerdownでコピー操作へ確定。
+           * 1回目tapで一時的にOFFになったSTEPを元へ戻す。
+           */
+          restoreStepSnapshot(
+            track,
+            stepIndex,
+            lastStepTap.snapshot
           );
-        } else if (
-          mode === "offset" &&
-          source === "offset"
-        ) {
-          clearTimer();
+          discardLatestUndoEntry();
 
-          timer = window.setTimeout(
-            () => {
-              interactionActive = false;
+          stepClipSweep = {
+            pointerId: event.pointerId,
+            trackIndex,
+            startStepIndex: stepIndex,
+            endStepIndex: stepIndex
+          };
 
-              finishOffsetSelectionMode();
-            },
-            LONG_PRESS_MS
-          );
-        }
-
-        return;
-      }
-
-      const canLongPress =
-        (
-          mode === "step" &&
-          source === "sequence"
-        ) ||
-        (
-          mode === "offset" &&
-          source === "offset"
-        );
-
-      if (!canLongPress) {
-        return;
-      }
-
-      clearTimer();
-
-      timer = window.setTimeout(
-        () => {
-          if (mode === "step") {
-            beginStepEditMode(
-              cell.stepIndex
-            );
-          } else {
-            beginOffsetSelectionMode(
-              cell.stepIndex
-            );
-          }
-
-          interactionActive = true;
-          editSelection.sweepPointerId =
-            event.pointerId;
-          editSelection.sweepAnchor = cell;
-          editSelection.sweepBaseline =
-            new Set();
-          editSelection.sweepValue = true;
-
+          suppressNextClick = true;
+          lastStepTap = null;
           element.setPointerCapture?.(
             event.pointerId
           );
-        },
-        LONG_PRESS_MS
-      );
+          event.preventDefault();
+        }
+      }
     }
   );
 
@@ -2320,83 +1605,71 @@ function enableSelectionPointer({
         return;
       }
 
+      if (
+        stepClipSweep &&
+        stepClipSweep.pointerId === event.pointerId
+      ) {
+        event.preventDefault();
+
+        const cell = cellFromPoint(
+          event.clientX,
+          event.clientY
+        );
+
+        if (cell) {
+          stepClipSweep.endStepIndex =
+            cell.stepIndex;
+        }
+
+        return;
+      }
+
       const movementX =
         event.clientX - startX;
-
       const movementY =
         event.clientY - startY;
 
-      const movement = Math.hypot(
-        movementX,
-        movementY
-      );
+      if (
+        !noteSweepActive &&
+        Math.abs(movementX) > 12 &&
+        Math.abs(movementX) >
+          Math.abs(movementY)
+      ) {
+        const trackIndex =
+          state.selectedTrackIndex;
+        const track = tracks[trackIndex];
+        const stepIndex =
+          getStepIndex(element);
 
-      if (!interactionActive) {
-        /*
-         * 通常時は横方向のドラッグだけを
-         * Note ON/OFFスイープとして扱う。
-         * Offset画面の縦ドラッグは従来どおり
-         * Parameter Offset変更へ渡す。
-         */
         if (
-          !noteSweepActive &&
-          Math.abs(movementX) > 12 &&
-          Math.abs(movementX) >
-            Math.abs(movementY)
+          !track ||
+          stepIndex >= track.stepLength
         ) {
-          clearTimer();
-
-          const startCell = {
-            trackIndex:
-              state.selectedTrackIndex,
-            stepIndex:
-              getStepIndex(element)
-          };
-
-          if (
-            startNoteSweep(
-              event,
-              startCell
-            )
-          ) {
-            event.preventDefault();
-          }
-        }
-
-        if (noteSweepActive) {
-          event.preventDefault();
-
-          applyNoteSweepCell(
-            cellFromPoint(
-              event.clientX,
-              event.clientY
-            )
-          );
-
           return;
         }
 
-        if (movement > 12) {
-          clearTimer();
-        }
+        noteSweepActive = true;
+        noteSweepTrackIndex =
+          trackIndex;
+        noteSweepValue =
+          !Boolean(track.steps[stepIndex]);
+        suppressNextClick = true;
+        element.dataset.noteSweepActive =
+          "true";
+        element.setPointerCapture?.(
+          event.pointerId
+        );
 
-        return;
+        applyNoteSweepCell({
+          trackIndex,
+          stepIndex
+        });
       }
 
-      if (
-        interactionActive &&
-        movement > 12
-      ) {
-        clearTimer();
-      }
-
-      if (editSelection.mode !== mode) {
-        return;
-      }
+      if (!noteSweepActive) return;
 
       event.preventDefault();
-
-      applySweep(
+      applyNoteSweepCell(
         cellFromPoint(
           event.clientX,
           event.clientY
@@ -2410,8 +1683,6 @@ function enableSelectionPointer({
       return;
     }
 
-    clearTimer();
-
     if (
       element.hasPointerCapture?.(
         event.pointerId
@@ -2422,22 +1693,34 @@ function enableSelectionPointer({
       );
     }
 
-    const completedNoteSweep =
+    const completedClipSweep =
+      stepClipSweep &&
+      stepClipSweep.pointerId === event.pointerId;
+
+    if (completedClipSweep) {
+      copyStepRangeToEditClipboard(
+        stepClipSweep.trackIndex,
+        stepClipSweep.startStepIndex,
+        stepClipSweep.endStepIndex
+      );
+      stepClipSweep = null;
+      renderSequence();
+      renderEditor();
+      renderClipIndicator();
+    }
+
+    const completed =
       noteSweepActive;
 
     pointerId = null;
-    interactionActive = false;
     noteSweepActive = false;
     noteSweepTrackIndex = null;
     noteSweepVisited = new Set();
     noteSweepLastStep = null;
     noteSweepHistorySaved = false;
     delete element.dataset.noteSweepActive;
-    editSelection.sweepPointerId = null;
-    editSelection.sweepAnchor = null;
-    editSelection.sweepBaseline = null;
 
-    if (completedNoteSweep) {
+    if (completed) {
       renderSequence();
       renderEditor();
     }
@@ -2447,7 +1730,6 @@ function enableSelectionPointer({
     "pointerup",
     finish
   );
-
   element.addEventListener(
     "pointercancel",
     finish
@@ -2456,19 +1738,10 @@ function enableSelectionPointer({
   element.addEventListener(
     "click",
     event => {
-      if (suppressNextClick) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        suppressNextClick = false;
-        return;
-      }
-
-      if (editSelection.mode !== mode) {
-        return;
-      }
-
+      if (!suppressNextClick) return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      suppressNextClick = false;
     },
     true
   );
@@ -2792,44 +2065,20 @@ if (
       button.addEventListener(
     "click",
     () => {
-      if (editSelection.mode === "step") return;
       const trackIndex =
         state.selectedTrackIndex;
-
       const track =
         tracks[trackIndex];
 
-      if (
-        !track ||
-        stepIndex >= track.stepLength
-      ) {
-        return;
-      }
-
-      saveTrackHistory();
-
-      track.steps[stepIndex] =
-        !track.steps[stepIndex];
-
-      /*
-       * 選択中トラックのレーンだけ
-       * ON/OFF表示を更新する。
-       */
-      const lane =
-        button.querySelector(
-          `.track-lane[data-track-index="${trackIndex}"]`
-        );
-
-      lane?.classList.toggle(
-        "on",
-        track.steps[stepIndex]
-      );
-
-      /*
-       * Offset画面の
-       * note-on強調も更新する。
-       */
-      renderEditor();
+      handleStepTap({
+        track,
+        trackIndex,
+        stepIndex,
+        renderAfter: () => {
+          renderSequence();
+          renderEditor();
+        }
+      });
     }
   );
   return button;
@@ -7257,23 +6506,23 @@ acceleration: true,
            * Offset値そのものは保持する。
            * 選択編集モード中は選択操作を優先する。
            */
-          if (editSelection.mode === "offset") {
-            return;
-          }
-
           if (stepIndex >= track.stepLength) {
             return;
           }
 
-          saveTrackHistory();
-
-          track.steps[stepIndex] =
-            !track.steps[stepIndex];
-
-          renderSequence();
-          renderEditorAndRestore(
-            focusKey
-          );
+          handleStepTap({
+            track,
+            trackIndex:
+              state.selectedTrackIndex,
+            stepIndex,
+            focusKey,
+            renderAfter: key => {
+              renderSequence();
+              renderEditorAndRestore(
+                key
+              );
+            }
+          });
           return;
         }
 
@@ -9130,6 +8379,10 @@ function enableSongItemDrag(button, initialIndex) {
 
   button.addEventListener("pointerdown", event => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (
+      hasEditClipboard() &&
+      editClipboardType() === "part"
+    ) return;
 
     pointerId = event.pointerId;
     startX = event.clientX;
@@ -10195,9 +9448,69 @@ title.append(
   startMasterMixMeterAnimation();
 }
 
+const PART_DOUBLE_TAP_INTERVAL = 320;
+let lastPartTap = null;
+
+function handleSongPartTap(globalIndex, hasSource) {
+  if (state.isPlaying) {
+    if (hasSource) {
+      queueSongPart(globalIndex);
+      renderPatternManager();
+      renderSongGrid();
+    }
+    return;
+  }
+
+  if (
+    hasEditClipboard() &&
+    editClipboardType() === "part"
+  ) {
+    if (
+      pasteSongPartFromEditClipboard(
+        globalIndex
+      )
+    ) {
+      lastPartTap = null;
+      renderPatternManager();
+      renderSongGrid();
+      renderClipIndicator();
+    }
+    return;
+  }
+
+  const now = performance.now();
+
+  if (
+    lastPartTap &&
+    lastPartTap.index === globalIndex &&
+    now - lastPartTap.time <=
+      PART_DOUBLE_TAP_INTERVAL
+  ) {
+    copySongPartToEditClipboard(
+      globalIndex
+    );
+    lastPartTap = null;
+    renderSongGrid();
+    renderClipIndicator();
+    return;
+  }
+
+  lastPartTap = {
+    index: globalIndex,
+    time: now
+  };
+
+  if (hasSource) {
+    selectSongPart(globalIndex);
+    renderPatternManager();
+    renderSongGrid();
+  }
+}
+
 function renderSongGrid() {
   if (!songGrid) return;
 
+  renderClipIndicator();
   songGrid.innerHTML = "";
   const pageStart = state.songPage * SONG_PARTS_PER_PAGE;
 
@@ -10248,33 +9561,25 @@ function renderSongGrid() {
       cell.addEventListener(
         "click",
         () => {
-          if (state.isPlaying) {
-            queueSongPart(
-              globalIndex
-            );
-
-            /*
-             * Song予約でPattern / Fill / Section側の
-             * 既存予約表示が解除されるため両方更新する。
-             */
-            renderPatternManager();
-            renderSongGrid();
-
-            return;
-          }
-
-          selectSongPart(
-            globalIndex
+          handleSongPartTap(
+            globalIndex,
+            true
           );
-
-          renderPatternManager();
-          renderSongGrid();
         }
       );
     } else {
       cell.textContent = "・";
       cell.classList.add("empty");
       cell.setAttribute("aria-label", `song part ${globalIndex + 1} empty`);
+      cell.addEventListener(
+        "click",
+        () => {
+          handleSongPartTap(
+            globalIndex,
+            false
+          );
+        }
+      );
     }
 
     songGrid.appendChild(cell);

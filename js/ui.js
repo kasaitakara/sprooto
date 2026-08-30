@@ -9575,7 +9575,92 @@ title.append(
 
 const PART_DOUBLE_TAP_INTERVAL = 320;
 let lastPartTap = null;
+let suppressedPartClick = null;
+
+function enableSongPartDoubleTapPointer(
+  cell,
+  globalIndex,
+  source
+) {
+  if (
+    !source ||
+    (
+      source.type !== "pattern" &&
+      source.type !== "fill"
+    )
+  ) {
+    return;
+  }
+
+  cell.addEventListener(
+    "pointerdown",
+    event => {
+      if (
+        event.pointerType === "mouse" &&
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      if (
+        state.isPlaying ||
+        (
+          hasEditClipboard() &&
+          editClipboardType() === "part"
+        )
+      ) {
+        return;
+      }
+
+      const now =
+        performance.now();
+
+      if (
+        !lastPartTap ||
+        lastPartTap.index !==
+          globalIndex ||
+        now - lastPartTap.time >
+          PART_DOUBLE_TAP_INTERVAL
+      ) {
+        return;
+      }
+
+      if (
+        !copySongPartToEditClipboard(
+          globalIndex
+        )
+      ) {
+        return;
+      }
+
+      suppressedPartClick = {
+        index: globalIndex,
+        until: now + 500
+      };
+
+      lastPartTap = null;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      renderSongGrid();
+      renderClipIndicator();
+    }
+  );
+}
+
 function handleSongPartTap(globalIndex, hasSource) {
+  if (
+    suppressedPartClick &&
+    suppressedPartClick.index ===
+      globalIndex &&
+    performance.now() <=
+      suppressedPartClick.until
+  ) {
+    suppressedPartClick = null;
+    return;
+  }
+
   if (state.isPlaying) {
     if (hasSource) {
       queueSongPart(globalIndex);
@@ -9603,37 +9688,9 @@ function handleSongPartTap(globalIndex, hasSource) {
     return;
   }
 
-  const now = performance.now();
-
-  if (
-    lastPartTap &&
-    lastPartTap.index === globalIndex &&
-    now - lastPartTap.time <=
-      PART_DOUBLE_TAP_INTERVAL
-  ) {
-    const part =
-      song.sequence[globalIndex];
-
-    if (
-      part &&
-      (
-        part.type === "pattern" ||
-        part.type === "fill"
-      ) &&
-      copySongPartToEditClipboard(
-        globalIndex
-      )
-    ) {
-      lastPartTap = null;
-      renderSongGrid();
-      renderClipIndicator();
-      return;
-    }
-  }
-
   lastPartTap = {
     index: globalIndex,
-    time: now
+    time: performance.now()
   };
 
   if (hasSource) {
@@ -9692,6 +9749,13 @@ function renderSongGrid() {
         "aria-label",
         `song part ${globalIndex + 1}: ${source.type} ${songPartLabel(source)}`
       );
+
+      enableSongPartDoubleTapPointer(
+        cell,
+        globalIndex,
+        source
+      );
+
       enableSongItemDrag(cell, globalIndex);
 
       cell.addEventListener(

@@ -8869,10 +8869,6 @@ function drawEqMeterCanvas(
   context.globalAlpha = 1;
 }
 
-/*
- * 上がる時は素早く、
- * 下がる時だけゆっくり落とす。
- */
 function smoothMeterValue(
   currentValue,
   targetValue,
@@ -8896,22 +8892,43 @@ function smoothMeterValue(
     return target;
   }
 
-  return (
+  const next =
     current +
     (target - current) *
-      releaseRate
-  );
+      releaseRate;
+
+  /*
+   * 無音時に極小値を残さない。
+   */
+  if (
+    target === 0 &&
+    next < 0.008
+  ) {
+    return 0;
+  }
+
+  return next;
 }
 
 
 /*
- * CSS更新差分が小さい場合は
- * style.setProperty自体を行わない。
+ * CSS / Canvas更新差分が小さい場合は
+ * 描画更新を省略する。
+ *
+ * ただし0への到達だけは必ず描画して、
+ * メーター残りを防ぐ。
  */
 function meterValueChanged(
   previousValue,
   nextValue
 ) {
+  if (
+    nextValue === 0 &&
+    previousValue !== 0
+  ) {
+    return true;
+  }
+
   return (
     Math.abs(
       nextValue -

@@ -5374,3 +5374,21 @@ html {
     align-items: center;
     justify-content: center;
 }
+
+/*
+ * SUB親アイコン下のBase表示領域を固定。
+ * off文字 / pattern図形で高さを変えない。
+ */
+.parameter-button .parameter-value:has(
+    .sub-pattern-off,
+    .sub-pattern-figure
+) {
+    height: 14px;
+    min-height: 14px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    line-height: 14px;
+}

@@ -1396,18 +1396,18 @@ function renderClipIndicator() {
     button.className =
       "clip-indicator-button";
     button.innerHTML = `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M9.5 12.5l5.9-5.9a3.2 3.2 0 0 1 4.5 4.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.2-8.2a2.8 2.8 0 0 1 4 4l-7.6 7.6a1.6 1.6 0 0 1-2.3-2.3l6.9-6.9"></path>
-      </svg>
-    `;
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M9.5 12.5l5.9-5.9a3.2 3.2 0 0 1 4.5 4.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.2-8.2a2.8 2.8 0 0 1 4 4l-7.6 7.6a1.6 1.6 0 0 1-2.3-2.3l6.9-6.9"></path>
+  </svg>
+`;
     /*
      * Mobile SafariではToolbarが詰まるとflex itemが縮小され、
      * SVGごと実質0幅になることがある。

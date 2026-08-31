@@ -9091,11 +9091,11 @@ function startMasterMixMeterAnimation() {
         );
 
       const targetValue =
-        clamp(
-          rawValue * 0.72,
-          0,
-          1
-        );
+  clamp(
+    rawValue,
+    0,
+    1
+  );
 
       /*
        * EQは下降をほどほどに残す。

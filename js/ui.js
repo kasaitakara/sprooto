@@ -56,7 +56,6 @@ import {
 
 
 import {
-  SOUND_CATEGORIES,
   getFactoryPresets,
   getUserPresets,
   saveUserPreset,
@@ -12442,7 +12441,7 @@ function openSoundPresetModal() {
   const nowName = track.soundName || `sound ${String(track.id).padStart(2, "0")}`;
 
   let library = "factory";
-  let selected = { type: "now", id: "now", name: "now", category: "now" };
+  let selected = {type: "now", id: "now", name: "now"};
 
   const overlay = document.createElement("div");
   overlay.className = "sound-preset-overlay";
@@ -12496,8 +12495,6 @@ deleteButton.setAttribute(
 
   const body = document.createElement("div");
   body.className = "sound-preset-body";
-  const categories = document.createElement("div");
-  categories.className = "sound-preset-categories";
   const listWrap =
   document.createElement("div");
 
@@ -12539,7 +12536,6 @@ listWrap.append(
 );
 
 body.append(
-  categories,
   listWrap
 );
 
@@ -12568,32 +12564,30 @@ body.append(
     }
 
     if (type === "now") {
-      applyTrackSound(
-        targetTrack,
-        nowSound,
-        nowName
-      );
+  applyTrackSound(
+    targetTrack,
+    nowSound,
+    nowName
+  );
 
-      selected = {
-        type: "now",
-        id: "now",
-        name: "now",
-        category: "now"
-      };
-    } else {
-      applyTrackSound(
-        targetTrack,
-        item.sound,
-        item.name
-      );
+  selected = {
+    type: "now",
+    id: "now",
+    name: "now"
+  };
+} else {
+  applyTrackSound(
+    targetTrack,
+    item.sound,
+    item.name
+  );
 
-      selected = {
-        type,
-        id: item.id,
-        name: item.name,
-        category: item.category
-      };
-    }
+  selected = {
+    type,
+    id: item.id,
+    name: item.name
+  };
+}
 
     renderSequence();
     renderEditor();
@@ -12695,150 +12689,78 @@ body.append(
   scrollThumb.addEventListener("pointerup", finishPresetScroll);
   scrollThumb.addEventListener("pointercancel", finishPresetScroll);
 
-  function groupedPresets() {
-    const presets = currentPresets();
-    return SOUND_CATEGORIES.map(category => ({
-      category,
-      presets: presets.filter(preset => preset.category === category)
-    })).filter(group => group.presets.length > 0);
-  }
-
-let categoryScrollLocked = false;
-let categoryScrollUnlockTimer = null;
-
-function scrollToCategory(category) {
-  const heading =
-    list.querySelector(
-      `[data-category-heading="${category}"]`
-    );
-
-  if (!heading) {
-    return;
-  }
-
-  categoryScrollLocked = true;
-
-  if (categoryScrollUnlockTimer !== null) {
-    clearTimeout(categoryScrollUnlockTimer);
-  }
-
-  categories
-    .querySelectorAll("button")
-    .forEach(button => {
-      button.classList.toggle(
-        "active",
-        button.dataset.category === category
-      );
-    });
-
-  heading.scrollIntoView({
-    block: "start",
-    behavior: "smooth"
-  });
-
-  categoryScrollUnlockTimer =
-    window.setTimeout(
-      () => {
-        categories
-          .querySelectorAll("button")
-          .forEach(button => {
-            button.classList.toggle(
-              "active",
-              button.dataset.category === category
-            );
-          });
-
-        categoryScrollLocked = false;
-        categoryScrollUnlockTimer = null;
-      },
-      600
-    );
-}
-
-function updateActiveCategory() {
-  const headings =
-    Array.from(
-      list.querySelectorAll(
-        "[data-category-heading]"
-      )
-    );
-
-  if (!headings.length) {
-    return;
-  }
-
-  const listTop =
-    list.getBoundingClientRect().top;
-
-  let active =
-    headings[0].dataset.categoryHeading;
-
-  headings.forEach(heading => {
-    if (
-      heading.getBoundingClientRect().top <=
-      listTop + 10
-    ) {
-      active =
-        heading.dataset.categoryHeading;
-    }
-  });
-
-  categories
-    .querySelectorAll("button")
-    .forEach(button => {
-      button.classList.toggle(
-        "active",
-        button.dataset.category === active
-      );
-    });
-}
-
-function renderCategories(groups) {
-    categories.innerHTML = "";
-    groups.forEach(({ category }) => {
-      const button = createModalButton(category, "sound-preset-category");
-      button.dataset.category = category;
-      button.addEventListener("click", () => scrollToCategory(category));
-      categories.append(button);
-    });
-    categories.querySelector("button")?.classList.add("active");
-  }
-
   function renderList() {
-    const groups = groupedPresets();
-    list.innerHTML = "";
+  const presets =
+    currentPresets();
 
-    const nowButton = createModalButton("now", "sound-preset-item sound-preset-now");
-    nowButton.classList.toggle("active", selected.type === "now");
-    nowButton.addEventListener("click", () => applySelection(null, "now"));
-    list.append(nowButton);
+  list.innerHTML = "";
 
-    groups.forEach(({ category, presets }) => {
-      const heading = document.createElement("div");
-      heading.className = "sound-preset-category-heading";
-      heading.dataset.categoryHeading = category;
-      heading.textContent = category;
-      list.append(heading);
+  const nowButton =
+    createModalButton(
+      "now",
+      "sound-preset-item sound-preset-now"
+    );
 
-      presets.forEach(preset => {
-        const button = createModalButton(preset.name, "sound-preset-item");
-        button.classList.toggle(
-          "active",
-          selected.type === library && selected.id === preset.id
+  nowButton.classList.toggle(
+    "active",
+    selected.type === "now"
+  );
+
+  nowButton.addEventListener(
+    "click",
+    () =>
+      applySelection(
+        null,
+        "now"
+      )
+  );
+
+  list.append(
+    nowButton
+  );
+
+  presets.forEach(
+    preset => {
+      const button =
+        createModalButton(
+          preset.name,
+          "sound-preset-item"
         );
-        button.addEventListener("click", () => applySelection(preset, library));
-        list.append(button);
-      });
-    });
 
-    renderCategories(groups);
-    actions.hidden = library !== "user";
-    deleteButton.disabled = !(selected.type === "user" && selected.id !== "now");
-    requestAnimationFrame(() => {
-  updateActiveCategory();
-  updatePresetScrollbar();
-});
-  }
+      button.classList.toggle(
+        "active",
+        selected.type === library &&
+        selected.id === preset.id
+      );
+
+      button.addEventListener(
+        "click",
+        () =>
+          applySelection(
+            preset,
+            library
+          )
+      );
+
+      list.append(
+        button
+      );
+    }
+  );
+
+  actions.hidden =
+    library !== "user";
+
+  deleteButton.disabled =
+    !(
+      selected.type === "user" &&
+      selected.id !== "now"
+    );
+
+  requestAnimationFrame(
+    updatePresetScrollbar
+  );
+}
 
   function switchLibrary(nextLibrary) {
     library = nextLibrary;
@@ -12936,15 +12858,6 @@ modeWrap.appendChild(
   )
 );
 
-    const categorySelect = document.createElement("select");
-    SOUND_CATEGORIES.forEach(category => {
-      const option = document.createElement("option");
-      option.value = category;
-      option.textContent = category;
-      categorySelect.append(option);
-    });
-    categorySelect.value = selected.category === "now" ? "other" : selected.category;
-
     const nameInput =
       document.createElement("div");
 
@@ -13011,7 +12924,9 @@ modeWrap.appendChild(
 
     const fields = document.createElement("div");
     fields.className = "sound-preset-save-fields";
-    fields.append(categorySelect, nameInput);
+    fields.append(
+  nameInput
+);
 
     const buttons = document.createElement("div");
     buttons.className = "sound-preset-dialog-buttons";
@@ -13025,52 +12940,74 @@ modeWrap.appendChild(
     modal.append(shade);
 
     function updateMode() {
-      /*
-       * overwriteでも入力欄を表示する。
-       * Userプリセットは上書き時に
-       * category／nameを変更できる。
-       */
-      fields.hidden = false;
+  fields.hidden = false;
 
-      if (saveMode === "overwrite") {
-        categorySelect.value =
-          selected.category === "now"
-            ? "other"
-            : selected.category;
-
-        nameInput.textContent =
-          selected.type === "user"
-            ? selected.name
-            : "";
-      }
-    }
+  if (
+    saveMode === "overwrite"
+  ) {
+    nameInput.textContent =
+      selected.type === "user"
+        ? selected.name
+        : "";
+  }
+}
 
     updateMode();
 
     cancel.addEventListener("click", () => shade.remove());
-    dialog.addEventListener("submit", event => {
-      event.preventDefault();
-      const mode =
-  saveMode;
-      const saved = saveUserPreset({
-        id: mode === "overwrite" ? selected.id : null,
-        category: categorySelect.value,
-        name: nameInput.textContent ?? "",
-        sound: captureTrackSound(track)
+    dialog.addEventListener(
+  "submit",
+  event => {
+    event.preventDefault();
+
+    const mode =
+      saveMode;
+
+    const saved =
+      saveUserPreset({
+        id:
+          mode === "overwrite"
+            ? selected.id
+            : null,
+
+        name:
+          nameInput.textContent ??
+          "",
+
+        sound:
+          captureTrackSound(track)
       });
-      if (!saved) {
-        nameInput.focus();
-        return;
-      }
-      selected = { type: "user", id: saved.id, name: saved.name, category: saved.category };
-      track.soundName = saved.name;
-      library = "user";
-      factoryTab.classList.remove("active");
-      userTab.classList.add("active");
-      shade.remove();
-      renderEditor();
-      renderList();
-    });
+
+    if (!saved) {
+      nameInput.focus();
+      return;
+    }
+
+    selected = {
+      type: "user",
+      id: saved.id,
+      name: saved.name
+    };
+
+    track.soundName =
+      saved.name;
+
+    library = "user";
+
+    factoryTab.classList.remove(
+      "active"
+    );
+
+    userTab.classList.add(
+      "active"
+    );
+
+    shade.remove();
+
+    renderEditor();
+    renderList();
+  }
+);
     nameInput.focus();
   }
 
@@ -13192,15 +13129,12 @@ modeWrap.appendChild(
           }
 
           selected = {
-            type: "detached",
-            id: null,
-            name:
-              track.soundName ||
-              "current sound",
-            category:
-              selected.category ||
-              "other"
-          };
+  type: "detached",
+  id: null,
+  name:
+    track.soundName ||
+    "current sound"
+};
 
           shade.remove();
           renderList();
@@ -13221,10 +13155,6 @@ modeWrap.appendChild(
   list.addEventListener(
   "scroll",
   () => {
-    if (!categoryScrollLocked) {
-      updateActiveCategory();
-    }
-
     updatePresetScrollbar();
   }
 );

@@ -15,7 +15,6 @@ function sound(
 export const FACTORY_SOUND_PRESETS = [
   {
     id: "factory-initialize-tone",
-    category: "other",
     name: "initialize tone",
     sound: sound({
       note: 12,

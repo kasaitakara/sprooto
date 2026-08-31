@@ -2708,7 +2708,7 @@ select[data-focus-key]:focus-visible,
 .sound-preset-body {
     min-height: 0;
     display: grid;
-    grid-template-columns: 82px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .sound-preset-categories {
@@ -2950,9 +2950,7 @@ select[data-focus-key]:focus-visible,
 }
 
 .sound-preset-body {
-    grid-template-columns:
-        62px
-        minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .sound-preset-categories {
@@ -4525,7 +4523,9 @@ input[type="radio"]:focus-visible {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 .export-modal {
@@ -4954,7 +4954,7 @@ html {
 }
 
 .editor-header-primary .editor-view-toggle {
-    margin-left: 0;
+    margin-left: auto;
 
     width: 28px;
     min-width: 28px;
@@ -5361,3 +5361,16 @@ html {
     pointer-events: none;
 }
 
+.export-modal > :not(.export-modal-header) {
+    font-size: var(--font-label);
+}
+
+.export-modal > :not(.export-modal-header) * {
+    font-size: var(--font-label);
+}
+
+.export-value {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

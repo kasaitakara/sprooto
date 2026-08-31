@@ -55,9 +55,8 @@ function writeUserPresets(presets) {
   localStorage.setItem(USER_PRESET_STORAGE_KEY, JSON.stringify(presets));
 }
 
-export function saveUserPreset({ id = null, category, name, sound }) {
+export function saveUserPreset({ id = null, name, sound }) {
   const presets = getUserPresets();
-  const normalizedCategory = SOUND_CATEGORIES.includes(category) ? category : "other";
   const normalizedName = String(name || "").trim();
   if (!normalizedName) return null;
 
@@ -66,7 +65,6 @@ export function saveUserPreset({ id = null, category, name, sound }) {
     if (index < 0) return null;
     presets[index] = {
       ...presets[index],
-      category: normalizedCategory,
       name: normalizedName,
       sound: normalizeSound(sound)
     };
@@ -76,7 +74,6 @@ export function saveUserPreset({ id = null, category, name, sound }) {
 
   const preset = {
     id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    category: normalizedCategory,
     name: normalizedName,
     sound: normalizeSound(sound)
   };

@@ -9150,12 +9150,13 @@ function startMasterMixMeterAnimation() {
         1
       );
 
-    const volumeDisplayed =
-      smoothMeterValue(
-        masterMixMeterDisplay.volume,
-        volumeTarget,
-        0.16
-      );
+    // VOL
+const volumeDisplayed =
+  smoothMeterValue(
+    masterMixMeterDisplay.volume,
+    volumeTarget,
+    0.45
+  );
 
     masterMixMeterDisplay.volume =
       volumeDisplayed;
@@ -9199,12 +9200,13 @@ function startMasterMixMeterAnimation() {
         24
       );
 
-    const limiterDisplayed =
-      smoothMeterValue(
-        masterMixMeterDisplay.limiter,
-        limiterTarget,
-        0.22
-      );
+    // Limiter
+const limiterDisplayed =
+  smoothMeterValue(
+    masterMixMeterDisplay.limiter,
+    limiterTarget,
+    0.45
+  );
 
     masterMixMeterDisplay.limiter =
       limiterDisplayed;

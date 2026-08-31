@@ -2926,31 +2926,14 @@ const mixGain =
   sprootoDebugNode(context.createGain(), "mix");
 
  /*
- * PAN切替テスト。
+ * 前のhold音が次トリガーまで残る場合、
+ * 次音直前の4msだけ滑らかに閉じる。
  *
- * 前Voiceがまだ残っていて、
- * 今回のPAN位置と異なる場合は、
- * 次音直前の4msで前Voiceを閉じる。
- *
- * これで左右Voiceの重なりが
- * 「センターを経由して聞こえる」原因か確認する。
+ * linear rampではなく滑らかなカーブを使い、
+ * 急激な傾きによるクリックを抑える。
  */
-const panChangedFromPreviousVoice =
-  previousVoice?.gainNode &&
-  previousVoice.endTime > now &&
-  Number.isFinite(
-    Number(previousVoice.panValue)
-  ) &&
-  Math.abs(
-    Number(previousVoice.panValue) -
-    panValue
-  ) > 0.001;
-
 if (
-  (
-    previousVoice?.isHold ||
-    panChangedFromPreviousVoice
-  ) &&
+  previousVoice?.isHold &&
   previousVoice?.gainNode &&
   previousVoice.endTime > now
 ) {
@@ -3103,12 +3086,6 @@ activeTrackVoices.set(
     gainNode: mixGain,
     startTime: now,
     endTime: releaseEnd,
-
-    /*
-     * PAN切替時の前Voice処理判定用。
-     */
-    panValue,
-
     pitchTrajectories:
       currentPitchTrajectories
   }

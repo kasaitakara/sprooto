@@ -1137,14 +1137,17 @@ export function getMasterMixMeterData() {
         : 0;
 
     masterMixMeterData.bands[
-      bandIndex
-    ] =
-      clamp(
-        bandPeak * 0.55 +
-          average * 0.75,
-        0,
-        1
-      );
+  bandIndex
+] =
+  clamp(
+    (
+      bandPeak * 0.55 +
+      average * 0.75
+    ) /
+    1.3,
+    0,
+    1
+  );
   }
 
   /*

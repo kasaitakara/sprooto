@@ -6629,10 +6629,7 @@ acceleration: true,
     button.addEventListener(
       "click",
       event => {
-        const isTouchInput =
-  isTouchOrPen(
-    lastPointerType
-  );
+        const isTouchInput = true;
 
         if (isTouchInput) {
           event.preventDefault();

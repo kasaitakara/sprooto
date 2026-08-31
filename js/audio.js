@@ -66,6 +66,9 @@ let playbackStartCapture = null;
 let playbackStartSerial = 0;
 let playbackStartWorst = null;
 
+let playbackStartProbeRaf = null;
+let playbackStartProbeData = null;
+
 function updatePlaybackStartCapture() {
   if (!playbackStartCapture) {
     return;
@@ -100,6 +103,8 @@ function updatePlaybackStartCapture() {
 }
 
 export function beginPlaybackStartCapture() {
+  stopPlaybackStartProbe();
+
   playbackStartSerial += 1;
 
   playbackStartCapture = {
@@ -177,17 +182,19 @@ export function markPlaybackExpectedAudio(
    * 最も早い実音予定時刻を採用する。
    */
   if (
-    playbackStartCapture.firstExpectedAt ===
-      null ||
-    expectedAt <
-      playbackStartCapture.firstExpectedAt
-  ) {
-    playbackStartCapture.firstExpectedAt =
-      expectedAt;
+  playbackStartCapture.firstExpectedAt ===
+    null ||
+  expectedAt <
+    playbackStartCapture.firstExpectedAt
+) {
+  playbackStartCapture.firstExpectedAt =
+    expectedAt;
 
-    playbackStartCapture.firstExpectedTick =
-      playbackTickIndex;
-  }
+  playbackStartCapture.firstExpectedTick =
+    playbackTickIndex;
+}
+
+startPlaybackStartProbe();
 }
 
 function playbackStartSummary(
@@ -233,6 +240,154 @@ function playbackStartSummary(
     )} ` +
     `gap ${gap}ms`
   );
+}
+
+function stopPlaybackStartProbe() {
+  if (
+    playbackStartProbeRaf !== null &&
+    typeof window !== "undefined"
+  ) {
+    window.cancelAnimationFrame(
+      playbackStartProbeRaf
+    );
+  }
+
+  playbackStartProbeRaf = null;
+}
+
+function startPlaybackStartProbe() {
+  if (
+    offlineRenderMode ||
+    !outputAnalyser ||
+    !playbackStartCapture ||
+    playbackStartCapture
+      .firstAnalyserAt !== null ||
+    typeof window === "undefined" ||
+    typeof window.requestAnimationFrame !==
+      "function"
+  ) {
+    return;
+  }
+
+  /*
+   * 同じ再生開始に対して
+   * Probeを複数起動しない。
+   */
+  if (
+    playbackStartProbeRaf !== null
+  ) {
+    return;
+  }
+
+  if (
+    !playbackStartProbeData ||
+    playbackStartProbeData.length !==
+      outputAnalyser.fftSize
+  ) {
+    playbackStartProbeData =
+      new Uint8Array(
+        outputAnalyser.fftSize
+      );
+  }
+
+  const captureId =
+    playbackStartCapture.id;
+
+  const probe = () => {
+    /*
+     * 別の再生開始へ切り替わったら
+     * 古いProbeは終了。
+     */
+    if (
+      !playbackStartCapture ||
+      playbackStartCapture.id !==
+        captureId
+    ) {
+      playbackStartProbeRaf = null;
+      return;
+    }
+
+    const expectedAt =
+      playbackStartCapture
+        .firstExpectedAt;
+
+    if (
+      Number.isFinite(expectedAt) &&
+      performance.now() >=
+        expectedAt
+    ) {
+      outputAnalyser
+        .getByteTimeDomainData(
+          playbackStartProbeData
+        );
+
+      let peak = 0;
+
+      for (
+        let index = 0;
+        index <
+          playbackStartProbeData.length;
+        index++
+      ) {
+        const value =
+          Math.abs(
+            playbackStartProbeData[index] -
+              128
+          ) /
+          128;
+
+        if (value > peak) {
+          peak = value;
+        }
+      }
+
+      /*
+       * 最初の実質的なAudio信号を検出。
+       */
+      if (peak > 0.001) {
+        playbackStartCapture
+          .firstAnalyserAt =
+          performance.now();
+
+        playbackStartCapture
+          .stateAtAnalyser =
+          context?.state ??
+          "none";
+
+        updatePlaybackStartCapture();
+
+        playbackStartProbeRaf = null;
+        return;
+      }
+    }
+
+    /*
+     * 異常時も無限監視しない。
+     * PLAYから3秒でProbe終了。
+     *
+     * meterが "-" のままなら、
+     * 3秒以内にAudioグラフへ
+     * 信号が来なかったことになる。
+     */
+    if (
+      performance.now() -
+        playbackStartCapture.tapAt >
+      3000
+    ) {
+      playbackStartProbeRaf = null;
+      return;
+    }
+
+    playbackStartProbeRaf =
+      window.requestAnimationFrame(
+        probe
+      );
+  };
+
+  playbackStartProbeRaf =
+    window.requestAnimationFrame(
+      probe
+    );
 }
 
 const sprootoDebugReleasedNodes = new WeakSet();
@@ -1429,31 +1584,6 @@ export function getMasterMixMeterData() {
         )
       )
     : 0;
-
-/*
- * 再生開始後、
- * Master出力へ最初の信号が来た瞬間を記録。
- *
- * Byte Analyserなので0.001で
- * 実質「最初の非ゼロ信号」を拾う。
- */
-if (
-  playbackStartCapture &&
-  playbackStartCapture
-    .firstExpectedAt !== null &&
-  playbackStartCapture
-    .firstAnalyserAt === null &&
-  masterMixMeterData.level > 0.001
-) {
-  playbackStartCapture.firstAnalyserAt =
-    performance.now();
-
-  playbackStartCapture.stateAtAnalyser =
-    context?.state ??
-    "none";
-
-  updatePlaybackStartCapture();
-}
 
 return masterMixMeterData;
 }

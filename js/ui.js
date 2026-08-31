@@ -9155,7 +9155,7 @@ const volumeDisplayed =
   smoothMeterValue(
     masterMixMeterDisplay.volume,
     volumeTarget,
-    0.35
+    0.25
   );
 
     masterMixMeterDisplay.volume =

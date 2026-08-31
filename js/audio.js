@@ -584,18 +584,33 @@ function startSprootoDebugOverlay() {
   panel.style,
   {
     position: "fixed",
+
     top: "8px",
-    right: "calc(50% - 172px)",
+    left: "8px",
+    right: "8px",
 
     zIndex: "999999",
+
+    boxSizing: "border-box",
+
     padding: "6px 8px",
-    fontFamily: '"DM Mono", monospace',
+
+    fontFamily:
+      '"DM Mono", monospace',
+
     fontSize: "10px",
     lineHeight: "1.25",
-    whiteSpace: "pre",
+
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+
     pointerEvents: "none",
-    background: "rgba(21, 21, 21, 0.78)",
+
+    background:
+      "rgba(21, 21, 21, 0.78)",
+
     color: "#fff",
+
     borderRadius: "6px"
   }
 );

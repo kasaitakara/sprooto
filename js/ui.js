@@ -6329,6 +6329,59 @@ function displayStepValue(
     return `${result}`;
   }
 
+/*
+ * LFO RateはBase表示と同じ形式にする。
+ *
+ * BPM：
+ * 内部値の音価indexを表示名へ変換。
+ *
+ * FREE：
+ * 内部値1〜100を0.1〜10.0Hzへ変換。
+ */
+if (
+  parameter.id === "lfo1Rate" ||
+  parameter.id === "lfo2Rate"
+) {
+  const prefix =
+    parameter.id === "lfo2Rate"
+      ? "lfo2"
+      : "lfo1";
+
+  const syncMode =
+    track.base[
+      `${prefix}SyncMode`
+    ] === "bpm"
+      ? "bpm"
+      : "free";
+
+  if (syncMode === "bpm") {
+    const index =
+      clamp(
+        Math.round(
+          Number(result) || 0
+        ),
+        0,
+        LFO_BPM_RATE_NAMES.length - 1
+      );
+
+    return (
+      LFO_BPM_RATE_NAMES[index] ??
+      "1/4"
+    );
+  }
+
+  const hz =
+    clamp(
+      Number(result) || 1,
+      1,
+      100
+    ) / 10;
+
+  return `${Number(
+    hz.toFixed(1)
+  )}hz`;
+}
+
   /*
    * その他はすべて
    * base + offset の実効値を表示。

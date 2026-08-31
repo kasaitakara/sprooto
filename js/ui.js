@@ -9133,14 +9133,18 @@ function startMasterMixMeterAnimation() {
      * 0〜24dBを0〜1へ正規化。
      */
     const limiterTarget =
-      clamp(
-        Number(
-          meter.limiterReduction
-        ) || 0,
-        0,
+  volumeTarget <= 0.001
+    ? 0
+    : (
+        clamp(
+          Number(
+            meter.limiterReduction
+          ) || 0,
+          0,
+          24
+        ) /
         24
-      ) /
-      24;
+      );
 
     const limiterDisplayed =
       smoothMeterValue(

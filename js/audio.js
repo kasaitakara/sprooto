@@ -56,6 +56,185 @@ let sprootoDebugLastState = "none";
 
 let sprootoDebugFmWorkletCreatedTotal = 0;
 
+/* =========================
+ * Playback start auto capture
+ * 再生開始ズレ調査用。
+ * 再生動作そのものには影響しない。
+ * ========================= */
+
+let playbackStartCapture = null;
+let playbackStartSerial = 0;
+let playbackStartWorst = null;
+
+function updatePlaybackStartCapture() {
+  if (!playbackStartCapture) {
+    return;
+  }
+
+  if (
+    Number.isFinite(
+      playbackStartCapture.firstExpectedAt
+    ) &&
+    Number.isFinite(
+      playbackStartCapture.firstAnalyserAt
+    )
+  ) {
+    playbackStartCapture.analyserDelayMs =
+      playbackStartCapture.firstAnalyserAt -
+      playbackStartCapture.firstExpectedAt;
+
+    if (
+      !playbackStartWorst ||
+      playbackStartCapture.analyserDelayMs >
+        (
+          playbackStartWorst
+            .analyserDelayMs ??
+          -Infinity
+        )
+    ) {
+      playbackStartWorst = {
+        ...playbackStartCapture
+      };
+    }
+  }
+}
+
+export function beginPlaybackStartCapture() {
+  playbackStartSerial += 1;
+
+  playbackStartCapture = {
+    id:
+      playbackStartSerial,
+
+    tapAt:
+      performance.now(),
+
+    stateAtTap:
+      context?.state ??
+      "none",
+
+    initEnteredAt:
+      null,
+
+    audioReadyAt:
+      null,
+
+    schedulerAt:
+      null,
+
+    firstExpectedAt:
+      null,
+
+    firstExpectedTick:
+      null,
+
+    firstTrackCallAt:
+      null,
+
+    firstAnalyserAt:
+      null,
+
+    stateAtAnalyser:
+      null,
+
+    analyserDelayMs:
+      null
+  };
+}
+
+export function markPlaybackStartScheduler() {
+  if (!playbackStartCapture) {
+    return;
+  }
+
+  if (
+    playbackStartCapture.schedulerAt ===
+    null
+  ) {
+    playbackStartCapture.schedulerAt =
+      performance.now();
+  }
+}
+
+export function markPlaybackExpectedAudio(
+  playbackTickIndex,
+  delaySeconds
+) {
+  if (!playbackStartCapture) {
+    return;
+  }
+
+  const expectedAt =
+    performance.now() +
+    Math.max(
+      0,
+      Number(delaySeconds) || 0
+    ) *
+      1000;
+
+  /*
+   * 複数Trackが同時予約された場合は
+   * 最も早い実音予定時刻を採用する。
+   */
+  if (
+    playbackStartCapture.firstExpectedAt ===
+      null ||
+    expectedAt <
+      playbackStartCapture.firstExpectedAt
+  ) {
+    playbackStartCapture.firstExpectedAt =
+      expectedAt;
+
+    playbackStartCapture.firstExpectedTick =
+      playbackTickIndex;
+  }
+}
+
+function playbackStartSummary(
+  record
+) {
+  if (!record) {
+    return "start -";
+  }
+
+  const fromTap =
+    value =>
+      Number.isFinite(value)
+        ? Math.round(
+            value -
+            record.tapAt
+          )
+        : "-";
+
+  const gap =
+    Number.isFinite(
+      record.analyserDelayMs
+    )
+      ? Math.round(
+          record.analyserDelayMs
+        )
+      : "-";
+
+  return (
+    `#${record.id} ` +
+    `ctx ${record.stateAtTap}` +
+    `>${record.stateAtAnalyser ?? "-"} ` +
+    `ready ${fromTap(
+      record.audioReadyAt
+    )} ` +
+    `sched ${fromTap(
+      record.schedulerAt
+    )} ` +
+    `exp ${fromTap(
+      record.firstExpectedAt
+    )} ` +
+    `meter ${fromTap(
+      record.firstAnalyserAt
+    )} ` +
+    `gap ${gap}ms`
+  );
+}
+
 const sprootoDebugReleasedNodes = new WeakSet();
 const sprootoDebugNodeTypes = new WeakMap();
 const sprootoDebugNodeRoles = new WeakMap();
@@ -524,7 +703,15 @@ function startSprootoDebugOverlay() {
     `t ${audio.toFixed(0)} drift ${drift >= 0 ? "+" : ""}${drift.toFixed(2)} ${context?.state ?? "none"}`,
     `main ${Math.round(sprootoDebugMainLagMaxWindow)}ms timer ${Math.round(sprootoDebugTimerMaxLateMsWindow)}ms`,
     `hb ${hbAge < 0 ? "-" : Math.round(hbAge)}ms gap ${Math.round(sprootoDebugHeartbeatMaxGapWindow)}ms`,
-    `nodes ${sprootoDebugNodesCreated} live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)} src ${sprootoDebugLiveByType.source || 0} wrk ${sprootoDebugLiveByType.worklet || 0}`
+    `nodes ${sprootoDebugNodesCreated} live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)} src ${sprootoDebugLiveByType.source || 0} wrk ${sprootoDebugLiveByType.worklet || 0}`,
+
+`start ${playbackStartSummary(
+  playbackStartCapture
+)}`,
+
+`worst ${playbackStartSummary(
+  playbackStartWorst
+)}`
   ].join("\n");
 
         sprootoDebugPlayCallsWindow = 0;
@@ -811,6 +998,15 @@ async function initializeFmVoiceWorklet() {
 
 
 export async function initializeAudio() {
+  if (
+    playbackStartCapture &&
+    playbackStartCapture
+      .initEnteredAt === null
+  ) {
+    playbackStartCapture.initEnteredAt =
+      performance.now();
+  }
+
   if (!context) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     context = new AudioContextClass();
@@ -928,6 +1124,17 @@ context.addEventListener(
   }
 
   await ensureAudioClockReady();
+
+if (
+  playbackStartCapture &&
+  playbackStartCapture
+    .audioReadyAt === null
+) {
+  playbackStartCapture.audioReadyAt =
+    performance.now();
+
+  updatePlaybackStartCapture();
+}
 }
 
 export function setMasterVolume(value) {
@@ -1197,18 +1404,43 @@ export function getMasterMixMeterData() {
     );
 
   masterMixMeterData.limiterReduction =
-    limiter
-      ? Math.max(
-          0,
-          -(
-            Number(
-              limiter.reduction
-            ) || 0
-          )
+  limiter
+    ? Math.max(
+        0,
+        -(
+          Number(
+            limiter.reduction
+          ) || 0
         )
-      : 0;
+      )
+    : 0;
 
-  return masterMixMeterData;
+/*
+ * 再生開始後、
+ * Master出力へ最初の信号が来た瞬間を記録。
+ *
+ * Byte Analyserなので0.001で
+ * 実質「最初の非ゼロ信号」を拾う。
+ */
+if (
+  playbackStartCapture &&
+  playbackStartCapture
+    .firstExpectedAt !== null &&
+  playbackStartCapture
+    .firstAnalyserAt === null &&
+  masterMixMeterData.level > 0.001
+) {
+  playbackStartCapture.firstAnalyserAt =
+    performance.now();
+
+  playbackStartCapture.stateAtAnalyser =
+    context?.state ??
+    "none";
+
+  updatePlaybackStartCapture();
+}
+
+return masterMixMeterData;
 }
 
 function frequency(note) {
@@ -1365,9 +1597,18 @@ export async function playTrackStep(
   options = {}
 ) {
   sprootoDebugPlayCallsTotal += 1;
-  sprootoDebugPlayCallsWindow += 1;
+sprootoDebugPlayCallsWindow += 1;
 
-  await initializeAudio();
+if (
+  playbackStartCapture &&
+  playbackStartCapture
+    .firstTrackCallAt === null
+) {
+  playbackStartCapture.firstTrackCallAt =
+    performance.now();
+}
+
+await initializeAudio();
 
   const soundTrack = track;
 

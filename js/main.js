@@ -17,7 +17,10 @@ import {
   playTrackStep,
   setMasterVolume,
   resumeAudio,
-  resetTrackPitchHistory
+  resetTrackPitchHistory,
+  beginPlaybackStartCapture,
+  markPlaybackStartScheduler,
+  markPlaybackExpectedAudio
 } from "./audio.js";
 
 import {
@@ -492,19 +495,27 @@ function playStepAtTick(
       );
 
     if (
-      Math.random() * 100 <
-      probability
-    ) {
-      scheduleSubStep(
-        track,
-        trackStepIndex,
-        scheduleDelaySeconds +
-          swingDelaySeconds(
-            track,
-            trackStepIndex
-          )
-      );
-    }
+  Math.random() * 100 <
+  probability
+) {
+  const audioDelaySeconds =
+    scheduleDelaySeconds +
+    swingDelaySeconds(
+      track,
+      trackStepIndex
+    );
+
+  markPlaybackExpectedAudio(
+    playbackTickIndex,
+    audioDelaySeconds
+  );
+
+  scheduleSubStep(
+    track,
+    trackStepIndex,
+    audioDelaySeconds
+  );
+}
   });
 
   perfMainLog(
@@ -775,7 +786,9 @@ async function togglePlayback() {
     return;
   }
 
-  await initializeAudio();
+beginPlaybackStartCapture();
+
+await initializeAudio();
 
 resetTrackPitchHistory();
 
@@ -824,6 +837,8 @@ updatePlayingStep();
  */
 nextTickTime =
   performance.now();
+
+markPlaybackStartScheduler();
 
 audioScheduledThroughTick =
   null;

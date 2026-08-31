@@ -874,6 +874,7 @@ function startSprootoDebugOverlay() {
     `main ${Math.round(sprootoDebugMainLagMaxWindow)}ms timer ${Math.round(sprootoDebugTimerMaxLateMsWindow)}ms`,
     `hb ${hbAge < 0 ? "-" : Math.round(hbAge)}ms gap ${Math.round(sprootoDebugHeartbeatMaxGapWindow)}ms`,
     `nodes ${sprootoDebugNodesCreated} live ${Math.max(0, sprootoDebugNodesCreated - sprootoDebugNodesReleased)} src ${sprootoDebugLiveByType.source || 0} wrk ${sprootoDebugLiveByType.worklet || 0}`,
+`calls ${sprootoDebugPlayCallsWindow}/s new ${sprootoDebugNodesCreatedWindow}/s free ${sprootoDebugNodesReleasedWindow}/s pan ${sprootoDebugLiveByType.pan || 0}`,
 
 `start ${playbackStartSummary(
   playbackStartCapture

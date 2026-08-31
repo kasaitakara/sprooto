@@ -190,15 +190,22 @@ window.addEventListener(
 
 window.addEventListener(
   "projectchange",
-  () => {
+  event => {
     /*
-     * Project切替後は必ず停止表示へ戻す。
-     * restore側でstate.isPlayingがfalseになっていても、
-     * play buttonのCSS classはDOM側に残るため明示的に解除する。
+     * saveはProject内容を切り替えていないため、
+     * 現在の再生状態をそのまま維持する。
+     *
+     * new / openなど、
+     * 実際にProjectが切り替わった時だけ
+     * Play表示を停止状態へ戻す。
      */
-    playButton.classList.remove(
-      "playing"
-    );
+    if (
+      event.detail?.type !== "save"
+    ) {
+      playButton.classList.remove(
+        "playing"
+      );
+    }
 
     setMasterVolumeValue(
       Number(volumeInput.value)

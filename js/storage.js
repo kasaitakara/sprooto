@@ -41,6 +41,7 @@ const AUTOSAVE_DELAY = 500;
 let autosaveTimer = null;
 let databasePromise = null;
 let dirty = false;
+let recoveryDirty = false;
 
 function requestToPromise(request) {
   return new Promise((resolve, reject) => {
@@ -618,9 +619,25 @@ export async function getCurrentProjectMeta() {
 }
 
 async function saveRecoveryNow() {
-  const id = getCurrentProjectId();
-  if (!id || !(await readProjectRecord(id))) return false;
-  await writeRecoveryRecord({ id, updatedAt: new Date().toISOString(), settings: currentProjectSettings(), data: createProjectSnapshot() });
+  const id =
+    getCurrentProjectId();
+
+  if (!id || !recoveryDirty) {
+    return false;
+  }
+
+  await writeRecoveryRecord({
+    id,
+    updatedAt:
+      new Date().toISOString(),
+    settings:
+      currentProjectSettings(),
+    data:
+      createProjectSnapshot()
+  });
+
+  recoveryDirty = false;
+
   return true;
 }
 export function hasUnsavedChanges() { return dirty; }
@@ -631,14 +648,39 @@ export async function saveCurrentProject() {
     if (!old) return false;
     const record = { ...old, updatedAt: new Date().toISOString(), settings: currentProjectSettings(), data: createProjectSnapshot() };
     await writeProjectRecord(record);
-    await writeRecoveryRecord({ id, updatedAt: record.updatedAt, settings: record.settings, data: record.data });
-    dirty = false;
+await writeRecoveryRecord({
+  id,
+  updatedAt: record.updatedAt,
+  settings: record.settings,
+  data: record.data
+});
+
+clearTimeout(
+  autosaveTimer
+);
+
+autosaveTimer = null;
+recoveryDirty = false;
+dirty = false;
     dispatchProjectChange("save", record);
     return true;
   } catch (e) { console.error("sprooto save failed:", e); return false; }
 }
 export async function saveAutosave() { try { return await saveRecoveryNow(); } catch(e) { console.error("sprooto recovery autosave failed:",e); return false; } }
-export function scheduleAutosave() { dirty = true; clearTimeout(autosaveTimer); autosaveTimer=setTimeout(()=>void saveAutosave(), AUTOSAVE_DELAY); }
+export function scheduleAutosave() {
+  dirty = true;
+  recoveryDirty = true;
+
+  clearTimeout(
+    autosaveTimer
+  );
+
+  autosaveTimer =
+    setTimeout(
+      () => void saveAutosave(),
+      AUTOSAVE_DELAY
+    );
+}
 
 function restoreProjectRecord(
   record
@@ -890,8 +932,20 @@ export async function createNewProject() {
       record.id
     );
 
-    await writeRecoveryRecord({ id: record.id, updatedAt: record.updatedAt, settings: record.settings, data: record.data });
-    dirty = false;
+    await writeRecoveryRecord({
+  id: record.id,
+  updatedAt: record.updatedAt,
+  settings: record.settings,
+  data: record.data
+});
+
+clearTimeout(
+  autosaveTimer
+);
+
+autosaveTimer = null;
+recoveryDirty = false;
+dirty = false;
 
     dispatchProjectChange(
       "new",
@@ -917,8 +971,23 @@ export async function openProject(projectId) {
     if (previousId) await removeRecoveryRecord(previousId);
     if (!restoreProjectRecord(target)) return false;
     setCurrentProjectId(projectId);
-    await writeRecoveryRecord({ id: target.id, updatedAt: target.updatedAt, settings: target.settings, data: target.data });
-    dirty = false; clearHistory(); dispatchProjectChange("open", target); return true;
+    await writeRecoveryRecord({
+  id: target.id,
+  updatedAt: target.updatedAt,
+  settings: target.settings,
+  data: target.data
+});
+
+clearTimeout(
+  autosaveTimer
+);
+
+autosaveTimer = null;
+recoveryDirty = false;
+dirty = false;
+
+clearHistory();
+dispatchProjectChange("open", target); return true;
   } catch(e) { console.error("sprooto open project failed:",e); return false; }
 }
 
@@ -929,20 +998,34 @@ export async function saveAsProject(
     const previousId = getCurrentProjectId();
 
     const record =
-      await createProjectRecord({
-        name,
+  await createProjectRecord({
+    name,
 
-        data:
-          createProjectSnapshot(),
+    data:
+      createProjectSnapshot(),
 
-        settings:
-          currentProjectSettings()
-      });
+    settings:
+      currentProjectSettings()
+  });
 
-    if (previousId) await removeRecoveryRecord(previousId);
-    setCurrentProjectId(record.id);
-    await writeRecoveryRecord({ id: record.id, updatedAt: record.updatedAt, settings: record.settings, data: record.data });
-    dirty = false;
+if (previousId) await removeRecoveryRecord(previousId);
+
+setCurrentProjectId(record.id);
+
+await writeRecoveryRecord({
+  id: record.id,
+  updatedAt: record.updatedAt,
+  settings: record.settings,
+  data: record.data
+});
+
+clearTimeout(
+  autosaveTimer
+);
+
+autosaveTimer = null;
+recoveryDirty = false;
+dirty = false;
 
     clearHistory();
 
@@ -1065,6 +1148,14 @@ export async function deleteProject(
         nextRecord.id
       );
 
+      clearTimeout(
+  autosaveTimer
+);
+
+autosaveTimer = null;
+recoveryDirty = false;
+dirty = false;
+
       dispatchProjectChange(
         "delete",
         nextRecord
@@ -1074,18 +1165,26 @@ export async function deleteProject(
     }
 
     const created =
-      await createInitialProject();
+  await createInitialProject();
 
-    restoreProjectRecord(
-      created
-    );
+restoreProjectRecord(
+  created
+);
 
-    dispatchProjectChange(
-      "delete",
-      created
-    );
+clearTimeout(
+  autosaveTimer
+);
 
-    return true;
+autosaveTimer = null;
+recoveryDirty = false;
+dirty = false;
+
+dispatchProjectChange(
+  "delete",
+  created
+);
+
+return true;
   } catch (error) {
     console.error(
       "sprooto delete project failed:",
@@ -1098,18 +1197,27 @@ export async function deleteProject(
 
 export function initializeAutosave() {
   [
-    "pointerup",
-    "change",
-    "input",
-    "keyup"
-  ].forEach(
-    eventName => {
-      document.addEventListener(
-        eventName,
-        scheduleAutosave
-      );
-    }
-  );
+  "change",
+  "input"
+].forEach(
+  eventName => {
+    document.addEventListener(
+      eventName,
+      event => {
+        if (
+          event.target?.id !==
+            "bpm-input" &&
+          event.target?.id !==
+            "master-volume"
+        ) {
+          return;
+        }
+
+        scheduleAutosave();
+      }
+    );
+  }
+);
 
   document.addEventListener(
     "visibilitychange",
@@ -1124,18 +1232,6 @@ export function initializeAutosave() {
 
         void saveAutosave();
       }
-    }
-  );
-
-  /*
-   * pagehideでは非同期処理の完了は保証されないため、
-   * visibilitychange + 通常autosaveを主経路とする。
-   * ここでも最後の保存要求だけ投げておく。
-   */
-  window.addEventListener(
-    "pagehide",
-    () => {
-      void saveAutosave();
     }
   );
 }

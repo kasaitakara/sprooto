@@ -161,6 +161,27 @@ solo: false,
   };
 }
 
+const defaultTrackComparisonCache =
+  new Map();
+
+function defaultTrackForComparison(id) {
+  if (
+    defaultTrackComparisonCache.has(id)
+  ) {
+    return defaultTrackComparisonCache.get(id);
+  }
+
+  const track =
+    makeTrack(id);
+
+  defaultTrackComparisonCache.set(
+    id,
+    track
+  );
+
+  return track;
+}
+
 function makePatternData() {
   return {
     tracks:
@@ -2282,9 +2303,9 @@ export function sourceHasData(
   return source.tracks.some(
     track => {
       const initial =
-        makeTrack(
-          track.id
-        );
+  defaultTrackForComparison(
+    track.id
+  );
 
       /*
        * Step入力

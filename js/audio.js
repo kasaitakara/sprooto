@@ -9,6 +9,8 @@ let limiter;
 let reverbConvolver;
 let reverbDryGain;
 let reverbWetGain;
+let reverbPathConnected = false;
+let reverbDisconnectTimer = null;
 let spectrumAnalyser;
 let outputAnalyser;
 let eqNodes = [];
@@ -1228,11 +1230,12 @@ export async function initializeAudio() {
     previousNode.connect(spectrumAnalyser);
 
     previousNode.connect(reverbDryGain);
-    reverbDryGain.connect(mixGain);
+reverbDryGain.connect(mixGain);
 
-    previousNode.connect(reverbConvolver);
-    reverbConvolver.connect(reverbWetGain);
-    reverbWetGain.connect(mixGain);
+previousNode.connect(reverbConvolver);
+reverbWetGain.connect(mixGain);
+
+reverbPathConnected = false;
 
     mixGain.connect(limiter);
 
@@ -1338,6 +1341,63 @@ function createMasterReverbImpulse() {
   return buffer;
 }
 
+function updateMasterReverbPath(reverbAmount) {
+  if (
+    !reverbConvolver ||
+    !reverbWetGain ||
+    offlineRenderMode
+  ) {
+    return;
+  }
+
+  if (reverbDisconnectTimer !== null) {
+    clearTimeout(reverbDisconnectTimer);
+    reverbDisconnectTimer = null;
+  }
+
+  if (reverbAmount > 0) {
+    if (!reverbPathConnected) {
+      reverbConvolver.connect(reverbWetGain);
+      reverbPathConnected = true;
+    }
+
+    return;
+  }
+
+  if (!reverbPathConnected) {
+    return;
+  }
+
+const convolver =
+  reverbConvolver;
+
+const wetGain =
+  reverbWetGain;
+
+  /*
+   * Wet Gainの10msスムージングが終わってから
+   * Convolver経路を切る。
+   */
+  reverbDisconnectTimer = setTimeout(() => {
+    reverbDisconnectTimer = null;
+
+    if (
+      masterMixSettings.reverb > 0 ||
+      !reverbPathConnected
+    ) {
+      return;
+    }
+
+    try {
+      convolver.disconnect(wetGain);
+    } catch (_) {
+      // already disconnected
+    }
+
+    reverbPathConnected = false;
+  }, 50);
+}
+
 function applyMasterMixSettings() {
   if (!context) return;
 
@@ -1379,6 +1439,9 @@ function applyMasterMixSettings() {
     now,
     0.01
   );
+
+  updateMasterReverbPath(reverbAmount);
+
 }
 
 export function setMasterMixEqBand(index, value) {
@@ -1655,6 +1718,153 @@ function lfoRateToHz(
       durationSeconds
     )
   );
+}
+
+const filterLfoCurveCache =
+  new Map();
+
+const FILTER_LFO_CURVE_CACHE_LIMIT =
+  128;
+
+function getFilterLfoCurve({
+  wave,
+  rateHz,
+  modulationDuration,
+  amountCents,
+  sampleCount
+}) {
+  const key =
+    `${wave}|` +
+    `${rateHz}|` +
+    `${modulationDuration}|` +
+    `${amountCents}|` +
+    `${sampleCount}`;
+
+  const cached =
+    filterLfoCurveCache.get(key);
+
+  if (cached) {
+    return cached;
+  }
+
+  const curve =
+    new Float32Array(
+      sampleCount
+    );
+
+  for (
+    let sampleIndex = 0;
+    sampleIndex < sampleCount;
+    sampleIndex++
+  ) {
+    const progress =
+      sampleCount <= 1
+        ? 0
+        : sampleIndex /
+          (sampleCount - 1);
+
+    const elapsedSeconds =
+      progress *
+      modulationDuration;
+
+    const phase =
+      2 *
+      Math.PI *
+      rateHz *
+      elapsedSeconds;
+
+    let waveValue = 0;
+
+    switch (wave) {
+      case "triangle":
+        waveValue =
+          (
+            2 /
+            Math.PI
+          ) *
+          Math.asin(
+            Math.sin(phase)
+          );
+        break;
+
+      case "square":
+        waveValue =
+          Math.sin(phase) >= 0
+            ? 1
+            : -1;
+        break;
+
+      case "sawUp": {
+        const cyclePosition =
+          (
+            phase /
+            (
+              2 *
+              Math.PI
+            )
+          ) % 1;
+
+        waveValue =
+          cyclePosition *
+            2 -
+          1;
+        break;
+      }
+
+      case "sawDown": {
+        const cyclePosition =
+          (
+            phase /
+            (
+              2 *
+              Math.PI
+            )
+          ) % 1;
+
+        waveValue =
+          1 -
+          cyclePosition *
+            2;
+        break;
+      }
+
+      case "sine":
+      default:
+        waveValue =
+          Math.sin(phase);
+        break;
+    }
+
+    curve[sampleIndex] =
+      waveValue *
+      amountCents;
+  }
+
+  /*
+   * 曲中で大量の異なる設定を使っても
+   * キャッシュが無制限に増えないよう制限。
+   */
+  if (
+    filterLfoCurveCache.size >=
+    FILTER_LFO_CURVE_CACHE_LIMIT
+  ) {
+    const oldestKey =
+      filterLfoCurveCache
+        .keys()
+        .next()
+        .value;
+
+    filterLfoCurveCache.delete(
+      oldestKey
+    );
+  }
+
+  filterLfoCurveCache.set(
+    key,
+    curve
+  );
+
+  return curve;
 }
 
 /*
@@ -2797,112 +3007,13 @@ const sampleCount =
   );
 
 const curve =
-  new Float32Array(
+  getFilterLfoCurve({
+    wave: lfoWave,
+    rateHz,
+    modulationDuration,
+    amountCents,
     sampleCount
-  );
-
-for (
-  let sampleIndex = 0;
-  sampleIndex < sampleCount;
-  sampleIndex++
-) {
-  const progress =
-    sampleCount <= 1
-      ? 0
-      : sampleIndex /
-        (sampleCount - 1);
-
-  const elapsedSeconds =
-    progress *
-    modulationDuration;
-
-  const phase =
-    2 *
-    Math.PI *
-    rateHz *
-    elapsedSeconds;
-
-  let waveValue = 0;
-
-  switch (lfoWave) {
-    case "triangle":
-      /*
-       * 位相0では0から上昇。
-       */
-      waveValue =
-        (
-          2 /
-          Math.PI
-        ) *
-        Math.asin(
-          Math.sin(phase)
-        );
-      break;
-
-    case "square":
-      /*
-       * 位相0ではプラス側から開始。
-       */
-      waveValue =
-        Math.sin(phase) >= 0
-          ? 1
-          : -1;
-      break;
-
-    case "sawUp": {
-      /*
-       * -1から+1へ上昇。
-       */
-      const cyclePosition =
-        (
-          phase /
-          (
-            2 *
-            Math.PI
-          )
-        ) % 1;
-
-      waveValue =
-        cyclePosition *
-          2 -
-        1;
-      break;
-    }
-
-    case "sawDown": {
-      /*
-       * +1から-1へ下降。
-       */
-      const cyclePosition =
-        (
-          phase /
-          (
-            2 *
-            Math.PI
-          )
-        ) % 1;
-
-      waveValue =
-        1 -
-        cyclePosition *
-          2;
-      break;
-    }
-
-    case "sine":
-    default:
-      /*
-       * 位相0では0から上昇。
-       */
-      waveValue =
-        Math.sin(phase);
-      break;
-  }
-
-  curve[sampleIndex] =
-    waveValue *
-    amountCents;
-}
+  });
 
 /*
  * 2段のFilterへ完全に同じカーブを予約。
@@ -3176,27 +3287,50 @@ if (offlineRenderMode || fadeEnvelope) {
       };
     }
 
+const fmDepth = clamp(
+  soundTrack.base.fmDepth +
+    offset("fmDepth"),
+  0,
+  20
+);
+
     const pitchLfos = [1, 2]
       .map(lfoNumber => workletLfoConfig(lfoNumber, "pitch"))
       .filter(Boolean);
 
-    const fmDepthLfos = [1, 2]
-      .map(lfoNumber => workletLfoConfig(lfoNumber, "fmDepth"))
-      .filter(Boolean);
-
     const fmFeedbackNormalized = clamp(
-      (Number(soundTrack.base.fmFeedback) || 0) + offset("fmFeedback"),
-      0,
-      50
-    ) / 50;
+  (Number(soundTrack.base.fmFeedback) || 0) +
+    offset("fmFeedback"),
+  0,
+  50
+) / 50;
 
-    const fmFeedbackStrength = Math.pow(fmFeedbackNormalized, 1.2) * 1.8;
-    const fmRatio = clamp(
-      (Number(soundTrack.base.fmRatio) || 1) + offset("fmRatio"),
-      0.25,
-      8
-    );
-    const fmDepth = clamp(soundTrack.base.fmDepth + offset("fmDepth"), 0, 20);
+const fmRatio = clamp(
+  (Number(soundTrack.base.fmRatio) || 1) +
+    offset("fmRatio"),
+  0.25,
+  8
+);
+
+const fmDepthLfos =
+  fmDepth > 0
+    ? [1, 2]
+        .map(lfoNumber =>
+          workletLfoConfig(
+            lfoNumber,
+            "fmDepth"
+          )
+        )
+        .filter(Boolean)
+    : [];
+
+const fmFeedbackStrength =
+  fmDepth > 0
+    ? Math.pow(
+        fmFeedbackNormalized,
+        1.2
+      ) * 1.8
+    : 0;
 
     for (let voiceIndex = 0; voiceIndex < chordNotes.length; voiceIndex++) {
       const voiceNote = chordNotes[voiceIndex];
@@ -3225,19 +3359,21 @@ if (offlineRenderMode || fadeEnvelope) {
        * 高密度パターンで最も重い
        * AudioWorkletNode生成数を減らすための分岐。
        */
-      const canUseNativeSine =
+       const canUseNativeSine =
         fmDepth <= 0 &&
-        glideDuration <= 0 &&
-        pitchLfos.length === 0 &&
-        fmDepthLfos.length === 0;
+         (
+         glideDuration <= 0 ||
+         glideStartNote === voiceNote
+         ) &&
+         pitchLfos.length === 0;
 
-      if (canUseNativeSine) {
-        const oscillator =
+         if (canUseNativeSine) {
+         const oscillator =
           sprootoDebugNode(context.createOscillator(), "osc");
 
-        oscillator.type = "sine";
+          oscillator.type = "sine";
 
-        oscillator.frequency.setValueAtTime(
+          oscillator.frequency.setValueAtTime(
           frequency(voiceNote),
           voiceStartTime
         );

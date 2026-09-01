@@ -41,6 +41,7 @@ import "./keyboard-navigation.js";
 
 let timer = null;
 let nextTickTime = 0;
+let playbackWasHidden = false;
 /* =========================
  * Screen Wake Lock
  * 再生中だけ画面スリープを抑止
@@ -133,6 +134,35 @@ const AUDIO_PREBUFFER_MS = 250;
  * Source切替時は0起点へ戻るため、そこでリセットする。
  */
 let audioScheduledThroughTick = null;
+
+function resyncPlaybackClockAfterBackground() {
+  if (!state.isPlaying) {
+    return;
+  }
+
+  /*
+   * Background中に溜まった
+   * performance.now()上の遅れは捨てる。
+   *
+   * 過去のtickを高速消化せず、
+   * 復帰時点を新しい時間基準にする。
+   */
+  clearTimeout(timer);
+
+  timer = null;
+
+  nextTickTime =
+    performance.now();
+
+  /*
+   * 復帰直前までの予約位置を
+   * 現在位置として扱う。
+   */
+  audioScheduledThroughTick =
+    state.playbackTickIndex;
+
+  scheduleNextTick();
+}
 
 const playButton = document.getElementById("play-button");
 
@@ -748,7 +778,15 @@ scheduleAudioAhead(
 scheduleNextTick();
 
 if (sourceChanged) {
-  preserveFocusDuringRender();
+  window.requestAnimationFrame(
+    () => {
+      if (!state.isPlaying) {
+        return;
+      }
+
+      preserveFocusDuringRender();
+    }
+  );
 } else {
   updatePlayingStep();
 }
@@ -953,6 +991,10 @@ function endBpmSwipe(event) {
     return;
   }
 
+  const changed =
+    Number(bpmInput.value) !==
+    bpmSwipeStartValue;
+
   bpmSwipeActive = false;
   bpmSwipePointerId = null;
 
@@ -964,6 +1006,10 @@ function endBpmSwipe(event) {
     bpmInput.releasePointerCapture(
       event.pointerId
     );
+  }
+
+  if (changed) {
+    scheduleAutosave();
   }
 }
 
@@ -1210,7 +1256,21 @@ enableRelativeVolumeDrag({
 
   min: 0,
   max: 100,
-  step: 1
+  step: 1,
+
+  onFinish: (
+    startValue,
+    currentValue,
+    moved
+  ) => {
+    if (
+      moved &&
+      currentValue !==
+        startValue
+    ) {
+      scheduleAutosave();
+    }
+  }
 });
 
 /*
@@ -1305,20 +1365,31 @@ void initializeApp();
 document.addEventListener(
   "visibilitychange",
   () => {
+    if (
+      document.visibilityState !==
+        "visible"
+    ) {
+      if (state.isPlaying) {
+        playbackWasHidden = true;
+      }
+
+      return;
+    }
+
     resumeAudio();
 
-    /*
-     * iPhone等では一度バックグラウンドへ
-     * 入るとWake Lockが解除されることがある。
-     * 再生中に画面へ戻ったら再取得する。
-     */
-    if (
-      document.visibilityState ===
-        "visible" &&
-      state.isPlaying
-    ) {
-      requestScreenWakeLock();
+    if (!state.isPlaying) {
+      playbackWasHidden = false;
+      return;
     }
+
+    if (playbackWasHidden) {
+      playbackWasHidden = false;
+
+      resyncPlaybackClockAfterBackground();
+    }
+
+    requestScreenWakeLock();
   }
 );
 

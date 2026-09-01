@@ -2717,11 +2717,27 @@ enableVerticalSweep({
 
     syncPatternLength();
 
-    patternLengthInput.value =
-      state.patternLength;
+patternLengthInput.value =
+  state.patternLength;
 
-    renderSequence();
-    renderEditor();
+renderSequence();
+
+/*
+ * Pattern Length変更中は
+ * Editor全体を再構築せず、
+ * 表示中のTrack Lengthだけ同期する。
+ */
+const visibleTrackLength =
+  editor.querySelector(
+    ".track-length-input"
+  );
+
+if (visibleTrackLength) {
+  visibleTrackLength.textContent =
+    String(
+      editorTrack().stepLength
+    );
+}
   },
 
   min: 1,
@@ -3377,9 +3393,10 @@ if (
         return;
       }
 
-      renderEditorAndRestore(
-        `parameter-${focusId}`
-      );
+      renderEditor();
+restoreFocusKey(
+  `parameter-${focusId}`
+);
     }
   });
 }
@@ -3553,9 +3570,10 @@ acceleration: false,
       sweepHistorySaved = false;
 
       if (changed) {
-        renderEditorAndRestore(
-          focusKey
-        );
+        renderEditor();
+restoreFocusKey(
+  focusKey
+);
       }
     }
   });
@@ -3643,7 +3661,6 @@ if (isTouchInput) {
                 nextLength;
 
               syncPatternLength();
-              renderSequence();
             }
           }
 
@@ -4910,11 +4927,13 @@ function enableLfoRateSlotInteraction({
     );
 
     if (sweeping) {
-      sweeping = false;
-      renderEditorAndRestore(
-        focusKey
-      );
-    }
+  sweeping = false;
+
+  renderEditor();
+  restoreFocusKey(
+    focusKey
+  );
+}
   }
 
   element.addEventListener(
@@ -5343,9 +5362,10 @@ function createParameterMenuGrid() {
             return;
           }
 
-          renderEditorAndRestore(
-            focusKey
-          );
+          renderEditor();
+restoreFocusKey(
+  focusKey
+);
         }
       });
     }
@@ -5560,18 +5580,12 @@ topRow.appendChild(
         ) %
         tracks.length;
 
-      /*
-       * Track対象の範囲選択中は、
-       * Track切替前の選択を引き継がない。
-       */
       if (
         editSelection.mode === "step" &&
         editSelection.scope === "track"
       ) {
         clearEditSelection();
       }
-
-      renderSequence();
 
       renderEditorAndRestore(
         "menu-track"
@@ -5596,7 +5610,6 @@ topRow.appendChild(
         state.selectedParameterId = null;
         state.selectedChildId = null;
 
-        renderSequence();
         renderEditorAndRestore(
           "menu-mute"
         );
@@ -5618,7 +5631,6 @@ topRow.appendChild(
         state.selectedParameterId = null;
         state.selectedChildId = null;
 
-        renderSequence();
         renderEditorAndRestore(
           "menu-solo"
         );
@@ -5906,64 +5918,20 @@ const definition = {
  * ベース値変更中も、
  * 各ステップの実効値をリアルタイム更新する。
  */
-document
-  .querySelectorAll(
-    ".offset-step[data-step-index]"
-  )
-  .forEach(
-    offsetButton => {
-      const stepIndex =
-        Number(
-          offsetButton.dataset
-            .stepIndex
-        );
+                const displayParameter =
+      parameterById(id) ??
+      {
+        ...definition,
+        id,
+        offsetMode:
+          childDefinition?.offsetMode ??
+          parameter.offsetMode ??
+          "offset"
+      };
 
-      const displayParameter =
-        parameterById(id) ??
-        {
-          ...definition,
-          id,
-          offsetMode: activeChild.offsetMode ?? parameter.offsetMode ?? "offset"
-        };
-
-      if (id === "subPattern") {
-        const result = clamp(
-          Math.round(
-            Number(track.base.subPattern) +
-            Number(track.offsets.subPattern?.[stepIndex] ?? 0)
-          ),
-          -1,
-          6
-        );
-
-        offsetButton.innerHTML =
-          subPatternFigureHtml(result);
-
-        offsetButton.setAttribute(
-          "aria-label",
-          subPatternLabel(result)
-        );
-      } else {
-        offsetButton.textContent =
-          displayStepValue(
-            displayParameter,
-            stepIndex
-          );
-      }
-
-      const stepOffset =
-        Number(
-          track.offsets[id]?.[
-            stepIndex
-          ]
-        ) || 0;
-
-      offsetButton.classList.toggle(
-        "base-value-step",
-        stepOffset === 0
-      );
-    }
-  );
+    refreshVisibleOffsetValues(
+      displayParameter
+    );
     },
 
     min: () =>
@@ -6704,7 +6672,6 @@ acceleration: true,
             stepIndex,
             focusKey,
             renderAfter: key => {
-              renderSequence();
               renderEditorAndRestore(
                 key
               );
@@ -6879,11 +6846,11 @@ function renderOscEdit() {
   `;
   trackButton.setAttribute("aria-label", `track ${track.id}`);
   trackButton.addEventListener("click", () => {
-    state.selectedTrackIndex =
-      (state.selectedTrackIndex + 1) % tracks.length;
-    renderSequence();
-    renderEditorAndRestore("edit-track");
-  });
+  state.selectedTrackIndex =
+    (state.selectedTrackIndex + 1) % tracks.length;
+
+  renderEditorAndRestore("edit-track");
+});
 
   const parentButton = document.createElement("button");
   parentButton.type = "button";
@@ -6972,8 +6939,6 @@ function renderEnvelopeEdit() {
           1
         ) %
         tracks.length;
-
-      renderSequence();
 
       renderEditorAndRestore(
         "edit-track"
@@ -7106,7 +7071,6 @@ function renderFilterEdit() {
           1
         ) % tracks.length;
 
-      renderSequence();
       renderEditorAndRestore(
         "edit-track"
       );
@@ -7240,7 +7204,6 @@ function renderLfoEdit() {
   trackButton.addEventListener("click", () => {
     state.selectedTrackIndex =
       (state.selectedTrackIndex + 1) % tracks.length;
-    renderSequence();
     renderEditorAndRestore("edit-track");
   });
 
@@ -7674,37 +7637,9 @@ baseValue.addEventListener(
  * LFOのベース値変更中も、
  * 各ステップの実効値をリアルタイム更新。
  */
-document
-  .querySelectorAll(
-    ".offset-step[data-step-index]"
-  )
-  .forEach(
-    offsetButton => {
-      const stepIndex =
-        Number(
-          offsetButton.dataset
-            .stepIndex
-        );
-
-      offsetButton.textContent =
-        displayStepValue(
-          activeParameter,
-          stepIndex
-        );
-
-      const stepOffset =
-        Number(
-          track.offsets[
-            activeBaseId
-          ]?.[stepIndex]
-        ) || 0;
-
-      offsetButton.classList.toggle(
-        "base-value-step",
-        stepOffset === 0
-      );
-    }
-  );
+refreshVisibleOffsetValues(
+  activeParameter
+);
       },
       min: () =>
         (
@@ -7895,8 +7830,6 @@ function renderEdit(parameter) {
     state.selectedTrackIndex =
         (state.selectedTrackIndex + 1) %
         tracks.length;
-
-    renderSequence();
 
     renderEditorAndRestore(
         "edit-track"
@@ -13357,46 +13290,98 @@ export function renderEditor() {
   }
 }
 
+let previousPlayingTrackLanes = [];
+let previousPlayingOffsetStep = null;
+
 export function updatePlayingStep() {
-  document
-    .querySelectorAll(".track-lane")
-    .forEach(lane => {
-      const trackIndex =
-        Number(lane.dataset.trackIndex);
+  /*
+   * 前回点灯したDOMだけ消灯する。
+   * 毎tick .playing をDOM検索しない。
+   */
+  previousPlayingTrackLanes.forEach(
+    lane => {
+      lane.classList.remove(
+        "playing"
+      );
+    }
+  );
 
-      const stepIndex =
-        Number(lane.dataset.stepIndex);
+  previousPlayingTrackLanes = [];
 
-      const track =
-        tracks[trackIndex];
+  previousPlayingOffsetStep?.classList.remove(
+    "playing"
+  );
+
+  previousPlayingOffsetStep = null;
+
+  if (
+    state.playbackTickIndex === null
+  ) {
+    return;
+  }
+
+  /*
+   * Trackごとの現在stepだけ取得して点灯。
+   * 次tickで消せるよう参照を保持する。
+   */
+  tracks.forEach(
+    (track, trackIndex) => {
+      if (!track?.stepLength) {
+        return;
+      }
 
       const playingStep =
-  state.playbackTickIndex === null
-    ? -1
-    : state.playbackTickIndex %
-      track.stepLength;
+        state.playbackTickIndex %
+        track.stepLength;
 
-      lane.classList.toggle(
-        "playing",
-        stepIndex === playingStep
+      const lane =
+        document.querySelector(
+          `.track-lane[data-track-index="${trackIndex}"][data-step-index="${playingStep}"]`
+        );
+
+      if (!lane) {
+        return;
+      }
+
+      lane.classList.add(
+        "playing"
       );
-    });
 
-  document
-    .querySelectorAll(".offset-step")
-    .forEach(button => {
-      const playingStep =
-  state.playbackTickIndex === null
-    ? -1
-    : state.playbackTickIndex %
-      editorTrack().stepLength;
-
-      button.classList.toggle(
-        "playing",
-        Number(button.dataset.stepIndex) ===
-          playingStep
+      previousPlayingTrackLanes.push(
+        lane
       );
-    });
+    }
+  );
+
+  /*
+   * Offset画面も現在stepだけ取得して保持。
+   */
+  const track =
+    editorTrack();
+
+  if (!track?.stepLength) {
+    return;
+  }
+
+  const playingStep =
+    state.playbackTickIndex %
+    track.stepLength;
+
+  const offsetStep =
+    document.querySelector(
+      `.offset-step[data-step-index="${playingStep}"]`
+    );
+
+  if (!offsetStep) {
+    return;
+  }
+
+  offsetStep.classList.add(
+    "playing"
+  );
+
+  previousPlayingOffsetStep =
+    offsetStep;
 }
 
 export function render() {

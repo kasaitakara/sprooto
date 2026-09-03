@@ -3587,3 +3587,25 @@ body {
     align-items: initial !important;
   }
 }
+
+
+/* =========================================================
+   Stage 31: iPhone horizontal fit correction
+   ========================================================= */
+
+/*
+ * Keep the app's own box honest:
+ * width includes the horizontal padding, so the scaler does not
+ * underestimate the real rendered width on narrow iPhone screens.
+ */
+.app {
+  box-sizing: border-box !important;
+}
+
+/* Prevent any accidental horizontal document overflow. */
+html,
+body {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}

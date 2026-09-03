@@ -3795,7 +3795,9 @@ function fitMoktonToViewport() {
     document.documentElement;
 
   /*
-   * Measure at scale 1 so resize/orientation changes do not compound.
+   * Measure at scale 1 first.
+   * Use scrollWidth / scrollHeight rather than only getBoundingClientRect(),
+   * because some fixed-width children can visually overflow the .app box.
    */
   root.style.setProperty(
     "--mokton-app-scale",
@@ -3805,11 +3807,23 @@ function fitMoktonToViewport() {
   const appRect =
     app.getBoundingClientRect();
 
+  const naturalWidth =
+    Math.max(
+      app.scrollWidth,
+      appRect.width
+    );
+
+  const naturalHeight =
+    Math.max(
+      app.scrollHeight,
+      appRect.height
+    );
+
   const viewportWidth =
-    window.innerWidth;
+    document.documentElement.clientWidth;
 
   const viewportHeight =
-    window.innerHeight;
+    document.documentElement.clientHeight;
 
   const margin =
     12;
@@ -3831,9 +3845,9 @@ function fitMoktonToViewport() {
   const scale =
     Math.min(
       availableWidth /
-        appRect.width,
+        naturalWidth,
       availableHeight /
-        appRect.height
+        naturalHeight
     );
 
   root.style.setProperty(

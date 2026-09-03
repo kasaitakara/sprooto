@@ -1,5394 +1,3538 @@
-@font-face {
-  font-family: "DM Mono";
-  src: url("../fonts/DMMono-Regular.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
+/* =========================================================
+   mokton
+   3 colors / one timeline / calculator-like UI
+   ========================================================= */
 
 :root {
-    --font-main: 14px;
+  --bg: #090909;
+  --text: #f2f2ec;
+  --accent: #9dff4f;
 
-    --font-small: calc(var(--font-main) - 1px);
-    --font-label: calc(var(--font-main) - 3px);
+  --background: var(--bg);
+  --selected-bg: var(--accent);
+  --selected-text: var(--bg);
+  --muted: color-mix(
+    in srgb,
+    var(--text) 48%,
+    transparent
+  );
+  --line: color-mix(
+    in srgb,
+    var(--text) 26%,
+    transparent
+  );
+  --cell: color-mix(
+    in srgb,
+    var(--text) 7%,
+    var(--bg)
+  );
+  --play: var(--accent);
+  --play-control: var(--accent);
+
+  --font-main:
+    "Press Start 2P",
+    ui-monospace,
+    monospace;
+
+  --app-width: 390px;
+  --gap: 8px;
+  --radius: 0px;
 }
 
-body.theme-sprooto {
-
-    /* 土・紙 */
-    --bg: #faf4e7;
-
-    /* 植物 */
-    --text: #4b6648;
-    --muted: #8d9586;
-    --line: #4b6648;
-
-    /* セル */
-    --cell: #efe5d7;
-    --off: #efe5d7;
-    --on: #b2caa8;
-
-    /* 水 */
-    --selected-bg: #97d6d0;
-    --selected-text: #4b6648;
-
-    /* 芽 */
-    --fill-bg: #b2caa8;
-    --fill-text: #4b6648;
-
-    --edit-bg: #b2caa8;
-    --edit-text: #4b6648;
-
-    /* 紙 */
-    --chip-bg: #b2caa8;
-    --chip-text: #dbb682;
-
-    /* 太陽 */
-    --play: #ffe100;
-    --play-control: #ffe100;
-
-    /* Hover */
-    --hover-bg: #97d6d0;
-    --hover-text: #4b6648;
-
-    /* 水（予約） */
-    --queued: #97d6d0;
+* {
+  box-sizing: border-box;
 }
 
-body.theme-kasai {
-    --bg: #fbf8ec;
-    --text: #858585;
-    --muted: #aaa;
-    --line: #525252;
-
-    --cell: #efefef;
-    --off: #efefef;
-    --on: #aaa;
-    --play-control: #8bdc9a;
-    --play: #525252;
-
-    --selected-bg: #525252;
-    --selected-text: #171717;
-
-    --fill-bg: #aaa;
-    --fill-text: #ededed;
-
-    --edit-bg: #aaa;
-    --edit-text: #ededed;
-
-    --chip-bg: #aaa;
-    --chip-text: #ededed;
-
-    --hover-bg: #8bdc9a;
-    --hover-text: #171717;
-
-    --queued: #9ff8fa;
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  background: var(--bg);
 }
 
-body.theme-ryuichi {
-    /* 漆黒ではなく静かな黒 */
-    --bg: #1c1c1c;
-
-    /* 白い紙 */
-    --text: #ababab;
-
-    /* 補助文字 */
-    --muted: #b3b3b3;
-
-    /* 線 */
-    --line: #ababab;
-
-    /* セル */
-    --cell: #303030;
-
-    /* OFF */
-    --off: #303030;
-
-    /* ON */
-    --on: #6a6a6a;
-
-    /* 再生ボタン */
-    --play-control: #ffffff;
-
-    /* 再生位置 */
-    --play: #ffffff;
-
-    /* 選択 */
-    --selected-bg: #f0f0f0;
-    --selected-text: #1c1c1c;
-
-    /* Fill */
-    --fill-bg: #575757;
-    --fill-text: #cacaca;
-
-    /* 編集 */
-    --edit-bg: #575757;
-    --edit-text: #cacaca;
-
-    /* Sectionチップ */
-    --chip-bg: #575757;
-    --chip-text: #cacaca;
-
-    /* Hover */
-    --hover-bg: #ffffff;
-    --hover-text: #1c1c1c;
-
-    /* 次回予約 */
-    --queued: #bcbcbc;
-}
-
-body.theme-aya {
-    --bg: #ededed;
-    --text: #417d90;
-    --muted: #888;
-    --line: #be9cd7;
-
-    --cell: #d4d4d4;
-    --off: #c5c5c5;
-    --on: #ffc1b0;
-    --play-control: #51ff2a;
-    --play: #ff73ce;
-
-    --selected-bg: #be9cd7;
-    --selected-text: #417d90;
-
-    --fill-bg: #ffc1b0;
-    --fill-text: #417d90;
-
-    --edit-bg: #ffc1b0;
-    --edit-text: #ededed;
-
-    --chip-bg: #ffc1b0;
-    --chip-text: #417d90;
-
-    --hover-bg: #be9cd7;
-    --hover-text: #ededed;
-
-    --queued: #be9cd7;
-}
-
-body.theme-tobokegao {
-    --bg: #ffffff;
-    --text: #116ea4;
-    --muted: #000000;
-    --line: #116ea4;
-
-    --cell: #f4f4f4;
-    --off: #f4f4f4;
-    --on: #116ea4;
-    --play-control: #ffcc00;
-    --play: #116ea4;
-
-    --selected-bg: #ffcc00;
-    --selected-text: #000000;
-
-    --fill-bg: #bdd9ef;
-    --fill-text: #ffffff;
-
-    --edit-bg: #ffcc00;
-    --edit-text: #000000;
-
-    --chip-bg: #bdd9ef;
-    --chip-text: #ffffff;
-
-    --hover-bg: #ffcc00;
-    --hover-text: #000000;
-
-    --queued: #be9cd7;
-}
-
-* { box-sizing:border-box; }
 html {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
+  overscroll-behavior: none;
 }
 
 body {
-    width: 100%;
-    height: 100%;
+  min-height: 100dvh;
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: 10px;
+  line-height: 1.45;
 
-    margin: 0;
-    padding: 0;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 
-    overflow: hidden;
-    overscroll-behavior: none;
-    touch-action: manipulation;
-
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-
-    background: var(--bg);
-color: var(--text);
-
- font-family: "DM Mono", monospace;
-font-weight: 400;
+  overscroll-behavior: none;
 }
 
-/* フォーム部品もテーマ色を継承 */
 button,
 input,
 select,
 textarea,
 output {
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-    font: inherit;
-}
-h1 { margin:0; font-size: var(--font-main); font-weight:400; letter-spacing:.02em; }
-.theme-control { display:flex; align-items:center; gap:6px; font-size: var(--font-main); }
-.theme-control select { border:0; background:transparent; font-size: var(--font-main); }
-.icon-button { border:0; background:transparent; padding:2px 4px; }
-.play-button.playing { color: var(--play-control);}
-.master-control output {
-    width: 24px;
-    font-size: var(--font-main);
+  color: inherit;
+  font: inherit;
 }
 
-.bpm-input {
-    width: 42px;
-
-    border: 0;
-    background: transparent;
-
-    font-size: var(--font-main);
-    text-align: center;
-
-    outline: none;
-    padding: 0;
-}
-.sequence-section { margin-top:8px; }
-.sequence-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    gap: 6px;
-    min-height: 22px;
-}
-.sequence-toolbar-controls {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
+button {
+  -webkit-tap-highlight-color:
+    transparent;
 }
 
-.current-source-display {
-    height: 22px;
-
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-
-    color: var(--text);
-
-    font-size: var(--font-main);
-    line-height: 1;
+button:focus-visible,
+input:focus-visible {
+  outline:
+    1px solid
+    var(--accent);
+  outline-offset: 2px;
 }
 
-.current-source-icon {
-    width: 17px;
-    height: 17px;
 
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.current-source-icon svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-.current-source-label {
-    min-width: 18px;
-    text-align: left;
-    font-size: var(--font-main);
-}
-.pattern-length-input {
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-
-    background: var(--cell);
-    color: var(--text);
-
-    text-align: center;
-    font-size: var(--font-main);
-
-    appearance: textfield;
-    -moz-appearance: textfield;
-}
-
-.pattern-length-input::-webkit-inner-spin-button,
-.pattern-length-input::-webkit-outer-spin-button {
-    margin: 0;
-    appearance: none;
-    -webkit-appearance: none;
-}
-
-.pattern-cell.queued {
-    background: color-mix(
-        in srgb,
-        var(--queued) 22%,
-        var(--cell)
-    );
-
-    color: var(--text);
-}
-
-/*
- * 選択中と予約中が重なった場合も、
- * 予約表示を優先してぼんやり見せる。
- */
-.pattern-cell.active.queued {
-    background: color-mix(
-        in srgb,
-        var(--queued) 30%,
-        var(--selected-bg)
-    );
-
-    color: var(--selected-text);
-}
-.sequence-page-button[hidden] {
-  display:none;
-}
-.sequence-page-button {
-  width:24px;
-  height:22px;
-  padding:0;
-  border:0;
-  background:transparent;
-  color:var(--ui);
-  font:inherit;
-  font-size:20px;
-  line-height:1;
-  cursor:pointer;
-}
-.sequence-page-button:hover,
-.sequence-page-button:focus-visible {
-  color: var(--selected-bg);
-}
-.track-title,.track-cycle { border:0; background:transparent; padding:4px; font-size: var(--font-main); }
-.sequence-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-
-    gap: 6px;
-    margin-top: 4px;
-
-    min-height: 177px;
-    align-content: start;
-}
-.sequence-step {
-    display: grid;
-    grid-template-rows: repeat(4, 1fr);
-
-    width: 100%;
-    height: 28px;
-
-    row-gap: 1px;
-    column-gap: 0;
-
-    aspect-ratio: auto;
-
-    padding: 0;
-    border: 0;
-    background: transparent;
-}
-.sequence-step.playing {
-    background: color-mix(
-        in srgb,
-        var(--play) 18%,
-        transparent
-    );
-}
-.track-lane { display:block; background:var(--off); }
-.track-lane.on { background:var(--on); }
-.track-lane.on.selected-track {
-    background: var(--selected-bg);
-}
-.editor-section {
-    margin-top: 8px;
-    padding-top: 6px;
-
-    border-top: 1px solid var(--line);
-
-    height: 150px;
-    overflow: hidden;
-}
-.editor-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 34px;
-}
-
-.edit-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    height: 28px;
-    min-height: 28px;
-}
-.mini-button {
-    border: 0;
-    background: var(--cell);
-}
-
-.mini-button.active {
-    background: var(--text);
-    color: var(--bg);
-}
-
-.parameter-menu {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    grid-template-rows: repeat(2, 36px);
-
-    column-gap: 5px;
-    row-gap: 5px;
-
-    margin-top: 3px;
-
-    overflow: hidden;
-}
-
-.parameter-button {
-    width: 100%;
-    height: 36px;
-    min-height: 36px;
-
-    aspect-ratio: auto;
-
-    border: 0;
-    background: transparent;
-
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-
-    gap: 3px;
-    padding: 0;
-}
-
-.parameter-button.active {
-    background: var(--cell);
-}
-.parameter-icon { font-size: var(--font-main); }
-.edit-icon { min-width:28px; text-align:center; }
-.child-tabs { display:flex; gap:4px; }
-.child-tabs button {
-    height: 28px;
-    border: 0;
-    background: var(--cell);
-    padding: 0 9px;
-
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-.child-tabs button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-}
-.value-control { margin-left:auto; display:flex; align-items:center; }
-.value-control button { height:28px; min-width:26px; border:0; background:transparent; }
-.base-input { width:52px; height:28px; text-align:center; border:1px solid var(--selected-bg); background:var(--cell); font-size: 11px; }
-.offset-grid {
-    display: grid;
-    grid-template-columns:
-        repeat(8, minmax(0, 1fr));
-    grid-template-rows: repeat(4, 28px);
-
-    column-gap: 5px;
-    row-gap: 3px;
-
-    margin-top: 3px;
-}
-
-.offset-step {
-    width: 100%;
-    min-width: 0;
-
-    height: 28px;
-    min-height: 28px;
-
-    border: 2px solid transparent;
-    background: var(--cell);
-
-    font-size: calc(var(--font-small) - 2px);
-    line-height: 1;
-
-    padding: 0 1px;
-    overflow: hidden;
-    white-space: nowrap;
-}
-.offset-step.playing {
-    background: color-mix(
-        in srgb,
-        var(--play) 15%,
-        var(--cell)
-    );
-}
-.offset-step.note-on {
-    background: color-mix(
-        in srgb,
-        var(--selected-bg) 15%,
-        var(--cell)
-    );
-}
-button:focus-visible,input:focus-visible,select:focus-visible { outline:1px solid var(--text); outline-offset:-1px; }
-/* =========================
-   PC 1画面表示調整
-========================= */
-
-/* =========================
-   全端末共通：スマホ幅固定
-========================= */
+/* =========================================================
+   App shell
+   ========================================================= */
 
 .app {
-    width: 360px;
-    min-width: 360px;
-    max-width: 360px;
+  width: min(
+    100%,
+    var(--app-width)
+  );
 
-    height: 100dvh;
+  min-height: 100dvh;
 
-    margin: 0 auto;
+  margin: 0 auto;
 
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-
-    overflow: hidden;
-}
-
-.theme-control {
-    gap: 2px;
-}
-
-.theme-control select {
-    width: 62px;
-    padding: 0;
-}
-
-/* 再生ボタン */
-.icon-button {
-    padding: 2px;
-}
-
-/* 音量部分を縮小 */
-.master-control {
-    gap: 3px;
-}
-
-.master-control output {
-    width: 20px;
-}
-
-/* BPM */
-.bpm-input {
-    width: 34px;
-    padding: 0;
-}
-
-/* ヘッダーをスマホ幅に収める */
-.app-header {
-    display: grid;
-    align-items: center;
-
-    width: 100%;
-    margin: 0;
-
-    grid-template-columns:
-    minmax(0, 1fr)
-    28px
-    28px
-    28px
-    28px
-    minmax(80px, auto)
-    58px;
-
-    gap: 3px;
-
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--line);
-}
-
-.theme-control {
-    gap: 3px;
-    white-space: nowrap;
-}
-
-.icon-button {
-    padding: 2px;
-}
-
-.master-control {
-    gap: 3px;
-}
-
-.master-control input {
-    width: 58px;
-}
-
-.master-control output {
-    width: 18px;
-}
-
-.bpm-input {
-    width: 42px;
-    min-width: 42px;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-/* =========================
-   マスターボリューム
-========================= */
-
-/* =========================
-   Master / Track Volume 共通
-========================= */
-
-#master-volume,
-.track-volume-slider {
-    --volume-thumb-size: 8px;
-    --volume-track-height: 0.1px;
-
-    width: 58px;
-    min-width: 58px;
-    height: 28px;
-
-    margin: 0;
-    padding: 0;
-
-    appearance: none;
-    -webkit-appearance: none;
-
-    border: 0;
-    outline: none;
-    background: transparent;
-
-    cursor: pointer;
-    touch-action: none;
-
-    -webkit-tap-highlight-color: transparent;
-
-    flex: 0 0 58px;
-}
-
-/* Edge・Chrome：ライン */
-#master-volume::-webkit-slider-runnable-track,
-.track-volume-slider::-webkit-slider-runnable-track {
-    width: 100%;
-    height: var(--volume-track-height);
-
-    border: 0;
-    background: var(--text);
-}
-
-/* Edge・Chrome：丸 */
-#master-volume::-webkit-slider-thumb,
-.track-volume-slider::-webkit-slider-thumb {
-    width: var(--volume-thumb-size);
-    height: var(--volume-thumb-size);
-
-    margin-top: calc(
-        (
-            var(--volume-track-height) -
-            var(--volume-thumb-size)
-        ) / 2
+  padding:
+    max(
+      10px,
+      env(safe-area-inset-top)
+    )
+    12px
+    max(
+      16px,
+      env(safe-area-inset-bottom)
     );
 
-    appearance: none;
-    -webkit-appearance: none;
-
-    border: 0;
-    border-radius: 50%;
-    background: var(--text);
+  background: var(--bg);
 }
 
-/* Firefox：ライン */
-#master-volume::-moz-range-track,
-.track-volume-slider::-moz-range-track {
-    width: 100%;
-    height: var(--volume-track-height);
-
-    border: 0;
-    background: var(--text);
+.app-header,
+.sequence-section,
+.editor-section,
+.pattern-section {
+  border-bottom:
+    1px solid
+    var(--line);
 }
 
-/* Firefox：丸 */
-#master-volume::-moz-range-thumb,
-.track-volume-slider::-moz-range-thumb {
-    width: var(--volume-thumb-size);
-    height: var(--volume-thumb-size);
-
-    border: 0;
-    border-radius: 50%;
-    background: var(--text);
+.app-header {
+  padding-bottom: 10px;
 }
 
-/* =========================
-   Parameter SVG icons
-========================= */
-
-.parameter-icon,
-.edit-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    color: currentColor;
+.sequence-section,
+.editor-section,
+.pattern-section {
+  padding:
+    10px 0 12px;
 }
 
-.parameter-icon svg {
-    display: block;
-
-    width: 16px;
-    height: 16px;
+.pattern-section {
+  border-bottom: 0;
 }
 
-.edit-icon svg {
-    display: block;
 
-    width: 18px;
-    height: 18px;
+/* =========================================================
+   Header
+   ========================================================= */
+
+.brand-row,
+.transport-row,
+.section-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.parameter-value {
-    font-size: var(--font-small);
-    line-height: 1;
-    color: var(--muted);
+.brand-row {
+  min-height: 28px;
 }
 
-.master-volume-icon {
-    width: 13px;
-    height: 13px;
+.current-project-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--accent);
 }
 
-.master-volume-icon svg {
-    display: block;
-
-    width: 100%;
-    height: 100%;
+.header-actions,
+.transport-left,
+.transport-right {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
+.transport-row {
+  min-height: 36px;
+  margin-top: 6px;
+}
+
+.transport-left,
+.transport-right {
+  flex: 1 1 0;
+}
+
+.transport-right {
+  justify-content: flex-end;
+}
+
+.transport-center {
+  flex: 0 0 auto;
+}
+
+.text-button,
 .play-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    color: var(--text);
-}
-
-.play-button svg {
-    width: 16px;
-    height: 16px;
-
-    display: block;
-}
-
-.play-button.playing {
-    color: var(--play-control);
-}
-
-.track-title,
-.track-cycle {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.track-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.track-icon svg {
-    display: block;
-    width: 16px;
-    height: 16px;
-}
-
-.track-number {
-    width: 12px;
-    min-width: 12px;
-
-    font-size: var(--font-main);
-    line-height: 1;
-
-    text-align: center;
-}
-
-.offset-input {
-  width: 100%;
-  height: 100%;
-
-  box-sizing: border-box;
-
   margin: 0;
   padding: 0;
 
-  border: none;
+  border: 0;
   border-radius: 0;
 
   background: transparent;
+  color: var(--text);
 
-  color: inherit;
-  font: inherit;
-  text-align: center;
-
-  outline: none;
+  cursor: pointer;
 }
 
-.base-input,
-.offset-input,
-.bpm-input {
+.text-button {
+  min-height: 24px;
+  font-size: 8px;
+}
+
+.text-button:active,
+.text-button.active {
+  color: var(--accent);
+}
+
+.text-button:disabled {
+  opacity: .22;
+}
+
+.play-button {
+  width: 34px;
+  height: 30px;
+
+  display: grid;
+  place-items: center;
+
+  font-size: 15px;
+  line-height: 1;
+}
+
+.play-button.playing {
+  color: var(--accent);
+}
+
+.theme-selector-hidden {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/* =========================================================
+   Master / BPM
+   ========================================================= */
+
+.master-control,
+.bpm-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.control-label {
+  font-size: 7px;
+  color: var(--muted);
+}
+
+.master-control output {
+  width: 22px;
+  text-align: right;
+  font-size: 7px;
+}
+
+.master-control input[type="range"] {
+  width: 48px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  border: 0;
+  background: transparent;
+}
+
+.master-control
+input[type="range"]
+::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--text);
+}
+
+.master-control
+input[type="range"]
+::-webkit-slider-thumb {
+  width: 7px;
+  height: 7px;
+
+  margin-top: -3px;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  border: 0;
+  border-radius: 0;
+
+  background: var(--accent);
+}
+
+.master-control
+input[type="range"]
+::-moz-range-track {
+  height: 1px;
+  border: 0;
+  background: var(--text);
+}
+
+.master-control
+input[type="range"]
+::-moz-range-thumb {
+  width: 7px;
+  height: 7px;
+
+  border: 0;
+  border-radius: 0;
+
+  background: var(--accent);
+}
+
+#bpm-input {
+  width: 36px;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+  color: var(--text);
+
+  text-align: right;
+
   appearance: textfield;
   -moz-appearance: textfield;
 }
 
-.base-input::-webkit-inner-spin-button,
-.base-input::-webkit-outer-spin-button,
-.offset-input::-webkit-inner-spin-button,
-.offset-input::-webkit-outer-spin-button,
-.bpm-input::-webkit-inner-spin-button,
-.bpm-input::-webkit-outer-spin-button {
+#bpm-input::-webkit-inner-spin-button,
+#bpm-input::-webkit-outer-spin-button {
   appearance: none;
   -webkit-appearance: none;
   margin: 0;
 }
 
-.edit-icon {
-  border: 0;
-  background: transparent;
-  padding: 0;
 
-  min-width: 28px;
-  height: 28px;
+/* =========================================================
+   Section toolbar
+   ========================================================= */
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.section-toolbar {
+  min-height: 22px;
+  margin-bottom: 7px;
 }
 
-.base-value {
-    background: transparent;
-    border: none;
-    outline: none;
-    box-shadow: none;
-
-    color: inherit;
-    font-size: var(--font-main);
-    text-decoration: none;
-
-    cursor: pointer;
-}
-
-.base-input {
-    font-size: var(--font-main);
-}
-
-.base-value:focus,
-.base-value:hover {
-    border: none;
-    outline: none;
-    box-shadow: none;
-    text-decoration: none;
-}
-
-.base-value:focus-visible {
-    outline: 1px solid var(--text);
-    outline-offset: -1px;
-}
-
-.track-length-input {
-    margin-left: auto;
-
-    padding: 0;
-
-    border: 0;
-    outline: none;
-    background: var(--cell);
-
-    color: inherit;
-
-    font-size: var(--font-main);
-    text-align: center;
-}
-
-.track-length-input::-webkit-inner-spin-button,
-.track-length-input::-webkit-outer-spin-button {
-    margin: 0;
-
-    appearance: none;
-    -webkit-appearance: none;
-}
-
-.track-lane.outside-length {
-    visibility: hidden;
-}
-
-.track-lane.playing {
-    background: color-mix(
-        in srgb,
-        var(--play) 15%,
-        var(--off)
-    );
-}
-
-.track-lane.on.playing {
-    background: color-mix(
-        in srgb,
-        var(--play) 15%,
-        var(--on)
-    );
-}
-
-.track-lane.on.selected-track.playing {
-    background: color-mix(
-        in srgb,
-        var(--play) 15%,
-        var(--selected-bg)
-    );
-}
-
-.bpm-input:focus-visible,
-.pattern-length-input:focus-visible,
-.track-length-input:focus-visible,
-.base-input:focus-visible,
-.offset-input:focus-visible {
-    outline: 1px solid var(--text);
-    outline-offset: -1px;
-}
-
-/* =========================
-   Pattern / Fill / Section
-========================= */
-.pattern-section {
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--line);
-}
-
-.pattern-section-header {
-  display: flex;
-  align-items: center;
-
-  min-height: 20px;
-  margin-bottom: 4px;
-}
-
-.fill-column-label {
-    width: 64px;
-    text-align: center;
-    font-size: var(--font-main);
-    font-weight: 600;
-}
-
-.pattern-section-icon {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-}
-
-.pattern-section-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.pattern-section-label {
+.section-label {
+  font-size: 7px;
+  color: var(--muted);
   text-transform: lowercase;
 }
 
-.fill-column-label {
-  justify-self: end;
-  width: calc((360px - 14px - 35px) / 8);
-  text-align: center;
-  font-size: var(--font-main);
-  font-weight: 600;
+.current-source-display,
+.mokton-current-source {
+  min-height: 22px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  font-size: 9px;
+  color: var(--text);
 }
 
-.pattern-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 5px;
-}
-
-.pattern-cell {
-    width: 100%;
-
-    height: 28px;
-    aspect-ratio: auto;
-
-    padding: 0;
-    border: 0;
-    background: var(--cell);
-
-    font-size: var(--font-main);
-    line-height: 1;
-}
-
-.pattern-cell.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-}
-
-.pattern-cell.fill-cell {
-  background: var(--fill-bg);
-  color: var(--fill-text);
-}
-
-/*
- * Fill選択中
- * Pattern選択中と同じ強調表示。
- */
-.pattern-cell.fill-cell.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-}
-
-/*
- * Fill予約中
- * Pattern予約中と同じ表示。
- */
-.pattern-cell.fill-cell.queued {
-    background: color-mix(
-        in srgb,
-        var(--queued) 22%,
-        var(--cell)
-    );
-
-    color: var(--text);
-}
-
-/*
- * 選択中のFillを予約した場合も
- * Patternと同じ予約表示を優先。
- */
-.pattern-cell.fill-cell.active.queued {
-    background: color-mix(
-        in srgb,
-        var(--queued) 30%,
-        var(--selected-bg)
-    );
-
-    color: var(--selected-text);
-}
-
-.section-manager {
-  margin-top: 5px;
-}
-
-/* section文字と＋ボタンを非表示 */
-.section-manager-header {
-  display: none;
-}
-
-/* A～J */
-.section-selector {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 5px;
-  margin-top: 5px;
-}
-
-.section-selector-cell {
-    width: 100%;
-    height: 28px;
-
-    aspect-ratio: auto;
-
-    padding: 0;
-    border: 0;
-    background: var(--cell);
-
-    font-size: var(--font-main);
-    line-height: 1;
-}
-
-/* 選択中Sectionの帯全体 */
-/* =========================
-   Section編集バー
-========================= */
-
-.section-list {
-    --section-gap: 5px;
-
-    display: grid;
-    grid-template-columns:
-        repeat(8, minmax(0, 1fr));
-
-    column-gap: var(--section-gap);
-    align-items: stretch;
-
-    width: 100%;
-    height: 28px;
-
-    margin-top: 5px;
-    padding: 0;
-
-    background: var(--cell);
-
-    overflow: hidden;
-}
-
-/*
- * 1列目：編集対象Section記号
- *
- * 列位置は上のA〜Hと一致。
- */
-.section-editor-button {
-    grid-column: 1;
-
-    width: 100%;
-    height: 28px;
-
-    justify-self: stretch;
-    align-self: stretch;
-
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-
-    background: var(--edit-bg);
-    color: var(--edit-text);
-
-    font-size: var(--font-main);
-    line-height: 1;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/*
- * 2〜8列目：Pattern / Fill格納領域
- */
-.section-contents {
-    grid-column: 2 / 9;
-
-    display: grid;
-    grid-template-columns:
-        repeat(7, minmax(0, 1fr));
-
-    column-gap: 5px;
-
-    width: 100%;
-    height: 28px;
-
-    padding: 0;
-    background: transparent;
-}
-
-/*
- * 帯内のPattern / Fillブロック。
- *
- * 各列の中央に置きつつ、
- * 列幅より左右5pxずつ小さくする。
- */
-.section-pattern-cell {
-    width: 100%;
-    height: 28px;
-
-    justify-self: stretch;
-
-    padding: 0;
-    border: 0;
-
-    background: var(--chip-bg);
-    color: var(--chip-text);
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* 空Sectionの「-」 */
-.section-contents-empty {
-    grid-column: 1 / -1;
-
-    width: 100%;
-    height: 28px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    color: var(--muted);
-
-    font-size: var(--font-main);
-    line-height: 1;
-}
-
-/* カーソル表示 */
-/*
- * Section編集記号
- * 通常時
- */
-.section-editor-button {
-    -webkit-tap-highlight-color:
-        transparent;
-
-    appearance: none;
-    -webkit-appearance: none;
-
-    outline: none;
-}
-
-/*
- * スマホのタップフォーカスは
- * 通常配色のままにする。
- */
-@media (hover: none) {
-    .section-editor-button:focus,
-    .section-editor-button:focus-visible {
-        background: var(--on);
-        color: var(--bg);
-        outline: none;
-    }
-}
-
-/*
- * キーボード編集中以外は
- * フォーカス色を通常色へ戻す。
- */
-.section-editor-button:focus:not([data-keyboard-editing="true"]) {
-    background: var(--edit-bg);
-    color: var(--edit-text);
-}
-
-.section-pattern-cell:hover,
-.section-pattern-cell:focus-visible {
-    background: var(--hover-bg);
-    color: var(--hover-text);
-}
-
-.pattern-section-label,
-.fill-column-label {
-  display: none;
-}
-
-/*
- * 再生中Section
- */
-.section-selector-cell.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-}
-
-/*
- * 次回予約中Section
- */
-.section-selector-cell.queued {
-    background: color-mix(
-        in srgb,
-        var(--queued) 22%,
-        var(--cell)
-    );
-
-    color: var(--text);
-}
-
-/*
- * 再生中Sectionを再予約表示する場合は
- * 予約表示を優先。
- */
-.section-selector-cell.active.queued {
-    background: color-mix(
-        in srgb,
-        var(--queued) 30%,
-        var(--selected-bg)
-    );
-
-    color: var(--selected-text);
-}
-
-.theme-button {
-    width: 24px;
-    height: 24px;
-
-    padding: 2px;
-
-    border: 0;
-    background: transparent;
-    color: var(--text);
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    cursor: pointer;
-}
-
-.theme-button svg {
-    display: block;
-    width: 18px;
-    height: 18px;
-}
-
-/* PCだけホバー時に点灯 */
-@media (hover: hover) {
-    .theme-button:hover,
-    .theme-button:focus-visible {
-        color: var(--selected-bg);
-    }
-}
-
-/* スマホはJSで付けるactiveだけ点灯 */
-.theme-button.active {
-    color: var(--selected-bg);
-}
-
-.theme-selector-hidden {
-    position: absolute;
-
-    width: 1px;
-    height: 1px;
-
-    margin: 0;
-    padding: 0;
-
-    border: 0;
-
-    opacity: 0;
-    pointer-events: none;
-
-    overflow: hidden;
-}
-
-/* =========================
-   Header icon size
-========================= */
-
-.theme-button,
-.play-button {
-    width: 28px;
-    height: 28px;
-
-    padding: 4px;
-}
-
-.theme-button svg,
-.play-button svg {
-    width: 20px;
-    height: 20px;
-}
-
-.master-volume-icon {
-    width: 18px;
-    height: 18px;
-}
-
-.history-button {
-    width: 28px;
-    height: 28px;
-
-    padding: 4px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.history-button svg {
-    display: block;
-    width: 19px;
-    height: 19px;
-}
-
-.history-button:disabled {
-    color: var(--muted);
-    opacity: 0.45;
-}
-
-.pattern-page-button {
-    width: 24px;
-    height: 22px;
-
-    margin-left: auto;
-
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-
-    background: transparent;
-    color: var(--text);
-
-    font: inherit;
-    font-size: 20px;
-    line-height: 1;
-
-    appearance: none;
-    -webkit-appearance: none;
-
-    cursor: pointer;
-}
-
-.pattern-page-button:hover,
-.pattern-page-button:focus-visible {
-    color: var(--selected-bg);
+.mokton-current-source::before {
+  content: "ptn";
+  color: var(--muted);
+  opacity: 1;
+  font-size: 7px;
 }
 
 
-.source-clip-indicator-button {
-    width: 24px;
-    height: 22px;
-    min-width: 24px;
+/* =========================================================
+   ONE TIMELINE
+   ========================================================= */
 
-    margin-left: auto;
-    padding: 2px;
+.sequence-grid,
+#sequence-grid {
+  display: block !important;
 
-    border: 0;
-    background: transparent;
-    color: var(--text);
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    appearance: none;
-    -webkit-appearance: none;
-
-    cursor: pointer;
-}
-
-.source-clip-indicator-button svg {
-    width: 18px;
-    height: 18px;
-    display: block;
-    flex: 0 0 18px;
-}
-
-.source-clip-indicator-button:hover,
-.source-clip-indicator-button:focus-visible {
-    color: var(--selected-bg);
-}
-
-/*
- * Clip表示時はClip側が右寄せを担当し、
- * Page切替をその直後へ並べる。
- */
-.source-clip-indicator-button +
-.pattern-page-button {
-    margin-left: 0;
-}
-
-/* =========================
-   14px化に伴うレイアウト修正
-========================= */
-
-/* ヘッダー：音量部分の横並びを復元 */
-.master-control {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    min-width: 80px;
-    white-space: nowrap;
-}
-
-.master-control output {
-    width: 24px;
-    font-size: var(--font-main);
-    line-height: 1;
-    text-align: center;
-}
-
-.bpm-input {
-    font-size: var(--font-main);
-    line-height: 1;
-}
-
-/* ヘッダー内の縦位置を統一 */
-.app-header > * {
-    align-self: center;
-}
-
-/* M・Sと各ステップ数の背景□を統一 */
-.mini-button,
-.pattern-length-input,
-.track-length-input {
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    padding: 0;
-
-    font-size: var(--font-main);
-    line-height: 28px;
-    text-align: center;
-}
-
-.bpm-input {
-    height: 28px;
-    margin: 0;
-
-    line-height: 28px;
-
-    appearance: textfield;
-    -webkit-appearance: none;
-
-    touch-action: none;
-}
-
-/* iPhoneではキーボードを開かず、
-   スイープ操作専用にする */
-@media (hover: none) and (pointer: coarse) {
-    .bpm-input {
-        caret-color: transparent;
-    }
-}
-
-/*
- * Section並び替え中の元セル。
- * 場所を示す薄いプレースホルダーとして残す。
- */
-.section-pattern-cell.section-drag-origin {
-  opacity: 0.22;
-}
-
-/*
- * ポインターへ追従するドラッグ表示。
- */
-.section-drag-ghost {
-  position: fixed;
-  z-index: 9999;
+  width: 100%;
+  height: 294px;
 
   margin: 0;
+  padding: 0;
 
-  pointer-events: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  border:
+    1px solid
+    var(--line);
+
+  scrollbar-width: thin;
+  scrollbar-color:
+    var(--accent)
+    transparent;
+
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mokton-sequence {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+
+.mokton-step {
+  position: relative;
+
+  display: grid;
+  grid-template-columns:
+    31px
+    minmax(0, 1fr)
+    24px;
+
+  align-items: center;
+
+  width: 100%;
+  min-height: 31px;
+
+  margin: 0;
+  padding: 0 7px;
+
+  border: 0;
+  border-bottom:
+    1px solid
+    color-mix(
+      in srgb,
+      var(--text) 13%,
+      transparent
+    );
+
+  background: transparent;
+  color: var(--text);
+
+  text-align: left;
+  cursor: pointer;
+
+  touch-action: manipulation;
+}
+
+.mokton-step:nth-child(4n) {
+  border-bottom-color:
+    color-mix(
+      in srgb,
+      var(--text) 36%,
+      transparent
+    );
+}
+
+.mokton-step:last-child {
+  border-bottom: 0;
+}
+
+.mokton-step.selected {
+  background:
+    color-mix(
+      in srgb,
+      var(--accent) 8%,
+      transparent
+    );
+}
+
+.mokton-step.selected::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--accent);
+}
+
+.mokton-step.playing {
+  outline:
+    1px solid
+    var(--accent);
+  outline-offset: -1px;
+}
+
+.mokton-step-number {
+  font-size: 7px;
+  color: var(--muted);
+}
+
+.mokton-step-body {
+  position: relative;
+
+  display: grid;
+  grid-template-rows:
+    1fr
+    1fr;
+
+  align-items: center;
+
+  min-height: 24px;
+  padding: 4px 0;
+}
+
+.mokton-melodic-row,
+.mokton-rhythm-row {
+  position: relative;
+  height: 8px;
+}
+
+.mokton-melodic-mark {
+  position: absolute;
+  left: 0;
+  top: 3px;
+
+  width: 0;
+  height: 2px;
+
+  background: var(--accent);
+}
+
+.mokton-step.has-melodic
+.mokton-melodic-mark {
+  width: 100%;
+}
+
+.mokton-rhythm-mark {
+  position: absolute;
+  left: 0;
+  top: 0;
+
+  width: 7px;
+  height: 7px;
+
+  border:
+    1px solid
+    var(--muted);
+
+  background: transparent;
+}
+
+.mokton-step.has-rhythm
+.mokton-rhythm-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.mokton-step-sounds {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+
+  gap: 2px;
+
+  font-size: 6px;
+  line-height: 1;
+}
+
+.mokton-step-sound {
+  min-height: 7px;
+  color: var(--muted);
+}
+
+.mokton-step-sound.filled {
+  color: var(--accent);
+}
+
+
+/* =========================================================
+   EDITOR
+   ========================================================= */
+
+#editor,
+.editor-section #editor {
+  display: block !important;
+  min-height: 0;
+  height: auto !important;
+  overflow: visible;
+}
+
+.mokton-editor {
+  display: grid;
+  gap: 9px;
+}
+
+.mokton-sound-group {
+  display: grid;
+  grid-template-columns:
+    62px
+    minmax(0, 1fr);
+
+  gap: 7px;
+  align-items: center;
+}
+
+.mokton-layer-label {
+  margin: 0;
+  font-size: 7px;
+  color: var(--muted);
+}
+
+.mokton-sound-row {
+  display: grid;
+  grid-template-columns:
+    repeat(4, 1fr);
+
+  gap: 5px;
+}
+
+.mokton-sound-button {
+  min-height: 30px;
+
+  padding: 0;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius: 0;
+
+  background: transparent;
+  color: var(--text);
+
+  cursor: pointer;
+}
+
+.mokton-sound-button.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.mokton-selected-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  min-height: 20px;
+
+  padding-top: 1px;
+
+  font-size: 7px;
+  color: var(--muted);
+}
+
+.mokton-stage-note {
+  font-size: 6px;
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   Sound / STEP editors
+   ========================================================= */
+
+.mokton-sound-editor,
+.mokton-step-editor {
+  display: grid;
+  gap: 6px;
+
+  padding-top: 8px;
+
+  border-top:
+    1px solid
+    var(--line);
+}
+
+.mokton-sound-editor-title,
+.mokton-step-editor-title,
+.mokton-lfo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  min-height: 20px;
+
+  font-size: 7px;
+}
+
+.mokton-sound-editor-title strong,
+.mokton-step-editor-title strong {
+  color: var(--accent);
+  font-weight: 400;
+}
+
+.mokton-param-row {
+  display: grid;
+  grid-template-columns:
+    68px
+    minmax(0, 1fr)
+    40px;
+
+  gap: 7px;
+  align-items: center;
+
+  min-height: 26px;
+
+  font-size: 7px;
+}
+
+.mokton-param-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--muted);
+}
+
+.mokton-param-value {
+  text-align: right;
+  color: var(--text);
+}
+
+.mokton-param-range {
+  width: 100%;
+  height: 18px;
+
+  margin: 0;
+  padding: 0;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  border: 0;
+  background: transparent;
+}
+
+.mokton-param-range
+::-webkit-slider-runnable-track {
+  height: 2px;
+  background:
+    color-mix(
+      in srgb,
+      var(--text) 30%,
+      transparent
+    );
+}
+
+.mokton-param-range
+::-webkit-slider-thumb {
+  width: 8px;
+  height: 12px;
+
+  margin-top: -5px;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  border: 0;
+  border-radius: 0;
+
+  background: var(--accent);
+}
+
+.mokton-param-range
+::-moz-range-track {
+  height: 2px;
+  border: 0;
+  background:
+    color-mix(
+      in srgb,
+      var(--text) 30%,
+      transparent
+    );
+}
+
+.mokton-param-range
+::-moz-range-thumb {
+  width: 8px;
+  height: 12px;
+
+  border: 0;
+  border-radius: 0;
+
+  background: var(--accent);
+}
+
+.mokton-lfo-card {
+  display: grid;
+  gap: 5px;
+
+  padding-top: 7px;
+
+  border-top:
+    1px solid
+    color-mix(
+      in srgb,
+      var(--text) 14%,
+      transparent
+    );
+}
+
+.mokton-lfo-target {
+  font-size: 6px;
+  color: var(--muted);
+}
+
+.mokton-choice-row,
+.mokton-readonly-row {
+  display: grid;
+  grid-template-columns:
+    68px
+    minmax(0, 1fr);
+
+  gap: 7px;
+  align-items: center;
+
+  min-height: 26px;
+
+  font-size: 7px;
+}
+
+.mokton-choice-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mokton-choice-button {
+  min-height: 24px;
+
+  padding: 0 6px;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius: 0;
+
+  background: transparent;
+  color: var(--text);
+
+  font-size: 6px;
+
+  cursor: pointer;
+}
+
+.mokton-choice-button.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.mokton-readonly-value {
+  text-align: right;
+  color: var(--muted);
+}
+
+.mokton-step-editor-empty {
+  padding: 5px 0;
+
+  font-size: 7px;
+  color: var(--muted);
+}
+
+
+/* =========================================================
+   PATTERN 01-32
+   ========================================================= */
+
+.pattern-grid,
+#pattern-grid {
+  display: grid !important;
+  grid-template-columns:
+    repeat(8, 1fr);
+
+  gap: 5px;
+
+  width: 100%;
+}
+
+.mokton-pattern-button {
+  min-width: 0;
+  min-height: 29px;
+
+  padding: 0;
+
+  border:
+    1px solid
+    var(--line);
+
+  border-radius: 0;
+
+  background: transparent;
+  color: var(--text);
+
+  font-size: 6px;
+
+  cursor: pointer;
+}
+
+.mokton-pattern-button.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+
+/* =========================================================
+   Stage compatibility
+   ========================================================= */
+
+.legacy-stage-hooks,
+#sequence-page-button,
+#pattern-length-input,
+#pattern-page-button,
+#section-list,
+#song-parts,
+#song-grid,
+#song-master-mix,
+#song-page-button,
+#sequence-view-toggle,
+#song-editor-view-toggle {
+  display: none !important;
+}
+
+
+/* =========================================================
+   Small phones
+   ========================================================= */
+
+@media (
+  max-width: 350px
+) {
+  .app {
+    padding-left: 9px;
+    padding-right: 9px;
+  }
+
+  body {
+    font-size: 9px;
+  }
+
+  .transport-right {
+    gap: 4px;
+  }
+
+  .master-control input[type="range"] {
+    width: 38px;
+  }
+
+  .mokton-param-row {
+    grid-template-columns:
+      58px
+      minmax(0, 1fr)
+      34px;
+  }
+
+  .mokton-choice-row,
+  .mokton-readonly-row {
+    grid-template-columns:
+      58px
+      minmax(0, 1fr);
+  }
+}
+
+
+/* =========================================================
+   Stage 5: sequence tools / layer + sound M/S
+   ========================================================= */
+
+.sequence-section .section-toolbar {
+  gap: 8px;
+}
+
+.mokton-sequence-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mokton-mini-button {
+  min-width: 22px;
+  min-height: 22px;
+  margin: 0;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 6px;
+  cursor: pointer;
+}
+
+.mokton-mini-button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.mokton-layer-area {
+  display: grid;
+  gap: 4px;
+}
+
+.mokton-ms-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.mokton-ms-controls .mokton-mini-button {
+  min-width: 20px;
+  min-height: 18px;
+  padding: 0 3px;
+  font-size: 5px;
+}
+
+.mokton-sound-slot {
+  display: grid;
+  grid-template-rows: 30px 18px;
+  gap: 3px;
+}
+
+.mokton-sound-slot .mokton-ms-controls {
+  justify-content: center;
+}
+
+
+/* =========================================================
+   Stage 6: whole STEP clipboard
+   ========================================================= */
+
+.mokton-clip-button {
+  min-width: 32px;
+}
+
+.mokton-step.clipboard-ready {
+  cursor: copy;
+}
+
+.mokton-step.clipboard-ready::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 3px;
+  height: 3px;
+  background: var(--accent);
+}
+
+
+/* =========================================================
+   Stage 7: Pattern order / repeat
+   ========================================================= */
+
+.mokton-pattern-button {
+  position: relative;
+
+  display: grid;
+  grid-template-columns:
+    1fr auto;
+
+  align-items: center;
+
+  gap: 3px;
+
+  padding:
+    0 5px;
+
   touch-action: none;
+}
 
-  opacity: 0.72;
+.mokton-pattern-id {
+  text-align: left;
+}
 
-  transform: scale(1.05);
+.mokton-pattern-repeat {
+  font-size: 5px;
+  color: var(--muted);
+}
 
+.mokton-pattern-button.selected
+.mokton-pattern-repeat {
+  color: var(--bg);
+  opacity: .72;
+}
+
+.mokton-pattern-button.dragging {
+  border-color: var(--accent);
+  opacity: .45;
+}
+
+.mokton-pattern-button.drop-target {
+  outline:
+    2px solid
+    var(--accent);
+
+  outline-offset:
+    -2px;
+}
+
+
+/* =========================================================
+   Stage 9: Pattern LOOP
+   ========================================================= */
+
+.pattern-section .section-toolbar {
+  display: flex;
+  align-items: center;
+}
+
+.pattern-loop-button {
+  margin-left: auto;
+  min-height: 24px;
+  padding: 0 7px;
+
+  border: 1px solid var(--line);
+  border-radius: 0;
+
+  background: transparent;
+  color: var(--muted);
+
+  font-size: 6px;
+  cursor: pointer;
+}
+
+.pattern-loop-button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+
+/* =========================================================
+   Stage 10: Pattern range loop
+   ========================================================= */
+
+.mokton-pattern-button.range-selected {
+  border-color: var(--accent);
+}
+
+.mokton-pattern-button.loop-range-active {
   box-shadow:
-    0 2px 8px
-    rgb(0 0 0 / 24%);
+    inset 0 0 0 1px
+    var(--accent);
 }
 
-/*
- * バー外へ移動して、
- * 指を離すと削除される状態。
- */
-.section-drag-ghost.delete-ready {
-  opacity: 0.35;
-
-  transform:
-    scale(0.92);
+.mokton-pattern-button.loop-range-active
+.mokton-pattern-id::before {
+  content: "[";
 }
 
-/*
- * ドラッグ中はSectionバー自体への
- * タップ追加を発生させない。
- */
-.section-contents.dragging {
-  cursor: grabbing;
-}
-/* =========================
-   Erase buttons
-========================= */
-.erase-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    padding: 4px;
-
-    color: var(--text);
-    -webkit-tap-highlight-color: transparent;
+.mokton-pattern-button.loop-range-active
+.mokton-pattern-id::after {
+  content: "]";
 }
 
-.edit-toolbar .erase-button svg,
-.edit-toolbar .lfo-erase-button svg {
-    display: block;
-    width: 18px;
-    height: 18px;
+/* Stage 11: compact calculator editor */
+.mokton-editor-compact { gap: 7px; }
+.mokton-compact-sounds { display:grid; gap:5px; }
+.mokton-editor-modes { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+.mokton-editor-mode,
+.mokton-parameter-pad,
+.mokton-lfo-access-button {
+  min-height:28px; padding:0 5px; border:1px solid var(--line);
+  border-radius:0; background:transparent; color:var(--text);
+  font-size:6px; cursor:pointer;
+}
+.mokton-editor-mode.active,
+.mokton-parameter-pad.active {
+  border-color:var(--accent); background:var(--accent); color:var(--bg);
+}
+.mokton-parameter-pads {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:5px;
+}
+.mokton-value-control {
+  display:grid; grid-template-columns:58px minmax(0,1fr) 46px;
+  gap:7px; align-items:center; min-height:42px; padding:5px 0;
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+}
+.mokton-value-name { font-size:7px; color:var(--muted); }
+.mokton-value-number {
+  text-align:right; font-size:11px; font-weight:400; color:var(--accent);
+}
+.mokton-value-slider {
+  width:100%; height:26px; margin:0; appearance:none;
+  -webkit-appearance:none; background:transparent;
+}
+.mokton-value-slider::-webkit-slider-runnable-track { height:2px; background:var(--text); }
+.mokton-value-slider::-webkit-slider-thumb {
+  width:12px; height:18px; margin-top:-8px; appearance:none;
+  -webkit-appearance:none; border:0; border-radius:0; background:var(--accent);
+}
+.mokton-value-slider::-moz-range-track { height:2px; background:var(--text); }
+.mokton-value-slider::-moz-range-thumb {
+  width:12px; height:18px; border:0; border-radius:0; background:var(--accent);
+}
+.mokton-lfo-access { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+.mokton-compact-lfo { margin-top:0; padding:7px; border:1px solid var(--line); }
+.mokton-compact-empty {
+  min-height:42px; display:grid; place-items:center;
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+  font-size:7px; color:var(--muted);
 }
 
-/* 1回目のタップ後、1秒間だけ待機状態を表示 */
-.erase-button.delete-armed {
-    background: var(--selected-bg);
-    color: var(--selected-text);
+/* Stage 12: compressed Sound bank + calculator LFO */
+.mokton-sound-bank {
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  gap:4px;
 }
 
-/* =========================
-   Swing / two-row editor header
-========================= */
-
-.editor-header-two-row {
-    display: grid;
-    grid-template-rows: 28px 28px;
-    row-gap: 2px;
-
-    width: 100%;
-    min-height: 58px;
+.mokton-sound-button-compact {
+  min-height:30px;
+  width:100%;
 }
 
-.editor-header-row {
-    display: flex;
-    align-items: center;
-
-    width: 100%;
-    min-width: 0;
+.mokton-selected-ms {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:24px;
+  gap:8px;
 }
 
-.editor-header-secondary {
-    gap: 8px;
+.mokton-selected-ms-label,
+.mokton-layer-ms-label {
+  font-size:6px;
+  color:var(--muted);
 }
 
-.editor-header-two-row .track-cycle,
-.editor-header-two-row .mini-button {
-    background: transparent;
+.mokton-selected-ms-controls {
+  display:flex;
+  align-items:center;
+  gap:5px;
 }
 
-.editor-header-two-row .mini-button.active {
-    background: var(--cell);
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
+.mokton-lfo-access-button.active,
+.mokton-lfo-wave-button.active {
+  border-color:var(--accent);
+  background:var(--accent);
+  color:var(--bg);
 }
 
-.compact-value {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0;
-
-    min-width: 0;
-    white-space: nowrap;
+.mokton-lfo-calculator {
+  display:grid;
+  gap:5px;
+  padding-top:6px;
+  border-top:1px solid var(--line);
 }
 
-.compact-value-number,
-.track-length-input.compact-value-number,
-.pattern-length-input.compact-value-number {
-    width: auto;
-    min-width: 0px;
-    height: 28px;
-
-    margin: 0;
-    padding: 0;
-
-    border: 0;
-    outline: 0;
-    background: transparent;
-
-    color: var(--text);
-    -webkit-text-fill-color: currentColor;
-
-    font-size: var(--font-main);
-    line-height: 28px;
-    text-align: center;
+.mokton-lfo-calculator-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:20px;
+  font-size:7px;
 }
 
-.swing-value {
-    min-width: 24px;
+.mokton-lfo-wave-pads {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:4px;
 }
 
-.track-step-control .track-length-input {
-    min-width: 22px;
+.mokton-lfo-wave-button {
+  min-height:26px;
+  padding:0 3px;
+  border:1px solid var(--line);
+  border-radius:0;
+  background:transparent;
+  color:var(--text);
+  font-size:5px;
+  cursor:pointer;
 }
 
-.sequence-step-value .pattern-length-input {
-    min-width: 22px;
+.mokton-lfo-parameter-pads {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:5px;
 }
 
-.editor-header-two-row .erase-button.delete-armed {
-    background: var(--selected-bg);
-    color: var(--selected-text);
+/* Stage 12 supersedes the old two-row labelled Sound groups. */
+.mokton-editor-compact .mokton-sound-group {
+  display:none;
 }
 
-.sequence-step-value {
-    height: 28px;
-}
 
-/* =========================
-   Editor header 微調整
-========================= */
-
-/* 消しゴムとSWの間だけ少し広げる */
-.editor-header-secondary .erase-button {
-    margin-right: 6px;
-}
-
-.compact-value-label {
-    margin-right: 1px;
-    font-size: var(--font-label);
-    line-height: 1;
-    color: var(--muted);
-    text-transform: lowercase;
-}
-
-/* パラセレクト下のベース値を小さくする */
-.parameter-button .parameter-value {
-    font-size: var(--font-small);
-    line-height: 1;
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-}
-
-/* Offset編集画面の消しゴム：通常時は背景なし */
-.edit-toolbar .erase-button {
-    background: transparent;
-}
-
-/* 1回目のタップ後だけ背景を表示 */
-.edit-toolbar .erase-button.delete-armed {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.track-step-control
-.track-length-input:focus-visible,
-.track-swing-control
-.swing-value:focus-visible,
-.sequence-step-value
-.pattern-length-input:focus-visible,
-.sequence-step:focus-visible {
-    outline: 1px solid var(--text);
-    outline-offset: -1px;
-}
-
-.bpm-control {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 2px;
-    white-space: nowrap;
-}
-
-.bpm-control .bpm-input {
-    width: 32px;
-    min-width: 32px;
-    margin: 0;
-}
-
-/* スマホだけフォーカス枠を消す */
-@media (hover: none) and (pointer: coarse) {
-
-    .master-control
-    input[type="range"]:focus,
-
-    .master-control
-    input[type="range"]:focus-visible {
-        outline: none;
-        box-shadow: none;
-    }
-}
-
-@media (hover: hover) and (pointer: fine) {
-    .master-control
-    input[type="range"]:focus-visible {
-        outline: 1px solid var(--text);
-        outline-offset: 2px;
-    }
-}
-
-/* =========================
-   各エリアの縦方向間隔を統一
-========================= */
+/* =========================================================
+   Stage 13: unified typography
+   ========================================================= */
 
 :root {
-    --section-line-gap: 6px;
-    --section-content-gap: 4px;
-    --section-toolbar-height: 28px;
-}
-
-/* =========================
-   Sequence
-========================= */
-
-/*
- * 線はapp-headerのborder-bottomを使用。
- * 線から操作行まで6pxに統一。
- */
-.sequence-section {
-    margin-top: var(--section-line-gap);
-}
-
-/* 上部操作行の高さ */
-.sequence-toolbar {
-    height: var(--section-toolbar-height);
-    min-height: var(--section-toolbar-height);
-}
-
-/* 操作行からシーケンスブロックまで */
-.sequence-grid {
-    margin-top: var(--section-content-gap);
-}
-
-/* =========================
-   Editor
-========================= */
-
-/* 線からエディタ1行目まで */
-.editor-section {
-    margin-top: 8px;
-    padding-top: var(--section-line-gap);
+  --mokton-ui-font-size: 7px;
 }
 
 /*
- * パラメーターアイコン群、
- * Offsetブロックとの間隔を統一。
+ * mokton typography rule:
+ * all visible text uses one size.
+ * The only exception is the current STEP offset/performance value.
  */
-.parameter-menu,
-.offset-grid {
-    margin-top: var(--section-content-gap);
+.app-shell,
+.app-shell button,
+.app-shell input,
+.app-shell output,
+.app-shell strong,
+.app-shell span,
+.app-shell div,
+.app-shell label {
+  font-size: var(--mokton-ui-font-size) !important;
 }
 
-/* =========================
-   Pattern / Fill / Section
-========================= */
+/*
+ * Exception:
+ * selected STEP performance/offset numeric value only.
+ */
+.mokton-editor-step
+.mokton-value-number {
+  font-size: 11px !important;
+}
 
-/* 線から上部アイコン行まで */
+/*
+ * Sound/LFO value readouts are intentionally NOT exceptions.
+ */
+.mokton-editor-sound
+.mokton-value-number,
+.mokton-lfo-calculator
+.mokton-value-number {
+  font-size: var(--mokton-ui-font-size) !important;
+}
+
+
+/* =========================================================
+   Stage 14: editor hierarchy cleanup
+   ========================================================= */
+
+/*
+ * M/S is no longer attached visually to each of the eight Sound keys.
+ * It is one compact status/action row for:
+ *   selected Sound | selected Layer
+ */
+.mokton-selected-ms {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  min-height: 28px;
+}
+
+.mokton-ms-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+}
+
+.mokton-ms-label {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.mokton-ms-group
+.mokton-ms-controls {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.mokton-ms-group
+.mokton-mini-button {
+  min-width: 24px;
+  min-height: 20px;
+  padding: 0 4px;
+}
+
+/* Supersede Stage 12's scattered M/S helper layout. */
+.mokton-selected-ms-label,
+.mokton-selected-ms-controls,
+.mokton-layer-ms-label {
+  display: none;
+}
+
+/*
+ * Sequence toolbar now contains only sequence operations:
+ * shift left / shift right / randomize / clipboard.
+ * Undo remains in the global transport header.
+ */
+.mokton-sequence-tools {
+  align-items: center;
+}
+
+
+/* Stage 14.1: M/S visibility fix */
+.mokton-selected-ms {
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.mokton-selected-ms
+.mokton-ms-group {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.mokton-selected-ms
+.mokton-ms-label,
+.mokton-selected-ms
+.mokton-ms-controls,
+.mokton-selected-ms
+.mokton-mini-button {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.mokton-selected-ms
+.mokton-ms-label {
+  align-items: center;
+}
+
+
+/* =========================================================
+   Stage 15: unified 8-column calculator grid
+   ========================================================= */
+
+:root {
+  --mokton-grid-gap: 5px;
+}
+
+/*
+ * EDIT area uses the same 8-column rhythm as Pattern.
+ */
+.mokton-editor-compact {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--mokton-grid-gap);
+}
+
+.mokton-compact-sounds,
+.mokton-editor-modes,
+.mokton-parameter-pads,
+.mokton-value-control,
+.mokton-lfo-access,
+.mokton-lfo-calculator,
+.mokton-compact-empty {
+  grid-column: 1 / -1;
+}
+
+/* 8 Sound keys = exact 8 columns */
+.mokton-sound-bank {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--mokton-grid-gap);
+}
+
+.mokton-sound-button-compact {
+  min-width: 0;
+  min-height: 32px;
+}
+
+/* selected Sound M/S + Layer M/S = 4 columns each */
+.mokton-selected-ms {
+  display: grid !important;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--mokton-grid-gap);
+  min-height: 26px;
+}
+
+.mokton-selected-ms .mokton-ms-group {
+  grid-column: span 4;
+  min-width: 0;
+  padding: 0 6px;
+}
+
+/* sound / step = 4 columns each */
+.mokton-editor-modes {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--mokton-grid-gap);
+}
+
+.mokton-editor-mode {
+  grid-column: span 4;
+  min-width: 0;
+  min-height: 32px;
+}
+
+/* normal parameter keys = 2 columns each */
+.mokton-parameter-pads {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--mokton-grid-gap);
+}
+
+.mokton-parameter-pad {
+  grid-column: span 2;
+  min-width: 0;
+  min-height: 32px;
+}
+
+/* single value lane */
+.mokton-value-control {
+  grid-template-columns:
+    2fr
+    minmax(0, 5fr)
+    1fr;
+
+  min-height: 42px;
+  padding: 5px 0;
+}
+
+/* LFO 1 / 2 = 4 columns each */
+.mokton-lfo-access {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--mokton-grid-gap);
+}
+
+.mokton-lfo-access-button {
+  grid-column: span 4;
+  min-width: 0;
+  min-height: 32px;
+}
+
+/* LFO panel also follows 8-column logic */
+.mokton-lfo-calculator {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--mokton-grid-gap);
+}
+
+.mokton-lfo-calculator-head,
+.mokton-lfo-wave-pads,
+.mokton-lfo-parameter-pads,
+.mokton-lfo-calculator .mokton-value-control {
+  grid-column: 1 / -1;
+}
+
+.mokton-lfo-wave-pads {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--mokton-grid-gap);
+}
+
+.mokton-lfo-wave-button {
+  grid-column: span 2;
+  min-width: 0;
+  min-height: 30px;
+}
+
+.mokton-lfo-parameter-pads {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--mokton-grid-gap);
+}
+
+.mokton-lfo-parameter-pads .mokton-parameter-pad {
+  grid-column: span 2;
+}
+
+/*
+ * Keep section spacing consistent across sequence / edit / pattern.
+ */
+.sequence-section,
+.editor-section,
 .pattern-section {
-    margin-top: 8px;
-    padding-top: var(--section-line-gap);
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
-/* 上部アイコン行の高さ */
-.pattern-section-header {
-    height: var(--section-toolbar-height);
-    min-height: var(--section-toolbar-height);
-
-    margin-bottom:
-        var(--section-content-gap);
-}
-/* =========================
-   Sound parameter layout
-========================= */
-
-.editor-header-primary {
-    gap: 8px;
-}
-
-/* =========================
-   Track Volume
-   Master Volumeのスタイルを共有
-========================= */
-
-.track-volume-control {
-    flex: 0 0 auto;
+.editor-section .section-toolbar,
+.pattern-section .section-toolbar,
+.sequence-section .section-toolbar {
+  min-height: 24px;
+  margin-bottom: 6px;
 }
 
 /*
- * スピーカーはボタンなので、
- * Master Volumeアイコンと同じ寸法のまま
- * ボタン標準スタイルだけ解除する。
+ * Pattern is already 8 columns; normalize its gap to the same grid.
  */
-.track-volume-icon {
-    margin: 0;
-    padding: 0;
-
-    border: 0;
-    background: transparent;
-
-    cursor: pointer;
+.pattern-grid,
+#pattern-grid {
+  gap: var(--mokton-grid-gap) !important;
 }
 
 /*
- * master-volume-iconの寸法を
- * buttonでも確実に維持する。
+ * Unified typography remains authoritative.
+ * STEP value is still the only larger text.
  */
-.track-volume-icon.master-volume-icon {
-    width: 18px;
-    min-width: 18px;
-    height: 18px;
 
-    flex: 0 0 18px;
+
+/* =========================================================
+   Stage 16: PATTERN <-> SEQUENCE two-screen structure
+   ========================================================= */
+
+body[data-mokton-view="pattern"]
+.mokton-sequence-view {
+  display: none !important;
+}
+
+body[data-mokton-view="sequence"]
+.mokton-pattern-view {
+  display: none !important;
+}
+
+body[data-mokton-view="pattern"]
+.mokton-pattern-view,
+body[data-mokton-view="sequence"]
+.mokton-sequence-view {
+  display: block;
+}
+
+/* PATTERN: all 32 cells visible, no internal vertical scroll. */
+.pattern-section {
+  overflow: visible;
+}
+
+#pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(4, 36px);
+  gap: var(--mokton-grid-gap);
+  overflow: visible;
+  max-height: none;
+}
+
+/* SEQUENCE: all 32 STEP rows visible at once, no internal scroll. */
+.sequence-section {
+  overflow: visible;
+}
+
+#sequence-grid {
+  display: grid;
+  grid-template-rows: repeat(32, minmax(0, 1fr));
+  gap: 1px;
+  height: 352px;
+  max-height: none;
+  overflow: hidden;
+  scrollbar-width: none;
+}
+
+#sequence-grid::-webkit-scrollbar {
+  display: none;
+}
+
+#sequence-grid .mokton-step {
+  min-height: 0;
+  height: auto;
+}
+
+/* Navigation button uses the same typography and no icon font dependency. */
+.mokton-view-button {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
 }
 
 /*
- * 数値はmaster-control outputの
- * 共通指定をそのまま使用する。
+ * On SEQUENCE screen the editor follows the 32-step grid.
+ * Page scrolling remains available for the editor itself;
+ * the sequencer grid never scrolls internally.
  */
-.track-volume-value {
-    flex: 0 0 24px;
-}
 
-.parameter-menu {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    grid-template-rows: repeat(2, 36px);
-}
 
-.parameter-label {
-    max-width: 100%;
-
-    overflow: hidden;
-    text-overflow: clip;
-    white-space: nowrap;
-
-    font-size: var(--font-label);
-    line-height: 1;
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-}
-
-.parameter-placeholder {
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-    cursor: default;
-}
-
-.parameter-placeholder .parameter-label,
-.parameter-placeholder .parameter-value {
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-}
-
-@media (hover: none) and (pointer: coarse) {
-    .track-volume-slider:focus,
-    .track-volume-slider:focus-visible {
-        outline: none;
-        box-shadow: none;
-    }
-}
-
-/* =========================
-   Volume slider thumb 補正
-========================= */
-
-/* Chrome / Edge / Safari */
-#master-volume::-webkit-slider-thumb,
-input.track-volume-slider::-webkit-slider-thumb {
-    width: 8px;
-    height: 8px;
-
-    margin-top: calc((0.1px - 8px) / 2);
-
-    appearance: none;
-    -webkit-appearance: none;
-
-    border: 0;
-    border-radius: 50%;
-    background: var(--text);
-
-    opacity: 1;
-    visibility: visible;
-}
-
-/* Firefox */
-#master-volume::-moz-range-thumb,
-input.track-volume-slider::-moz-range-thumb {
-    width: 8px;
-    height: 8px;
-
-    border: 0;
-    border-radius: 50%;
-    background: var(--text);
-
-    opacity: 1;
-    visibility: visible;
-}
-
-/* =========================
-   Track Volume position
-========================= */
+/* =========================================================
+   Stage 16.1: SEQUENCE = 32 cells / 8 columns x 4 rows
+   ========================================================= */
 
 /*
- * M / Sの並びから
- * Track Volumeだけ少し右へ離す。
+ * The actual 32 STEP buttons live inside .mokton-sequence.
+ * Stage 16 styled only #sequence-grid, so the legacy
+ * one-column wrapper kept winning. Make the wrapper itself
+ * the 8 x 4 calculator grid.
  */
-.editor-header-primary
-.track-volume-control {
-    margin-left: 10px;
+#sequence-grid {
+  display: block;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
-/* =========================
-   iPhone Volume track 補正
-========================= */
-
-@media (hover: none) and (pointer: coarse) {
-    #master-volume,
-    .track-volume-slider {
-        --volume-track-height: 1px;
-    }
-
-    #master-volume::-webkit-slider-thumb,
-    input.track-volume-slider::-webkit-slider-thumb {
-        margin-top: calc((1px - 8px) / 2);
-    }
+#sequence-grid .mokton-sequence {
+  display: grid !important;
+  grid-template-columns: repeat(8, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(4, 54px) !important;
+  gap: var(--mokton-grid-gap) !important;
+  width: 100%;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
-/* =========================
-   OSC source editor
-========================= */
-
-.osc-parent-icon {
-    flex: 0 0 24px;
-    min-width: 24px;
-    width: 24px;
+#sequence-grid .mokton-step {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: center;
+  justify-items: stretch;
+  min-width: 0;
+  width: 100%;
+  height: 54px !important;
+  min-height: 54px !important;
+  padding: 4px;
+  overflow: hidden;
 }
 
-.osc-source-controls {
-    min-width: 0;
-    flex: 1 1 auto;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-
-    height: 28px;
+/* STEP number stays compact at the top of each calculator cell. */
+#sequence-grid .mokton-step-number {
+  justify-self: start;
+  line-height: 1;
 }
 
-.osc-source-group {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-
-    min-width: 0;
-    height: 28px;
+/* Melodic + rhythm visualization occupies the center. */
+#sequence-grid .mokton-step-body {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
 }
 
-.osc-source-icon {
-    width: 18px;
-    height: 18px;
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    flex: 0 0 18px;
-    color: var(--muted);
+#sequence-grid .mokton-melodic-row,
+#sequence-grid .mokton-rhythm-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
-.osc-source-icon svg {
-    display: block;
-    width: 16px;
-    height: 16px;
+/* Existing upper-bar / lower-mark concept is retained. */
+#sequence-grid .mokton-melodic-mark {
+  display: block;
+  width: 100%;
+  min-height: 3px;
 }
 
-.osc-child-button {
-    width: auto;
-    min-width: 30px;
-    height: 24px;
-
-    padding: 0 4px;
-    border: 0;
-    background: transparent;
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
+#sequence-grid .mokton-rhythm-mark {
+  display: block;
+  width: 7px;
+  height: 7px;
 }
 
-.osc-child-button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
+/* Sound IDs remain visible but compact inside the cell. */
+#sequence-grid .mokton-step-sounds {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  line-height: 1;
 }
 
-.osc-edit-toolbar .erase-button {
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
-    padding: 4px;
+#sequence-grid .mokton-step-sound {
+  min-width: 0;
 }
 
-.osc-edit-toolbar .value-control {
-    flex: 0 0 28px;
-    margin-left: 0;
+/* Never allow an internal sequence scrollbar. */
+#sequence-grid,
+#sequence-grid .mokton-sequence {
+  scrollbar-width: none;
 }
 
-.osc-edit-toolbar .value-control button {
-    width: 28px;
-    min-width: 28px;
-    padding: 0;
+#sequence-grid::-webkit-scrollbar,
+#sequence-grid .mokton-sequence::-webkit-scrollbar {
+  display: none;
 }
 
 
+/* =========================================================
+   Stage 16.2: EDIT remains visible on both screens
+   ========================================================= */
 
-/* =========================
-   Envelope editor
-========================= */
-
-.envelope-parent-icon {
-    flex: 0 0 24px;
-    min-width: 24px;
-    width: 24px;
-}
-
-.envelope-child-controls {
-    min-width: 0;
-    flex: 1 1 auto;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-
-    height: 28px;
-}
-
-.envelope-child-button {
-    width: auto;
-    min-width: 38px;
-    height: 24px;
-
-    padding: 0 4px;
-    border: 0;
-    background: transparent;
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.envelope-child-button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.envelope-edit-toolbar .erase-button {
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
-    padding: 4px;
-}
-
-.envelope-edit-toolbar .value-control {
-    flex: 0 0 28px;
-    margin-left: 0;
-}
-
-.envelope-edit-toolbar .value-control button {
-    width: 28px;
-    min-width: 28px;
-    padding: 0;
-}
-
-/* =========================
-   LFO editor
-========================= */
-.lfo-parent-icon {
-    flex: 0 0 24px;
-    width: 24px;
-    min-width: 24px;
-}
-
-.lfo-switch-button {
-    width: auto;
-    min-width: 44px;
-    height: 24px;
-
-    padding: 0 5px;
-    border: 0;
-
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color:
-        var(--selected-text);
-
-    font-size: var(--font-label);
-    line-height: 1;
-}
-
-.lfo-parameter-controls {
-    min-width: 0;
-    flex: 1 1 auto;
-
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    gap: 2px;
-    height: 28px;
-}
-
-.lfo-parameter-button {
-    width: auto;
-    min-width: 42px;
-    height: 24px;
-
-    padding: 0 3px;
-
-    border: 0;
-    background: transparent;
-
-    color: var(--text);
-    -webkit-text-fill-color:
-        var(--text);
-
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.lfo-parameter-button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color:
-        var(--selected-text);
-}
-
-.lfo-option-grid {
-    display: grid;
-    grid-template-columns:
-        repeat(4, minmax(0, 1fr));
-
-    column-gap: 5px;
-    row-gap: 4px;
-
-    margin-top: 4px;
-}
-
-.lfo-option-button {
-    width: 100%;
-    height: 24px;
-
-    padding: 0 2px;
-    border: 0;
-    background: var(--cell);
-
-    color: var(--text);
-    -webkit-text-fill-color:
-        var(--text);
-
-    font-size: var(--font-label);
-    line-height: 1;
-}
-
-.lfo-option-button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color:
-        var(--selected-text);
-}
-
-/* =========================
-   LFO editor layout v2
-========================= */
-
-.lfo-edit-toolbar {
-    width: 100%;
-}
-
-.lfo-parameter-controls {
-    justify-content: flex-start;
-    gap: 4px;
-}
-
-.lfo-settings {
-    display: grid;
-    grid-template-columns: 38px minmax(0, 1fr);
-    grid-template-rows: 28px 38px;
-    column-gap: 5px;
-    row-gap: 5px;
-    margin-top: 4px;
-}
-
-.lfo-settings-label {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    color: var(--muted);
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.lfo-target-grid {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 5px;
-}
-
-.lfo-target-button {
-    width: 100%;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    background: var(--cell);
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.lfo-target-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.lfo-target-icon svg {
-    display: block;
-    width: 18px;
-    height: 18px;
-}
-
-.lfo-wave-grid {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 5px;
-}
-
-.lfo-wave-button {
-    width: 100%;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    background: var(--cell);
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.lfo-wave-button svg {
-    display: block;
-    width: 22px;
-    height: 16px;
-}
-
-.lfo-target-button.active,
-.lfo-wave-button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
+body[data-mokton-view="pattern"] .mokton-shared-view,
+body[data-mokton-view="sequence"] .mokton-shared-view {
+  display: block !important;
 }
 
 
-/* =========================
-   LFO editor layout v3
-========================= */
-.lfo-edit-toolbar {
-    gap: 4px;
-}
-
-.lfo-switch-button {
-    width: 28px;
-    min-width: 28px;
-    height: 24px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.lfo-switch-button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.lfo-sync-button {
-    min-width: 36px;
-    height: 24px;
-    padding: 0 3px;
-    border: 0;
-    background: var(--cell);
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.lfo-edit-toolbar .lfo-parameter-button {
-    min-width: 38px;
-}
-
-.lfo-erase-button {
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
-    padding: 4px;
-}
-
-.lfo-menu-icon {
-    position: relative;
-    width: 20px;
-    height: 20px;
-    overflow: visible;
-}
-
-.lfo-menu-icon svg {
-    width: 20px;
-    height: 20px;
-}
-
-.lfo-menu-number {
-    font-size: 10px;
-    line-height: 1;
-}
-
-
-/* =========================
-   Filter editor
-========================= */
-.filter-parent-icon {
-    flex: 0 0 24px;
-    width: 24px;
-    min-width: 24px;
-}
-
-.filter-child-controls {
-    min-width: 0;
-    flex: 1 1 auto;
-
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0;
-
-    height: 28px;
-}
-
-.filter-child-button {
-    min-width: 52px;
-    height: 24px;
-
-    padding: 0 5px;
-    border: 0;
-    background: transparent;
-
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.filter-child-button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.filter-edit-toolbar .erase-button {
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
-    padding: 4px;
-}
-
-.filter-edit-toolbar .value-control {
-    flex: 0 0 38px;
-    margin-left: 0;
-}
-
-/* =========================
-   Editor right-side controls
-========================= */
+/* =========================================================
+   Stage 17: upper view switch / lower editor stays in place
+   ========================================================= */
 
 /*
- * 通常パラメータのタブ領域は
- * 余った幅を左側で受け持つ。
+ * PATTERN and SEQUENCE occupy the same upper screen slot.
+ * Only one is rendered at a time; EDIT remains the shared
+ * lower block in normal document flow.
  */
-.edit-toolbar .child-tabs {
-    flex: 1 1 auto;
-    min-width: 0;
+body[data-mokton-view="pattern"] .mokton-sequence-view {
+  display: none !important;
 }
 
-.track-swing-control,
-.track-step-control {
-    flex: 0 0 auto;
+body[data-mokton-view="sequence"] .mokton-pattern-view {
+  display: none !important;
 }
 
-/* =========================
-   Base value position fixed
-========================= */
-
-/* =========================
-   Volume slider flat thumb
-========================= */
-
-#master-volume::-webkit-slider-thumb,
-input.track-volume-slider::-webkit-slider-thumb {
-    box-shadow: none;
-    filter: none;
+body[data-mokton-view="pattern"] .mokton-pattern-view,
+body[data-mokton-view="sequence"] .mokton-sequence-view {
+  display: block !important;
 }
 
-#master-volume::-moz-range-thumb,
-input.track-volume-slider::-moz-range-thumb {
-    box-shadow: none;
-    filter: none;
+body[data-mokton-view="pattern"] .mokton-shared-view,
+body[data-mokton-view="sequence"] .mokton-shared-view {
+  display: block !important;
 }
 
-/* =========================
-   Custom volume drag
-========================= */
-
-/*
- * range本体にはポインター操作させない。
- * 表示とキーボード操作だけに使う。
- */
-#master-volume,
-.track-volume-slider {
-    pointer-events: none;
+/* Keep EDIT visually separated as the common lower control panel. */
+.editor-section.mokton-shared-view {
+  clear: both;
+  width: 100%;
 }
 
 /*
- * 親領域でドラッグを受け取る。
+ * SOUND keys are target selectors, not editor-mode selectors.
+ * SOUND / STEP mode is controlled only by the mode buttons.
  */
-.master-control {
-    touch-action: none;
+
+
+/* =========================================================
+   Stage 17.1: upper view always precedes fixed lower editor
+   ========================================================= */
+
+/*
+ * DOM order is now:
+ *   SEQUENCE (upper slot)
+ *   PATTERN  (upper slot)
+ *   EDIT     (shared lower panel)
+ *
+ * One upper slot is hidden by data-mokton-view, so EDIT always
+ * remains below whichever upper screen is active.
+ */
+.editor-section.mokton-shared-view {
+  order: initial;
 }
 
-/* =========================
-   Unified control appearance
-========================= */
+
+/* =========================================================
+   Stage 18: mokton sequence visual language
+   ========================================================= */
+
+/*
+ * Upper SEQUENCE is now a musical 8 x 4 matrix rather than
+ * 32 generic boxes. The selected layer determines the primary
+ * visual language; the other layer remains as a small overlay.
+ */
+#sequence-grid {
+  border: 0 !important;
+}
+
+#sequence-grid .mokton-sequence {
+  grid-template-rows:
+    repeat(4, 46px) !important;
+  gap:
+    8px var(--mokton-grid-gap) !important;
+}
+
+#sequence-grid .mokton-step {
+  position: relative;
+
+  display: grid !important;
+  grid-template-rows:
+    11px 1fr !important;
+
+  align-items: stretch;
+  justify-items: stretch;
+
+  height: 46px !important;
+  min-height: 46px !important;
+
+  padding: 0 3px 3px !important;
+
+  border: 0 !important;
+  outline: 0;
+
+  background: transparent !important;
+}
+
+#sequence-grid .mokton-step-number {
+  justify-self: start;
+  align-self: start;
+
+  color: var(--muted);
+  line-height: 1;
+}
+
+#sequence-grid .mokton-step-visual {
+  position: relative;
+
+  display: grid;
+  grid-template-rows:
+    minmax(0, 1fr)
+    9px;
+
+  align-items: center;
+
+  width: 100%;
+  min-width: 0;
+}
+
+#sequence-grid .mokton-step-main {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+
+  min-width: 0;
+  height: 100%;
+
+  overflow: hidden;
+  white-space: nowrap;
+
+  color: var(--muted);
+}
+
+#sequence-grid .mokton-step-main.note {
+  color: var(--text);
+}
+
+#sequence-grid .mokton-step-main.other {
+  color: var(--muted);
+}
+
+#sequence-grid .mokton-step-main.empty {
+  color: var(--muted);
+  opacity: .72;
+}
+
+#sequence-grid .mokton-step-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+
+  min-height: 8px;
+
+  color: var(--muted);
+  line-height: 1;
+}
+
+/* selected melodic sound = readable note name */
+#sequence-grid
+.mokton-step.view-melodic.selected-sound-hit
+.mokton-step-main {
+  color: var(--text);
+}
+
+/* selected rhythm sound = solid rectangular hit */
+#sequence-grid
+.mokton-step-main.rhythm-hit {
+  width: 19px;
+  height: 7px;
+
+  align-self: center;
+
+  background: var(--text);
+  color: transparent;
+}
+
+/* another rhythm sound exists in the same layer */
+#sequence-grid
+.mokton-step-main.rhythm-other {
+  width: 19px;
+  height: 7px;
+
+  align-self: center;
+
+  border: 1px solid var(--muted);
+  background: transparent;
+  color: transparent;
+}
+
+/* secondary layer remains visible but subordinate */
+#sequence-grid
+.mokton-step-secondary.rhythm-presence {
+  color: var(--accent);
+}
+
+#sequence-grid
+.mokton-step-secondary.melodic-presence {
+  color: var(--muted);
+}
+
+/* STEP selection: small accent corner instead of a large filled cell */
+#sequence-grid .mokton-step.selected::before {
+  content: "";
+
+  position: absolute;
+  left: 0;
+  top: 0;
+
+  width: 6px;
+  height: 6px;
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--accent) 0 50%,
+      transparent 51% 100%
+    );
+}
+
+/* playback cursor: underline the active STEP */
+#sequence-grid .mokton-step.playing::after {
+  content: "";
+
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 0;
+
+  height: 1px;
+
+  background: var(--accent);
+}
+
+#sequence-grid .mokton-step.playing {
+  outline: 0 !important;
+}
+
+/* clipboard remains a tiny top-right marker */
+#sequence-grid
+.mokton-step.clipboard-ready::after {
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: auto;
+
+  width: 3px;
+  height: 3px;
+
+  background: var(--accent);
+}
+
+/* Old row/sound-label presentation is no longer used. */
+#sequence-grid .mokton-step-body,
+#sequence-grid .mokton-step-sounds {
+  display: none !important;
+}
+
+/* Sequence toolbar stays lightweight like the reference layout. */
+.sequence-section .section-toolbar {
+  margin-bottom: 8px;
+}
+
+.sequence-section .mokton-current-source {
+  min-width: 28px;
+}
+
+.sequence-section .mokton-sequence-tools {
+  gap: 8px;
+}
+
+
+/* =========================================================
+   Stage 18.1: remove selected STEP corner triangle
+   ========================================================= */
+
+#sequence-grid .mokton-step.selected::before {
+  content: none !important;
+  display: none !important;
+}
+
+
+/* =========================================================
+   Stage 19: borderless UI / underline language
+   ========================================================= */
+
+/*
+ * No cell frames or divider rules anywhere in the application.
+ * State is expressed by fill, text, and underlines only.
+ */
+.app-shell *,
+.app * {
+  border-color: transparent !important;
+}
+
+.sequence-section,
+.editor-section,
+.pattern-section,
+.mokton-sound-editor,
+.mokton-step-editor {
+  border: 0 !important;
+}
 
 button,
 input,
 select,
-textarea {
-    border-radius: 0;
-    box-shadow: none;
-    -webkit-tap-highlight-color:
-        transparent;
+.mokton-sound-button,
+.mokton-editor-mode,
+.mokton-parameter-pad,
+.mokton-lfo-access-button,
+.mokton-mini-button,
+.pattern-loop-button,
+.mokton-pattern-button {
+  border: 0 !important;
+  outline: 0;
 }
 
-button:focus,
-input:focus,
-select:focus,
-textarea:focus {
-    outline: none;
-    box-shadow: none;
+/* -----------------------------------------
+   PATTERN
+   empty    = number only
+   has data = underline below number
+   ----------------------------------------- */
+
+.mokton-pattern-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  grid-template-columns: 1fr !important;
+  padding: 0 !important;
+  background: transparent;
+}
+
+.mokton-pattern-id {
+  position: relative;
+  display: inline-block;
+  text-align: center !important;
+}
+
+.mokton-pattern-button.has-data
+.mokton-pattern-id::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 1px;
+  background: currentColor;
+}
+
+.mokton-pattern-repeat {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+}
+
+.mokton-pattern-button.selected {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Old range/loop frames are removed; use underline/fill only. */
+.mokton-pattern-button.range-selected,
+.mokton-pattern-button.loop-range-active {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+/* -----------------------------------------
+   SEQUENCE
+   every STEP = underline only
+   playing    = accent underline
+   no STEP number
+   melodic    = long bar above
+   rhythm     = square at lower-left
+   ----------------------------------------- */
+
+#sequence-grid .mokton-sequence {
+  grid-template-rows:
+    repeat(4, 42px) !important;
+  gap:
+    7px var(--mokton-grid-gap) !important;
+}
+
+#sequence-grid .mokton-step {
+  position: relative;
+  display: block !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 2px 4px !important;
+  background: transparent !important;
+  overflow: visible;
+}
+
+#sequence-grid .mokton-step-number {
+  display: none !important;
+}
+
+#sequence-grid .mokton-step::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--muted);
+  opacity: .65;
+}
+
+/* Playback is indicated only by the underline changing to accent. */
+#sequence-grid .mokton-step.playing::after {
+  height: 1px;
+  background: var(--accent);
+  opacity: 1;
+}
+
+#sequence-grid .mokton-step-visual {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 5px;
+  top: 2px;
+  display: block;
+}
+
+/* MELODIC ON: horizontal bar above the rhythm square. */
+#sequence-grid .mokton-step-melodic-mark {
+  position: absolute;
+  left: 0;
+  bottom: 13px;
+  width: 20px;
+  height: 4px;
+  background: transparent;
+}
+
+#sequence-grid .mokton-step-melodic-mark.active {
+  background: var(--text);
+}
+
+/* RHYTHM ON: square at lower-left. */
+#sequence-grid .mokton-step-rhythm-mark {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  background: transparent;
+}
+
+#sequence-grid .mokton-step-rhythm-mark.active {
+  background: var(--text);
+}
+
+/* Selected STEP itself gets no frame/marker. */
+#sequence-grid .mokton-step.selected {
+  background: transparent !important;
+}
+
+#sequence-grid .mokton-step.selected::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* Clipboard marker remains independent from STEP selection. */
+#sequence-grid .mokton-step.clipboard-ready::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 3px;
+  height: 3px;
+  background: var(--accent);
+}
+
+
+/* =========================================================
+   Stage 20: permanent parameter rows / compact STEP width
+   ========================================================= */
+
+/* SEQUENCE: compact 8-column instrument grid. */
+#sequence-grid .mokton-sequence {
+  width: max-content !important;
+  margin: 0 auto !important;
+
+  grid-template-columns:
+    repeat(8, 20px) !important;
+
+  grid-template-rows:
+    repeat(4, 42px) !important;
+
+  column-gap: 12px !important;
+  row-gap: 7px !important;
+}
+
+#sequence-grid .mokton-step {
+  width: 20px !important;
+  min-width: 20px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+
+  padding:
+    0 0 4px !important;
+}
+
+/* underline length = melodic bar length */
+#sequence-grid .mokton-step::after {
+  width: 20px;
+  left: 0;
+  right: auto;
+}
+
+/* melodic bar uses the same 20px visual width */
+#sequence-grid .mokton-step-melodic-mark {
+  width: 20px !important;
+}
+
+/* STEP offset view: value belongs to the STEP, not parameter button. */
+#sequence-grid .mokton-step.offset-view
+.mokton-step-visual {
+  inset:
+    2px 0 5px !important;
+
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+}
+
+#sequence-grid .mokton-step-offset-value {
+  display: block;
+
+  width: 20px;
+
+  overflow: visible;
+
+  color: var(--text);
+
+  font-size: 7px;
+  line-height: 1;
+
+  white-space: nowrap;
+  text-align: left;
+}
+
+#sequence-grid
+.mokton-step.offset-view:not(.offset-active)
+.mokton-step-offset-value {
+  color: transparent;
+}
+
+/* STEP parameters are permanently visible directly under SEQUENCE. */
+.mokton-step-parameter-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns:
+    minmax(0, 1fr);
+
+  gap: 5px;
+
+  width: 100%;
+
+  margin-top: 10px;
+}
+
+.mokton-step-parameter-button {
+  min-width: 0;
+  min-height: 24px;
+
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+  color: var(--muted);
+
+  font-size: 7px;
+
+  cursor: pointer;
+}
+
+.mokton-step-parameter-button.active {
+  color: var(--accent);
+}
+
+/* Lower editor is now permanently SOUND-oriented. */
+.mokton-editor-modes,
+.mokton-value-control,
+.mokton-value-slider {
+  display: none !important;
+}
+
+.mokton-sound-parameter-values {
+  display: grid;
+
+  grid-template-columns:
+    repeat(9, minmax(0, 1fr));
+
+  gap: 4px;
+
+  align-items: stretch;
+}
+
+/* Rhythm has 6 parameters + lfo1/2; melodic 7 + lfo1/2.
+   Empty columns are not generated, keeping the row compact. */
+.mokton-direct-value-pad,
+.mokton-sound-parameter-values
+.mokton-lfo-access-button {
+  min-width: 0;
+  min-height: 34px;
+
+  padding: 3px 0 2px;
+
+  border: 0;
+
+  background: transparent;
+  color: var(--text);
+
+  cursor: ns-resize;
+
+  touch-action: none;
+}
+
+.mokton-direct-value-pad {
+  display: grid;
+  grid-template-rows:
+    auto auto;
+
+  align-content: center;
+  justify-items: center;
+
+  gap: 4px;
+}
+
+.mokton-direct-value-label {
+  color: var(--muted);
+}
+
+.mokton-direct-value-number {
+  color: var(--text);
+  font-weight: 400;
+}
+
+/* LFO access stays text-only; lfo1/lfo2 are the only >3-char parameter labels. */
+.mokton-sound-parameter-values
+.mokton-lfo-access-button {
+  display: grid;
+  place-items: center;
+
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.mokton-sound-parameter-values
+.mokton-lfo-access-button.active {
+  color: var(--accent);
+}
+
+/* LFO values also use label + numeric value, not range bars. */
+.mokton-lfo-parameter-pads {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+
+  gap: 5px;
+}
+
+.mokton-lfo-value-pad {
+  min-height: 34px;
+}
+
+.mokton-lfo-wave-pads {
+  display: grid;
+  grid-template-columns:
+    repeat(8, minmax(0, 1fr));
+
+  gap: 3px;
+}
+
+.mokton-lfo-wave-button,
+.mokton-lfo-parameter-pads
+.mokton-parameter-pad {
+  min-width: 0;
+  min-height: 24px;
+
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+  color: var(--muted);
+}
+
+.mokton-lfo-wave-button.active,
+.mokton-lfo-parameter-pads
+.mokton-parameter-pad.active {
+  color: var(--accent);
+}
+
+/* Direct-edit cells need vertical swipe without scrolling the page. */
+.mokton-direct-value-pad,
+#sequence-grid .mokton-step.offset-active {
+  touch-action: none;
+}
+
+
+/* =========================================================
+   Stage 20.1: sound parameter row layout fix
+   ========================================================= */
+
+/*
+ * Older calculator CSS gave LFO buttons a 4-column span.
+ * The permanent sound-parameter row no longer uses that grid model,
+ * so force one simple horizontal flex row here.
+ */
+.mokton-sound-parameter-values {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+
+  align-items: stretch !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  gap: 5px !important;
+}
+
+.mokton-sound-parameter-values
+> .mokton-direct-value-pad,
+.mokton-sound-parameter-values
+> .mokton-lfo-access-button {
+  position: relative !important;
+
+  flex:
+    1 1 0 !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  grid-column:
+    auto !important;
+
+  margin: 0 !important;
+  transform: none !important;
+}
+
+.mokton-sound-parameter-values
+> .mokton-direct-value-pad {
+  display: grid !important;
+}
+
+.mokton-sound-parameter-values
+> .mokton-lfo-access-button {
+  display: grid !important;
+  place-items: center !important;
+}
+
+
+/* =========================================================
+   Stage 20.2: sound parameter container full-width fix
+   ========================================================= */
+
+/*
+ * .mokton-editor-compact itself is still the old 8-column grid.
+ * The new sound parameter row was not assigned to span all 8 columns,
+ * so the entire row was being squeezed into the first grid cell.
+ */
+.mokton-editor-compact
+> .mokton-sound-parameter-values {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+
+/* =========================================================
+   Stage 21: rhythm pitch / compact sequence / unified type
+   ========================================================= */
+
+:root {
+  --mokton-sequence-width: 244px;
+  --mokton-ui-font-size: 7px;
+}
+
+/* Slightly tighter vertical rhythm while preserving the two ON marks. */
+#sequence-grid .mokton-sequence {
+  width: var(--mokton-sequence-width) !important;
+
+  grid-template-rows:
+    repeat(4, 34px) !important;
+
+  row-gap: 5px !important;
+}
+
+#sequence-grid .mokton-step {
+  height: 34px !important;
+  min-height: 34px !important;
+}
+
+/* Keep melodic/rhythm marks near the underline in the tighter cell. */
+#sequence-grid .mokton-step-melodic-mark {
+  bottom: 11px !important;
+}
+
+#sequence-grid .mokton-step-rhythm-mark {
+  bottom: 0 !important;
+}
+
+/* Offset parameter row occupies the same horizontal field as SEQUENCE. */
+.mokton-step-parameter-strip {
+  width: var(--mokton-sequence-width) !important;
+
+  margin:
+    9px auto 0 !important;
+
+  grid-template-columns:
+    repeat(7, minmax(0, 1fr)) !important;
+
+  grid-auto-flow:
+    initial !important;
+
+  grid-auto-columns:
+    initial !important;
 }
 
 /*
- * カーソル選択中。
- * 編集開始前は枠だけ表示する。
+ * Typography is completely uniform now.
+ * Use the same size as the Pattern number shown at the upper-left of SEQUENCE.
+ * No STEP-value size exception remains.
  */
-button[data-focus-key]:focus-visible,
-input[data-focus-key]:focus-visible,
-select[data-focus-key]:focus-visible,
-[tabindex="0"][data-focus-key]:focus-visible {
-    outline: 1px solid var(--text);
-    outline-offset: -1px;
+.app-shell,
+.app-shell button,
+.app-shell input,
+.app-shell output,
+.app-shell strong,
+.app-shell span,
+.app-shell div,
+.app-shell label,
+.app-shell select {
+  font-size:
+    var(--mokton-ui-font-size) !important;
 }
 
-/* =========================
-   Unified editing state
-========================= */
-
-[data-keyboard-editing="true"],
-.is-sweeping {
-    background: var(--selected-bg) !important;
-
-    color: var(--selected-text) !important;
-    -webkit-text-fill-color:
-        var(--selected-text) !important;
-
-    box-shadow: none !important;
-}
-/* =========================
-   Sound preset modal
-========================= */
-.track-sound-name {
-    min-width: 0;
-    flex: 1 1 auto;
-
-    padding: 0 0 3px 0;
-    border: 0;
-    background: transparent;
-
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-
-    text-align: left;
-
-    font-size: var(--font-label);
-    line-height: 1.3;
-
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-
-    transform: translate(6px, -1px);
-
-    cursor: pointer;
-    text-transform: lowercase;
+#sequence-grid .mokton-step-offset-value,
+.mokton-direct-value-number,
+.mokton-direct-value-label,
+.mokton-lfo-target {
+  font-size:
+    var(--mokton-ui-font-size) !important;
 }
 
-.sound-preset-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: color-mix(in srgb, var(--bg) 76%, transparent);
-}
 
-.sound-preset-modal {
-    position: relative;
-    width: 344px;
-    height: min(560px, calc(100dvh - 24px));
-    display: grid;
-    grid-template-rows: 38px minmax(0, 1fr);
-    border: 1px solid var(--line);
-    background: var(--bg);
-    color: var(--text);
-    box-shadow: 0 8px 28px rgb(0 0 0 / 20%);
-}
-
-.sound-preset-header {
-    display: grid;
-    grid-template-columns: 74px 74px 1fr 30px;
-    align-items: stretch;
-    border-bottom: 1px solid var(--line);
-}
-
-.sound-preset-tab,
-.sound-preset-close,
-.sound-preset-icon-button,
-.sound-preset-category,
-.sound-preset-item,
-.sound-preset-dialog-buttons button {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-}
-
-.sound-preset-tab {
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.sound-preset-tab.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.sound-preset-actions {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 2px;
-}
-
-.sound-preset-icon-button,
-.sound-preset-close {
-    width: 34px;
-    height: 100%;
-    font-size: 18px;
-}
-
-.sound-preset-icon-button:disabled {
-    opacity: .3;
-}
-
-.sound-preset-body {
-    min-height: 0;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-}
-
-.sound-preset-categories {
-    padding: 9px 6px;
-    border-right: 1px solid var(--line);
-    overflow: hidden;
-}
-
-.sound-preset-category {
-    width: 100%;
-    padding: 7px 4px;
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-    text-align: left;
-    font-size: var(--font-small);
-}
-
-.sound-preset-category.active {
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-}
-
-.sound-preset-list {
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 6px 8px 20px;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-}
-
-.sound-preset-category-heading {
-    padding: 10px 6px 4px;
-    color: var(--muted);
-    font-size: var(--font-label);
-    text-transform: lowercase;
-}
-
-.sound-preset-item {
-    width: 100%;
-    min-height: 34px;
-    padding: 7px 8px;
-    text-align: left;
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-
-    text-transform: lowercase;
-}
-
-.sound-preset-item.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.sound-preset-now {
-    position: sticky;
-    top: -6px;
-    z-index: 2;
-    background: var(--bg);
-    border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
-}
-
-.sound-preset-now.active {
-    background: var(--selected-bg);
-}
-
-.sound-preset-dialog-shade {
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 18px;
-    background: color-mix(in srgb, var(--bg) 82%, transparent);
-}
-
-.sound-preset-save-dialog {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid var(--line);
-    background: var(--bg);
-
-    font-size: var(--font-small);
-}
-
-.sound-preset-current {
-    padding-bottom: 12px;
-    border-bottom: 1px solid color-mix(
-        in srgb,
-        var(--line) 45%,
-        transparent
-    );
-
-    font-size: var(--font-label);
-}
-
-.sound-preset-save-modes label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-
-    font-size: var(--font-label);
-}
-
-.sound-preset-save-modes {
-    display: grid;
-    gap: 8px;
-    padding: 12px 0;
-}
-
-.sound-preset-save-modes label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-
-    font-size: var(--font-label);
-}
-
-.sound-preset-save-fields {
-    display: grid;
-    grid-template-columns: 88px 1fr;
-    gap: 7px;
-}
-
-.sound-preset-save-fields select,
-.sound-preset-save-fields input {
-    min-width: 0;
-    height: 32px;
-    padding: 4px 6px;
-    border: 1px solid var(--line);
-    border-radius: 0;
-    background: var(--cell);
-    user-select: text;
-    -webkit-user-select: text;
-}
-
-.sound-preset-dialog-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 14px;
-}
-
-.sound-preset-dialog-buttons button {
-    min-width: 70px;
-    height: 30px;
-    background: var(--cell);
-}
-
-.sound-preset-dialog-buttons button[type="submit"] {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-/* =========================
-   Sound preset modal
-   Compact size override
-========================= */
+/* =========================================================
+   Stage 21.1: true global typography unification
+   ========================================================= */
 
 /*
- * 画面切替ではなく、
- * エディター上に浮く小型ライブラリとして表示する。
+ * Stage 21 targeted .app-shell, but the actual root element is .app.
+ * Make the real application root authoritative.
+ * Every visible glyph inside the application uses the same 7px size.
  */
-.sound-preset-overlay {
-    padding: 20px;
-
-    background:
-        color-mix(
-            in srgb,
-            var(--bg) 58%,
-            transparent
-        );
-
-    backdrop-filter: blur(1px);
-    -webkit-backdrop-filter: blur(1px);
+body,
+.app,
+.app * ,
+.app *::before,
+.app *::after {
+  font-size:
+    var(--mokton-ui-font-size) !important;
 }
 
-.sound-preset-modal {
-    width:
-        min(
-            250px,
-            calc(100vw - 40px)
-        );
 
-    height:
-        min(
-            320px,
-            calc(100dvh - 80px)
-        );
+/* =========================================================
+   Stage 22: compact editor / permanent LFO rows
+   ========================================================= */
 
-    min-height: 260px;
-
-    grid-template-rows:
-        34px
-        minmax(0, 1fr);
-
-    box-shadow:
-        0 10px 30px
-        rgb(0 0 0 / 24%);
-
-    transform-origin: center;
-    animation:
-        sound-preset-modal-open
-        120ms
-        ease-out;
+:root {
+  --mokton-editor-width:
+    var(--mokton-sequence-width);
 }
 
-@keyframes sound-preset-modal-open {
-    from {
-        opacity: 0;
-        transform:
-            scale(0.96)
-            translateY(4px);
-    }
-
-    to {
-        opacity: 1;
-        transform:
-            scale(1)
-            translateY(0);
-    }
+/* EDIT label toolbar was removed from the HTML. */
+.editor-section {
+  padding-top: 8px !important;
 }
 
-.sound-preset-header {
-    grid-template-columns:
-        56px
-        56px
-        minmax(0, 1fr)
-        30px;
+/* Shared horizontal field: Sound keys, Sound params and LFO rows. */
+.mokton-editor-compact {
+  display: block !important;
+
+  width:
+    var(--mokton-editor-width) !important;
+
+  margin:
+    0 auto !important;
 }
 
-.sound-preset-icon-button,
-.sound-preset-close {
-    width: 30px;
-    font-size: 16px;
+.mokton-compact-sounds {
+  display: grid !important;
+  gap: 6px !important;
+
+  width: 100% !important;
 }
 
-.sound-preset-body {
-    grid-template-columns: minmax(0, 1fr);
+/* 1 2 3 4 a b c d = same width as SEQUENCE. */
+.mokton-sound-bank {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(8, 20px) !important;
+
+  column-gap: 12px !important;
+
+  width:
+    var(--mokton-editor-width) !important;
+
+  margin:
+    0 auto !important;
 }
 
-.sound-preset-categories {
-    padding:
-        7px
-        4px;
-}
+.mokton-sound-button-compact {
+  width: 20px !important;
+  min-width: 20px !important;
+  min-height: 28px !important;
 
-.sound-preset-category {
-    padding:
-        6px
-        3px;
-
-    font-size:
-        var(--font-label);
-}
-
-.sound-preset-list {
-    padding:
-        4px
-        6px
-        14px;
-}
-
-.sound-preset-category-heading {
-    padding:
-        8px
-        5px
-        3px;
-}
-
-.sound-preset-item {
-    min-height: 30px;
-
-    padding:
-        5px
-        6px;
-
-    font-size:
-        var(--font-small);
-}
-
-.sound-preset-now {
-    top: -4px;
+  padding: 0 !important;
 }
 
 /*
- * iPhoneなど高さの小さい画面でも、
- * 上下へ張り付かず小型モーダルを維持する。
+ * One selected Sound row only:
+ * sound name at left, one M/S pair at right.
+ * Layer-level M/S is intentionally not surfaced in the UI.
  */
-@media (max-height: 520px) {
-    .sound-preset-overlay {
-        padding:
-            12px
-            20px;
-    }
+.mokton-selected-ms.mokton-selected-sound-info {
+  display: flex !important;
 
-    .sound-preset-modal {
-        height:
-            calc(100dvh - 48px);
+  align-items: center !important;
+  justify-content:
+    space-between !important;
 
-        min-height: 220px;
-    }
+  width: 100% !important;
+  min-height: 24px !important;
+
+  padding: 0 !important;
 }
 
-/* プリセット名をカテゴリ名と同じサイズにする */
-.sound-preset-item {
-    font-size: var(--font-label);
+.mokton-selected-sound-name {
+  display: block !important;
+
+  min-width: 0;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--text);
 }
 
-/* サウンド名だけ開始位置を少し右へ寄せる */
-.sound-preset-item:not(.sound-preset-now) {
-    padding-left: 14px;
+.mokton-selected-sound-info
+.mokton-ms-controls {
+  display: inline-flex !important;
+
+  gap: 12px !important;
 }
 
-.sound-preset-icon-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 5px;
+.mokton-selected-sound-info
+.mokton-mini-button {
+  min-width: 20px !important;
+  min-height: 20px !important;
+
+  padding: 0 !important;
 }
 
-.sound-preset-icon-button svg {
-    display: block;
-    width: 16px;
-    height: 16px;
+/* First editor row = Sound parameters only. */
+.mokton-editor-compact
+> .mokton-sound-parameter-values {
+  display: flex !important;
+
+  flex-flow: row nowrap !important;
+
+  align-items: stretch !important;
+
+  width:
+    var(--mokton-editor-width) !important;
+
+  margin:
+    5px auto 0 !important;
+
+  gap: 0 !important;
 }
 
-/* =========================
-   Sound preset save mode
-========================= */
-
-.sound-preset-save-modes
-input[type="radio"] {
-    width: 12px;
-    height: 12px;
-
-    margin: 0;
-    padding: 0;
-
-    appearance: none;
-    -webkit-appearance: none;
-
-    border: 1px solid var(--text);
-    border-radius: 50%;
-
-    background: transparent;
-
-    flex: 0 0 12px;
-}
-
-.sound-preset-save-modes
-input[type="radio"]:checked {
-    background:
-        radial-gradient(
-            circle,
-            var(--text) 0 3px,
-            transparent 3.5px
-        );
-}
-
-.sound-preset-save-modes
-input[type="radio"]:focus-visible {
-    outline: 1px solid var(--selected-bg);
-    outline-offset: 2px;
-}
-
-.sound-preset-save-modes {
-    display: grid;
-    gap: 2px;
-    padding: 10px 0;
-}
-
-.sound-preset-save-mode {
-    width: 100%;
-    min-height: 26px;
-
-    padding: 4px 8px;
-
-    border: 0;
-    background: var(--cell);
-
-    color: var(--text);
-    -webkit-text-fill-color:
-        var(--text);
-
-    font-size:
-        var(--font-small);
-
-    text-align: left;
-}
-
-.sound-preset-save-mode.selected {
-    background:
-        var(--selected-bg);
-
-    color:
-        var(--selected-text);
-
-    -webkit-text-fill-color:
-        var(--selected-text);
-}
-
-/* =========================
-   Sound preset custom scrollbar
-========================= */
-
-.sound-preset-list {
-    position: relative;
-
-    /* 標準スクロールバーを隠す */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-}
-
-.sound-preset-list::-webkit-scrollbar {
-    display: none;
-}
-
-.sound-preset-scrollbar {
-    position: absolute;
-
-    top: 6px;
-    right: 4px;
-    bottom: 6px;
-
-    width: 8px;
-
-    pointer-events: none;
-}
-
-.sound-preset-scroll-track {
-    position: absolute;
-
-    top: 4px;
-    bottom: 4px;
-    left: 50%;
-
-    width: 1px;
-
-    background: var(--text);
-
-    transform: translateX(-50%);
-}
-
-.sound-preset-scroll-thumb {
-    position: absolute;
-
-    left: 0;
-    top: 0;
-
-    width: 8px;
-    height: 8px;
-
-    border-radius: 50%;
-
-    background: var(--text);
-
-    pointer-events: auto;
-    touch-action: none;
-
-    cursor: grab;
-}
-
-.sound-preset-scroll-thumb:active {
-    cursor: grabbing;
-}
-
-.sound-preset-list-wrap {
-    position: relative;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-}
-
-.sound-preset-list {
-    width: 100%;
-    height: 100%;
-    padding-right: 16px;
-}
-/* =========================
-   Sound preset name input
-========================= */
-
-.sound-preset-name-input {
-    -webkit-user-select: text;
-    user-select: text;
-    -webkit-touch-callout: default;
-    touch-action: auto;
-    caret-color: var(--text);
-}
-
-
-/* =========================
-   Sound preset name editor
-   contenteditable fallback
-========================= */
-
-.sound-preset-name-input[contenteditable="true"] {
-    min-width: 0;
-    height: 32px;
-    padding: 4px 6px;
-
-    border: 1px solid var(--line);
-    background: var(--cell);
-
-    overflow: hidden;
-    white-space: nowrap;
-
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-
-    -webkit-user-select: text;
-    user-select: text;
-    -webkit-touch-callout: default;
-
-    touch-action: auto;
-    caret-color: var(--text);
-
-    outline: none;
-}
-
-.sound-preset-name-input[contenteditable="true"]:empty::before {
-    content: attr(data-placeholder);
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-    pointer-events: none;
-}
-
-.sound-preset-name-input[contenteditable="true"]:focus {
-    outline: 1px solid var(--text);
-    outline-offset: -1px;
-}
-
-
-/* =========================
-   Step / offset range selection
-========================= */
-
-.app-header.editing-actions-visible
-> :not(.edit-action-toolbar) {
-    display: none;
-}
-
-.app-header.editing-actions-visible {
-    display: block;
-    padding-bottom: 8px;
-}
-
-.edit-action-toolbar {
-    display: grid;
-    grid-template-columns:
-        repeat(5, minmax(0, 1fr));
-    align-items: center;
-    gap: 5px;
-    width: 100%;
-    min-height: 28px;
-}
-
-.edit-action-toolbar button {
-    height: 28px;
-    padding: 0 2px;
-    border: 0;
-    background: transparent;
-    font-size: var(--font-label);
-    text-transform: lowercase;
-}
-
-.edit-action-toolbar button:disabled {
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-    opacity: .45;
-}
-
-/* シーケンサ側は大きなStep枠全体を選択表示 */
-.sequence-step.range-selected {
-    border: 1px solid var(--text);
-    background: transparent;
-}
-
-/* エディット側の単一Track選択とOffset一括選択 */
-.offset-step.range-selected {
-    border: 1px solid var(--text);
-    background: transparent;
-    color: inherit;
-    -webkit-text-fill-color: currentColor;
-}
-
-.step-edit-mode .sequence-step,
-.offset-selection-mode .offset-step {
-    touch-action: none;
-}
-
-/* =========================
-   Step edit scope v2
-========================= */
-.step-edit-scope-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-
-    margin-left: 12px;
-
-    flex: 0 0 auto;
-}
-
-.step-edit-scope-button {
-    min-width: 40px;
-    height: 24px;
-    padding: 0 5px;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.step-edit-scope-button.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-/* Step編集中はエディターを表示したまま操作だけ止める。 */
-/*
- * Step編集モード中は
- * エディター内の通常編集を停止する。
- */
-.step-edit-mode .editor-section * {
-    pointer-events: none;
+.mokton-sound-parameter-values
+> .mokton-direct-value-pad {
+  flex:
+    1 1 0 !important;
+
+  min-width: 0 !important;
+  min-height: 34px !important;
+
+  padding:
+    3px 0 2px !important;
 }
 
 /*
- * Track切替だけは操作可能にする。
+ * LFO1 = row 2
+ * LFO2 = row 3
+ * layout:
+ * lfo# | tgt | wav | dep | rat | syn
  */
-.step-edit-mode .editor-section .track-cycle,
-.step-edit-mode .editor-section .track-cycle * {
-    pointer-events: auto;
+.mokton-lfo-row {
+  display: grid !important;
+
+  grid-template-columns:
+    38px
+    repeat(5, minmax(0, 1fr)) !important;
+
+  align-items: stretch !important;
+
+  width:
+    var(--mokton-editor-width) !important;
+
+  min-height: 34px !important;
+
+  margin:
+    4px auto 0 !important;
+
+  gap: 0 !important;
 }
 
-/* allは選択した大枠、trackは対象レーンだけを選択表示する。 */
-.track-lane.range-selected {
-    box-shadow:
-        inset 0 0 0 1px
-        var(--text);
+.mokton-lfo-row-title {
+  display: grid;
+  place-items: center start;
+
+  min-width: 0;
 }
 
-/* all選択時はONレーン全体を強調し、対象が全Trackだと示す。 */
-.step-edit-mode.step-edit-scope-all
-.track-lane.on {
-    background: var(--selected-bg);
+.mokton-lfo-cell,
+.mokton-lfo-inline-value {
+  display: grid !important;
+
+  grid-template-rows:
+    auto auto !important;
+
+  align-content: center !important;
+  justify-items: center !important;
+
+  min-width: 0 !important;
+  min-height: 34px !important;
+
+  gap: 4px !important;
+
+  margin: 0 !important;
+  padding: 3px 0 2px !important;
+
+  border: 0 !important;
+
+  background: transparent !important;
+  color: var(--text) !important;
 }
 
-/* track選択時は従来どおり現在Trackだけを常時強調する。 */
-.step-edit-mode.step-edit-scope-track
-.track-lane.on.selected-track {
-    background: var(--selected-bg);
+.mokton-lfo-cell-label,
+.mokton-lfo-inline-value
+.mokton-direct-value-label {
+  color: var(--muted) !important;
+}
+
+.mokton-lfo-cell-value,
+.mokton-lfo-inline-value
+.mokton-direct-value-number {
+  color: var(--text) !important;
+  font-weight: 400 !important;
+}
+
+.mokton-lfo-wave-cycle,
+.mokton-lfo-sync-button {
+  cursor: pointer;
+}
+
+.mokton-lfo-target-cell {
+  cursor: default;
+}
+
+/* Old expandable LFO structures are no longer part of the editor. */
+.mokton-lfo-access,
+.mokton-lfo-calculator,
+.mokton-lfo-wave-pads,
+.mokton-lfo-parameter-pads {
+  display: none !important;
+}
+
+
+/* =========================================================
+   Stage 23: fixed 244px application layout field
+   ========================================================= */
+
+:root {
+  --mokton-layout-width:
+    var(--mokton-sequence-width);
 }
 
 /*
- * Offset選択モード中は、
- * 未選択セルにも薄い枠を表示する。
+ * Keep the outer app centered on the device,
+ * but every actual interface block uses the same fixed field.
  */
-.offset-selection-mode
-.offset-step {
-    border: 1px solid
-        color-mix(
-            in srgb,
-            var(--text) 20%,
-            transparent
-        );
+.app-header,
+.sequence-section,
+.pattern-section,
+.editor-section {
+  width:
+    var(--mokton-layout-width) !important;
+
+  max-width:
+    var(--mokton-layout-width) !important;
+
+  margin-left:
+    auto !important;
+
+  margin-right:
+    auto !important;
+}
+
+/* Header rows follow the same compact horizontal span. */
+.app-header .brand-row,
+.app-header .transport-row {
+  width: 100% !important;
+}
+
+/* Compress header spacing to fit the fixed field cleanly. */
+.app-header .header-actions,
+.app-header .transport-left,
+.app-header .transport-right {
+  gap: 5px !important;
+}
+
+.app-header .transport-row {
+  gap: 5px !important;
+}
+
+.app-header .play-button {
+  width: 24px !important;
+  height: 26px !important;
+}
+
+.app-header .master-control input[type="range"] {
+  width: 36px !important;
+}
+
+.app-header #bpm-input {
+  width: 28px !important;
 }
 
 /*
- * 実際の選択セルは濃い枠。
+ * PATTERN / song screen uses the exact same width as SEQUENCE.
+ * 8 columns remain, only their horizontal span is now fixed.
  */
-.offset-selection-mode
-.offset-step.range-selected {
-    border: 1px solid var(--text);
+#pattern-grid,
+.pattern-grid {
+  width:
+    var(--mokton-layout-width) !important;
+
+  max-width:
+    var(--mokton-layout-width) !important;
+
+  margin-left:
+    auto !important;
+
+  margin-right:
+    auto !important;
+
+  grid-template-columns:
+    repeat(8, minmax(0, 1fr)) !important;
+
+  gap:
+    5px !important;
 }
 
-/* =========================
-   Section queued blink
-========================= */
+/* Upper toolbars are constrained to the same field too. */
+.sequence-section .section-toolbar,
+.pattern-section .section-toolbar {
+  width: 100% !important;
+}
 
-@keyframes section-queued-blink {
-    0%,
-    100% {
-        background: var(--selected-bg);
-        color: var(--selected-text);
-        -webkit-text-fill-color: var(--selected-text);
-    }
+/* SEQUENCE itself stays authoritative at 244px. */
+#sequence-grid,
+#sequence-grid .mokton-sequence {
+  max-width:
+    var(--mokton-layout-width) !important;
+}
 
-    50% {
-        background: var(--cell);
-        color: var(--text);
-        -webkit-text-fill-color: var(--text);
-    }
+/* Shared editor already uses the same width; lock its container as well. */
+.editor-section #editor,
+.mokton-editor-compact {
+  width:
+    var(--mokton-layout-width) !important;
+
+  max-width:
+    var(--mokton-layout-width) !important;
+
+  margin-left:
+    auto !important;
+
+  margin-right:
+    auto !important;
+}
+
+
+/* =========================================================
+   Stage 24: fixed upper-screen height / vertical compression
+   ========================================================= */
+
+:root {
+  --mokton-upper-height: 180px;
+  --mokton-upper-row-height: 27px;
+  --mokton-upper-row-gap: 3px;
 }
 
 /*
- * 再生予約中Section。
- * 再生中(active)と重なっていても
- * queued表示を優先して点滅させる。
+ * PATTERN and SEQUENCE occupy the same fixed-height upper slot.
+ * EDIT therefore starts at exactly the same vertical position
+ * when switching screens.
  */
-.section-selector-cell.queued,
-.section-selector-cell.active.queued {
-    animation:
-        section-queued-blink
-        500ms
-        steps(1, end)
-        infinite;
+.pattern-section,
+.sequence-section {
+  height:
+    var(--mokton-upper-height) !important;
+
+  min-height:
+    var(--mokton-upper-height) !important;
+
+  max-height:
+    var(--mokton-upper-height) !important;
+
+  padding:
+    6px 0 !important;
+
+  overflow:
+    visible !important;
 }
 
-/* =========================
-   Section selected
-========================= */
+/* Compact both upper toolbars. */
+.pattern-section .section-toolbar,
+.sequence-section .section-toolbar {
+  min-height:
+    20px !important;
 
-/*
- * 停止中に次回再生対象として
- * 選択されているSection。
- */
-.section-selector-cell.selected {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color:
-        var(--selected-text);
+  height:
+    20px !important;
+
+  margin-bottom:
+    4px !important;
 }
 
-/* =========================
-   Pattern / Fill queued blink
-========================= */
-
-@keyframes source-queued-blink {
-    0%,
-    100% {
-        background: var(--selected-bg);
-        color: var(--selected-text);
-        -webkit-text-fill-color:
-            var(--selected-text);
-    }
-
-    50% {
-        background: var(--cell);
-        color: var(--text);
-        -webkit-text-fill-color:
-            var(--text);
-    }
-}
-
-/*
- * Pattern / Fill再生予約。
- * activeと重なっていても
- * queued点滅を優先する。
- */
-.pattern-cell.queued,
-.pattern-cell.active.queued,
-.pattern-cell.fill-cell.queued,
-.pattern-cell.fill-cell.active.queued {
-    animation:
-        source-queued-blink
-        500ms
-        steps(1, end)
-        infinite;
-}
-
-/* =========================
-   Section current source
-========================= */
-
-/*
- * Section再生中の現在位置。
- */
-.section-pattern-cell.playing {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color:
-        var(--selected-text);
-}
-
-
-/* =========================
-   Empty Pattern / Fill / Section
-========================= */
-
-/*
- * 空Pattern / Fill。
- *
- * 再生選択・予約・編集対象になった場合は
- * 通常の強調表示を優先する。
- */
-.pattern-cell.source-empty:not(.active):not(.queued):not(.source-edit-target) {
-    color: var(--muted);
-    -webkit-text-fill-color:
-        var(--muted);
-}
-
-/*
- * 空Section。
- *
- * 選択中・再生中・予約中は
- * 通常の強調表示を優先する。
- */
-.section-selector-cell.section-empty:not(.selected):not(.active):not(.queued) {
-    color: var(--muted);
-    -webkit-text-fill-color:
-        var(--muted);
-}
-/* =========================
-   Song editor - stage 1
-========================= */
-.song-mode-button {
-    width: 28px;
-    height: 24px;
-    margin-left: auto;
-    padding: 3px;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.song-mode-button svg {
-    width: 18px;
-    height: 18px;
-    display: block;
-}
-
-.song-mode-button.active {
-    color: var(--selected-bg);
-}
-
-.pattern-section-header .song-mode-button {
-    flex: 0 0 28px;
-}
-
-.song-master-mix {
-    min-height: 203px;
-    padding-top: 0;
-}
-
-.song-master-mix-title,
-.song-parts-title {
-    font-size: var(--font-label);
-    color: var(--muted);
-    text-transform: lowercase;
-}
-
-.song-master-mix-placeholder {
-    height: 177px;
-    margin-top: 4px;
-    border: 1px solid color-mix(in srgb, var(--line) 38%, transparent);
-    background: color-mix(in srgb, var(--cell) 38%, transparent);
-}
-
-.song-parts {
-    width: 100%;
-    height: 100%;
-}
-
-.song-parts-toolbar {
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.song-page-button {
-    width: 24px;
-    height: 22px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    font: inherit;
-    font-size: 20px;
-    line-height: 1;
-}
-
-.song-grid {
-    display: grid;
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    grid-template-rows: repeat(4, 25px);
-    column-gap: 5px;
-    row-gap: 3px;
-    margin-top: 4px;
-}
-
-.song-part-cell {
-    width: 100%;
-    height: 25px;
-    min-width: 0;
-    padding: 0;
-    border: 0;
-    background: var(--cell);
-    color: var(--muted);
-    font-size: var(--font-main);
-    line-height: 1;
-    touch-action: none;
-}
-
-.song-part-cell.filled {
-    background: var(--chip-bg);
-    color: var(--chip-text);
-}
-
-.song-part-cell:focus-visible {
-    outline: 1px solid var(--text);
-    outline-offset: -1px;
-}
-
-.song-grid.dragging {
-    background: color-mix(in srgb, var(--selected-bg) 8%, transparent);
-}
-
-.song-grid.delete-ready {
-    opacity: 0.7;
-}
-
-.song-drag-origin {
-    opacity: 0.22;
-}
-
-.song-drag-ghost {
-    position: fixed;
-    z-index: 9999;
-    margin: 0;
-    pointer-events: none;
-    touch-action: none;
-    opacity: 0.72;
-    transform: scale(1.05);
-    box-shadow: 0 2px 8px rgb(0 0 0 / 24%);
-}
-
-.song-drag-ghost.delete-ready {
-    opacity: 0.35;
-    transform: scale(0.92);
-}
-
-/* =========================
-   Empty Song Part
-========================= */
-
-/* 空Song枠の「・」 */
-.song-part-cell:not(.filled) {
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-}
-
-/* Pattern / Fillが入っているSong枠 */
-.song-part-cell.filled {
-    background: var(--chip-bg);
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-}
-
-/* =========================
-   Song playback state
-========================= */
-
-/*
- * Pattern / Fill / Sectionと同じく、
- * 停止中の再生対象と再生中の現在位置は
- * 強調色1つで表示する。
- */
-.song-part-cell.filled.selected,
-.song-part-cell.filled.playing {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color:
-        var(--selected-text);
-}
-
-/*
- * Song再生予約も既存Sourceと同じ点滅仕様。
- * queuedはselected / playingより優先する。
- */
-.song-part-cell.filled.queued,
-.song-part-cell.filled.selected.queued,
-.song-part-cell.filled.playing.queued {
-    animation:
-        source-queued-blink
-        500ms
-        steps(1, end)
-        infinite;
-}
-
-.offset-step.base-value-step,
-.offset-step.note-on.base-value-step {
-    color: color-mix(
-        in srgb,
-        var(--text) 40%,
-        transparent
+/* PATTERN: 4 rows, compressed vertically. */
+#pattern-grid,
+.pattern-grid {
+  grid-template-rows:
+    repeat(
+      4,
+      var(--mokton-upper-row-height)
     ) !important;
 
-    -webkit-text-fill-color:
-        color-mix(
-            in srgb,
-            var(--text) 40%,
-            transparent
-        ) !important;
-}
-/* =========================
-   Song Master Mix
-========================= */
-.song-master-mix {
-    height: 209px;
-    min-height: 209px;
-    padding-top: 0;
-    overflow: hidden;
+  row-gap:
+    var(--mokton-upper-row-gap) !important;
+
+  column-gap:
+    5px !important;
 }
 
-.song-master-mix-title {
-    height: 22px;
-    display: flex;
-    align-items: center;
-    font-size: var(--font-label);
-    line-height: 1;
-    color: var(--muted);
-    text-transform: lowercase;
+.mokton-pattern-button {
+  min-height:
+    var(--mokton-upper-row-height) !important;
+
+  height:
+    var(--mokton-upper-row-height) !important;
 }
 
-.master-mix-content {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 78px;
+/* SEQUENCE: same 4-row vertical rhythm as PATTERN. */
+#sequence-grid .mokton-sequence {
+  grid-template-rows:
+    repeat(
+      4,
+      var(--mokton-upper-row-height)
+    ) !important;
 
-    gap: 5px;
-
-    height: 177px;
-    margin-top: 4px;
+  row-gap:
+    var(--mokton-upper-row-gap) !important;
 }
 
-.master-eq {
-    display: grid;
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 5px;
-    height: 177px;
+#sequence-grid .mokton-step {
+  height:
+    var(--mokton-upper-row-height) !important;
+
+  min-height:
+    var(--mokton-upper-row-height) !important;
+
+  padding-bottom:
+    3px !important;
 }
 
-.master-eq-band {
-    min-width: 0;
-    height: 177px;
-    display: grid;
-    grid-template-rows: 153px 20px;
-    row-gap: 4px;
-    align-items: center;
-    justify-items: stretch;
+/* Reposition ON markers for the tighter STEP height. */
+#sequence-grid .mokton-step-melodic-mark {
+  bottom:
+    9px !important;
 }
 
-.master-eq-gain,
-.master-mix-fader {
-    position: relative;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: var(--cell);
-    overflow: hidden;
-    touch-action: none;
+#sequence-grid .mokton-step-rhythm-mark {
+  bottom:
+    0 !important;
 }
 
-.master-eq-gain {
-    height: 153px;
-    --eq-position: .5;
-    --eq-meter: 0;
+/* STEP parameter lane also becomes vertically compact. */
+.mokton-step-parameter-strip {
+  min-height:
+    20px !important;
+
+  margin-top:
+    6px !important;
 }
 
-.master-eq-gain::before,
-.master-mix-fader::before {
-    content: "";
-    position: absolute;
-    top: 8px;
-    bottom: 8px;
-    left: 50%;
-    width: 1px;
-    background: color-mix(in srgb, var(--text) 45%, transparent);
-    transform: translateX(-50%);
-    z-index: 2;
+.mokton-step-parameter-button {
+  min-height:
+    20px !important;
+
+  height:
+    20px !important;
 }
 
-.master-eq-gain::after {
-    content: "";
-    position: absolute;
-    left: 5px;
-    right: 5px;
-    top: 50%;
-    height: 1px;
-    background: color-mix(in srgb, var(--text) 24%, transparent);
-    z-index: 2;
-}
 
-.master-eq-meter,
-.master-mix-fader-meter {
-    position: absolute;
-    z-index: 1;
-    left: 4px;
-    right: 4px;
-    bottom: 4px;
-    background: color-mix(in srgb, var(--selected-bg) 42%, transparent);
-    pointer-events: none;
-}
-
-.master-eq-meter {
-    height: calc(var(--eq-meter) * 141px);
-}
-
-.master-eq-marker,
-.master-mix-fader-marker {
-    position: absolute;
-    z-index: 3;
-    left: 50%;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: var(--text);
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-}
-
-.master-eq-marker {
-    top: calc(100% - 8px - (var(--eq-position) * 137px));
-}
-
-.master-mix-fader-marker {
-    top: calc(100% - 8px - (var(--mix-position) * 115px));
-}
+/* =========================================================
+   Stage 25: compact header / centered application
+   ========================================================= */
 
 /*
- * 全パラメータの「名称」と「設定値」は
- * バーの外・下側へ統一する。
- * バー内に数字を置かないので、リアルタイムメーターと重ならない。
+ * Center the whole application block in the viewport.
+ * The app itself no longer forces a full-screen minimum height.
  */
-.master-mix-control-footer {
-    width: 100%;
-    height: 20px;
-    min-width: 0;
-
-    display: flex;
-    flex-direction: column;
-
-    align-items: center;
-    justify-content: center;
-
-    gap: 1px;
-
-    overflow: visible;
-    white-space: nowrap;
-
-    font-size: var(--font-label);
-    line-height: 1;
-
-    color: var(--muted);
-    -webkit-text-fill-color:
-        var(--muted);
-
-    text-transform: lowercase;
+html,
+body {
+  min-height: 100%;
 }
 
-.master-eq-label,
-.master-mix-fader-label {
-    min-width: 0;
-    font: inherit;
-    color: inherit;
-    -webkit-text-fill-color: inherit;
+body {
+  min-height: 100dvh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    max(8px, env(safe-area-inset-top))
+    0
+    max(8px, env(safe-area-inset-bottom));
+
+  overflow-x: hidden;
 }
 
-.master-eq-value,
-.master-mix-fader-value {
-    min-width: 0;
-    font-size: 10px;
-    line-height: 1;
-    color: color-mix(in srgb, var(--text) 58%, transparent);
-    -webkit-text-fill-color: color-mix(in srgb, var(--text) 58%, transparent);
+.app {
+  min-height: 0 !important;
+  height: auto !important;
+
+  margin: 0 auto !important;
+
+  padding:
+    0 12px !important;
 }
 
-.master-mix-side {
-    position: relative;
-
-    min-width: 0;
-    height: 177px;
-
-    display: grid;
-    grid-template-columns:
-        repeat(2, minmax(0, 1fr));
-
-    gap: 4px;
-}
-
-.master-mix-fader-control {
-    min-width: 0;
-    height: 177px;
-
-    display: grid;
-    grid-template-rows:
-        153px
-        20px;
-
-    row-gap: 4px;
-
-    text-align: center;
-}
-
-.master-mix-fader {
-    height: 153px;
-
-    --mix-position: .5;
-    --mix-meter: 0;
-}
-
-/*
- * EQと同じ153px高へ拡張したので、
- * マーカー移動幅もEQ相当に変更。
- */
-.master-mix-fader-marker {
-    top:
-        calc(
-            100% -
-            8px -
-            (var(--mix-position) * 137px)
-        );
-}
-
-.master-mix-side
-.master-mix-fader::before {
-    top: 8px;
-    bottom: 8px;
-}
-
-.master-mix-side
-.master-mix-fader-meter {
-    height:
-        calc(
-            var(--mix-meter) * 141px
-        );
-}
-
-.master-volume-fader-control
-.master-mix-fader-meter,
-.master-limit-fader-control
-.master-mix-fader-meter {
-    display: block;
-}
-
-/*
- * Reverbはバーの高さを奪わず、
- * 右上へ重ねて配置する。
- */
-.song-master-mix-title {
-    height: 28px;
-    min-height: 28px;
-
-    display: flex;
-    align-items: center;
-
-    font-size: var(--font-label);
-    line-height: 1;
-
-    color: var(--muted);
-
-    text-transform: lowercase;
-}
-
-.master-reverb-control {
-    display: inline-flex;
-    align-items: center;
-
-    gap: 1px;
-
-    height: 22px;
-
-    margin-left: auto;
-}
-
-.master-reverb-control span {
-    font-size: var(--font-label);
-    line-height: 1;
-
-    color: var(--muted);
-    -webkit-text-fill-color:
-        var(--muted);
-}
-
-.master-reverb-value {
-    min-width: 28px;
-    height: 20px;
-    padding: 0 2px;
-    border: 0;
-    background: transparent;
-    font-size: var(--font-small);
-    line-height: 1;
-    touch-action: none;
-}
-
-.master-eq-meter-canvas {
-    position: absolute;
-    z-index: 1;
-
-    inset: 0;
-
-    width: 100%;
-    height: 100%;
-
-    display: block;
-
-    pointer-events: none;
-}
-
-/* =========================
-   Independent view toggles
-========================= */
-
-.view-toggle-button {
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    margin: 0;
-    padding: 4px;
-
-    border: 0;
-    background: transparent;
-
-    color: var(--text);
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    flex: 0 0 28px;
-}
-
-.view-toggle-button svg {
-    display: block;
-    width: 18px;
-    height: 18px;
-}
-
-.editor-view-toggle {
-    margin-left: auto;
-}
-
-.song-parts-toolbar-controls {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.song-master-mix-title
-.view-toggle-button {
-    margin-left: 4px;
-}
-
-/*
- * hiddenを最優先。
- * 旧song-edit-modeクラスには依存しない。
- */
-.sequence-toolbar[hidden],
-.sequence-grid[hidden],
-#editor[hidden],
-.song-master-mix[hidden],
-.song-parts[hidden] {
-    display: none !important;
-}
-
-/* =========================
-   Sequence / Mixer
-   fixed area height
-========================= */
-
-.sequence-section {
-    height: 209px;
-    min-height: 209px;
-    overflow: hidden;
-}
-
-/* =========================
-   Area title icons
-========================= */
-
-.area-title-icon {
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    color: var(--text);
-
-    flex: 0 0 28px;
-}
-
-.area-title-icon svg {
-    display: block;
-    width: 18px;
-    height: 18px;
-}
-/* =========================
-   NOTE / Chord
-========================= */
-.child-tabs .chord-inactive,
-.base-value.chord-inactive {
-    color: var(--muted);
-    opacity: 0.48;
-}
-
-.note-edit-toolbar .child-tabs {
-    flex: 1 1 auto;
-    min-width: 0;
-    gap: 2px;
-}
-.note-edit-toolbar .child-tabs button {
-    flex: 1 1 0;
-    min-width: 0;
-    padding: 0 2px;
-}
-.note-edit-toolbar .value-control {
-    flex: 0 0 auto;
-}
-
-
-/* =========================
-   SUB pattern figure
-========================= */
-.sub-pattern-figure {
-    --sub-divisions: 2;
-
-    width: 28px;
-    height: 10px;
-
-    display: grid;
-    grid-template-columns: repeat(var(--sub-divisions), minmax(0, 1fr));
-    gap: 2px;
-
-    align-items: stretch;
-    flex: 0 0 28px;
-}
-
-.sub-pattern-cell {
-    display: block;
-    min-width: 0;
-    height: 100%;
-
-    background: currentColor;
-    opacity: 0.16;
-}
-
-.sub-pattern-cell.active {
-    opacity: 0.9;
-}
-
-.sub-pattern-off {
-    width: 28px;
-    display: inline-block;
-    text-align: center;
-    color: var(--muted);
-}
-
-.parameter-value .sub-pattern-figure,
-.base-value .sub-pattern-figure,
-.offset-step .sub-pattern-figure {
-    margin: 0 auto;
-}
-
-.base-value:has(.sub-pattern-figure) {
-    min-width: 32px;
-    height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.offset-step:has(.sub-pattern-figure) {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* =========================
-   iPad scale up
-========================= */
-
-@media (min-width: 700px) and (pointer: coarse) {
-    .app {
-        transform: scale(1.65);
-        transform-origin: center center;
-    }
-}
-
-.articulation-edit-toolbar
-.child-tabs button {
-    min-width: 36px;
-    padding: 0 6px;
-}
-
-.articulation-edit-toolbar
-.child-tabs button svg {
-    display: block;
-    width: 18px;
-    height: 18px;
-}
-
-/* =========================
-   Sound preset modal
-   layout adjustment
-========================= */
-
-/* 背景は完全透明。
-   overlay自体は枠外タップ判定用に残す。 */
-.sound-preset-overlay {
-    background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-
-/* 文字拡大に合わせて少しだけ広げる */
-.sound-preset-modal {
-    width: min(
-        280px,
-        calc(100vw - 40px)
-    );
-
-    height: min(
-        340px,
-        calc(100dvh - 80px)
-    );
-}
-
-/* factory / user */
-.sound-preset-tab {
-    font-size: var(--font-small);
-}
-
-/* 左側カテゴリ */
-.sound-preset-category {
-    font-size: var(--font-small);
-}
-
-/* カテゴリ見出し */
-.sound-preset-category-heading {
-    font-size: var(--font-small);
-}
-
-/* プリセット名 */
-.sound-preset-item {
-    font-size: var(--font-small);
-}
-
-/* =========================
-   Project header / manager
-========================= */
+/* Header row 1 / row 2: reduce vertical distance. */
 .app-header {
-    display: block;
-    padding-bottom: 8px;
+  padding-bottom: 2px !important;
 }
 
-.project-title-row {
-    width: 100%;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    margin-bottom: 2px;
+.app-header .brand-row {
+  min-height: 20px !important;
+  height: 20px !important;
 }
 
-.current-project-name {
-    width: 100%;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-    font-size: var(--font-small);
-    line-height: 1;
-}
-
-.header-controls {
-    display: grid;
-    align-items: center;
-    grid-template-columns:
-        28px
-        28px
-        28px
-        28px
-        28px
-        28px
-        minmax(80px, 1fr)
-        58px;
-    gap: 3px;
-    width: 100%;
-    min-width: 0;
-}
-
-.project-button {
-    width: 28px;
-    height: 28px;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 0;
-    background: transparent;
-}
-
-.project-button svg {
-    display: block;
-    width: 19px;
-    height: 19px;
-}
-
-.project-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 10020;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    background: transparent;
-}
-
-.project-modal {
-    position: relative;
-    width: min(280px, calc(100vw - 40px));
-    height: min(340px, calc(100dvh - 80px));
-    min-height: 260px;
-    display: grid;
-    grid-template-rows: 34px 60px minmax(0, 1fr);
-    border: 1px solid var(--line);
-    background: var(--bg);
-    color: var(--text);
-    box-shadow: 0 10px 30px rgb(0 0 0 / 24%);
-}
-
-.project-modal-header {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 30px;
-    align-items: center;
-    border-bottom: 1px solid var(--line);
-}
-
-.project-modal-title {
-    min-width: 0;
-    padding: 0 9px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--font-small);
-}
-
-.project-modal-close {
-    width: 30px;
-    height: 100%;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    font-size: 16px;
-}
-
-.project-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 2px;
-    padding: 3px 4px;
-    border-bottom: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
-}
-
-.project-actions button {
-    min-width: 0;
-    height: 27px;
-    padding: 0 2px;
-    border: 0;
-    background: transparent;
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-}
-
-.project-list {
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 6px 8px 14px;
-    scrollbar-width: none;
-}
-.project-list::-webkit-scrollbar { display: none; }
-
-.project-list-item {
-    width: 100%;
-    min-height: 32px;
-    padding: 6px 8px;
-    border: 0;
-    background: transparent;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    text-align: left;
-    font-size: var(--font-small);
-}
-
-.project-list-item.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.project-dialog-shade {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 18px;
-    background: color-mix(in srgb, var(--bg) 86%, transparent);
-}
-
-.project-dialog {
-    width: min(220px, 100%);
-    padding: 10px;
-    border: 1px solid var(--line);
-    background: var(--bg);
-}
-
-.project-dialog-title {
-    margin-bottom: 8px;
-    overflow-wrap: anywhere;
-    font-size: var(--font-label);
-}
-
-.project-name-input {
-    width: 100%;
-    height: 28px;
-    padding: 3px 5px;
-    border: 1px solid var(--line);
-    background: var(--cell);
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-    -webkit-user-select: text;
-    user-select: text;
-    touch-action: auto;
-    caret-color: var(--text);
-    font-size: var(--font-label);
-}
-
-.project-dialog-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 5px;
-    margin-top: 8px;
-}
-
-.project-dialog-buttons button {
-    min-width: 52px;
-    height: 26px;
-    padding: 0 6px;
-    border: 0;
-    background: var(--cell);
-    font-size: var(--font-label);
-}
-
-.project-dialog-buttons button[type="submit"],
-.project-dialog-buttons button.danger {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-/* Step edit中は従来どおりヘッダー全体を編集操作へ置換する。 */
-.app-header.editing-actions-visible .project-title-row,
-.app-header.editing-actions-visible .header-controls {
-    display: none;
-}
-
-.app-header.editing-actions-visible {
-    display: block;
-}
-
-
-/* =========================
-   export
-========================= */
-.export-button {
-    width: 28px;
-    height: 28px;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 0;
-    background: transparent;
-}
-
-.export-button svg {
-    width: 18px;
-    height: 18px;
-    display: block;
-}
-
-.export-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 10020;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-
-.export-modal {
-    width: 280px;
-    max-width: calc(100vw - 20px);
-    padding: 10px;
-    border: 1px solid var(--line);
-    background: var(--bg);
-    color: var(--text);
-}
-
-.export-modal-header,
-.export-row,
-.export-progress-row {
-    display: flex;
-    align-items: center;
-}
-
-.export-modal-header {
-    justify-content: space-between;
-    min-height: 28px;
-    margin-bottom: 8px;
-}
-
-.export-modal-title {
-    font-size: var(--font-main);
-}
-
-.export-close,
-.export-action,
-.export-choice,
-.export-step-button {
-    border: 0;
-    background: var(--cell);
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-    font-size: var(--font-label);
-}
-
-.export-close {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-}
-
-.export-row {
-    min-height: 34px;
-    gap: 5px;
-    border-top: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
-}
-
-.export-label {
-    width: 72px;
-    flex: 0 0 72px;
-    font-size: var(--font-small);
-}
-
-.export-choice-group {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
-    flex: 1;
-}
-
-.export-choice-group.single-choice {
-    grid-template-columns: 1fr;
-}
-
-.export-choice {
-    height: 26px;
-    padding: 0 8px;
-}
-
-.export-choice.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.export-value-control {
-    display: grid;
-    grid-template-columns: 26px 52px 26px;
-    gap: 4px;
-    align-items: center;
-}
-
-.export-step-button {
-    width: 26px;
-    height: 26px;
-    padding: 0;
-}
-
-.export-value {
-    width: 52px;
-    height: 26px;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-    text-align: center;
-    font-size: var(--font-small);
-}
-
-
-.export-row.disabled {
-    opacity: 0.38;
-}
-
-.export-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 6px;
-    margin-top: 10px;
-}
-
-.export-action {
-    height: 30px;
-    padding: 0 8px;
-}
-
-.export-action.primary {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.export-progress-wrap {
-    margin-top: 8px;
-}
-
-.export-progress-row {
-    justify-content: space-between;
-    gap: 8px;
-    font-size: var(--font-small);
-}
-
-.export-progress-track {
-    width: 100%;
-    height: 4px;
-    margin-top: 5px;
-    background: var(--cell);
-    overflow: hidden;
-}
-
-.export-progress-bar {
-    height: 100%;
-    width: 0%;
-    background: var(--selected-bg);
-}
-
-.export-status {
-    min-height: 18px;
-    margin-top: 5px;
-    color: var(--muted);
-    font-size: var(--font-label);
-}
+.app-header .transport-row {
+  min-height: 24px !important;
+  height: 24px !important;
 
-/* =========================
-   Page switch icon alignment
-========================= */
-
-.sequence-page-button,
-.pattern-page-button,
-.song-page-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    padding: 0;
-
-    line-height: 1;
-}
-
-/* =========================
-   Sound preset small text
-========================= */
-
-.sound-preset-tab,
-.sound-preset-category,
-.sound-preset-category-heading,
-.sound-preset-item,
-.sound-preset-save-dialog,
-.sound-preset-save-mode,
-.sound-preset-save-fields,
-.sound-preset-dialog-buttons button {
-    font-size: var(--font-label);
-}
-
-.edit-parameter-label {
-    display: flex;
-    align-items: center;
-
-    height: 28px;
-    padding: 0;
-
-    font-size: var(--font-label);
-    line-height: 1;
-    text-transform: lowercase;
-
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-
-    flex: 0 0 auto;
-}
-
-/* =========================
-   Offset editor header
-   unified layout / typography
-========================= */
-
-/*
- * iPhone Safariなどの自動文字拡大を抑え、
- * 端末差で編集ヘッダーの文字サイズが変わらないようにする。
- */
-html {
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-}
-
-/*
- * 編集画面ヘッダーの共通規格。
- * Track → 親アイコン → パラ名称/子パラ → erase → base
- * の座標基準を全編集画面で揃える。
- */
-.edit-toolbar {
-    width: 100%;
-    height: 28px;
-    min-height: 28px;
-
-    display: flex;
-    align-items: center;
-
-    gap: 4px;
-}
-
-/* Track切替領域を固定幅にして、その右側の開始位置を全画面で統一。 */
-.edit-toolbar > .track-cycle {
-    width: 40px;
-    min-width: 40px;
-    height: 28px;
-
-    flex: 0 0 40px;
-
-    margin: 0;
-    padding: 4px;
-
-    justify-content: flex-start;
-
-    margin-right: 4px;
-}
-
-/* 親パラアイコンの領域を全画面24pxで統一。 */
-.edit-toolbar > .edit-icon,
-.edit-toolbar > .osc-parent-icon,
-.edit-toolbar > .envelope-parent-icon,
-.edit-toolbar > .filter-parent-icon,
-.edit-toolbar > .lfo-parent-icon {
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    flex: 0 0 28px;
-
-    margin: 0;
-    padding: 0;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* 親アイコン自体の見た目サイズも統一。 */
-.edit-toolbar > .edit-icon svg,
-.edit-toolbar > .osc-parent-icon svg,
-.edit-toolbar > .envelope-parent-icon svg,
-.edit-toolbar > .filter-parent-icon svg,
-.edit-toolbar > .lfo-parent-icon svg {
-    display: block;
-    width: 18px;
-    height: 18px;
-}
-
-/*
- * パラ名称 / 子パラの開始位置を親アイコン直後に統一。
- * 旧専用画面の中央寄せを打ち消す。
- */
-.edit-toolbar .child-tabs,
-.edit-toolbar .osc-source-controls,
-.edit-toolbar .envelope-child-controls,
-.edit-toolbar .filter-child-controls,
-.edit-toolbar .lfo-parameter-controls {
-    min-width: 0;
-    flex: 1 1 auto;
-
-    margin: 0;
-
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-}
-
-/* 静的名称も子パラと同じ基準線に置く。 */
-.edit-toolbar .edit-parameter-label,
-.edit-toolbar .osc-gain-label {
-    height: 24px;
-
-    margin: 0;
-    padding: 0;
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-
-    flex: 0 0 auto;
-}
-
-/*
- * 子パラボタンの高さを統一。
- * 横幅は各機能に必要な幅を維持する。
- */
-.edit-toolbar .osc-child-button,
-.edit-toolbar .envelope-child-button,
-.edit-toolbar .filter-child-button,
-.edit-toolbar .child-tabs button,
-.edit-toolbar .lfo-parameter-button,
-.edit-toolbar .lfo-switch-button,
-.edit-toolbar .lfo-sync-button {
-    height: 24px;
-}
-
-/*
- * 専用編集画面に残っている個別gapを最終的に共通値へ上書き。
- */
-.osc-edit-toolbar,
-.envelope-edit-toolbar,
-.filter-edit-toolbar,
-.lfo-edit-toolbar,
-.note-edit-toolbar,
-.articulation-edit-toolbar {
-    gap: 4px;
-}
-
-/*
- * OSC / ENV / FILTER専用の子パラ領域に残っている
- * 中央配置・独自gapを整理。
- */
-.osc-source-controls,
-.envelope-child-controls,
-.filter-child-controls {
-    justify-content: flex-start;
-    gap: 4px;
-}
-
-/* LFOも左側の開始基準を合わせる。 */
-.lfo-parameter-controls {
-    justify-content: flex-start;
-    gap: 4px;
-}
-
-/* =========================
-   Offset editor typography
-   hard unify
-========================= */
-
-.edit-toolbar .edit-parameter-label,
-.edit-toolbar .osc-gain-label,
-.edit-toolbar .osc-child-button,
-.edit-toolbar .envelope-child-button,
-.edit-toolbar .filter-child-button,
-.edit-toolbar .child-tabs button,
-.edit-toolbar .lfo-parameter-button,
-.edit-toolbar .lfo-switch-button,
-.edit-toolbar .lfo-sync-button {
-    font-family: inherit !important;
-    font-size: var(--font-label) !important;
-    font-weight: 400 !important;
-    font-style: normal !important;
-    font-stretch: normal !important;
-    letter-spacing: 0 !important;
-    line-height: 1 !important;
-
-    text-transform: lowercase;
-
-    -webkit-font-smoothing: antialiased;
-}
-
-.edit-toolbar .osc-child-button,
-.edit-toolbar .envelope-child-button,
-.edit-toolbar .filter-child-button,
-.edit-toolbar .child-tabs button,
-.edit-toolbar .lfo-parameter-button,
-.edit-toolbar .lfo-switch-button,
-.edit-toolbar .lfo-sync-button {
-    appearance: none;
-    -webkit-appearance: none;
-
-    font: inherit;
-    font-size: var(--font-label) !important;
-    font-weight: 400 !important;
-    line-height: 1 !important;
-}
-
-/* =========================
-   Erase layout final
-========================= */
-
-/* ---------- parameter select ---------- */
-
-.editor-header-primary .erase-button {
-    position: static;
-
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    flex: 0 0 28px;
-
-    margin-left: auto;
-    margin-right: 28px;
-
-    padding: 5px;
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.editor-header-primary .editor-view-toggle {
-    margin-left: auto;
-
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    flex: 0 0 28px;
-}
-
-
-/* ---------- offset edit ---------- */
-
-.edit-toolbar .erase-button,
-.edit-toolbar .lfo-erase-button {
-    position: static;
-
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-
-    flex: 0 0 28px;
-
-    margin-left: auto;
-    margin-right: 0;
-
-    padding: 5px;
-
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* ---------- erase icon ---------- */
-
-.editor-header-primary .erase-button svg,
-.edit-toolbar .erase-button svg,
-.edit-toolbar .lfo-erase-button svg {
-    display: block;
-
-    width: 18px !important;
-    height: 18px !important;
-
-    flex: 0 0 18px;
-
-    transform: none !important;
-}
-
-/* =========================
-   Offset editor base layout
-   final unified
-========================= */
-
-/*
- * 各パラ固有の value-control / button 幅指定を最終段で統一する。
- * OSC / attack / filter / LFO / note / FM / pan / prob など、
- * Offset編集画面の base 表示を同じ座標・同じ内訳にする。
- */
-.edit-toolbar .value-control,
-.edit-toolbar .lfo-base-value-control {
-    width: 60px !important;
-    min-width: 60px !important;
-    flex: 0 0 60px !important;
-    margin-left: 0 !important;
-    padding: 0 !important;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start !important;
-    white-space: nowrap;
-}
-
-.lfo-base-value {
-    height: 28px;
-}
-
-/*
- * base + 値 のまとまりを60px内で共通化。
- */
-.edit-toolbar .value-control .compact-value,
-.edit-toolbar .lfo-base-value-control {
-    width: 60px !important;
-    min-width: 60px !important;
-
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-start !important;
-
-    gap: 0 !important;
+  margin-top: 1px !important;
 }
-
-/*
- * "base" の開始位置・占有幅を統一。
- */
-.edit-toolbar .compact-value-label {
-    width: 24px;
-    min-width: 24px;
-    flex: 0 0 24px;
 
-    margin: 0 !important;
-    padding: 0;
-
-    text-align: left;
-    transform: translateX(1px);
+/* Keep controls vertically compact inside the second row. */
+.app-header .text-button,
+.app-header .play-button {
+  min-height: 20px !important;
 }
-
-/*
- * パラ値側も固定領域へ統一。
- * 個別指定されていた28px / 38px等をここで上書きする。
- */
-.edit-toolbar .value-control .base-value,
-.edit-toolbar .value-control button,
-.edit-toolbar .lfo-base-value-control .lfo-base-value {
-    width: 33px !important;
-    min-width: 33px !important;
-    max-width: 33px;
-
-    flex: 0 0 33px;
 
-    margin: 0 !important;
-    padding: 0 !important;
-
-    text-align: center;
-
-    font-size: var(--font-main) !important;
-    line-height: 1;
+.app-header .play-button {
+  height: 22px !important;
 }
-
-/* =========================
-   Sequence / Mixer compact
-========================= */
-
-/* ---------- sequence ---------- */
 
+/* Header -> PATTERN / SEQUENCE gap: tighten substantially. */
+.pattern-section,
 .sequence-section {
-    height: 162px;
-    min-height: 162px;
+  padding-top: 2px !important;
 }
 
-.sequence-grid {
-    height: 130px;
-    min-height: 130px;
-}
-
-
-/* ---------- mixer ---------- */
-
-.song-master-mix {
-    height: 162px;
-    min-height: 162px;
-}
-
-.master-mix-content,
-.master-eq,
-.master-mix-side,
-.master-mix-fader-control {
-    height: 130px;
-}
-
-
-/* EQ / volume / limiter bar */
-
-.master-eq-band,
-.master-mix-fader-control {
-    grid-template-rows:
-        106px
-        20px;
-
-    row-gap: 4px;
-}
-
-.master-eq-band {
-    height: 130px;
-}
-
-.master-eq-gain,
-.master-mix-fader {
-    height: 106px;
-}
-
-
-/* ---------- EQ marker / meter ---------- */
-
-.master-eq-marker {
-    top:
-        calc(
-            100% -
-            8px -
-            (var(--eq-position) * 90px)
-        );
-}
-
-.master-eq-meter {
-    height:
-        calc(
-            var(--eq-meter) * 94px
-        );
-}
-
-
-/* ---------- volume / limiter marker / meter ---------- */
-
-.master-mix-fader-marker {
-    top:
-        calc(
-            100% -
-            8px -
-            (var(--mix-position) * 90px)
-        );
-}
-
-.master-mix-side
-.master-mix-fader-meter {
-    height:
-        calc(
-            var(--mix-meter) * 94px
-        );
-}
-/* =========================
-   Parameter selector / sequence v4
-   ========================= */
-
-/* 2段目: 左4枠=親パラ、右4枠=選択中パラの子パラ。 */
-.parameter-menu .parameter-child-slot {
-    height: 36px;
-    min-height: 36px;
-    padding: 2px 1px;
-    border: 0;
-    background: var(--cell);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    overflow: hidden;
-}
-
-.parameter-menu .parameter-child-slot:nth-last-child(4) { grid-column: 5; grid-row: 2; }
-.parameter-menu .parameter-child-slot:nth-last-child(3) { grid-column: 6; grid-row: 2; }
-.parameter-menu .parameter-child-slot:nth-last-child(2) { grid-column: 7; grid-row: 2; }
-.parameter-menu .parameter-child-slot:nth-last-child(1) { grid-column: 8; grid-row: 2; }
-
-.parameter-child-slot.active {
-    background: var(--selected-bg);
-    color: var(--selected-text);
-    -webkit-text-fill-color: var(--selected-text);
-}
-
-.parameter-child-slot.empty {
-    background: transparent;
-    pointer-events: none;
-}
-
-.parameter-child-label {
-    max-width: 100%;
-    overflow: hidden;
-    white-space: nowrap;
-
-    font-size: var(--font-label);
-    line-height: 1.2;
-
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-
-    text-transform: lowercase;
-    padding-bottom: 1px;
-}
-
-.parameter-child-slot.active .parameter-child-label {
-    color: currentColor;
-    -webkit-text-fill-color: currentColor;
-    opacity: 1;
-}
-
-.parameter-child-value {
-    max-width: 100%;
-    overflow: hidden;
-    white-space: nowrap;
-
-    font-size: calc(var(--font-small) - 2px);
-    line-height: 1;
-
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-}
-
-/* Mute / Soloで実際には鳴らないON stepは塗り潰さず輪郭だけ残す。 */
-.track-lane.on.non-sounding {
-    background: transparent !important;
-    box-shadow: inset 0 0 0 1px var(--on);
-}
-
-.track-lane.on.selected-track.non-sounding {
-    background: transparent !important;
-    box-shadow: inset 0 0 0 1px var(--selected-bg);
-}
-
-/* note/chordは2行をひとまとまりとしてstep中央へ置く。 */
-.offset-step.note-chord-step {
-    display: grid;
-    grid-template-rows: auto auto;
-    align-content: center;
-    justify-items: center;
-    row-gap: 1px;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-
-.note-chord-note {
-    font-size: var(--font-small);
-    line-height: 1;
-}
-
-.note-chord-chord {
-    max-width: 100%;
-    overflow: hidden;
-    white-space: nowrap;
-    font-size: var(--font-label);
-    line-height: 1;
-}
-
-/* 選択中の子パラを通常文字色、もう片方をmuted表示にする。 */
-.note-chord-step.note-selected .note-chord-note,
-.note-chord-step.chord-selected .note-chord-chord {
-    color: var(--text) !important;
-    -webkit-text-fill-color: var(--text) !important;
-}
-
-.note-chord-step.note-selected .note-chord-chord,
-.note-chord-step.chord-selected .note-chord-note {
-    color: var(--muted) !important;
-    -webkit-text-fill-color: var(--muted) !important;
-}
-
-/* 発音していないstepでは、発音依存パラの値を見せない。 */
-.offset-step.inactive-step-value {
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-}
-
-/* =========================
-   LFO base-only step display
-========================= */
-.lfo-base-only-step:disabled {
-    opacity: 1;
-    color: var(--muted);
-    -webkit-text-fill-color: var(--muted);
-    cursor: default;
-}
-
-
-/* =========================
-   Inline LFO visual values
-   ========================= */
-.parameter-child-value:has(.lfo-child-visual) {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: visible;
-}
-
-.lfo-child-visual {
-    width: 24px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: currentColor;
-    -webkit-text-fill-color: currentColor;
-}
-
-.lfo-target-visual svg {
-    width: 16px;
-    height: 16px;
-    display: block;
-}
-
-.lfo-wave-visual {
-    width: 20px;
-    height: 12px;
-}
-
-.lfo-wave-visual svg {
-    width: 20px;
-    height: 12px;
-    display: block;
-}
-
-.lfo-parent-icon {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.lfo-parent-number {
-    position: absolute;
-    right: -5px;
-    bottom: -2px;
-
-    font-size: 8px;
-    line-height: 1;
-    font-weight: 500;
-
-    color: currentColor;
-    pointer-events: none;
-}
-
-.export-modal > :not(.export-modal-header) {
-    font-size: var(--font-label);
-}
-
-.export-modal > :not(.export-modal-header) * {
-    font-size: var(--font-label);
-}
-
-.export-value {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* Avoid any inherited top margin from the upper-screen toolbar. */
+.pattern-section .section-toolbar,
+.sequence-section .section-toolbar {
+  margin-top: 0 !important;
 }
 
 /*
- * SUB親アイコン下のBase表示領域を固定。
- * off文字 / pattern図形で高さを変えない。
+ * If the viewport is shorter than the fixed app block,
+ * fall back to top alignment so content never becomes inaccessible.
  */
-.parameter-button .parameter-value:has(
-    .sub-pattern-off,
-    .sub-pattern-figure
-) {
-    height: 14px;
-    min-height: 14px;
+@media (max-height: 560px) {
+  body {
+    align-items: flex-start;
+  }
+}
 
-    display: flex;
-    align-items: center;
-    justify-content: center;
 
-    line-height: 14px;
+/* =========================================================
+   Stage 26: one text color / numeric-only master volume
+   ========================================================= */
+
+:root {
+  --mokton-unified-text:
+    var(--text);
+}
+
+/* All visible text and glyphs use one color.
+   Accent remains available only for non-text state indicators/fills. */
+.app,
+.app button,
+.app input,
+.app output,
+.app label,
+.app span,
+.app strong,
+.app div,
+.app select,
+.app option {
+  color:
+    var(--mokton-unified-text) !important;
+}
+
+/* Keep selected filled buttons readable against the accent fill. */
+.mokton-pattern-button.selected,
+.mokton-sound-button-compact.active {
+  color:
+    var(--bg) !important;
+}
+
+/* Master volume: preserve the range element for existing JS/audio binding,
+   but remove the bar from the visual layout. */
+.master-control {
+  position: relative;
+}
+
+.master-control #master-volume {
+  position: absolute !important;
+
+  width: 1px !important;
+  height: 1px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  opacity: 0 !important;
+  pointer-events: none !important;
+
+  overflow: hidden !important;
+}
+
+.master-control #master-volume-value {
+  display: inline-block !important;
+
+  min-width: 20px;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+   Stage 27: selection = monochrome inversion only
+   Accent is reserved for PLAY ON / playback position.
+   ========================================================= */
+
+/* Generic selectable controls: selected/active = foreground/background inversion. */
+.mokton-pattern-button.selected,
+.mokton-pattern-button.range-selected,
+.mokton-pattern-button.loop-range-active,
+.mokton-sound-button-compact.active,
+.mokton-step-parameter-button.active,
+.mokton-mini-button.active,
+.mokton-parameter-pad.active,
+.mokton-lfo-wave-button.active,
+.mokton-editor-mode.active,
+.pattern-loop-button.active,
+.pattern-loop-button[aria-pressed="true"] {
+  background:
+    var(--text) !important;
+
+  color:
+    var(--bg) !important;
+
+  box-shadow:
+    none !important;
+
+  outline:
+    0 !important;
+}
+
+/* Do not use accent text for selected controls. */
+.mokton-step-parameter-button.active,
+.mokton-lfo-wave-button.active,
+.mokton-parameter-pad.active,
+.mokton-mini-button.active {
+  color:
+    var(--bg) !important;
+}
+
+/*
+ * Remove accent-colored selection markers left by earlier stages.
+ * Playback underline remains accent and is intentionally NOT overridden.
+ */
+.mokton-pattern-button.selected,
+.mokton-sound-button-compact.active {
+  border-color:
+    transparent !important;
+}
+
+/* Clipboard/selection utility marks are monochrome too. */
+#sequence-grid .mokton-step.clipboard-source::before,
+#sequence-grid .mokton-step.selected::before {
+  background:
+    var(--text) !important;
+}
+
+/* The only green text/state allowed is the active PLAY control. */
+#play-button.playing,
+#play-button.active,
+#play-button[aria-pressed="true"] {
+  color:
+    var(--accent) !important;
+
+  background:
+    transparent !important;
+}
+
+/* Playback position underline remains green. */
+#sequence-grid .mokton-step.playing::after {
+  background:
+    var(--accent) !important;
+
+  opacity:
+    1 !important;
+}
+
+
+/* =========================================================
+   Stage 28: strict monochrome selection + no muted UI text
+   Accent is reserved for PLAY ON / playback position only.
+   ========================================================= */
+
+/*
+ * Eliminate the old "muted text" tone throughout the current UI.
+ * Any selector still using --muted now resolves to the normal text color.
+ */
+.app {
+  --muted: var(--text);
+}
+
+/* Explicitly cover generated labels/pseudo text that had older !important rules. */
+.section-label,
+.control-label,
+.mokton-current-source::before,
+.current-source-display::before,
+.mokton-direct-value-label,
+.mokton-lfo-cell-label,
+.mokton-lfo-inline-value .mokton-direct-value-label,
+.mokton-param-label,
+.mokton-selected-info,
+.mokton-stage-note,
+.mokton-pattern-repeat {
+  color: var(--text) !important;
+  opacity: 1 !important;
+}
+
+/* Sequence idle underline = normal text color, full opacity. */
+#sequence-grid .mokton-step::after {
+  background: var(--text) !important;
+  opacity: 1 !important;
+}
+
+/*
+ * PATTERN selection: invert the entire cell, including child spans.
+ * Child color rules from older stages must not override inheritance.
+ */
+.mokton-pattern-button.selected,
+.mokton-pattern-button.range-selected,
+.mokton-pattern-button.loop-range-active {
+  background: var(--text) !important;
+  color: var(--bg) !important;
+}
+
+.mokton-pattern-button.selected *,
+.mokton-pattern-button.range-selected *,
+.mokton-pattern-button.loop-range-active * {
+  color: var(--bg) !important;
+}
+
+/*
+ * SOUND selection uses class "selected" (not "active").
+ * White background / black character.
+ */
+.mokton-sound-button-compact.selected,
+.mokton-sound-button.selected {
+  background: var(--text) !important;
+  color: var(--bg) !important;
+  border-color: transparent !important;
+}
+
+.mokton-sound-button-compact.selected *,
+.mokton-sound-button.selected * {
+  color: var(--bg) !important;
+}
+
+/* Current selectable editor controls also use the same inversion language. */
+.mokton-step-parameter-button.active,
+.mokton-mini-button.active,
+.mokton-choice-button.selected,
+.mokton-editor-mode.selected,
+.mokton-editor-mode.active,
+.pattern-loop-button.active,
+.pattern-loop-button[aria-pressed="true"] {
+  background: var(--text) !important;
+  color: var(--bg) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+.mokton-step-parameter-button.active *,
+.mokton-mini-button.active *,
+.mokton-choice-button.selected *,
+.mokton-editor-mode.selected *,
+.mokton-editor-mode.active *,
+.pattern-loop-button.active *,
+.pattern-loop-button[aria-pressed="true"] * {
+  color: var(--bg) !important;
+}
+
+/*
+ * Undo / redo:
+ * - no history target => button disappears completely
+ * - available => normal white text
+ * Existing app logic already drives the disabled state.
+ */
+#undo-button:disabled,
+#redo-button:disabled {
+  display: none !important;
+}
+
+#undo-button:not(:disabled),
+#redo-button:not(:disabled) {
+  display: inline-block !important;
+  color: var(--text) !important;
+  opacity: 1 !important;
+}
+
+/*
+ * Remove accent from non-playback transient selection indicators too.
+ * The accent color remains untouched only for PLAY and playback position.
+ */
+.mokton-pattern-button.dragging {
+  border-color: var(--text) !important;
+}
+
+.mokton-pattern-button.drop-target {
+  outline-color: var(--text) !important;
+}
+
+/* PLAY ON = accent. */
+#play-button.playing,
+#play-button.active,
+#play-button[aria-pressed="true"] {
+  color: var(--accent) !important;
+  background: transparent !important;
+}
+
+/* Playback position = accent. */
+#sequence-grid .mokton-step.playing::after {
+  background: var(--accent) !important;
+  opacity: 1 !important;
+}
+
+
+/* =========================================================
+   Stage 29: align STEP marks to the underline geometry
+   ========================================================= */
+
+:root {
+  --mokton-step-bar-width: 20px;
+  --mokton-rhythm-mark-size: 10px;
+}
+
+/*
+ * The visual layer now uses the exact same horizontal origin and width
+ * as the STEP underline.
+ */
+#sequence-grid .mokton-step-visual {
+  left: 0 !important;
+  right: 0 !important;
+}
+
+/* MELODIC: exact same width and left edge as underline. */
+#sequence-grid .mokton-step-melodic-mark {
+  left: 0 !important;
+  width: var(--mokton-step-bar-width) !important;
+}
+
+/*
+ * RHYTHM:
+ * left edge = underline left edge
+ * right edge = underline center
+ * 20px underline -> 10px square.
+ */
+#sequence-grid .mokton-step-rhythm-mark {
+  left: 0 !important;
+  width: var(--mokton-rhythm-mark-size) !important;
+  height: var(--mokton-rhythm-mark-size) !important;
+}
+
+/*
+ * Lock normal and playing underline to identical geometry.
+ * Older .playing::after rules used left/right:2px and made the
+ * green playback underline look slightly shorter.
+ */
+#sequence-grid .mokton-step::after,
+#sequence-grid .mokton-step.playing::after {
+  left: 0 !important;
+  right: auto !important;
+  width: var(--mokton-step-bar-width) !important;
+}
+
+/* Playing changes color only; never geometry. */
+#sequence-grid .mokton-step.playing::after {
+  height: 1px !important;
+  background: var(--accent) !important;
+  opacity: 1 !important;
 }

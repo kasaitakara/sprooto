@@ -1,113 +1,133 @@
 import {
   STEP_COUNT,
-  PAGE_STEP_COUNT,
-  CHORD_NAMES,
-  tracks,
-  parameters,
+  MELODIC_SOUND_IDS,
+  RHYTHM_SOUND_IDS,
+  soundBank,
+  patterns,
   state,
-  sections,
-  song,
-  addSourceToSong,
-  moveSongSource,
-  removeSongSource,
-  selectSongPart,
-  queueSongPart,
-  selectedTrack as mainSelectedTrack,
-  parameterById,
-  clamp,
-  getMaxTrackLength,
-  syncPatternLength,
-  saveHistory,
-  saveTrackHistory,
-  saveMasterMixHistory,
-  saveHistorySnapshot,
-  createSnapshot,
+  selectSound,
   selectPattern,
-  selectFill,
   queuePattern,
-  queueFill,
-  addCurrentSourceToSection,
-  addSourceToSection,
-    moveSectionSource,
-  removeSectionSource,
-  copySource,
-  pasteSource,
-  hasSourceClipboard,
-  clearSourceClipboard,
-  sourceHasData,
-  sectionHasData,
-  currentSourceLabel,
-  selectSection,
-  queueSection,
-  selectEditingSection,
-  currentEditingSection,
-  currentEditingSectionLabel,
-  clearSelectedTrackSequence,
-  clearSelectedParameterOffsets,
-  hasEditClipboard,
-  editClipboardType,
-  clearEditClipboard,
+  currentPattern,
+  currentStep,
+  placeSelectedSound,
+  clearStepLayer,
+  saveHistory,
+  shiftSequence,
+  randomizeSequence,
+  undo,
+  performance,
   copyStepToEditClipboard,
-  copyStepRangeToEditClipboard,
-  editClipboardOriginIsStep,
   pasteStepFromEditClipboard,
-  discardLatestUndoEntry,
+  hasEditClipboard,
+  editClipboardOriginIsStep,
+  clearEditClipboard,
+  song,
+  setPatternRepeat,
+  togglePatternLoop,
+  setPatternLoopRange,
+  clearPatternLoopRange,
+  patternLoopRange,
+  sourceHasData
 } from "./sequencer.js";
 
-
 import {
-  getFactoryPresets,
-  getUserPresets,
-  saveUserPreset,
-  deleteUserPreset,
-  captureTrackSound,
-  applyTrackSound,
-  soundsEqual
-} from "./sound-preset-manager.js";
-
-
-import {
-  getProjectList,
-  getCurrentProjectMeta,
-  createNewProject,
-  openProject,
-  saveCurrentProject,
-  hasUnsavedChanges,
-  saveAsProject,
-  renameProject,
-  deleteProject
+  getCurrentProjectMeta
 } from "./storage.js";
 
-import {
-  setMasterMixEqBand,
-  setMasterMixVolume,
-  setMasterLimiterThreshold,
-  setMasterReverb,
-  getMasterMixMeterData
-} from "./audio.js";
 
-import {
-  renderExportWav
-} from "./export.js";
-
-
+/* =========================================================
+ * mokton UI - Stage 1
+ *
+ * 旧sprootoの4 Track / Fill / Section / Offset UIを切り離し、
+ * まず以下だけを画面へ出す。
+ *
+ * - Project固定 Sound Bank 1-4 / a-d
+ * - 32 STEP / 1 Timeline
+ * - STEP内 MELODIC + RHYTHM overlay
+ * - Pattern 01-32
+ *
+ * - Sound Parameter editor
+ * - STEP Performance editor
+ *
+ * Chord data model / final interaction designは次段階。
+ * ========================================================= */
 
 const currentProjectName =
-  document.getElementById("current-project-name");
-const projectButton =
-  document.getElementById("project-button");
-const exportButton =
-  document.getElementById("export-button");
+  document.getElementById(
+    "current-project-name"
+  );
 
-const sequenceGrid = document.getElementById("sequence-grid");
-const sequencePageButton = document.getElementById("sequence-page-button");
-const patternLengthInput = document.getElementById("pattern-length-input");
-const currentSourceDisplay = document.getElementById("current-source-display");
-const editor = document.getElementById("editor");
-const songMasterMix = document.getElementById("song-master-mix");
-const songParts = document.getElementById("song-parts");
-const songGrid = document.getElementById("song-grid");
-const songPageButton = document.getElementById("song-page-button");
+const currentSourceDisplay =
+  document.getElementById(
+    "current-source-display"
+  );
+
+const sequenceGrid =
+  document.getElementById(
+    "sequence-grid"
+  );
+
+const editor =
+  document.getElementById(
+    "editor"
+  );
+
+const patternGrid =
+  document.getElementById(
+    "pattern-grid"
+  );
+
+const patternLoopButton =
+  document.getElementById(
+    "pattern-loop-button"
+  );
+
+const sequenceBackButton =
+  document.getElementById(
+    "sequence-back-button"
+  );
+
+const sequencePageButton =
+  document.getElementById(
+    "sequence-page-button"
+  );
+
+const patternLengthInput =
+  document.getElementById(
+    "pattern-length-input"
+  );
+
+const patternPageButton =
+  document.getElementById(
+    "pattern-page-button"
+  );
+
+const sectionList =
+  document.getElementById(
+    "section-list"
+  );
+
+const songParts =
+  document.getElementById(
+    "song-parts"
+  );
+
+const songGrid =
+  document.getElementById(
+    "song-grid"
+  );
+
+const songMasterMix =
+  document.getElementById(
+    "song-master-mix"
+  );
+
+const songPageButton =
+  document.getElementById(
+    "song-page-button"
+  );
+
 const sequenceViewToggle =
   document.getElementById(
     "sequence-view-toggle"
@@ -118,3833 +138,2793 @@ const songEditorViewToggle =
     "song-editor-view-toggle"
   );
 
-  let mixerView = false;
-let songEditorView = false;
 
-function editorTrack() {
-  return mainSelectedTrack();
-}
+let selectedStepIndex =
+  null;
 
-const patternGrid =
-  document.getElementById(
-    "pattern-grid"
-  );
+let appView =
+  "pattern";
 
-const sectionList =
-  document.getElementById(
-    "section-list"
-  );
-
-const patternPageButton =
-  document.getElementById(
-    "pattern-page-button"
-  );
-
-const themeButton =
-  document.getElementById(
-    "theme-button"
-  );
-  function clearThemeButtonActive() {
-  themeButton?.classList.remove(
-    "active"
-  );
-}
-
-themeButton?.addEventListener(
-  "pointerdown",
-  () => {
-    themeButton.classList.add(
-      "active"
-    );
-  }
-);
-
-themeButton?.addEventListener(
-  "pointerup",
-  clearThemeButtonActive
-);
-
-themeButton?.addEventListener(
-  "pointercancel",
-  clearThemeButtonActive
-);
-
-themeButton?.addEventListener(
-  "pointerleave",
-  clearThemeButtonActive
-);
-
-const PATTERN_SLOT_COUNT = 24;
-const FILL_SLOT_COUNT = 8;
-const SECTION_SLOT_COUNT = 16;
-
-const PATTERNS_PER_PAGE = 12;
-const FILLS_PER_PAGE = 4;
-const SECTIONS_PER_PAGE = 8;
-
-const LFO_BPM_RATE_NAMES = [
-  "1/64",
-  "1/32t",
-  "1/32",
-  "1/16t",
-  "1/16",
-  "1/8t",
-  "1/8",
-  "1/4t",
-  "1/4",
-  "1/2t",
-  "1/2",
-  "1/1",
-  "2/1",
-  "4/1"
-];
-
-const LFO_BPM_BEAT_RATIOS = [
-  1 / 16,
-  1 / 12,
-  1 / 8,
-  1 / 6,
-  1 / 4,
-  1 / 3,
-  1 / 2,
-  2 / 3,
-  1,
-  4 / 3,
-  2,
-  4,
-  8,
-  16
-];
-
-function currentBpm() {
-  return Math.max(
-    1,
-    Number(
-      document.getElementById(
-        "bpm-input"
-      )?.value
-    ) || 120
-  );
-}
-
-function freeRateToBpmIndex(
-  freeRate
+function setAppView(
+  view
 ) {
-  const freeHz =
-    clamp(
-      Number(freeRate) || 1,
-      1,
-      100
-    ) / 10;
+  appView =
+    view === "sequence"
+      ? "sequence"
+      : "pattern";
 
-  const bpm =
-    currentBpm();
-
-  let nearestIndex = 0;
-  let nearestDifference =
-    Infinity;
-
-  LFO_BPM_BEAT_RATIOS.forEach(
-    (beatRatio, index) => {
-      const syncedHz =
-        1 /
-        (
-          (60 / bpm) *
-          beatRatio
-        );
-
-      const difference =
-        Math.abs(
-          syncedHz - freeHz
-        );
-
-      if (
-        difference <
-        nearestDifference
-      ) {
-        nearestDifference =
-          difference;
-
-        nearestIndex =
-          index;
-      }
-    }
-  );
-
-  return nearestIndex;
-}
-
-function bpmIndexToFreeRate(
-  bpmIndex
-) {
-  const index =
-    clamp(
-      Math.round(
-        Number(bpmIndex) || 0
-      ),
-      0,
-      LFO_BPM_BEAT_RATIOS.length - 1
-    );
-
-  const syncedHz =
-    1 /
-    (
-      (60 / currentBpm()) *
-      LFO_BPM_BEAT_RATIOS[index]
-    );
-
-  return clamp(
-    Math.round(
-      syncedHz * 10
-    ),
-    1,
-    100
-  );
-}
-
-let patternManagerPage = 0;
-
-function getParameterIcon(iconId) {
-  const icons = {
-    note: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M9 18V6l9-2v12"></path>
-        <circle cx="6" cy="18" r="2"></circle>
-        <circle cx="15" cy="16" r="2"></circle>
-      </svg>
-    `,
-
-    track:  `
-    <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-    >
-        <rect
-            x="3"
-            y="5"
-            width="18"
-            height="14"
-            rx="1.5"
-        />
-
-        <circle
-            cx="8"
-            cy="12"
-            r="2"
-        />
-
-        <circle
-            cx="16"
-            cy="12"
-            r="2"
-        />
-
-        <path d="M10 12h4" />
-        <path d="M6 16h12" />
-    </svg>
-    `,
-
-    volume: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19"></polygon>
-        <path d="M15 9a5 5 0 0 1 0 6"></path>
-      </svg>
-    `,
-
-    sine: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M2 12C5 5 8 5 12 12s7 7 10 0"></path>
-      </svg>
-    `,
-
-    decay: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M4 19V5"></path>
-    <path d="M4 5H12"></path>
-    <path d="M12 5L20 19"></path>
-    <path d="M4 19H20"></path>
-
-    <!-- hold / decay boundary -->
-    <path
-  d="M12 2V19"
-  stroke-dasharray="2 2"
-  stroke-linecap="butt"
-></path>
-  </svg>
-`,
-
-    fm: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M2 9c3-6 5 6 8 0s5 6 8 0 4 0 4 0"></path>
-        <path d="M2 15c3-6 5 6 8 0s5 6 8 0 4 0 4 0"></path>
-      </svg>
-    `,
-
-    tone: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M3 5h18l-7 8v5l-4 2v-7z"></path>
-      </svg>
-    `,
-
-    pan: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M4 12h16"></path>
-        <path d="M8 8l-4 4 4 4"></path>
-        <path d="M16 8l4 4-4 4"></path>
-        <circle cx="12" cy="12" r="2"></circle>
-      </svg>
-    `,
-
-    erase: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M3 17l8.5-10.5a2 2 0 0 1 3-.2l3.2 3.2a2 2 0 0 1 .1 2.7L10 21H5z"></path>
-        <path d="M8.5 20.5l-4-4"></path>
-        <path d="M13 18h8"></path>
-      </svg>
-    `,
-
-    save: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M4 4h14l2 2v14H4z"></path>
-    <path d="M7 4v6h10V4"></path>
-    <rect x="7" y="14" width="10" height="6"></rect>
-  </svg>
-`,
-
-trash: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M4 7h16"></path>
-    <path d="M9 7V4h6v3"></path>
-    <path d="M6 7l1 13h10l1-13"></path>
-    <path d="M10 11v5"></path>
-    <path d="M14 11v5"></path>
-  </svg>
-`,
-    attack: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M4 19h16V5"></path>
-    <path d="M4 19L20 5"></path>
-  </svg>
-`,
-
-    lfo: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M2 12c2.5-7 5.5-7 8 0s5.5 7 8 0 4-4 4-4"></path>
-        <path d="M2 19h20"></path>
-      </svg>
-    `,
-
-    articulation: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M3 12h4"></path>
-    <path d="M7 12c2-7 4-7 6 0s4 7 8 0"></path>
-  </svg>
-`,
-
-    glide: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M3 12h4"></path>
-    <path d="M7 12c2-7 4-7 6 0s4 7 8 0"></path>
-  </svg>
-`,
-
-nudge: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M4 12h6"></path>
-    <path d="M6.5 9.5L4 12l2.5 2.5"></path>
-
-    <path d="M14 12h6"></path>
-    <path d="M17.5 9.5L20 12l-2.5 2.5"></path>
-
-    <path d="M12 6v12"></path>
-  </svg>
-`,
-
-strum: `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M4 17h5"></path>
-    <path d="M7 13h5"></path>
-    <path d="M10 9h5"></path>
-    <path d="M13 5h5"></path>
-  </svg>
-`,
-
-    sub: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M5 5v14"></path>
-        <path d="M10 5v14"></path>
-        <path d="M15 5v14"></path>
-        <path d="M20 5v14"></path>
-      </svg>
-    `,
-
-    probability: `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <rect x="4" y="4" width="16" height="16" rx="2"></rect>
-        <circle cx="8" cy="8" r="1"></circle>
-        <circle cx="16" cy="8" r="1"></circle>
-        <circle cx="12" cy="12" r="1"></circle>
-        <circle cx="8" cy="16" r="1"></circle>
-        <circle cx="16" cy="16" r="1"></circle>
-      </svg>
-    `
-  };
-
-  return icons[iconId] ?? "";
-}
-
-
-const noteParameter = {
-  id: "note",
-  label: "NOTE",
-  icon: "note",
-  children: [
-    { id: "note", label: "note", min: -60, max: 67, step: 1, offsetMode: "result" },
-    { id: "chord", label: "chrd", min: 0, max: CHORD_NAMES.length - 1, step: 1, offsetMode: "result" },
-    { id: "voices", label: "voic", min: 1, max: 4, step: 1, offsetMode: "result" },
-    { id: "inversion", label: "inv", min: 0, max: 3, step: 1, offsetMode: "result" },
-  ]
-};
-
-const oscParameter = {
-  id: "osc",
-  label: "OSC",
-  icon: "sine",
-  children: [
-    {
-      id: "sineVolume",
-      source: "sine",
-      label: "GAIN",
-      text: "gain"
-    }
-  ]
-};
-
-const envelopeParameter = {
-  id: "envelope",
-  label: "ENV",
-  children: [
-    {
-      id: "attack",
-      label: "attack",
-      text: "attack",
-      icon: "attack",
-      min: 1,
-      max: 100,
-      step: 1
-    }
-  ]
-};
-
-const holdDecayParameter = {
-  id: "holdDecay",
-  label: "h/d",
-  text: "h/d",
-  icon: "decay",
-  min: -50,
-  max: 50,
-  step: 1
-};
-
-const articulationParameter = {
-  id: "articulation",
-  label: "ART",
-  icon: "glide",
-  children: [
-    {
-      id: "glide",
-      label: "glde",
-      icon: "glide",
-      min: 0,
-      max: 8,
-      step: 1,
-      offsetMode: "result"
-    },
-    {
-      id: "nudge",
-      label: "ndge",
-      icon: "nudge",
-      min: -4,
-      max: 4,
-      step: 1,
-      offsetMode: "result"
-    },
-    {
-      id: "strum",
-      label: "strm",
-      icon: "strum",
-      min: -8,
-      max: 8,
-      step: 1,
-      offsetMode: "result"
-    }
-  ]
-};
-
-const subParameter = {
-  id: "sub",
-  label: "SUB",
-  icon: "sub",
-  children: [
-    { id: "subPattern", label: "ptn", min: -1, max: 6, step: 1, offsetMode: "result" },
-    { id: "subCrescendo", label: "cres", min: -3, max: 3, step: 1, offsetMode: "result" },
-    { id: "subProbability", label: "prob", min: 0, max: 100, step: 1, offsetMode: "result" }
-  ]
-};
-
-const SUB_PATTERN_FIGURES = Object.freeze([
-  { label: "32", divisions: 2, active: [0, 1] },
-  { label: "32 back", divisions: 2, active: [1] },
-  { label: "32T", divisions: 3, active: [0, 1, 2] },
-  { label: "64", divisions: 4, active: [0, 1, 2, 3] },
-  { label: "64 odd", divisions: 4, active: [0, 2] },
-  { label: "64 front", divisions: 4, active: [0, 1] },
-  { label: "64T", divisions: 6, active: [0, 1, 2, 3, 4, 5] }
-]);
-
-function subPatternLabel(value) {
-  const index = Math.round(Number(value));
-  return index < 0
-    ? "off"
-    : SUB_PATTERN_FIGURES[index]?.label ?? "off";
-}
-
-function subPatternFigureHtml(value) {
-  const index = Math.round(Number(value));
-
-  if (index < 0) {
-    return `<span class="sub-pattern-off">off</span>`;
-  }
-
-  const figure = SUB_PATTERN_FIGURES[index];
-
-  if (!figure) {
-    return `<span class="sub-pattern-off">off</span>`;
-  }
-
-  const active = new Set(figure.active);
-  const cells = Array.from(
-    { length: figure.divisions },
-    (_, cellIndex) =>
-      `<span class="sub-pattern-cell${active.has(cellIndex) ? " active" : ""}"></span>`
-  ).join("");
-
-  return `
-    <span
-      class="sub-pattern-figure"
-      style="--sub-divisions:${figure.divisions}"
-      aria-label="${figure.label}"
-    >${cells}</span>
-  `;
-}
-
-const parameterMenuItems = [
-  { label: "OSC", parameter: oscParameter, icon: "sine" },
-  { label: "NOTE", parameter: noteParameter, icon: "note" },
-  { label: "ENV", parameter: envelopeParameter, icon: "attack" },
-  { label: "h/d", parameter: holdDecayParameter, icon: "decay" },
-  { label: "FM", parameterId: "fmDepth", icon: "fm" },
-  { label: "FILTER", parameterId: "filterCutoff", icon: "tone" },
-  { label: "PAN", parameterId: "pan", icon: "pan" },
-  { label: "art", parameter: articulationParameter, icon: "articulation" },
-
-  { label: "prob", parameterId: "probability", icon: "probability" },
-  { label: "sub", parameter: subParameter, icon: "sub" },
-  { label: "lfo1", parameterId: "lfo", icon: "lfo", lfoNumber: 1 },
-  { label: "lfo2", parameterId: "lfo", icon: "lfo", lfoNumber: 2 }
-];
-
-function editorParameterById(id) {
-  if (id === "note") {
-    return noteParameter;
-  }
-
-  if (id === "osc") {
-    return oscParameter;
-  }
-
-  if (id === "envelope") {
-    return envelopeParameter;
-  }
-
-  if (id === "holdDecay") {
-    return holdDecayParameter;
-  }
-
-  if (id === "sub") {
-    return subParameter;
-  }
-
-  if (id === "articulation") {
-    return articulationParameter;
-  }
-
-  return parameterById(id);
-}
-
-function restoreFocus(selector) {
-  requestAnimationFrame(() => document.querySelector(selector)?.focus());
-}
-
-function restoreFocusKey(focusKey) {
-  if (!focusKey) {
-    return;
-  }
-
-  requestAnimationFrame(() => {
-    const target = Array.from(
-      document.querySelectorAll("[data-focus-key]")
-    ).find(element => {
-      return element.dataset.focusKey === focusKey;
-    });
-
-    target?.focus();
-  });
-}
-
-function renderEditorAndRestore(focusKey) {
   /*
-   * Parameter / child / track変更時は、
-   * 上段Sequencerも現在の編集対象へ追従させる。
+   * SEQUENCE is an isolated Pattern-editing view.
+   * Entering it always makes the selected Pattern the loop target.
+   * Returning to PATTERN restores normal song-order playback.
    */
-  renderSequence();
-  renderEditor();
-  restoreFocusKey(focusKey);
+  if (
+    appView === "sequence"
+  ) {
+    state.patternLoopEnabled =
+      true;
+
+    state.patternLoopRange =
+      null;
+
+    if (
+      state.isPlaying &&
+      state.playingPatternIndex !==
+        null &&
+      state.playingPatternIndex !==
+        state.selectedPatternIndex
+    ) {
+      queuePattern(
+        state.selectedPatternIndex
+      );
+    }
+  } else {
+    state.patternLoopEnabled =
+      false;
+
+    state.patternLoopRange =
+      null;
+  }
+
+  document.body.dataset.moktonView =
+    appView;
 }
 
-const DELETE_DOUBLE_TAP_INTERVAL = 1000;
-
-function enableDoubleTapAction({
-  element,
-  onDoubleTap,
-  interval = DELETE_DOUBLE_TAP_INTERVAL
-}) {
-  let firstTapTime = 0;
-  let resetTimer = null;
-
-  function reset() {
-    firstTapTime = 0;
-
-    if (resetTimer !== null) {
-      clearTimeout(resetTimer);
-      resetTimer = null;
-    }
-
-    element.classList.remove(
-      "delete-armed"
+sequenceBackButton?.addEventListener(
+  "click",
+  () => {
+    setAppView(
+      "pattern"
     );
+
+    renderPatternManager();
   }
-
-  element.addEventListener(
-    "click",
-    event => {
-      const now = performance.now();
-
-      if (
-        firstTapTime !== 0 &&
-        now - firstTapTime <= interval
-      ) {
-        event.preventDefault();
-        reset();
-        onDoubleTap();
-        return;
-      }
-
-      firstTapTime = now;
-
-      element.classList.add(
-        "delete-armed"
-      );
-
-      if (resetTimer !== null) {
-        clearTimeout(resetTimer);
-      }
-
-      resetTimer = window.setTimeout(
-        reset,
-        interval
-      );
-    }
-  );
-
-  element.addEventListener(
-    "blur",
-    reset
-  );
-}
-
-const SWEEP_START_DISTANCE = 8;
-const SWEEP_PIXELS_PER_STEP = 12;
-const SWEEP_ACCELERATION_START = 8;
-const SWEEP_ACCELERATION_RATE = 0.2;
-
-function decimalPlaces(value) {
-  const text = String(value);
-
-  if (!text.includes(".")) {
-    return 0;
-  }
-
-  return text.split(".")[1].length;
-}
-
-function roundToStep(value, step) {
-  const digits = decimalPlaces(step);
-
-  return Number(
-    value.toFixed(digits)
-  );
-}
-
-function isTouchOrPen(pointerType) {
-  return (
-    pointerType === "touch" ||
-    pointerType === "pen"
-  );
-}
-
-function isTouchDevice() {
-  return window.matchMedia(
-    "(pointer: coarse)"
-  ).matches;
-}
-
-function enableVerticalSweep({
-  element,
-  getValue,
-  setValue,
-  min,
-  max,
-  step = 1,
-  pixelsPerStep =
-    SWEEP_PIXELS_PER_STEP,
-  acceleration = true,
-  accelerationStart =
-    SWEEP_ACCELERATION_START,
-  accelerationRate =
-    SWEEP_ACCELERATION_RATE,
-  onCommit
-}) {
-  let pointerId = null;
-  let startY = 0;
-  let startValue = 0;
-  let currentValue = 0;
-  let sweeping = false;
-  let changed = false;
-  let suppressClick = false;
-
-  element.style.touchAction = "none";
-
-  element.addEventListener(
-    "pointerdown",
-    event => {
-      if (event.button !== 0) {
-        return;
-      }
-
-      pointerId = event.pointerId;
-      startY = event.clientY;
-      startValue = Number(getValue());
-      currentValue = startValue;
-      sweeping = false;
-      changed = false;
-      suppressClick = false;
-
-      element.setPointerCapture(
-        event.pointerId
-      );
-    }
-  );
-
-  element.addEventListener(
-    "pointermove",
-    event => {
-      if (
-        pointerId !== event.pointerId
-      ) {
-        return;
-      }
-
-      /*
-       * Sequencer上で横Noteスイープが始まった場合は、
-       * 同じButtonに設定された縦Offsetスイープを止める。
-       */
-      if (
-        element.dataset.noteSweepActive ===
-          "true" ||
-        (
-          stepClipSweep &&
-          stepClipSweep.pointerId ===
-            event.pointerId
-        ) ||
-        element.dataset.clipSweepActive ===
-          "true"
-      ) {
-        return;
-      }
-
-      const distance =
-        event.clientY - startY;
-
-      if (
-        !sweeping &&
-        Math.abs(distance) <
-          SWEEP_START_DISTANCE
-      ) {
-        return;
-      }
-
-      if (!sweeping) {
-  sweeping = true;
-  suppressClick = true;
-
-  element.classList.add(
-    "is-sweeping"
-  );
-}
-
-      event.preventDefault();
-
-      /*
-       * まずは従来どおり、
-       * 12pxにつき1ステップ。
-       */
-      const rawStepCount =
-  -distance /
-  pixelsPerStep;
-
-      const direction =
-        Math.sign(rawStepCount);
-
-      const absoluteStepCount =
-        Math.abs(rawStepCount);
-
-      let acceleratedStepCount =
-        absoluteStepCount;
-
-      /*
-       * 10ステップを超えた分だけ
-       * 徐々に加速する。
-       */
-      if (
-  acceleration &&
-  absoluteStepCount >
-    accelerationStart
-) {
-        const extra =
-          absoluteStepCount -
-          accelerationStart;
-
-        acceleratedStepCount =
-          accelerationStart +
-          extra +
-          extra *
-            extra *
-            accelerationRate;
-      }
-
-      const stepCount =
-        Math.round(
-          direction *
-          acceleratedStepCount
-        );
-
-      const currentMin =
-  typeof min === "function"
-    ? min()
-    : min;
-
-const currentMax =
-  typeof max === "function"
-    ? max()
-    : max;
-
-const nextValue =
-  roundToStep(
-    clamp(
-      startValue +
-        stepCount * step,
-      currentMin,
-      currentMax
-    ),
-    step
-  );
-
-      if (nextValue === currentValue) {
-        return;
-      }
-
-      currentValue = nextValue;
-      changed = true;
-
-      setValue(nextValue);
-    }
-  );
-
-  function finishSweep(event) {
-    if (
-      pointerId !== event.pointerId
-    ) {
-      return;
-    }
-
-    if (
-      element.hasPointerCapture(
-        event.pointerId
-      )
-    ) {
-      element.releasePointerCapture(
-        event.pointerId
-      );
-    }
-
-    pointerId = null;
-    element.classList.remove(
-  "is-sweeping"
 );
 
-    if (sweeping) {
-      onCommit?.(
-        startValue,
-        currentValue,
-        changed
-      );
-    }
-  }
 
-  element.addEventListener(
-    "pointerup",
-    finishSweep
-  );
+/* =========================================================
+ * Temporary stage CSS
+ *
+ * index.html / style.cssの全面整理はUI構造が固まってから行う。
+ * それまではmokton骨格を確実に表示するため、
+ * このファイルから最小CSSを1回だけ注入する。
+ * ========================================================= */
 
-  element.addEventListener(
-    "pointercancel",
-    finishSweep
-  );
-
-  element.addEventListener(
-    "click",
-    event => {
-      if (!suppressClick) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      suppressClick = false;
-    },
-    true
-  );
+function ensureMoktonStageStyles() {
+  /*
+   * Stage 4:
+   * layout/style is now owned by style.css.
+   */
 }
 
 
+/* =========================================================
+ * Project name
+ * ========================================================= */
 
-/* =========================
- * Direct STEP clip / note sweep
- * ========================= */
-const STEP_DOUBLE_TAP_INTERVAL = 320;
-
-/*
- * 旧編集モード互換の最小スタブ。
- * 範囲選択状態は今後作らない。
- */
-const editSelection = {
-  mode: null,
-  scope: "track",
-  selected: new Set()
-};
-
-function selectionKey(trackIndex, stepIndex) {
-  return `${trackIndex}:${stepIndex}`;
-}
-
-function clearEditSelection() {
-  editSelection.selected.clear();
-}
-
-function clearOffsetSelectionMode() {
-  editSelection.mode = null;
-  clearEditSelection();
-}
-
-function finishEditMode() {
-  clearOffsetSelectionMode();
-}
-
-function updateSelectionClasses() {}
-function selectedKeysSorted() {
-  return [];
-}
-function hasActiveOffsetSelection() {
-  return false;
-}
-function isWholeStepSelected() {
-  return false;
-}
-function renderEditActionToolbar() {
-  renderClipIndicator();
-}
-
-let lastStepTap = null;
-let stepClipSweep = null;
-
-function isSecondStepTap(trackIndex, stepIndex) {
-  if (!lastStepTap) return false;
-
-  return (
-    lastStepTap.key ===
-      currentSourceTapKey(trackIndex, stepIndex) &&
-    performance.now() - lastStepTap.time <=
-      STEP_DOUBLE_TAP_INTERVAL
-  );
-}
-
-function stepSnapshot(track, stepIndex) {
-  return {
-    stepOn: Boolean(track.steps[stepIndex]),
-    offsets: Object.fromEntries(
-      Object.entries(track.offsets ?? {})
-        .filter(([, values]) => Array.isArray(values))
-        .map(([id, values]) => [
-          id,
-          Number(values[stepIndex]) || 0
-        ])
-    )
-  };
-}
-
-function restoreStepSnapshot(track, stepIndex, snapshot) {
-  track.steps[stepIndex] = Boolean(snapshot.stepOn);
-
-  Object.entries(track.offsets ?? {}).forEach(
-    ([id, values]) => {
-      if (!Array.isArray(values)) return;
-      values[stepIndex] =
-        Number(snapshot.offsets?.[id]) || 0;
-    }
-  );
-}
-
-function currentSourceTapKey(trackIndex, stepIndex) {
-  return [
-    state.selectedSourceType,
-    state.selectedSourceType === "fill"
-      ? state.selectedFillIndex ?? 0
-      : state.selectedPatternIndex ?? 0,
-    trackIndex,
-    stepIndex
-  ].join(":");
-}
-
-function handleStepTap({
-  track,
-  trackIndex,
-  stepIndex,
-  renderAfter,
-  focusKey = null
-}) {
-  if (!track || stepIndex >= track.stepLength) {
+export async function refreshProjectName() {
+  if (!currentProjectName) {
     return;
   }
 
-  if (
-    hasEditClipboard() &&
-    editClipboardType() === "step" &&
-    !editClipboardOriginIsStep(
-      trackIndex,
-      stepIndex
-    )
-  ) {
-    if (
-      pasteStepFromEditClipboard(
-        trackIndex,
-        stepIndex
-      )
-    ) {
-      lastStepTap = null;
-      renderAfter?.(focusKey);
-      renderClipIndicator();
-    }
-    return;
-  }
+  try {
+    const meta =
+      await getCurrentProjectMeta();
 
-  const now = performance.now();
-  const key =
-    currentSourceTapKey(
-      trackIndex,
-      stepIndex
-    );
-
-  if (
-    lastStepTap &&
-    lastStepTap.key === key &&
-    now - lastStepTap.time <=
-      STEP_DOUBLE_TAP_INTERVAL
-  ) {
-    restoreStepSnapshot(
-      track,
-      stepIndex,
-      lastStepTap.snapshot
-    );
-
-    /*
-     * 1回目の通常タップ用Undo履歴は、
-     * ダブルタップ成立時には実編集ではないため破棄。
-     */
-    discardLatestUndoEntry();
-
-    copyStepToEditClipboard(
-      trackIndex,
-      stepIndex,
-      currentSequenceOffsetParameter()
-        ? "track"
-        : "pattern"
-    );
-
-    lastStepTap = null;
-    renderAfter?.(focusKey);
-    renderClipIndicator();
-    return;
-  }
-
-  const snapshot =
-    stepSnapshot(track, stepIndex);
-
-  saveTrackHistory(trackIndex);
-  track.steps[stepIndex] =
-    !track.steps[stepIndex];
-
-  lastStepTap = {
-    key,
-    time: now,
-    snapshot
-  };
-
-  renderAfter?.(focusKey);
-}
-
-function renderClipIndicator() {
-  const toolbar =
-    document.querySelector(
-      ".sequence-toolbar"
-    );
-
-  if (!toolbar) return;
-
-  let button =
-    toolbar.querySelector(
-      ".clip-indicator-button"
-    );
-
-  if (!hasEditClipboard()) {
-    button?.remove();
-    return;
-  }
-
-  if (!button) {
-    button = document.createElement("button");
-    button.type = "button";
-    button.className =
-      "clip-indicator-button";
-    button.innerHTML = `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="
-      M7.6 13.4
-      L15.2 5.8
-      Q17.5 3.5 19.5 5.5
-      Q21.5 7.5 19.2 9.8
-      L10.5 18.5
-      Q7.2 21.8 4.5 19.1
-      Q1.8 16.4 5.1 13.1
-      L13.8 4.4
-      Q15.3 2.9 16.8 4.4
-      Q18.3 5.9 16.8 7.4
-      L7.8 16.4
-      Q6.9 17.3 6.0 16.4
-      Q5.1 15.5 6.0 14.6
-      L13.8 6.8
-    "></path>
-  </svg>
-`;
-    /*
-     * Mobile SafariではToolbarが詰まるとflex itemが縮小され、
-     * SVGごと実質0幅になることがある。
-     * Clip indicatorだけは固定寸法で縮ませない。
-     */
-    button.style.width = "24px";
-    button.style.height = "24px";
-    button.style.minWidth = "24px";
-    button.style.maxWidth = "24px";
-    button.style.flex = "0 0 24px";
-    button.style.flexShrink = "0";
-    button.style.padding = "2px";
-    button.style.border = "0";
-    button.style.background = "transparent";
-    button.style.display = "inline-flex";
-    button.style.alignItems = "center";
-    button.style.justifyContent = "center";
-
-    const clipSvg =
-      button.querySelector("svg");
-
-    if (clipSvg) {
-      clipSvg.style.width = "18px";
-      clipSvg.style.height = "18px";
-      clipSvg.style.minWidth = "18px";
-      clipSvg.style.display = "block";
-      clipSvg.style.flex = "0 0 18px";
-      clipSvg.style.overflow = "visible";
-    }
-    button.setAttribute(
-      "aria-label",
-      "クリップを解除"
-    );
-    button.title = "clip clear";
-    button.style.marginLeft = "auto";
-
-    const controls =
-      toolbar.querySelector(
-        ".sequence-toolbar-controls"
-      );
-
-    if (controls) {
-      toolbar.insertBefore(
-        button,
-        controls
-      );
-    } else {
-      toolbar.appendChild(button);
-    }
-
-    button.addEventListener(
-      "click",
-      () => {
-        clearEditClipboard();
-        lastStepTap = null;
-        renderSequence();
-        renderSongMode();
-      }
-    );
-  }
-
-  button.dataset.clipType =
-    editClipboardType() ?? "";
-}
-
-function enableSelectionPointer({
-  element,
-  source,
-  getStepIndex
-}) {
-  let pointerId = null;
-  let startX = 0;
-  let startY = 0;
-  let noteSweepActive = false;
-  let noteSweepValue = false;
-  let noteSweepTrackIndex = null;
-  let noteSweepVisited = new Set();
-  let noteSweepLastStep = null;
-  let noteSweepHistorySaved = false;
-  let suppressNextClick = false;
-
-  function cellFromPoint(clientX, clientY) {
-    const target =
-      document.elementFromPoint(
-        clientX,
-        clientY
-      );
-
-    const selector =
-      source === "sequence"
-        ? ".sequence-step[data-step-index]"
-        : ".offset-step[data-step-index]";
-
-    const cellElement =
-      target?.closest?.(selector);
-
-    if (!cellElement) return null;
-
-    return {
-      trackIndex: state.selectedTrackIndex,
-      stepIndex: Number(
-        cellElement.dataset.stepIndex
-      )
-    };
-  }
-
-  function applyNoteSweepCell(cell) {
-    if (!cell) return;
-
-    const track =
-      tracks[noteSweepTrackIndex];
-
-    if (
-      !track ||
-      cell.stepIndex < 0 ||
-      cell.stepIndex >= track.stepLength
-    ) {
-      return;
-    }
-
-    const previousStep =
-      noteSweepLastStep;
-
-    const minimumStep =
-      previousStep === null
-        ? cell.stepIndex
-        : Math.min(
-            previousStep,
-            cell.stepIndex
-          );
-
-    const maximumStep =
-      previousStep === null
-        ? cell.stepIndex
-        : Math.max(
-            previousStep,
-            cell.stepIndex
-          );
-
-    noteSweepLastStep =
-      cell.stepIndex;
-
-    for (
-      let stepIndex = minimumStep;
-      stepIndex <= maximumStep;
-      stepIndex++
-    ) {
-      if (
-        stepIndex >= track.stepLength ||
-        noteSweepVisited.has(stepIndex)
-      ) {
-        continue;
-      }
-
-      noteSweepVisited.add(stepIndex);
-
-      if (
-        track.steps[stepIndex] ===
-        noteSweepValue
-      ) {
-        continue;
-      }
-
-      if (!noteSweepHistorySaved) {
-        saveTrackHistory(
-          noteSweepTrackIndex
-        );
-        noteSweepHistorySaved = true;
-      }
-
-      track.steps[stepIndex] =
-        noteSweepValue;
-    }
-  }
-
-  element.style.touchAction = "none";
-
-  element.addEventListener(
-    "pointerdown",
-    event => {
-      if (
-        event.pointerType === "mouse" &&
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      pointerId = event.pointerId;
-      startX = event.clientX;
-      startY = event.clientY;
-      noteSweepActive = false;
-      noteSweepTrackIndex = null;
-      noteSweepVisited = new Set();
-      noteSweepLastStep = null;
-      noteSweepHistorySaved = false;
-      suppressNextClick = false;
-      delete element.dataset.noteSweepActive;
-
-      {
-        const trackIndex = state.selectedTrackIndex;
-        const stepIndex = getStepIndex(element);
-        const track = tracks[trackIndex];
-
-        if (
-          track &&
-          isSecondStepTap(trackIndex, stepIndex)
-        ) {
-          /*
-           * 2回目pointerdown時点で1回目の仮ON/OFFを戻す。
-           * 再描画するとpointer captureが切れるため、DOMも直接復元する。
-           */
-          const restoredSnapshot =
-            lastStepTap.snapshot;
-
-          restoreStepSnapshot(
-            track,
-            stepIndex,
-            restoredSnapshot
-          );
-          discardLatestUndoEntry();
-
-          if (source === "sequence") {
-
-  const lane = element.querySelector(
-    `.track-lane[data-track-index="${trackIndex}"]`
-  );
-
-  lane?.classList.toggle(
-    "on",
-    Boolean(restoredSnapshot.stepOn)
-  );
-
-} else {
-
-  element.classList.toggle(
-    "note-on",
-    Boolean(restoredSnapshot.stepOn)
-  );
-
-  const offsetParameter =
-    currentSequenceOffsetParameter();
-
-  if (offsetParameter) {
-    refreshVisibleOffsetValues(
-      offsetParameter
-    );
+    currentProjectName.textContent =
+      meta?.name ??
+      "mokton";
+  } catch {
+    currentProjectName.textContent =
+      "mokton";
   }
 }
 
-          stepClipSweep = {
-            pointerId: event.pointerId,
-            trackIndex,
-            startStepIndex: stepIndex,
-            endStepIndex: stepIndex,
-            scope:
-              source === "sequence"
-                ? "pattern"
-                : "track"
-          };
 
-          /*
-           * Offset/Track画面では、クリップスイープ中の
-           * 上下移動をparameter sweepへ渡さない。
-           * 指が斜めにずれてもコピー操作だけを優先する。
-           */
-          element.dataset.clipSweepActive =
-            "true";
+/* =========================================================
+ * Source display
+ * ========================================================= */
 
-          element.classList.add(
-            "range-selected"
-          );
-
-          suppressNextClick = true;
-          lastStepTap = null;
-          element.setPointerCapture?.(
-            event.pointerId
-          );
-          event.preventDefault();
-        }
-      }
-    }
-  );
-
-  element.addEventListener(
-    "pointermove",
-    event => {
-      if (pointerId !== event.pointerId) {
-        return;
-      }
-
-      if (
-        stepClipSweep &&
-        stepClipSweep.pointerId === event.pointerId
-      ) {
-        event.preventDefault();
-
-        const cell = cellFromPoint(
-          event.clientX,
-          event.clientY
-        );
-
-        if (cell) {
-          stepClipSweep.endStepIndex =
-            cell.stepIndex;
-
-          const minimum = Math.min(
-            stepClipSweep.startStepIndex,
-            stepClipSweep.endStepIndex
-          );
-          const maximum = Math.max(
-            stepClipSweep.startStepIndex,
-            stepClipSweep.endStepIndex
-          );
-
-          document
-            .querySelectorAll(
-              source === "sequence"
-                ? ".sequence-step[data-step-index]"
-                : ".offset-step[data-step-index]"
-            )
-            .forEach(candidate => {
-              const candidateStep = Number(
-                candidate.dataset.stepIndex
-              );
-              candidate.classList.toggle(
-                "range-selected",
-                candidateStep >= minimum &&
-                candidateStep <= maximum
-              );
-            });
-        }
-
-        return;
-      }
-
-      const movementX =
-        event.clientX - startX;
-      const movementY =
-        event.clientY - startY;
-
-      if (
-        source === "sequence" &&
-        !noteSweepActive &&
-        Math.abs(movementX) > 12 &&
-        Math.abs(movementX) >
-          Math.abs(movementY)
-      ) {
-        const trackIndex =
-          state.selectedTrackIndex;
-        const track = tracks[trackIndex];
-        const stepIndex =
-          getStepIndex(element);
-
-        if (
-          !track ||
-          stepIndex >= track.stepLength
-        ) {
-          return;
-        }
-
-        noteSweepActive = true;
-        noteSweepTrackIndex =
-          trackIndex;
-        noteSweepValue =
-          !Boolean(track.steps[stepIndex]);
-        suppressNextClick = true;
-        element.dataset.noteSweepActive =
-          "true";
-        element.setPointerCapture?.(
-          event.pointerId
-        );
-
-        applyNoteSweepCell({
-          trackIndex,
-          stepIndex
-        });
-      }
-
-      if (!noteSweepActive) return;
-
-      event.preventDefault();
-      applyNoteSweepCell(
-        cellFromPoint(
-          event.clientX,
-          event.clientY
-        )
-      );
-    }
-  );
-
-  function finish(event) {
-    if (pointerId !== event.pointerId) {
-      return;
-    }
-
-    if (
-      element.hasPointerCapture?.(
-        event.pointerId
-      )
-    ) {
-      element.releasePointerCapture(
-        event.pointerId
-      );
-    }
-
-    const completedClipSweep =
-      stepClipSweep &&
-      stepClipSweep.pointerId === event.pointerId;
-
-    if (completedClipSweep) {
-      copyStepRangeToEditClipboard(
-        stepClipSweep.trackIndex,
-        stepClipSweep.startStepIndex,
-        stepClipSweep.endStepIndex,
-        stepClipSweep.scope
-      );
-      stepClipSweep = null;
-      renderSequence();
-      renderEditor();
-      renderClipIndicator();
-    }
-
-    const completed =
-      noteSweepActive;
-
-    pointerId = null;
-    noteSweepActive = false;
-    noteSweepTrackIndex = null;
-    noteSweepVisited = new Set();
-    noteSweepLastStep = null;
-    noteSweepHistorySaved = false;
-    delete element.dataset.noteSweepActive;
-    delete element.dataset.clipSweepActive;
-
-    if (completed) {
-      renderSequence();
-      renderEditor();
-    }
-  }
-
-  element.addEventListener(
-    "pointerup",
-    finish
-  );
-  element.addEventListener(
-    "pointercancel",
-    finish
-  );
-
-  element.addEventListener(
-    "click",
-    event => {
-      if (!suppressNextClick) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      suppressNextClick = false;
-    },
-    true
-  );
-}
-
-function refreshVisibleOffsetValues(
-  parameter
+function patternLabel(
+  patternIndex =
+    state.selectedPatternIndex
 ) {
-  if (!parameter?.id) {
-    return;
-  }
-
-  const track =
-    editorTrack();
-
-  document
-    .querySelectorAll(
-      ".offset-step[data-step-index]"
-    )
-    .forEach(button => {
-      const stepIndex =
-        Number(
-          button.dataset.stepIndex
-        );
-
-      if (
-        !Number.isFinite(stepIndex)
-      ) {
-        return;
-      }
-
-      const stepIsOn =
-        Boolean(
-          track.steps[
-            stepIndex
-          ]
-        );
-
-      if (
-        !stepIsOn &&
-        [
-          "note",
-          "chord",
-          "subPattern",
-          "subCrescendo",
-          "subProbability",
-          "glide",
-          "nudge",
-          "strum"
-        ].includes(
-          parameter.id
-        )
-      ) {
-        button.textContent = "";
-        button.classList.add(
-          "inactive-step-value"
-        );
-        return;
-      }
-
-      button.classList.remove(
-        "inactive-step-value"
-      );
-
-      if (
-        parameter.id === "note" ||
-        parameter.id === "chord"
-      ) {
-        const noteText =
-          displayStepValue(
-            parameterById("note"),
-            stepIndex
-          );
-
-        const chordText =
-          displayStepValue(
-            parameterById("chord"),
-            stepIndex
-          );
-
-        button.classList.add(
-          "note-chord-step"
-        );
-
-        button.classList.toggle(
-          "note-selected",
-          parameter.id === "note"
-        );
-
-        button.classList.toggle(
-          "chord-selected",
-          parameter.id === "chord"
-        );
-
-        button.innerHTML = `
-          <span class="note-chord-note">${noteText}</span>
-          <span class="note-chord-chord">${chordText === "off" ? "" : chordText}</span>
-        `;
-      } else if (
-        parameter.id === "subPattern"
-      ) {
-        const result =
-          clamp(
-            Math.round(
-              Number(
-                track.base
-                  .subPattern
-              ) +
-              Number(
-                track.offsets
-                  .subPattern?.[
-                    stepIndex
-                  ] ?? 0
-              )
-            ),
-            -1,
-            6
-          );
-
-        button.innerHTML =
-          subPatternFigureHtml(
-            result
-          );
-
-        button.setAttribute(
-          "aria-label",
-          subPatternLabel(
-            result
-          )
-        );
-      } else {
-        button.textContent =
-          displayStepValue(
-            parameter,
-            stepIndex
-          );
-      }
-
-      const stepOffset =
-        Number(
-          track.offsets[
-            parameter.id
-          ]?.[
-            stepIndex
-          ]
-        ) || 0;
-
-      button.classList.toggle(
-        "base-value-step",
-        stepOffset === 0
-      );
-    });
-}
-
-function applyOffsetDeltaToSelection(
-  parameter,
-  delta
-) {
-  if (
-    editSelection.mode !== "offset" ||
-    editSelection.selected.size === 0 ||
-    !delta
-  ) {
-    return false;
-  }
-
-  const track =
-    editorTrack();
-
-  const values =
-    track.offsets[
-      parameter.id
+  const pattern =
+    patterns[
+      patternIndex
     ];
 
-  if (!Array.isArray(values)) {
-    return false;
-  }
+  const id =
+    pattern?.id ??
+    Number(patternIndex) + 1;
 
-  const baseValue =
-    Number(
-      track.base[
-        parameter.id
-      ]
-    );
-
-  const minOffset =
-    Number(parameter.min) -
-    baseValue;
-
-  const maxOffset =
-    Number(parameter.max) -
-    baseValue;
-
-  selectedKeysSorted()
-    .forEach(
-      ({
-        trackIndex,
-        stepIndex
-      }) => {
-        if (
-          trackIndex !==
-          state.selectedTrackIndex
-        ) {
-          return;
-        }
-
-        const currentOffset =
-          Number(
-            values[
-              stepIndex
-            ]
-          ) || 0;
-
-        values[
-          stepIndex
-        ] =
-          roundToStep(
-            clamp(
-              currentOffset +
-                delta,
-              minOffset,
-              maxOffset
-            ),
-            parameter.step ??
-              1
-          );
-      }
-    );
-
-  refreshVisibleOffsetValues(
-    parameter
-  );
-
-  return true;
-}
-
-function stepCell(stepIndex) {
-  const button = document.createElement("button");
-
-  button.type = "button";
-  button.className = "sequence-step";
-  button.dataset.stepIndex = stepIndex;
-
-  button.setAttribute(
-    "aria-label",
-    `step ${stepIndex + 1}`
-  );
-
-  enableSelectionPointer({
-    element: button,
-    mode: "step",
-    source: "sequence",
-    getStepIndex: element =>
-      Number(element.dataset.stepIndex)
-  });
-
-  if (
-    editSelection.mode === "step" &&
-    isWholeStepSelected(stepIndex)
-  ) {
-    button.classList.add(
-      "range-selected"
-    );
-  }
-
-  tracks.forEach((track, trackIndex) => {
-    const lane = document.createElement("span");
-
-    lane.className = "track-lane";
-    lane.dataset.trackIndex = trackIndex;
-    lane.dataset.stepIndex = stepIndex;
-
-
-    const exists =
-      stepIndex < track.stepLength;
-
-    if (!exists) {
-      lane.classList.add("outside-length");
-      button.appendChild(lane);
-      return;
-    }
-
-    if (track.steps[stepIndex]) {
-  lane.classList.add("on");
-
-  const anySolo =
-    tracks.some(item => item.solo);
-
-  const audible =
-    !track.muted &&
-    (!anySolo || track.solo);
-
-  if (!audible) {
-    lane.classList.add("non-sounding");
-  }
-}
-
-    if (
-      trackIndex === state.selectedTrackIndex
-    ) {
-      lane.classList.add("selected-track");
-    }
-
-    const playingStep =
-  state.playbackTickIndex === null
-    ? -1
-    : state.playbackTickIndex %
-      track.stepLength;
-
-if (
-  stepIndex === playingStep
-) {
-  lane.classList.add(
-    "playing"
+  return String(id).padStart(
+    2,
+    "0"
   );
 }
 
-    button.appendChild(lane);
-  });
-
-      button.addEventListener(
-    "click",
-    () => {
-      const trackIndex =
-        state.selectedTrackIndex;
-      const track =
-        tracks[trackIndex];
-
-      handleStepTap({
-        track,
-        trackIndex,
-        stepIndex,
-        renderAfter: () => {
-          renderSequence();
-          renderEditor();
-        }
-      });
-    }
-  );
-  return button;
-}
 
 function renderCurrentSourceDisplay() {
   if (!currentSourceDisplay) {
     return;
   }
 
-  const label =
-    currentSourceLabel();
+  currentSourceDisplay.className =
+    "mokton-current-source";
 
-  currentSourceDisplay.innerHTML = `
-    <span
-      class="current-source-icon"
-      aria-hidden="true"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.7"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <rect
-  x="5"
-  y="5"
-  width="14"
-  height="14"
-  rx="1"
-></rect>
-      </svg>
-    </span>
-
-    <span class="current-source-label">
-      ${label}
-    </span>
-  `;
-
-  currentSourceDisplay.setAttribute(
-    "aria-label",
-    state.selectedSourceType === "fill"
-      ? `Fill ${label}`
-      : `Pattern ${label}`
-  );
-  
-  currentSourceDisplay.addEventListener(
-  "click",
-  () => {
-    state.selectedParameterId = null;
-    state.selectedChildId = null;
-
-    clearOffsetSelectionMode();
-
-    renderSequence();
-    renderEditor();
-  }
-);
+  currentSourceDisplay.textContent =
+    patternLabel();
 }
 
-function renderStepEditScopeControl() {
-  /*
-   * Pattern編集は表示中のPattern Sequencerが対象。
-   * all / track切替は廃止する。
-   */
-}
 
-function currentSequenceOffsetParameter() {
-  if (
-    !state.selectedParameterId
-  ) {
-    return null;
-  }
+const SOUND_PARAMETER_SCHEMA = Object.freeze({
+  melodic: [
+    {
+      id: "gain",
+      label: "lvl",
+      min: 0,
+      max: 150,
+      step: 1
+    },
 
-  const track = editorTrack();
-  let parameterId = null;
+    {
+      id: "attack",
+      label: "atk",
+      min: 1,
+      max: 100,
+      step: 1
+    },
 
-  switch (state.selectedParameterId) {
-    case "osc":
-      parameterId = "sineVolume";
-      break;
+    {
+      id: "holdDecay",
+      label: "h/d",
+      min: -50,
+      max: 50,
+      step: 1
+    },
 
-    case "envelope":
-      parameterId = "attack";
-      break;
+    {
+      id: "filterCutoff",
+      label: "cut",
+      min: -50,
+      max: 50,
+      step: 1
+    },
 
-    case "filterCutoff":
-      parameterId =
-        state.selectedChildId ===
-          "filterResonance"
-          ? "filterResonance"
-          : "filterCutoff";
-      break;
+    {
+      id: "filterResonance",
+      label: "res",
+      min: 0,
+      max: 50,
+      step: 1
+    },
 
-    case "lfo": {
-      if (
-        state.selectedChildId === "target" ||
-        state.selectedChildId === "wave"
-      ) {
-        return null;
-      }
+    {
+      id: "fmDepth",
+      label: "fmd",
+      min: 0,
+      max: 20,
+      step: 1
+    },
 
-      const lfoNumber =
-        track.lfoSelected === 2
-          ? 2
-          : 1;
-
-      parameterId =
-        `lfo${lfoNumber}${
-          state.selectedChildId === "rate"
-            ? "Rate"
-            : "Depth"
-        }`;
-      break;
+    {
+      id: "fmRatio",
+      label: "fmr",
+      min: 0.25,
+      max: 8,
+      step: 0.25
     }
+  ],
 
-    case "articulation":
-      parameterId =
-        state.selectedChildId ??
-        track.articulationSelectedId ??
-        "glide";
-      break;
+  rhythm: [
+    {
+      id: "gain",
+      label: "lvl",
+      min: 0,
+      max: 150,
+      step: 1
+    },
 
-    case "sub":
-      parameterId =
-        state.selectedChildId ??
-        "subPattern";
-      break;
+    {
+      id: "noiseMix",
+      label: "nse",
+      min: 0,
+      max: 100,
+      step: 1
+    },
 
-    default:
-      parameterId =
-        state.selectedChildId ??
-        state.selectedParameterId;
-      break;
-  }
+    {
+      id: "attack",
+      label: "atk",
+      min: 1,
+      max: 100,
+      step: 1
+    },
 
-  if (
-    !parameterId ||
-    !Array.isArray(
-      track?.offsets?.[parameterId]
-    )
-  ) {
-    return null;
-  }
+    {
+      id: "holdDecay",
+      label: "h/d",
+      min: -50,
+      max: 50,
+      step: 1
+    },
 
-  const directParameter =
-    parameterById(parameterId);
+    {
+      id: "filterCutoff",
+      label: "cut",
+      min: -50,
+      max: 50,
+      step: 1
+    },
 
-  if (directParameter) {
-    if (
-      state.selectedParameterId === "lfo" &&
-      state.selectedChildId === "rate" &&
-      track.base[
-        `lfo${track.lfoSelected === 2 ? 2 : 1}SyncMode`
-      ] === "bpm"
-    ) {
-      return {
-        ...directParameter,
-        min: 0,
-        max: LFO_BPM_RATE_NAMES.length - 1,
-        step: 1
-      };
+    {
+      id: "filterResonance",
+      label: "res",
+      min: 0,
+      max: 50,
+      step: 1
     }
+  ]
+});
 
-    return directParameter;
-  }
+const LFO_WAVES = Object.freeze([
+  "sine",
+  "triangle",
+  "square",
+  "sawUp",
+  "sawDown",
+  "random",
+  "rise",
+  "fall"
+]);
 
-  /*
-   * FM ratio / feedbackなど、
-   * parameters内で子としてだけ定義される項目も拾う。
-   */
-  for (const parent of parameters) {
-    const child =
-      parent.children?.find(
-        item =>
-          item.id === parameterId
-      );
-
-    if (!child) {
-      continue;
-    }
-
-    return {
-      ...child,
-      id: parameterId,
-      offsetMode:
-        child.offsetMode ??
-        parent.offsetMode ??
-        "offset"
-    };
-  }
-
-  return null;
-}
-
-function renderLfoBaseOnlySequenceGrid() {
-  const grid = document.createElement("div");
-  grid.className = "offset-grid lfo-base-only-grid";
-
-  const firstStepIndex =
-    state.sequencePage * PAGE_STEP_COUNT;
-
-  const lastStepIndex = Math.min(
-    firstStepIndex + PAGE_STEP_COUNT,
-    editorTrack().stepLength
-  );
-
-  for (
-    let stepIndex = firstStepIndex;
-    stepIndex < lastStepIndex;
-    stepIndex++
-  ) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "offset-step lfo-base-only-step";
-    button.dataset.stepIndex = stepIndex;
-    button.textContent = "-";
-    button.disabled = true;
-
-    if (editorTrack().steps[stepIndex]) {
-      button.classList.add("note-on");
-    }
-
-    const playingStep =
-      state.playbackTickIndex === null
-        ? -1
-        : state.playbackTickIndex % editorTrack().stepLength;
-
-    if (stepIndex === playingStep) {
-      button.classList.add("playing");
-    }
-
-    grid.appendChild(button);
-  }
-
-  return grid;
-}
-
-function lfoBaseOnlyChildSelected() {
+function selectedSound() {
   return (
-    state.selectedParameterId === "lfo" &&
-    (
-      state.selectedChildId === "target" ||
-      state.selectedChildId === "wave"
-    )
+    soundBank?.[
+      state.selectedLayer
+    ]?.[
+      state.selectedSoundId
+    ] ??
+    null
   );
 }
 
-export function renderSequence() {
-  sequenceGrid.innerHTML = "";
-  renderEditActionToolbar();
-
-  syncPatternLength();
-
-  const offsetParameter =
-    currentSequenceOffsetParameter();
-
-  /*
-   * LFO target / waveはBase専用でStep Offsetを持たない。
-   * ただしLFO編集中に上段が全Track表示へ戻ると文脈が切れるため、
-   * 選択TrackのOffset Grid形状を維持して「-」を表示する。
-   */
-  if (lfoBaseOnlyChildSelected()) {
-    sequenceGrid.classList.add(
-      "sequence-offset-view"
-    );
-
-    const baseOnlyGrid =
-      renderLfoBaseOnlySequenceGrid();
-
-    sequenceGrid.append(
-      ...Array.from(
-        baseOnlyGrid.children
-      )
-    );
-
-    const trackLength =
-      editorTrack().stepLength;
-
-    patternLengthInput.value =
-      getMaxTrackLength();
-
-    const hasSecondPage =
-      trackLength > PAGE_STEP_COUNT;
-
-    sequencePageButton.hidden =
-      !hasSecondPage;
-
-    sequencePageButton.textContent =
-      state.sequencePage === 0
-        ? "◧"
-        : "◨";
-
-    return;
-  }
-
-  if (offsetParameter) {
-    /*
-     * Parameter編集中は、旧Editor内Offset Gridを
-     * 上段Sequencerへそのまま移して使う。
-     */
-    sequenceGrid.classList.add(
-      "sequence-offset-view"
-    );
-
-    const offsetGrid =
-      renderOffsetGrid(
-        offsetParameter
-      );
-
-    sequenceGrid.append(
-      ...Array.from(
-        offsetGrid.children
-      )
-    );
-
-    const trackLength =
-      editorTrack().stepLength;
-
-    patternLengthInput.value =
-      getMaxTrackLength();
-
-    const hasSecondPage =
-      trackLength > PAGE_STEP_COUNT;
-
-    sequencePageButton.hidden =
-      !hasSecondPage;
-
-    sequencePageButton.textContent =
-      state.sequencePage === 0
-        ? "◧"
-        : "◨";
-
-    sequencePageButton.setAttribute(
-      "aria-label",
-      state.sequencePage === 0
-        ? "ステップ1～32を表示中。33～64へ切り替え"
-        : "ステップ33～64を表示中。1～32へ切り替え"
-    );
-
-    return;
-  }
-
-  sequenceGrid.classList.remove(
-    "sequence-offset-view"
-  );
-
-  const maximumLength =
-    getMaxTrackLength();
-
-  const firstStepIndex =
-    state.sequencePage *
-    PAGE_STEP_COUNT;
-
-  const lastStepIndex = Math.min(
-    firstStepIndex + PAGE_STEP_COUNT,
-    maximumLength
-  );
-
-  for (
-    let stepIndex = firstStepIndex;
-    stepIndex < lastStepIndex;
-    stepIndex++
-  ) {
-    sequenceGrid.appendChild(
-      stepCell(stepIndex)
-    );
-  }
-
-  patternLengthInput.value =
-    maximumLength;
-
-  const hasSecondPage =
-    maximumLength >
-    PAGE_STEP_COUNT;
-
-  sequencePageButton.hidden =
-    !hasSecondPage;
-
-  sequencePageButton.textContent =
-    state.sequencePage === 0
-      ? "◧"
-      : "◨";
-
-  sequencePageButton.setAttribute(
-    "aria-label",
-    state.sequencePage === 0
-      ? "ステップ1～32を表示中。33～64へ切り替え"
-      : "ステップ33～64を表示中。1～32へ切り替え"
-  );
-
-  renderStepEditScopeControl();
-}
-
-
-sequencePageButton.addEventListener("click", () => {
-  if (state.patternLength <= PAGE_STEP_COUNT) {
-    return;
-  }
-
-  state.sequencePage = state.sequencePage === 0 ? 1 : 0;
-  render();
-  restoreFocus("#sequence-page-button");
-});
-
-/*
- * Pattern Length
- *
- * touch / pen：
- * 上下スイープ専用。
- * タップでは数値キーボードを開かない。
- *
- * mouse / keyboard：
- * 直接入力可能。
- */
-
-patternLengthInput.readOnly = true;
-
-let patternLengthPointerType = null;
-let patternLengthDirectEditing = false;
-let patternLengthEditStartValue =
-  getMaxTrackLength();
-
-let patternLengthSweepHistorySaved =
-  false;
-
-patternLengthInput.addEventListener(
-  "pointerdown",
-  event => {
-    patternLengthPointerType =
-      event.pointerType;
-
-    if (
-  isTouchDevice() ||
-  isTouchOrPen(
-    event.pointerType
-  )
+function formatParameterValue(
+  definition,
+  value
 ) {
-  event.preventDefault();
-
-  patternLengthInput.readOnly =
-    true;
-
-  patternLengthDirectEditing =
-    false;
-
-  delete patternLengthInput.dataset
-    .keyboardEditing;
-
-  patternLengthInput.blur();
-
-  return;
-}
-
-    /*
-     * PCのマウス操作では
-     * 直接入力を許可する。
-     */
-    patternLengthEditStartValue =
-      getMaxTrackLength();
-
-    patternLengthDirectEditing =
-      true;
-
-    patternLengthInput.readOnly =
-      false;
-
-    patternLengthInput.dataset
-      .keyboardEditing = "true";
-  }
-);
-
-enableVerticalSweep({
-  element: patternLengthInput,
-
-  getValue: () => {
-    return getMaxTrackLength();
-  },
-
-  setValue: nextLength => {
-    if (
-      !patternLengthSweepHistorySaved
-    ) {
-      saveHistory();
-
-      patternLengthSweepHistorySaved =
-        true;
-    }
-
-    const roundedLength =
-      Math.round(nextLength);
-
-    tracks.forEach(track => {
-      track.stepLength =
-        roundedLength;
-    });
-
-    syncPatternLength();
-
-patternLengthInput.value =
-  state.patternLength;
-
-renderSequence();
-
-/*
- * Pattern Length変更中は
- * Editor全体を再構築せず、
- * 表示中のTrack Lengthだけ同期する。
- */
-const visibleTrackLength =
-  editor.querySelector(
-    ".track-length-input"
-  );
-
-if (visibleTrackLength) {
-  visibleTrackLength.textContent =
-    String(
-      editorTrack().stepLength
-    );
-}
-  },
-
-  min: 1,
-  max: STEP_COUNT,
-  step: 1,
-
-  /*
-   * Track Lengthと同じく、
-   * 長さ変更はゆっくり動かす。
-   */
-  pixelsPerStep: 20,
-  acceleration: false,
-
-  onCommit: (
-    startValue,
-    currentValue,
-    changed
-  ) => {
-    patternLengthSweepHistorySaved =
-      false;
-
-    patternLengthDirectEditing =
-      false;
-
-    patternLengthInput.readOnly =
-      true;
-
-    delete patternLengthInput.dataset
-      .keyboardEditing;
-
-    patternLengthInput.value =
-      getMaxTrackLength();
-  }
-});
-
-/*
- * マウスクリック時は
- * 入力内容を全選択する。
- */
-patternLengthInput.addEventListener(
-  "click",
-  event => {
-    const isTouchInput =
-  isTouchDevice() ||
-  isTouchOrPen(
-    patternLengthPointerType
-  );
-
-    if (isTouchInput) {
-      event.preventDefault();
-
-      patternLengthInput.blur();
-
-      return;
-    }
-
-    patternLengthInput.select();
-  }
-);
-
-function commitPatternLengthInput() {
-  if (!patternLengthDirectEditing) {
-    return;
-  }
-
-  const previousLength =
-    getMaxTrackLength();
-
-  const nextLength =
-    Math.round(
-      clamp(
-        Number(
-          patternLengthInput.value
-        ) || 1,
-        1,
-        STEP_COUNT
-      )
-    );
-
-  patternLengthDirectEditing =
-    false;
-
-  patternLengthInput.readOnly =
-    true;
-
-  delete patternLengthInput.dataset
-    .keyboardEditing;
+  const number =
+    Number(value);
 
   if (
-    nextLength !== previousLength
+    !Number.isFinite(number)
   ) {
-    saveHistory();
-
-    tracks.forEach(track => {
-      track.stepLength =
-        nextLength;
-    });
-
-    syncPatternLength();
-
-    renderSequence();
-    renderEditor();
-
-    return;
-  }
-
-  patternLengthInput.value =
-    previousLength;
-}
-
-function cancelPatternLengthInput() {
-  patternLengthDirectEditing =
-    false;
-
-  patternLengthInput.readOnly =
-    true;
-
-  delete patternLengthInput.dataset
-    .keyboardEditing;
-
-  patternLengthInput.value =
-    getMaxTrackLength();
-}
-
-patternLengthInput.addEventListener(
-  "keydown",
-  event => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      event.stopPropagation();
-
-      /*
-       * キーボードでフォーカスした状態から
-       * Enterで編集開始。
-       */
-      if (
-        patternLengthInput.readOnly
-      ) {
-        patternLengthEditStartValue =
-          getMaxTrackLength();
-
-        patternLengthDirectEditing =
-          true;
-
-        patternLengthInput.readOnly =
-          false;
-
-        patternLengthInput.dataset
-          .keyboardEditing = "true";
-
-        patternLengthInput.select();
-
-        return;
-      }
-
-      commitPatternLengthInput();
-
-      patternLengthInput.focus();
-
-      return;
-    }
-
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-
-      cancelPatternLengthInput();
-
-      patternLengthInput.focus();
-    }
-  }
-);
-
-patternLengthInput.addEventListener(
-  "blur",
-  () => {
-    if (patternLengthDirectEditing) {
-      commitPatternLengthInput();
-    }
-
-    patternLengthInput.readOnly =
-      true;
-
-    delete patternLengthInput.dataset
-      .keyboardEditing;
-  }
-);
-
-function changeTrack(amount) {
-  state.selectedTrackIndex = (state.selectedTrackIndex + amount + tracks.length) % tracks.length;
-  render();
-}
-
-function displayBaseValue(parameter) {
-  const track = editorTrack();
-  const value = track.base[parameter.id];
-
-  if (parameter.id === "note") {
-    const names = [
-      "C", "C#", "D", "D#", "E", "F",
-      "F#", "G", "G#", "A", "A#", "B"
-    ];
-
-    const midi = 60 + value;
-    const noteName =
-      names[(midi % 12 + 12) % 12];
-
-    const octave =
-      Math.floor(midi / 12) - 1;
-
-    return `${noteName}${octave}`;
-  }
-
-if (parameter.id === "holdDecay") {
-  const amount =
-    clamp(
-      Math.round(Number(value) || 0),
-      -50,
-      50
-    );
-
-  if (amount === 0) {
     return "0";
   }
 
-  return amount < 0
-    ? `h${Math.abs(amount)}`
-    : `d${amount}`;
-}
-
-  if (parameter.id === "pan") {
-  if (value === 0) {
-    return "c";
-  }
-
-  return value < 0
-    ? `l${Math.abs(value)}`
-    : `r${value}`;
-}
-
   if (
-  parameter.id === "probability" ||
-  parameter.id === "subProbability"
-) {
-  return `${value}`;
-}
-
-  if (parameter.id === "subPattern") {
-    return subPatternLabel(value);
-  }
-
-  if (parameter.id === "subCrescendo") {
-    const amount = Math.round(Number(value) || 0);
-    return amount > 0 ? `+${amount}` : String(amount);
-  }
-
-  if (parameter.id === "glide") {
-    const amount = Math.round(Number(value) || 0);
-    return amount === 0 ? "off" : String(amount);
-  }
-
-  if (parameter.id === "nudge" || parameter.id === "strum") {
-    const amount = Math.round(Number(value) || 0);
-    return amount > 0 ? `+${amount}` : String(amount);
-  }
-
-  if (parameter.id === "filterCutoff") {
-    if (value === 0) {
-      return "off";
-    }
-
-    return value < 0
-      ? `l${Math.abs(value)}`
-      : `h${value}`;
-  }
-
-  if (parameter.id === "fmDepth") {
-    return String(track.base.fmDepth);
-  }
-
-  return String(value);
-}
-
-function currentParentParameter(menuItem) {
-  const track = editorTrack();
-
-  // ENV
-  if (menuItem.parameter?.id === "envelope") {
-    return parameterById(
-      track.envelopeSelectedId ?? "holdDecay"
+    definition.step < 1
+  ) {
+    return String(
+      Math.round(
+        number * 100
+      ) / 100
     );
   }
 
-  // OSC is sine-only.
-  if (menuItem.parameter?.id === "osc") {
-    return parameterById("sineVolume");
-  }
-
-  return menuItem.parameter ??
-         parameterById(menuItem.parameterId);
+  return String(
+    Math.round(number)
+  );
 }
 
-function parameterButton(menuItem) {
-  const parameter =
-  menuItem.parameter ??
-  parameterById(menuItem.parameterId);
-
-  const lfoNumber =
-    menuItem.lfoNumber ?? null;
-
-  const articulationSelectedId =
-    articulationParameter.children.some(
-      child => child.id === editorTrack().articulationSelectedId
-    )
-      ? editorTrack().articulationSelectedId
-      : "glide";
-
-  const parentSweepParameter =
-  parameter?.id === "note"
-    ? parameterById("note")
-    : parameter?.id === "crush"
-    ? parameterById("crushLevel")
-    : parameter?.id === "reverb"
-    ? parameterById("reverbSend")
-    : parameter?.id === "sub"
-    ? parameterById("subPattern")
-    : parameter?.id === "articulation"
-  ? parameterById(
-      articulationSelectedId
-    )
-    : parameter?.id === "lfo"
-    ? parameterById(
-        (lfoNumber ?? editorTrack().lfoSelected) === 2
-          ? "lfo2Depth"
-          : "lfo1Depth"
-      )
-    : parameter?.id === "osc"
-      ? parameterById("sineVolume")
-      : parameter?.id === "envelope"
-  ? parameterById("attack")
-  : parameter;
-
-  const button = document.createElement("button");
-
-  button.type = "button";
-  button.className = "parameter-button";
-
-  const isLfoParent =
-  parameter?.id === "lfo";
-
-const isThisLfoSelected =
-  state.selectedParameterId === parameter?.id &&
-  (
-    !isLfoParent ||
-    lfoNumber === null ||
-    editorTrack().lfoSelected === lfoNumber
-  );
-
-button.classList.toggle(
-  "active",
-  isThisLfoSelected
-);
-
-  const focusId =
-    parameter?.id === "lfo" && lfoNumber !== null
-      ? `lfo${lfoNumber}`
-      : parameter?.id ??
-        menuItem.placeholderId;
-
-  button.dataset.focusKey =
-    `parameter-${focusId}`;
-
-  button.setAttribute(
-    "aria-label",
-    menuItem.label
-  );
-
-  const envelopeChildId =
-  parameter?.id === "envelope"
-    ? "attack"
-    : null;
-
-  const displayedParameter =
-  parameter?.id === "lfo"
-    ? parentSweepParameter
-    : parameter?.id === "osc"
-    ? parentSweepParameter
-    : parameter?.id === "envelope"
-      ? parameterById(
-          envelopeChildId
-        )
-    : parameter?.id === "articulation"
-      ? parameterById(articulationSelectedId)
-    : parameter?.id === "crush"
-      ? parameterById("crushLevel")
-    : parameter?.id === "reverb"
-      ? parameterById("reverbSend")
-      : parameter;
-
-  const displayedIcon =
-  parameter?.id === "osc"
-    ? "sine"
-    : parameter?.id === "envelope"
-  ? "attack"
-    : parameter?.id === "articulation"
-      ? articulationParameter.children.find(
-          child =>
-            child.id ===
-            articulationSelectedId
-        )?.icon ?? "glide"
-      : menuItem.icon;
-
-  const valueText =
-    displayedParameter
-      ? displayBaseValue(
-          displayedParameter
-         )
-         : menuItem.label;
-
-         button.innerHTML = `
-         <span class="parameter-icon${parameter?.id === "lfo" ? " lfo-menu-icon" : ""}">
-         ${getParameterIcon(displayedIcon)}
-         ${
-         parameter?.id === "lfo" && menuItem.lfoNumber
-          ? `<span class="lfo-menu-number">${menuItem.lfoNumber}</span>`
-          : ""
-          }
-         </span>
-
-    <span class="parameter-value">
-  ${
-    parameter?.id === "sub"
-      ? subPatternFigureHtml(
-          editorTrack().base.subPattern ?? -1
-        )
-      : valueText
-  }
-</span>
-  `;
-
-  if (!parameter) {
-  button.classList.add(
-    "parameter-placeholder"
-  );
-
-  button.setAttribute(
-    "aria-disabled",
-    "true"
-  );
-
-  return button;
-}
-    /*
- * 親パラアイコンの上下スイープ。
- */
-if (
-  parentSweepParameter
+function createParameterRow(
+  sound,
+  definition
 ) {
-  let parentSweepHistorySaved =
+  const row =
+    document.createElement(
+      "label"
+    );
+
+  row.className =
+    "mokton-param-row";
+
+  const name =
+    document.createElement(
+      "span"
+    );
+
+  name.className =
+    "mokton-param-label";
+
+  name.textContent =
+    definition.label;
+
+  const input =
+    document.createElement(
+      "input"
+    );
+
+  input.className =
+    "mokton-param-range";
+
+  input.type =
+    "range";
+
+  input.min =
+    String(
+      definition.min
+    );
+
+  input.max =
+    String(
+      definition.max
+    );
+
+  input.step =
+    String(
+      definition.step
+    );
+
+  input.value =
+    String(
+      sound[
+        definition.id
+      ]
+    );
+
+  const value =
+    document.createElement(
+      "span"
+    );
+
+  value.className =
+    "mokton-param-value";
+
+  const updateValue = () => {
+    value.textContent =
+      formatParameterValue(
+        definition,
+        input.value
+      );
+  };
+
+  updateValue();
+
+  let historySaved =
     false;
 
-  let parentOffsetSelectionAppliedDelta =
-    0;
-
-  button.addEventListener(
-    "pointerdown",
-    () => {
-      parentOffsetSelectionAppliedDelta =
-        0;
-    }
-  );
-
-  enableVerticalSweep({
-    element: button,
-
-    getValue: () => {
-      const track =
-        editorTrack();
-
-      if (
-        editSelection.mode ===
-          "offset" &&
-        Array.isArray(
-          track.offsets[
-            parentSweepParameter.id
-          ]
-        )
-      ) {
-        return 0;
-      }
-
-      return Number(
-        track.base[
-          parentSweepParameter.id
-        ]
-      );
-    },
-
-    setValue: nextValue => {
-      if (!parentSweepHistorySaved) {
-        saveTrackHistory();
-
-        parentSweepHistorySaved =
-          true;
-      }
-
-      const track =
-        editorTrack();
-
-      if (
-        editSelection.mode ===
-          "offset" &&
-        Array.isArray(
-          track.offsets[
-            parentSweepParameter.id
-          ]
-        )
-      ) {
-        const totalDelta =
-          roundToStep(
-            Number(nextValue) || 0,
-            parentSweepParameter.step ??
-              1
-          );
-
-        const incrementalDelta =
-          totalDelta -
-          parentOffsetSelectionAppliedDelta;
-
-        applyOffsetDeltaToSelection(
-          parentSweepParameter,
-          incrementalDelta
-        );
-
-        parentOffsetSelectionAppliedDelta =
-          totalDelta;
-      } else {
-        const correctedValue =
-          roundToStep(
-            clamp(
-              Number(nextValue),
-              parentSweepParameter.min,
-              parentSweepParameter.max
-            ),
-            parentSweepParameter.step ??
-              1
-          );
-
-        track.base[
-          parentSweepParameter.id
-        ] = correctedValue;
-
-        refreshVisibleOffsetValues(
-          parentSweepParameter
-        );
-      }
-
-      const valueElement =
-        button.querySelector(
-          ".parameter-value"
-        );
-
-      if (valueElement) {
-        if (parameter?.id === "sub") {
-          valueElement.innerHTML =
-            subPatternFigureHtml(
-              editorTrack().base.subPattern ?? -1
-            );
-        } else {
-          valueElement.textContent =
-            displayBaseValue(
-              parentSweepParameter
-            );
-        }
-      }
-
-      button.setAttribute(
-        "aria-label",
-        `${menuItem.label} ${
-          displayBaseValue(
-            parentSweepParameter
-          )
-        }`
-      );
-    },
-
-    min: () => {
-      const track =
-        editorTrack();
-
-      return (
-        editSelection.mode ===
-          "offset" &&
-        Array.isArray(
-          track.offsets[
-            parentSweepParameter.id
-          ]
-        )
-      )
-        ? -10000
-        : parentSweepParameter.min;
-    },
-
-    max: () => {
-      const track =
-        editorTrack();
-
-      return (
-        editSelection.mode ===
-          "offset" &&
-        Array.isArray(
-          track.offsets[
-            parentSweepParameter.id
-          ]
-        )
-      )
-        ? 10000
-        : parentSweepParameter.max;
-    },
-    step:
-      parentSweepParameter.step ?? 1,
-
-    acceleration: true,
-
-    /*
-     * NOTEは短い移動では半音単位の精密操作、
-     * 長い移動ではオクターブ移動しやすい加速にする。
-     */
-    accelerationStart:
-      parentSweepParameter.id ===
-        "note"
-        ? 6
-        : SWEEP_ACCELERATION_START,
-
-    accelerationRate:
-      parentSweepParameter.id ===
-        "note"
-        ? 0.08
-        : SWEEP_ACCELERATION_RATE,
-
-    onCommit: (
-      startValue,
-      currentValue,
-      changed
-    ) => {
-      parentSweepHistorySaved =
-        false;
-
-      parentOffsetSelectionAppliedDelta =
-        0;
-
-      if (!changed) {
-        return;
-      }
-
-      renderEditor();
-restoreFocusKey(
-  `parameter-${focusId}`
-);
-    }
-  });
-}
-
-/*
- * ここから下はifの外。
- */
-button.addEventListener(
-  "click",
-  () => {
-    const selectedParameterId = parameter?.id;
-
-    if (
-      selectedParameterId === "lfo" &&
-      lfoNumber !== null
-    ) {
-      const sameLfoSelected =
-        state.selectedParameterId === "lfo" &&
-        editorTrack().lfoSelected === lfoNumber;
-
-      if (sameLfoSelected) {
-        clearOffsetSelectionMode();
-        state.selectedParameterId = null;
-        state.selectedChildId = null;
-      } else {
-        editorTrack().lfoSelected = lfoNumber;
-        state.selectedParameterId = "lfo";
-        /*
-         * LFOも他パラと同じく、親タップ後は
-         * 子パラ側で編集対象を明示する。
-         */
-        state.selectedChildId = "depth";
-      }
-
-      renderEditorAndRestore(
-        `parameter-${focusId}`
-      );
-
+  const beginEdit = () => {
+    if (historySaved) {
       return;
     }
 
-if (
-  state.selectedParameterId ===
-  selectedParameterId
-) {
-  clearOffsetSelectionMode();
+    saveHistory();
+    historySaved = true;
+  };
 
-  state.selectedParameterId = null;
-  state.selectedChildId = null;
+  const endEdit = () => {
+    historySaved = false;
+  };
 
-  renderEditorAndRestore(
-    `parameter-${focusId}`
+  input.addEventListener(
+    "pointerdown",
+    beginEdit
   );
 
-  return;
+  input.addEventListener(
+    "keydown",
+    beginEdit
+  );
+
+  input.addEventListener(
+    "input",
+    () => {
+      if (!historySaved) {
+        beginEdit();
+      }
+
+      sound[
+        definition.id
+      ] =
+        Number(
+          input.value
+        );
+
+      updateValue();
+    }
+  );
+
+  input.addEventListener(
+    "change",
+    endEdit
+  );
+
+  input.addEventListener(
+    "pointerup",
+    endEdit
+  );
+
+  input.addEventListener(
+    "blur",
+    endEdit
+  );
+
+  row.append(
+    name,
+    input,
+    value
+  );
+
+  return row;
 }
-    state.selectedParameterId =
-      parameter.id;
 
-    const activeId =
-  parameter.id === "envelope"
-    ? "attack"
-        : parameter.id === "osc"
-          ? (
-              oscParameter.children.some(
-                child =>
-                  child.id ===
-                  "sineVolume"
-              )
-                ? "sineVolume"
-                : "sineVolume"
-            )
-          : parameter.id === "lfo"
-            ? "settings"
-          : parameter.id === "articulation"
-            ? articulationSelectedId
-          : parameter.id === "reverb"
-            ? "reverbSend"
-            : (
-                parameter.children?.[0]?.id ??
-                parameter.id
-              );
-
-    state.selectedChildId =
-      activeId;
-
-    renderEditorAndRestore(
-      `parameter-${focusId}`
-    );
-  }
-);
-
-return button;
-}
-
-function createTrackLengthInput(focusKey) {
-  const track = editorTrack();
-
+function createChoiceButton({
+  label,
+  selected,
+  onSelect
+}) {
   const button =
-    document.createElement("button");
+    document.createElement(
+      "button"
+    );
 
-  button.type = "button";
+  button.type =
+    "button";
+
   button.className =
-    "track-length-input";
+    "mokton-choice-button";
 
   button.textContent =
-    track.stepLength;
-
-  button.dataset.focusKey =
-    focusKey;
-
-  button.setAttribute(
-    "aria-label",
-    `トラック${track.id}のステップ数`
-  );
-
-  /*
-   * touch / penではスイープ専用。
-   * mouse / keyboardでは直接入力可能。
-   */
-  let lastPointerType = null;
-
-  button.addEventListener(
-    "pointerdown",
-    event => {
-      lastPointerType =
-        event.pointerType;
-    }
-  );
-
-  /*
-   * 上下スイープによる
-   * Track Length変更。
-   */
-  let sweepHistorySaved = false;
-
-  enableVerticalSweep({
-    element: button,
-
-    getValue: () => {
-      return track.stepLength;
-    },
-
-    setValue: nextLength => {
-      if (!sweepHistorySaved) {
-        saveTrackHistory();
-        sweepHistorySaved = true;
-      }
-
-      track.stepLength =
-        Math.round(nextLength);
-
-      button.textContent =
-        track.stepLength;
-
-      syncPatternLength();
-      renderSequence();
-    },
-
-    min: 1,
-    max: STEP_COUNT,
-    step: 1,
-
-    pixelsPerStep: 20,
-acceleration: false,
-    onCommit: (
-      startValue,
-      currentValue,
-      changed
-    ) => {
-      sweepHistorySaved = false;
-
-      if (changed) {
-        renderEditor();
-restoreFocusKey(
-  focusKey
-);
-      }
-    }
-  });
-
-  /*
-   * PCクリックまたは
-   * キーボード操作時の直接入力。
-   */
-  button.addEventListener(
-    "click",
-    event => {
-      const isTouchInput =
-  isTouchDevice() ||
-  isTouchOrPen(
-    lastPointerType
-  );
-
-if (isTouchInput) {
-  event.preventDefault();
-  event.stopPropagation();
-  return;
-}
-
-      const input =
-        document.createElement("input");
-
-      input.type = "number";
-      input.className =
-        "track-length-input";
-
-      input.value =
-        track.stepLength;
-
-      input.min = "1";
-      input.max =
-        String(STEP_COUNT);
-      input.step = "1";
-
-      input.dataset.focusKey =
-        focusKey;
-
-      input.dataset.keyboardEditing =
-        "true";
-
-      input.setAttribute(
-        "aria-label",
-        `トラック${track.id}のステップ数`
-      );
-
-      button.replaceWith(input);
-
-      input.focus();
-      input.select();
-
-      let finished = false;
-
-      const finish =
-        shouldCommit => {
-          if (finished) {
-            return;
-          }
-
-          finished = true;
-
-          if (shouldCommit) {
-            const previousLength =
-              track.stepLength;
-
-            const nextLength =
-              Math.round(
-                clamp(
-                  Number(input.value) || 1,
-                  1,
-                  STEP_COUNT
-                )
-              );
-
-            if (
-              nextLength !==
-              previousLength
-            ) {
-              saveTrackHistory();
-
-              track.stepLength =
-                nextLength;
-
-              syncPatternLength();
-            }
-          }
-
-          renderEditorAndRestore(
-            focusKey
-          );
-        };
-
-      input.addEventListener(
-        "keydown",
-        event => {
-          if (
-            event.key === "Enter"
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            finish(true);
-          }
-
-          if (
-            event.key === "Escape"
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            finish(false);
-          }
-        }
-      );
-
-      input.addEventListener(
-        "blur",
-        () => finish(true),
-        { once: true }
-      );
-    }
-  );
-
-  return button;
-}
-
-
-function signedSwingValue(value) {
-  const number =
-    clamp(
-      Math.round(Number(value) || 0),
-      -8,
-      8
-    );
-
-  return number > 0
-    ? `+${number}`
-    : String(number);
-}
-
-function createCompactValue({
-  label,
-  control,
-  className = ""
-}) {
-  const wrapper =
-    document.createElement("div");
-
-  wrapper.className =
-    `compact-value ${className}`.trim();
-
-  control.classList.add(
-    "compact-value-number"
-  );
-
-  const labelElement =
-    document.createElement("span");
-
-  labelElement.className =
-    "compact-value-label";
-
-  labelElement.textContent =
     label;
 
-  wrapper.append(
-    labelElement,
-    control
+  button.classList.toggle(
+    "selected",
+    selected
   );
 
-  return wrapper;
+  button.addEventListener(
+    "click",
+    () => {
+      saveHistory();
+      onSelect();
+      renderEditor();
+    }
+  );
+
+  return button;
 }
 
-function createSwingControl(focusKey) {
-  const track = editorTrack();
+function createLfoCard(
+  sound,
+  lfoKey,
+  label
+) {
+  const lfo =
+    sound?.[
+      lfoKey
+    ];
 
-  const button =
-    document.createElement("button");
+  if (!lfo) {
+    return null;
+  }
 
-  button.type = "button";
-  button.className =
-    "swing-value compact-value-number";
-
-  button.dataset.focusKey =
-    focusKey;
-
-  button.textContent =
-    signedSwingValue(
-      track.swing
+  const card =
+    document.createElement(
+      "section"
     );
 
-  button.setAttribute(
-    "aria-label",
-    `トラック${track.id}のSwing ${signedSwingValue(track.swing)}`
+  card.className =
+    "mokton-lfo-card";
+
+  const head =
+    document.createElement(
+      "div"
+    );
+
+  head.className =
+    "mokton-lfo-head";
+
+  const title =
+    document.createElement(
+      "span"
+    );
+
+  title.textContent =
+    label;
+
+  const target =
+    document.createElement(
+      "span"
+    );
+
+  target.className =
+    "mokton-lfo-target";
+
+  /*
+   * Target候補は未確定。
+   * 現在値だけ表示し、UI側で新しい候補を発明しない。
+   */
+  target.textContent =
+    `target:${lfo.target}`;
+
+  head.append(
+    title,
+    target
   );
 
-  let lastPointerType = null;
-  let sweepHistorySaved = false;
+  card.appendChild(
+    head
+  );
+
+  const waveRow =
+    document.createElement(
+      "div"
+    );
+
+  waveRow.className =
+    "mokton-choice-row";
+
+  const waveLabel =
+    document.createElement(
+      "span"
+    );
+
+  waveLabel.className =
+    "mokton-param-label";
+
+  waveLabel.textContent =
+    "wave";
+
+  const waveButtons =
+    document.createElement(
+      "div"
+    );
+
+  waveButtons.className =
+    "mokton-choice-buttons";
+
+  LFO_WAVES.forEach(
+    wave => {
+      waveButtons.appendChild(
+        createChoiceButton({
+          label:
+            wave
+              .replace(
+                "triangle",
+                "tri"
+              )
+              .replace(
+                "square",
+                "sqr"
+              )
+              .replace(
+                "sawUp",
+                "saw+"
+              )
+              .replace(
+                "sawDown",
+                "saw-"
+              )
+              .replace(
+                "random",
+                "rnd"
+              ),
+
+          selected:
+            lfo.wave === wave,
+
+          onSelect: () => {
+            lfo.wave =
+              wave;
+          }
+        })
+      );
+    }
+  );
+
+  waveRow.append(
+    waveLabel,
+    waveButtons
+  );
+
+  card.appendChild(
+    waveRow
+  );
+
+  card.appendChild(
+    createParameterRow(
+      lfo,
+      {
+        id: "depth",
+        label: "dep",
+        min: 0,
+        max: 100,
+        step: 1
+      }
+    )
+  );
+
+  card.appendChild(
+    createParameterRow(
+      lfo,
+      {
+        id: "rate",
+        label: "rat",
+        min: 1,
+        max: 100,
+        step: 1
+      }
+    )
+  );
+
+  const syncRow =
+    document.createElement(
+      "div"
+    );
+
+  syncRow.className =
+    "mokton-choice-row";
+
+  const syncLabel =
+    document.createElement(
+      "span"
+    );
+
+  syncLabel.className =
+    "mokton-param-label";
+
+  syncLabel.textContent =
+    "rate mode";
+
+  const syncButtons =
+    document.createElement(
+      "div"
+    );
+
+  syncButtons.className =
+    "mokton-choice-buttons";
+
+  [
+    ["free", "free"],
+    ["bpm", "bpm"]
+  ].forEach(
+    ([mode, text]) => {
+      syncButtons.appendChild(
+        createChoiceButton({
+          label: text,
+          selected:
+            lfo.syncMode ===
+            mode,
+
+          onSelect: () => {
+            lfo.syncMode =
+              mode;
+          }
+        })
+      );
+    }
+  );
+
+  syncRow.append(
+    syncLabel,
+    syncButtons
+  );
+
+  card.appendChild(
+    syncRow
+  );
+
+  return card;
+}
+
+function createSoundParameterEditor() {
+  const sound =
+    selectedSound();
+
+  if (!sound) {
+    return null;
+  }
+
+  const root =
+    document.createElement(
+      "section"
+    );
+
+  root.className =
+    "mokton-sound-editor";
+
+  const heading =
+    document.createElement(
+      "div"
+    );
+
+  heading.className =
+    "mokton-sound-editor-title";
+
+  const title =
+    document.createElement(
+      "span"
+    );
+
+  title.textContent =
+    "sound";
+
+  const selected =
+    document.createElement(
+      "strong"
+    );
+
+  selected.textContent =
+    state.selectedSoundId;
+
+  heading.append(
+    title,
+    selected
+  );
+
+  root.appendChild(
+    heading
+  );
+
+  const definitions =
+    SOUND_PARAMETER_SCHEMA[
+      state.selectedLayer
+    ] ?? [];
+
+  definitions.forEach(
+    definition => {
+      root.appendChild(
+        createParameterRow(
+          sound,
+          definition
+        )
+      );
+    }
+  );
+
+  [
+    ["lfo1", "lfo1"],
+    ["lfo2", "lfo2"]
+  ].forEach(
+    ([key, label]) => {
+      const card =
+        createLfoCard(
+          sound,
+          key,
+          label
+        );
+
+      if (card) {
+        root.appendChild(
+          card
+        );
+      }
+    }
+  );
+
+  return root;
+}
+
+
+const STEP_PARAMETER_SCHEMA =
+  Object.freeze({
+    melodic: [
+      {
+        id: "note",
+        label: "nte",
+        min: -60,
+        max: 67,
+        step: 1
+      },
+
+      {
+        id: "gain",
+        label: "lvl",
+        min: 0,
+        max: 150,
+        step: 1
+      },
+
+      {
+        id: "pan",
+        label: "pan",
+        min: -25,
+        max: 25,
+        step: 1
+      },
+
+      {
+        id: "probability",
+        label: "prb",
+        min: 0,
+        max: 100,
+        step: 1
+      },
+
+      {
+        id: "subPattern",
+        label: "sub",
+        min: -1,
+        max: 6,
+        step: 1
+      },
+
+      {
+        id: "nudge",
+        label: "ndg",
+        min: -4,
+        max: 4,
+        step: 1
+      },
+
+      {
+        id: "strum",
+        label: "stm",
+        min: -8,
+        max: 8,
+        step: 1
+      }
+    ],
+
+    rhythm: [
+      {
+        id: "note",
+        label: "nte",
+        min: -60,
+        max: 67,
+        step: 1
+      },
+
+      {
+        id: "gain",
+        label: "lvl",
+        min: 0,
+        max: 150,
+        step: 1
+      },
+
+      {
+        id: "pan",
+        label: "pan",
+        min: -25,
+        max: 25,
+        step: 1
+      },
+
+      {
+        id: "probability",
+        label: "prb",
+        min: 0,
+        max: 100,
+        step: 1
+      },
+
+      {
+        id: "subPattern",
+        label: "sub",
+        min: -1,
+        max: 6,
+        step: 1
+      },
+
+      {
+        id: "subProbability",
+        label: "spr",
+        min: 0,
+        max: 100,
+        step: 1
+      },
+
+      {
+        id: "nudge",
+        label: "ndg",
+        min: -4,
+        max: 4,
+        step: 1
+      }
+    ]
+  });
+
+function selectedStepPerformance() {
+  if (
+    selectedStepIndex ===
+    null
+  ) {
+    return null;
+  }
+
+  const step =
+    currentStep(
+      selectedStepIndex
+    );
+
+  if (!step) {
+    return null;
+  }
+
+  return (
+    step[
+      state.selectedLayer
+    ] ?? null
+  );
+}
+
+function formatStepValue(
+  definition,
+  value
+) {
+  if (
+    definition.id ===
+    "subPattern"
+  ) {
+    const number =
+      Math.round(
+        Number(value)
+      );
+
+    return number < 0
+      ? "off"
+      : String(
+          number + 1
+        );
+  }
+
+  return formatParameterValue(
+    definition,
+    value
+  );
+}
+
+function createStepParameterRow(
+  performanceData,
+  definition
+) {
+  const row =
+    document.createElement(
+      "label"
+    );
+
+  row.className =
+    "mokton-param-row";
+
+  const name =
+    document.createElement(
+      "span"
+    );
+
+  name.className =
+    "mokton-param-label";
+
+  name.textContent =
+    definition.label;
+
+  const input =
+    document.createElement(
+      "input"
+    );
+
+  input.className =
+    "mokton-param-range";
+
+  input.type =
+    "range";
+
+  input.min =
+    String(
+      definition.min
+    );
+
+  input.max =
+    String(
+      definition.max
+    );
+
+  input.step =
+    String(
+      definition.step
+    );
+
+  input.value =
+    String(
+      performanceData[
+        definition.id
+      ]
+    );
+
+  const value =
+    document.createElement(
+      "span"
+    );
+
+  value.className =
+    "mokton-param-value";
+
+  const updateValue = () => {
+    value.textContent =
+      formatStepValue(
+        definition,
+        input.value
+      );
+  };
+
+  updateValue();
+
+  let historySaved =
+    false;
+
+  const beginEdit = () => {
+    if (historySaved) {
+      return;
+    }
+
+    saveHistory();
+    historySaved = true;
+  };
+
+  const endEdit = () => {
+    historySaved = false;
+  };
+
+  input.addEventListener(
+    "pointerdown",
+    beginEdit
+  );
+
+  input.addEventListener(
+    "keydown",
+    beginEdit
+  );
+
+  input.addEventListener(
+    "input",
+    () => {
+      if (!historySaved) {
+        beginEdit();
+      }
+
+      performanceData[
+        definition.id
+      ] =
+        Number(
+          input.value
+        );
+
+      updateValue();
+    }
+  );
+
+  input.addEventListener(
+    "change",
+    endEdit
+  );
+
+  input.addEventListener(
+    "pointerup",
+    endEdit
+  );
+
+  input.addEventListener(
+    "blur",
+    endEdit
+  );
+
+  row.append(
+    name,
+    input,
+    value
+  );
+
+  return row;
+}
+
+function createChordPendingRow(
+  performanceData
+) {
+  const row =
+    document.createElement(
+      "div"
+    );
+
+  row.className =
+    "mokton-readonly-row";
+
+  const name =
+    document.createElement(
+      "span"
+    );
+
+  name.className =
+    "mokton-param-label";
+
+  name.textContent =
+    "chord";
+
+  const value =
+    document.createElement(
+      "span"
+    );
+
+  value.className =
+    "mokton-readonly-value";
+
+  value.textContent =
+    performanceData.chord ==
+      null
+      ? "single / pending"
+      : "set / pending";
+
+  row.append(
+    name,
+    value
+  );
+
+  return row;
+}
+
+function createStepPerformanceEditor() {
+  const root =
+    document.createElement(
+      "section"
+    );
+
+  root.className =
+    "mokton-step-editor";
+
+  const heading =
+    document.createElement(
+      "div"
+    );
+
+  heading.className =
+    "mokton-step-editor-title";
+
+  const title =
+    document.createElement(
+      "span"
+    );
+
+  title.textContent =
+    "step";
+
+  const selected =
+    document.createElement(
+      "strong"
+    );
+
+  selected.textContent =
+    selectedStepIndex ===
+      null
+      ? "--"
+      : String(
+          selectedStepIndex + 1
+        ).padStart(
+          2,
+          "0"
+        );
+
+  heading.append(
+    title,
+    selected
+  );
+
+  root.appendChild(
+    heading
+  );
+
+  if (
+    selectedStepIndex ===
+    null
+  ) {
+    const empty =
+      document.createElement(
+        "div"
+      );
+
+    empty.className =
+      "mokton-step-editor-empty";
+
+    empty.textContent =
+      "tap step";
+
+    root.appendChild(
+      empty
+    );
+
+    return root;
+  }
+
+  const performanceData =
+    selectedStepPerformance();
+
+  if (
+    !performanceData?.soundId
+  ) {
+    const empty =
+      document.createElement(
+        "div"
+      );
+
+    empty.className =
+      "mokton-step-editor-empty";
+
+    empty.textContent =
+      `${state.selectedLayer} empty`;
+
+    root.appendChild(
+      empty
+    );
+
+    return root;
+  }
+
+  if (
+    performanceData.soundId !==
+    state.selectedSoundId
+  ) {
+    const empty =
+      document.createElement(
+        "div"
+      );
+
+    empty.className =
+      "mokton-step-editor-empty";
+
+    empty.textContent =
+      `sound ${performanceData.soundId} on this layer`;
+
+    root.appendChild(
+      empty
+    );
+
+    return root;
+  }
+
+  if (
+    state.selectedLayer ===
+    "melodic"
+  ) {
+    root.appendChild(
+      createChordPendingRow(
+        performanceData
+      )
+    );
+  }
+
+  const definitions =
+    STEP_PARAMETER_SCHEMA[
+      state.selectedLayer
+    ] ?? [];
+
+  definitions.forEach(
+    definition => {
+      root.appendChild(
+        createStepParameterRow(
+          performanceData,
+          definition
+        )
+      );
+    }
+  );
+
+  return root;
+}
+
+
+function createMiniButton(label, onClick, options = {}) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "mokton-mini-button";
+  button.textContent = label;
+  button.title = options.title ?? label;
+  button.classList.toggle("active", Boolean(options.active));
+  button.addEventListener("click", event => {
+    event.stopPropagation();
+    onClick();
+  });
+  return button;
+}
+
+function renderSequenceTools() {
+  const host = document.querySelector(
+    ".sequence-section .section-toolbar"
+  );
+  if (!host) return;
+
+  host.querySelector(".mokton-sequence-tools")?.remove();
+
+  const tools = document.createElement("div");
+  tools.className = "mokton-sequence-tools";
+
+  tools.append(
+    createMiniButton("◀", () => {
+      saveHistory();
+      shiftSequence(-1);
+      renderSequence();
+      renderEditor();
+    }, { title: "shift sequence left" }),
+
+    createMiniButton("▶", () => {
+      saveHistory();
+      shiftSequence(1);
+      renderSequence();
+      renderEditor();
+    }, { title: "shift sequence right" }),
+
+    createMiniButton("rdm", () => {
+      saveHistory();
+      randomizeSequence();
+      renderSequence();
+      renderEditor();
+    }, { title: "shuffle existing steps" })
+  );
+
+  if (
+    hasEditClipboard() &&
+    editClipboardOriginIsStep()
+  ) {
+    const clipButton =
+      createMiniButton(
+        "clip",
+        () => {
+          clearEditClipboard();
+          renderSequenceTools();
+          renderSequence();
+        },
+        {
+          active: true,
+          title: "clear step clipboard"
+        }
+      );
+
+    clipButton.classList.add(
+      "mokton-clip-button"
+    );
+
+    tools.appendChild(
+      clipButton
+    );
+  }
+
+  host.appendChild(tools);
+}
+
+function createMuteSoloControls({
+  muted = false,
+  solo = false,
+  onMute,
+  onSolo
+}) {
+  const controls = document.createElement("span");
+  controls.className = "mokton-ms-controls";
+  controls.append(
+    createMiniButton("m", onMute, {
+      active: muted,
+      title: "mute"
+    }),
+    createMiniButton("s", onSolo, {
+      active: solo,
+      title: "solo"
+    })
+  );
+  return controls;
+}
+
+function layerPerformanceState(layer) {
+  return performance.layers?.[layer] ?? {
+    muted: false,
+    solo: false
+  };
+}
+
+
+/* =========================================================
+ * Sound Bank selector
+ * ========================================================= */
+
+function createCompactSoundButton(
+  soundId
+) {
+  const button =
+    document.createElement(
+      "button"
+    );
+
+  button.type =
+    "button";
+
+  button.className =
+    "mokton-sound-button mokton-sound-button-compact";
+
+  button.textContent =
+    soundId;
+
+  button.dataset.soundId =
+    soundId;
+
+  button.classList.toggle(
+    "selected",
+    state.selectedSoundId ===
+      soundId
+  );
+
+  button.addEventListener(
+    "click",
+    () => {
+      if (
+        !selectSound(
+          soundId
+        )
+      ) {
+        return;
+      }
+
+      /*
+       * Sound selection changes the target/layer.
+       * Sound parameters remain permanently visible below;
+       * STEP offset parameters live under the sequencer.
+       */
+      selectedLfoKey =
+        null;
+
+      selectedStepParameterId =
+        null;
+
+      renderEditor();
+      renderSequence();
+    }
+  );
+
+  return button;
+}
+
+function createCompactSoundBank() {
+  const bank =
+    document.createElement(
+      "div"
+    );
+
+  bank.className =
+    "mokton-sound-bank";
+
+  [
+    ...MELODIC_SOUND_IDS,
+    ...RHYTHM_SOUND_IDS
+  ].forEach(
+    soundId => {
+      bank.appendChild(
+        createCompactSoundButton(
+          soundId
+        )
+      );
+    }
+  );
+
+  return bank;
+}
+
+function createSelectedSoundMuteSolo() {
+  const sound =
+    selectedSound();
+
+  if (!sound) {
+    return null;
+  }
+
+  const row =
+    document.createElement(
+      "div"
+    );
+
+  row.className =
+    "mokton-selected-ms mokton-selected-sound-info";
+
+  const label =
+    document.createElement(
+      "span"
+    );
+
+  label.className =
+    "mokton-ms-label mokton-selected-sound-name";
+
+  label.textContent =
+    sound.name ||
+    `sound ${state.selectedSoundId}`;
+
+  row.append(
+    label,
+
+    createMuteSoloControls({
+      muted:
+        Boolean(sound.muted),
+
+      solo:
+        Boolean(sound.solo),
+
+      onMute: () => {
+        saveHistory();
+        sound.muted =
+          !sound.muted;
+        renderEditor();
+      },
+
+      onSolo: () => {
+        saveHistory();
+        sound.solo =
+          !sound.solo;
+        renderEditor();
+      }
+    })
+  );
+
+  return row;
+}
+
+
+export let editorMode = "sound";
+let selectedSoundParameterId = null;
+let selectedStepParameterId = null;
+let selectedLfoKey = null;
+let selectedLfoParameterId = null;
+
+const LFO_PARAMETER_SCHEMA = Object.freeze([
+  {
+    id: "depth",
+    label: "dep",
+    min: 0,
+    max: 100,
+    step: 1
+  },
+  {
+    id: "rate",
+    label: "rat",
+    min: 1,
+    max: 100,
+    step: 1
+  }
+]);
+
+function stepDefinitions() {
+  return (
+    STEP_PARAMETER_SCHEMA[
+      state.selectedLayer
+    ] ?? []
+  );
+}
+
+function soundDefinitions() {
+  return (
+    SOUND_PARAMETER_SCHEMA[
+      state.selectedLayer
+    ] ?? []
+  );
+}
+
+function activeStepOffsetDefinition() {
+  if (!selectedStepParameterId) {
+    return null;
+  }
+
+  return (
+    stepDefinitions().find(
+      definition =>
+        definition.id ===
+        selectedStepParameterId
+    ) ?? null
+  );
+}
+
+function clampEditorValue(
+  value,
+  definition
+) {
+  return Math.min(
+    definition.max,
+    Math.max(
+      definition.min,
+      value
+    )
+  );
+}
+
+function createDirectValuePad(
+  target,
+  definition,
+  {
+    formatter =
+      formatParameterValue,
+    extraClass = ""
+  } = {}
+) {
+  const button =
+    document.createElement(
+      "button"
+    );
+
+  button.type =
+    "button";
+
+  button.className =
+    `mokton-direct-value-pad ${extraClass}`
+      .trim();
+
+  const label =
+    document.createElement(
+      "span"
+    );
+
+  label.className =
+    "mokton-direct-value-label";
+
+  label.textContent =
+    definition.label;
+
+  const value =
+    document.createElement(
+      "strong"
+    );
+
+  value.className =
+    "mokton-direct-value-number";
+
+  const renderValue = () => {
+    value.textContent =
+      formatter(
+        definition,
+        target[
+          definition.id
+        ]
+      );
+  };
+
+  renderValue();
+
+  let drag =
+    null;
 
   button.addEventListener(
     "pointerdown",
     event => {
-      lastPointerType =
-        event.pointerType;
+      if (
+        event.button !==
+        undefined &&
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      drag = {
+        startY:
+          event.clientY,
+        startValue:
+          Number(
+            target[
+              definition.id
+            ]
+          ) || 0,
+        saved:
+          false
+      };
+
+      button.setPointerCapture?.(
+        event.pointerId
+      );
     }
   );
 
-  enableVerticalSweep({
-    element: button,
-
-    getValue: () =>
-      track.swing,
-
-    setValue: nextValue => {
-      if (!sweepHistorySaved) {
-        saveTrackHistory();
-        sweepHistorySaved = true;
+  button.addEventListener(
+    "pointermove",
+    event => {
+      if (!drag) {
+        return;
       }
 
-      track.swing =
-        Math.round(nextValue);
+      const delta =
+        drag.startY -
+        event.clientY;
+
+      const units =
+        Math.round(
+          delta / 7
+        );
+
+      if (!units) {
+        return;
+      }
+
+      if (!drag.saved) {
+        saveHistory();
+        drag.saved = true;
+      }
+
+      const next =
+        clampEditorValue(
+          drag.startValue +
+          units *
+          definition.step,
+          definition
+        );
+
+      target[
+        definition.id
+      ] =
+        next;
+
+      renderValue();
+    }
+  );
+
+  const finishDrag = (
+    event
+  ) => {
+    if (!drag) {
+      return;
+    }
+
+    button.releasePointerCapture?.(
+      event.pointerId
+    );
+
+    drag =
+      null;
+  };
+
+  button.addEventListener(
+    "pointerup",
+    finishDrag
+  );
+
+  button.addEventListener(
+    "pointercancel",
+    finishDrag
+  );
+
+  button.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key !==
+          "ArrowUp" &&
+        event.key !==
+          "ArrowDown"
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      saveHistory();
+
+      const direction =
+        event.key ===
+        "ArrowUp"
+          ? 1
+          : -1;
+
+      target[
+        definition.id
+      ] =
+        clampEditorValue(
+          Number(
+            target[
+              definition.id
+            ]
+          ) +
+          definition.step *
+          direction,
+          definition
+        );
+
+      renderValue();
+    }
+  );
+
+  button.append(
+    label,
+    value
+  );
+
+  return button;
+}
+
+function shortTargetLabel(
+  target
+) {
+  const value =
+    String(
+      target ?? ""
+    ).toLowerCase();
+
+  const map = {
+    pitch: "pit",
+    filter: "cut",
+    cutoff: "cut",
+    gain: "lvl",
+    pan: "pan",
+    fmdepth: "fmd",
+    fmratio: "fmr",
+    noise: "nse"
+  };
+
+  return (
+    map[value] ??
+    value.slice(0, 3) ??
+    "---"
+  );
+}
+
+function shortWaveLabel(
+  wave
+) {
+  const map = {
+    sine: "sin",
+    triangle: "tri",
+    square: "sqr",
+    sawUp: "sw+",
+    sawDown: "sw-",
+    random: "rnd",
+    rise: "ris",
+    fall: "fal"
+  };
+
+  return (
+    map[wave] ??
+    String(wave ?? "")
+      .slice(0, 3)
+  );
+}
+
+function createLfoStaticCell(
+  labelText,
+  valueText,
+  extraClass = ""
+) {
+  const cell =
+    document.createElement(
+      "div"
+    );
+
+  cell.className =
+    `mokton-lfo-cell ${extraClass}`
+      .trim();
+
+  const label =
+    document.createElement(
+      "span"
+    );
+
+  label.className =
+    "mokton-lfo-cell-label";
+
+  label.textContent =
+    labelText;
+
+  const value =
+    document.createElement(
+      "span"
+    );
+
+  value.className =
+    "mokton-lfo-cell-value";
+
+  value.textContent =
+    valueText;
+
+  cell.append(
+    label,
+    value
+  );
+
+  return cell;
+}
+
+function createLfoRow(
+  lfoKey
+) {
+  const sound =
+    selectedSound();
+
+  const lfo =
+    sound?.[
+      lfoKey
+    ];
+
+  if (!lfo) {
+    return null;
+  }
+
+  const row =
+    document.createElement(
+      "div"
+    );
+
+  row.className =
+    "mokton-lfo-row";
+
+  const title =
+    document.createElement(
+      "div"
+    );
+
+  title.className =
+    "mokton-lfo-row-title";
+
+  title.textContent =
+    lfoKey;
+
+  row.appendChild(
+    title
+  );
+
+  /*
+   * Target candidates are still unresolved.
+   * Surface the current target only; do not invent a selector.
+   */
+  row.appendChild(
+    createLfoStaticCell(
+      "tgt",
+      shortTargetLabel(
+        lfo.target
+      ),
+      "mokton-lfo-target-cell"
+    )
+  );
+
+  const waveButton =
+    document.createElement(
+      "button"
+    );
+
+  waveButton.type =
+    "button";
+
+  waveButton.className =
+    "mokton-lfo-cell mokton-lfo-wave-cycle";
+
+  const waveLabel =
+    document.createElement(
+      "span"
+    );
+
+  waveLabel.className =
+    "mokton-lfo-cell-label";
+
+  waveLabel.textContent =
+    "wav";
+
+  const waveValue =
+    document.createElement(
+      "span"
+    );
+
+  waveValue.className =
+    "mokton-lfo-cell-value";
+
+  waveValue.textContent =
+    shortWaveLabel(
+      lfo.wave
+    );
+
+  waveButton.append(
+    waveLabel,
+    waveValue
+  );
+
+  waveButton.addEventListener(
+    "click",
+    () => {
+      const currentIndex =
+        Math.max(
+          0,
+          LFO_WAVES.indexOf(
+            lfo.wave
+          )
+        );
+
+      saveHistory();
+
+      lfo.wave =
+        LFO_WAVES[
+          (
+            currentIndex + 1
+          ) %
+          LFO_WAVES.length
+        ];
+
+      renderEditor();
+    }
+  );
+
+  row.appendChild(
+    waveButton
+  );
+
+  const depthDefinition = {
+    id: "depth",
+    label: "dep",
+    min: 0,
+    max: 100,
+    step: 1
+  };
+
+  const rateDefinition = {
+    id: "rate",
+    label: "rat",
+    min: 1,
+    max: 100,
+    step: 1
+  };
+
+  row.appendChild(
+    createDirectValuePad(
+      lfo,
+      depthDefinition,
+      {
+        extraClass:
+          "mokton-lfo-inline-value"
+      }
+    )
+  );
+
+  row.appendChild(
+    createDirectValuePad(
+      lfo,
+      rateDefinition,
+      {
+        extraClass:
+          "mokton-lfo-inline-value"
+      }
+    )
+  );
+
+  const syncButton =
+    document.createElement(
+      "button"
+    );
+
+  syncButton.type =
+    "button";
+
+  syncButton.className =
+    "mokton-lfo-cell mokton-lfo-sync-button";
+
+  const syncLabel =
+    document.createElement(
+      "span"
+    );
+
+  syncLabel.className =
+    "mokton-lfo-cell-label";
+
+  syncLabel.textContent =
+    "syn";
+
+  const syncValue =
+    document.createElement(
+      "span"
+    );
+
+  syncValue.className =
+    "mokton-lfo-cell-value";
+
+  syncValue.textContent =
+    lfo.syncMode === "bpm"
+      ? "bpm"
+      : "fre";
+
+  syncButton.append(
+    syncLabel,
+    syncValue
+  );
+
+  syncButton.addEventListener(
+    "click",
+    () => {
+      saveHistory();
+
+      lfo.syncMode =
+        lfo.syncMode === "bpm"
+          ? "free"
+          : "bpm";
+
+      renderEditor();
+    }
+  );
+
+  row.appendChild(
+    syncButton
+  );
+
+  return row;
+}
+
+
+function renderEditor() {
+  if (!editor) {
+    return;
+  }
+
+  editor.innerHTML =
+    "";
+
+  const root =
+    document.createElement(
+      "div"
+    );
+
+  root.className =
+    "mokton-editor mokton-editor-compact mokton-editor-sound";
+
+  const sounds =
+    document.createElement(
+      "div"
+    );
+
+  sounds.className =
+    "mokton-compact-sounds";
+
+  sounds.appendChild(
+    createCompactSoundBank()
+  );
+
+  const selectedMs =
+    createSelectedSoundMuteSolo();
+
+  if (selectedMs) {
+    sounds.appendChild(
+      selectedMs
+    );
+  }
+
+  root.appendChild(
+    sounds
+  );
+
+  const sound =
+    selectedSound();
+
+  if (sound) {
+    const pads =
+      document.createElement(
+        "div"
+      );
+
+    pads.className =
+      "mokton-sound-parameter-values";
+
+    soundDefinitions().forEach(
+      definition => {
+        pads.appendChild(
+          createDirectValuePad(
+            sound,
+            definition
+          )
+        );
+      }
+    );
+
+    root.appendChild(
+      pads
+    );
+
+    const lfo1 =
+      createLfoRow(
+        "lfo1"
+      );
+
+    const lfo2 =
+      createLfoRow(
+        "lfo2"
+      );
+
+    if (lfo1) {
+      root.appendChild(
+        lfo1
+      );
+    }
+
+    if (lfo2) {
+      root.appendChild(
+        lfo2
+      );
+    }
+  }
+
+  editor.appendChild(
+    root
+  );
+}
+
+
+/* =========================================================
+ * 32 STEP / ONE TIMELINE
+ * ========================================================= */
+
+function createStepParameterStrip() {
+  const row =
+    document.createElement(
+      "div"
+    );
+
+  row.className =
+    "mokton-step-parameter-strip";
+
+  stepDefinitions().forEach(
+    definition => {
+      const button =
+        document.createElement(
+          "button"
+        );
+
+      button.type =
+        "button";
+
+      button.className =
+        "mokton-step-parameter-button";
 
       button.textContent =
-        signedSwingValue(
-          track.swing
-        );
+        definition.label;
 
-      button.setAttribute(
-        "aria-label",
-        `トラック${track.id}のSwing ${signedSwingValue(track.swing)}`
+      button.classList.toggle(
+        "active",
+        selectedStepParameterId ===
+          definition.id
       );
-    },
 
-    min: -8,
-    max: 8,
-    step: 1,
+      button.addEventListener(
+        "click",
+        () => {
+          selectedStepParameterId =
+            selectedStepParameterId ===
+              definition.id
+              ? null
+              : definition.id;
 
-    pixelsPerStep: 12,
-    acceleration: false,
+          renderSequence();
+        }
+      );
 
-    onCommit: (
-      startValue,
-      currentValue,
-      changed
-    ) => {
-      sweepHistorySaved = false;
+      row.appendChild(
+        button
+      );
+    }
+  );
 
-      if (changed) {
-        renderEditorAndRestore(
-          focusKey
+  return row;
+}
+
+
+function toggleSelectedLayerAtStep(
+  stepIndex
+) {
+  const step =
+    currentStep(
+      stepIndex
+    );
+
+  if (!step) {
+    return;
+  }
+
+  const layer =
+    state.selectedLayer;
+
+  const currentSoundId =
+    step[layer]?.soundId ??
+    null;
+
+  if (
+    currentSoundId ===
+      state.selectedSoundId
+  ) {
+    clearStepLayer(
+      stepIndex,
+      layer
+    );
+
+    return;
+  }
+
+  /*
+   * 同Layerの別Soundが置かれていても、
+   * 選択Soundで上書きする。
+   * 1 STEP / 1 Layerにつき1 Sound。
+   */
+  placeSelectedSound(
+    stepIndex
+  );
+}
+
+function copyWholeStep(stepIndex) {
+  if (
+    !copyStepToEditClipboard(
+      stepIndex
+    )
+  ) {
+    return false;
+  }
+
+  selectedStepIndex =
+    stepIndex;
+
+  renderSequenceTools();
+  renderSequence();
+  renderEditor();
+
+  return true;
+}
+
+function pasteWholeStep(stepIndex) {
+  if (
+    !hasEditClipboard() ||
+    !editClipboardOriginIsStep()
+  ) {
+    return false;
+  }
+
+  if (
+    !pasteStepFromEditClipboard(
+      stepIndex
+    )
+  ) {
+    return false;
+  }
+
+  selectedStepIndex =
+    stepIndex;
+
+  renderSequence();
+  renderEditor();
+
+  return true;
+}
+
+
+function createStepButton(
+  stepIndex
+) {
+  const step =
+    currentStep(
+      stepIndex
+    );
+
+  const button =
+    document.createElement(
+      "button"
+    );
+
+  button.type =
+    "button";
+
+  button.className =
+    "mokton-step";
+
+  button.dataset.stepIndex =
+    String(stepIndex);
+
+  const melodicSoundId =
+    step?.melodic?.soundId ??
+    null;
+
+  const rhythmSoundId =
+    step?.rhythm?.soundId ??
+    null;
+
+  button.classList.toggle(
+    "has-melodic",
+    Boolean(
+      melodicSoundId
+    )
+  );
+
+  button.classList.toggle(
+    "has-rhythm",
+    Boolean(
+      rhythmSoundId
+    )
+  );
+
+  const playingStep =
+    state.playbackTickIndex ===
+      null
+      ? -1
+      : state.playbackTickIndex %
+        STEP_COUNT;
+
+  button.classList.toggle(
+    "playing",
+    playingStep ===
+      stepIndex
+  );
+
+  button.classList.toggle(
+    "selected",
+    selectedStepIndex ===
+      stepIndex
+  );
+
+  button.classList.toggle(
+    "clipboard-ready",
+    hasEditClipboard() &&
+      editClipboardOriginIsStep()
+  );
+
+  const number =
+    document.createElement(
+      "span"
+    );
+
+  number.className =
+    "mokton-step-number";
+
+  number.textContent =
+    String(
+      stepIndex + 1
+    ).padStart(
+      2,
+      "0"
+    );
+
+  const visual =
+    document.createElement(
+      "span"
+    );
+
+  visual.className =
+    "mokton-step-visual";
+
+  const offsetDefinition =
+    activeStepOffsetDefinition();
+
+  const offsetPerformance =
+    step?.[
+      state.selectedLayer
+    ];
+
+  const canEditOffset =
+    Boolean(
+      offsetDefinition &&
+      offsetPerformance?.soundId ===
+        state.selectedSoundId
+    );
+
+  let offsetValue =
+    null;
+
+  if (offsetDefinition) {
+    button.classList.add(
+      "offset-view"
+    );
+
+    offsetValue =
+      document.createElement(
+        "span"
+      );
+
+    offsetValue.className =
+      "mokton-step-offset-value";
+
+    if (canEditOffset) {
+      offsetValue.textContent =
+        formatStepValue(
+          offsetDefinition,
+          offsetPerformance[
+            offsetDefinition.id
+          ]
         );
+
+      button.classList.add(
+        "offset-active"
+      );
+    } else {
+      offsetValue.textContent =
+        "";
+    }
+
+    visual.appendChild(
+      offsetValue
+    );
+  } else {
+    const melodicMark =
+      document.createElement(
+        "span"
+      );
+
+    melodicMark.className =
+      "mokton-step-melodic-mark";
+
+    melodicMark.classList.toggle(
+      "active",
+      Boolean(
+        melodicSoundId
+      )
+    );
+
+    const rhythmMark =
+      document.createElement(
+        "span"
+      );
+
+    rhythmMark.className =
+      "mokton-step-rhythm-mark";
+
+    rhythmMark.classList.toggle(
+      "active",
+      Boolean(
+        rhythmSoundId
+      )
+    );
+
+    visual.append(
+      melodicMark,
+      rhythmMark
+    );
+  }
+
+  button.append(
+    visual
+  );
+
+  let offsetDrag =
+    null;
+
+  let offsetGestureMoved =
+    false;
+
+  button.addEventListener(
+    "pointerdown",
+    event => {
+      if (
+        !canEditOffset ||
+        !offsetDefinition
+      ) {
+        return;
+      }
+
+      offsetGestureMoved =
+        false;
+
+      offsetDrag = {
+        startY:
+          event.clientY,
+        startValue:
+          Number(
+            offsetPerformance[
+              offsetDefinition.id
+            ]
+          ) || 0,
+        saved:
+          false
+      };
+
+      button.setPointerCapture?.(
+        event.pointerId
+      );
+    }
+  );
+
+  button.addEventListener(
+    "pointermove",
+    event => {
+      if (
+        !offsetDrag ||
+        !offsetDefinition
+      ) {
+        return;
+      }
+
+      const delta =
+        offsetDrag.startY -
+        event.clientY;
+
+      const units =
+        Math.round(
+          delta / 7
+        );
+
+      if (!units) {
+        return;
+      }
+
+      offsetGestureMoved =
+        true;
+
+      if (!offsetDrag.saved) {
+        saveHistory();
+        offsetDrag.saved =
+          true;
+      }
+
+      const next =
+        clampEditorValue(
+          offsetDrag.startValue +
+          units *
+          offsetDefinition.step,
+          offsetDefinition
+        );
+
+      offsetPerformance[
+        offsetDefinition.id
+      ] =
+        next;
+
+      if (offsetValue) {
+        offsetValue.textContent =
+          formatStepValue(
+            offsetDefinition,
+            next
+          );
       }
     }
-  });
+  );
+
+  const finishOffsetDrag = (
+    event
+  ) => {
+    if (!offsetDrag) {
+      return;
+    }
+
+    button.releasePointerCapture?.(
+      event.pointerId
+    );
+
+    offsetDrag =
+      null;
+  };
+
+  button.addEventListener(
+    "pointerup",
+    finishOffsetDrag
+  );
+
+  button.addEventListener(
+    "pointercancel",
+    finishOffsetDrag
+  );
+
+  let singleTapTimer =
+    null;
 
   button.addEventListener(
     "click",
     event => {
-      const isTouchInput =
-  isTouchDevice() ||
-  isTouchOrPen(
-    lastPointerType
-  );
+      /*
+       * Clipboard保持中は1タップ＝paste。
+       * 通常時はdouble tap判定待ちのため、
+       * single tap動作を少しだけ遅延する。
+       */
+      if (
+        hasEditClipboard() &&
+        editClipboardOriginIsStep()
+      ) {
+        if (singleTapTimer) {
+          clearTimeout(
+            singleTapTimer
+          );
 
-if (isTouchInput) {
-  event.preventDefault();
-  event.stopPropagation();
-  return;
-}
+          singleTapTimer =
+            null;
+        }
 
-      const input =
-        document.createElement(
-          "input"
+        pasteWholeStep(
+          stepIndex
         );
 
-      input.type = "number";
-      input.className =
-        "swing-value compact-value-number";
+        return;
+      }
 
-      input.value =
-        track.swing;
-
-      input.min = "-8";
-      input.max = "8";
-      input.step = "1";
-
-      input.dataset.focusKey =
-        focusKey;
-
-      input.dataset.keyboardEditing =
-        "true";
-
-      input.setAttribute(
-        "aria-label",
-        `トラック${track.id}のSwing`
-      );
-
-      button.replaceWith(input);
-
-      input.focus();
-      input.select();
-
-      let finished = false;
-
-      const finish =
-        shouldCommit => {
-          if (finished) {
-            return;
-          }
-
-          finished = true;
-
-          if (shouldCommit) {
-            const previousValue =
-              track.swing;
-
-            const nextValue =
-              clamp(
-                Math.round(
-                  Number(input.value) ||
-                  0
-                ),
-                -8,
-                8
-              );
-
-            if (
-              nextValue !==
-              previousValue
-            ) {
-              saveTrackHistory();
-
-              track.swing =
-                nextValue;
-            }
-          }
-
-          renderEditorAndRestore(
-            focusKey
-          );
-        };
-
-      input.addEventListener(
-        "keydown",
-        event => {
-          if (
-            event.key === "Enter"
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            finish(true);
-          }
-
-          if (
-            event.key === "Escape"
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            finish(false);
-          }
+      if (
+        selectedStepParameterId
+      ) {
+        if (offsetGestureMoved) {
+          offsetGestureMoved =
+            false;
+          return;
         }
-      );
 
-      input.addEventListener(
-        "blur",
-        () => finish(true),
-        { once: true }
+        selectedStepIndex =
+          stepIndex;
+
+        renderSequence();
+
+        return;
+      }
+
+      if (
+        event.detail >= 2
+      ) {
+        if (singleTapTimer) {
+          clearTimeout(
+            singleTapTimer
+          );
+
+          singleTapTimer =
+            null;
+        }
+
+        copyWholeStep(
+          stepIndex
+        );
+
+        return;
+      }
+
+      if (singleTapTimer) {
+        clearTimeout(
+          singleTapTimer
+        );
+      }
+
+      singleTapTimer =
+        setTimeout(
+          () => {
+            singleTapTimer =
+              null;
+
+            selectedStepIndex =
+              stepIndex;
+
+            toggleSelectedLayerAtStep(
+              stepIndex
+            );
+
+            renderSequence();
+          },
+          220
+        );
+    }
+  );
+
+  button.addEventListener(
+    "dblclick",
+    event => {
+      event.preventDefault();
+
+      if (
+        selectedStepParameterId
+      ) {
+        return;
+      }
+
+      if (
+        hasEditClipboard() &&
+        editClipboardOriginIsStep()
+      ) {
+        return;
+      }
+
+      if (singleTapTimer) {
+        clearTimeout(
+          singleTapTimer
+        );
+
+        singleTapTimer =
+          null;
+      }
+
+      copyWholeStep(
+        stepIndex
       );
     }
   );
@@ -3952,15 +2932,13 @@ if (isTouchInput) {
   return button;
 }
 
+export function renderSequence() {
+  if (!sequenceGrid) {
+    return;
+  }
 
-function createTrackVolumeControl() {
-  const track =
-    editorTrack();
-
-  const parameter =
-    parameterById(
-      "velocity"
-    );
+  sequenceGrid.innerHTML =
+    "";
 
   const wrapper =
     document.createElement(
@@ -3968,7219 +2946,425 @@ function createTrackVolumeControl() {
     );
 
   wrapper.className =
-    "master-control track-volume-control";
+    "mokton-sequence";
 
-  const offsetButton =
-    document.createElement(
-      "button"
-    );
-
-  offsetButton.type =
-    "button";
-
-  offsetButton.className =
-    "master-volume-icon track-volume-icon";
-
-  offsetButton.dataset.focusKey =
-    "menu-volume-offset";
-
-  offsetButton.setAttribute(
-    "aria-label",
-    "ボリュームオフセットを表示"
-  );
-
-  offsetButton.innerHTML =
-    getParameterIcon(
-      "volume"
-    );
-
-  offsetButton.addEventListener(
-    "click",
-    () => {
-      state.selectedParameterId =
-        "velocity";
-
-      state.selectedChildId =
-        "velocity";
-
-      renderEditorAndRestore(
-        "base-value-velocity"
-      );
-    }
-  );
-
-  const slider =
-    document.createElement(
-      "input"
-    );
-
-  slider.type =
-    "range";
-
-  slider.className =
-    "track-volume-slider";
-
-  slider.min =
-    String(
-      parameter.min
-    );
-
-  slider.max =
-    String(
-      parameter.max
-    );
-
-  slider.step =
-    String(
-      parameter.step ?? 1
-    );
-
-  slider.value =
-    String(
-      track.base.velocity
-    );
-
-  slider.dataset.focusKey =
-    "menu-volume-base";
-
-  slider.setAttribute(
-    "aria-label",
-    `トラック${track.id}のボリューム`
-  );
-
-  const output =
-    document.createElement(
-      "output"
-    );
-
-  output.className =
-    "track-volume-value";
-
-  output.value =
-    String(
-      track.base.velocity
-    );
-
-  output.textContent =
-    String(
-      track.base.velocity
-    );
-
-  let pointerId =
-    null;
-
-  let startX =
-    0;
-
-  let startValue =
-    track.base.velocity;
-
-  let currentValue =
-    startValue;
-
-  let historySaved =
-    false;
-
-  wrapper.style.touchAction =
-    "none";
-
-  function updateValue(
-    nextValue
+  for (
+    let stepIndex = 0;
+    stepIndex <
+      STEP_COUNT;
+    stepIndex++
   ) {
-    const correctedValue =
-      clamp(
-        Math.round(
-          nextValue
-        ),
-        parameter.min,
-        parameter.max
-      );
-
-    if (
-      correctedValue ===
-        currentValue
-    ) {
-      return;
-    }
-
-    if (!historySaved) {
-      saveTrackHistory();
-
-      historySaved =
-        true;
-    }
-
-    currentValue =
-      correctedValue;
-
-    track.base.velocity =
-      correctedValue;
-
-    slider.value =
-      String(
-        correctedValue
-      );
-
-    output.value =
-      String(
-        correctedValue
-      );
-
-    output.textContent =
-      String(
-        correctedValue
-      );
-  }
-
-  wrapper.addEventListener(
-    "pointerdown",
-    event => {
-      if (
-        event.pointerType ===
-          "mouse" &&
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      const sliderRect =
-        slider.getBoundingClientRect();
-
-      const insideSlider =
-        event.clientX >=
-          sliderRect.left &&
-        event.clientX <=
-          sliderRect.right &&
-        event.clientY >=
-          sliderRect.top &&
-        event.clientY <=
-          sliderRect.bottom;
-
-      if (!insideSlider) {
-        return;
-      }
-
-      event.preventDefault();
-
-      pointerId =
-        event.pointerId;
-
-      startX =
-        event.clientX;
-
-      startValue =
-        track.base.velocity;
-
-      currentValue =
-        startValue;
-
-      historySaved =
-        false;
-
-      wrapper.setPointerCapture(
-        event.pointerId
-      );
-    }
-  );
-
-  wrapper.addEventListener(
-    "pointermove",
-    event => {
-      if (
-        pointerId !==
-          event.pointerId
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-
-      const sliderRect =
-        slider.getBoundingClientRect();
-
-      const dragWidth =
-        Math.max(
-          1,
-          sliderRect.width * 2
-        );
-
-      const movementX =
-        event.clientX -
-        startX;
-
-      const nextValue =
-        startValue +
-        (
-          movementX /
-          dragWidth
-        ) *
-        (
-          parameter.max -
-          parameter.min
-        );
-
-      updateValue(
-        nextValue
-      );
-    }
-  );
-
-  function finishPointer(
-    event
-  ) {
-    if (
-      pointerId !==
-        event.pointerId
-    ) {
-      return;
-    }
-
-    if (
-      wrapper.hasPointerCapture(
-        event.pointerId
+    wrapper.appendChild(
+      createStepButton(
+        stepIndex
       )
-    ) {
-      wrapper.releasePointerCapture(
-        event.pointerId
-      );
-    }
-
-    pointerId =
-      null;
-
-    /*
-     * 最後に表示されていた値を
-     * そのまま確定する。
-     */
-    track.base.velocity =
-      currentValue;
-
-    slider.value =
-      String(
-        currentValue
-      );
-
-    output.value =
-      String(
-        currentValue
-      );
-
-    output.textContent =
-      String(
-        currentValue
-      );
-
-    historySaved =
-      false;
+    );
   }
 
-  wrapper.addEventListener(
-    "pointerup",
-    finishPointer
+  sequenceGrid.appendChild(
+    wrapper
   );
 
-  wrapper.addEventListener(
-    "pointercancel",
-    finishPointer
+  sequenceGrid.appendChild(
+    createStepParameterStrip()
+  );
+}
+
+
+function renderPatternLoopButton() {
+  if (!patternLoopButton) {
+    return;
+  }
+
+  const active =
+    Boolean(
+      state.patternLoopEnabled
+    );
+
+  patternLoopButton.classList.toggle(
+    "active",
+    active
   );
 
-  /*
-   * キーボードでは標準range操作。
-   */
-  slider.addEventListener(
-    "input",
-    () => {
-      const nextValue =
-        clamp(
-          Number(
-            slider.value
-          ),
-          parameter.min,
-          parameter.max
-        );
-
-      if (
-        nextValue ===
-          track.base.velocity
-      ) {
-        return;
-      }
-
-      saveTrackHistory();
-
-      track.base.velocity =
-        nextValue;
-
-      currentValue =
-        nextValue;
-
-      output.value =
-        String(
-          nextValue
-      );
-
-      output.textContent =
-        String(
-          nextValue
-      );
-    }
+  patternLoopButton.setAttribute(
+    "aria-pressed",
+    String(active)
   );
-
-  wrapper.append(
-    offsetButton,
-    slider,
-    output
-  );
-
-  return wrapper;
 }
 
-function parameterMenuChildItems() {
-  const selectedId = state.selectedParameterId;
+patternLoopButton?.addEventListener(
+  "click",
+  () => {
+    const enabled =
+      togglePatternLoop();
 
-  if (!selectedId) return [];
+    if (enabled) {
+      applyPatternRangeToLoop();
+    } else {
+      clearPatternLoopRange();
+    }
 
-  if (selectedId === "filterCutoff") {
-    return [
-      { id: "filterCutoff", label: "cut" },
-      { id: "filterResonance", label: "reso" }
-    ];
+    renderPatternLoopButton();
+    renderPatternManager();
   }
+);
 
-  if (selectedId === "osc") {
-    return oscParameter.children ?? [];
-  }
 
-  if (selectedId === "envelope") {
-    return [];
-}
+let patternRangeAnchorIndex =
+  null;
 
-  if (selectedId === "articulation") {
-    return articulationParameter.children ?? [];
-  }
+let patternRangeEndIndex =
+  null;
 
-  if (selectedId === "sub") {
-    return subParameter.children ?? [];
-  }
-
-  if (selectedId === "note") {
-    return noteParameter.children ?? [];
-  }
-
-  if (selectedId === "lfo") {
-    return [
-      { id: "target", label: "trgt", baseOnly: true },
-      { id: "wave", label: "wave", baseOnly: true },
-      { id: "depth", label: "dep" },
-      { id: "rate", label: "rate" }
-    ];
-  }
-
-  const parameter =
-    editorParameterById(selectedId);
-
-  return parameter?.children ?? [];
-}
-
-function parameterMenuChildValue(child) {
-  const track = editorTrack();
-  const id = child.id;
-
+function selectedPatternRange() {
   if (
-    state.selectedParameterId === "lfo" &&
-    ["target", "wave", "depth", "rate"].includes(id)
-  ) {
-    const n = track.lfoSelected === 2 ? 2 : 1;
-    const prefix = `lfo${n}`;
-
-    if (id === "target") {
-      return String(track.base[`${prefix}Target`] ?? "pitch");
-    }
-
-    if (id === "wave") {
-      return String(track.base[`${prefix}Wave`] ?? "sine");
-    }
-
-    if (id === "depth") {
-      return displayBaseValue(
-        parameterById(`${prefix}Depth`)
-      );
-    }
-
-    const syncMode =
-      track.base[`${prefix}SyncMode`] === "bpm"
-        ? "bpm"
-        : "free";
-
-    if (syncMode === "bpm") {
-      const index = clamp(
-        Math.round(Number(track.base[`${prefix}Rate`]) || 0),
-        0,
-        LFO_BPM_RATE_NAMES.length - 1
-      );
-
-      return LFO_BPM_RATE_NAMES[index];
-    }
-
-    const hz = clamp(
-      Number(track.base[`${prefix}Rate`]) || 1,
-      1,
-      100
-    ) / 10;
-
-    return `${Number(hz.toFixed(1))}hz`;
-  }
-
-  if (id === "lfoTarget") {
-    const n = track.lfoSelected === 2 ? 2 : 1;
-    return String(track.base[`lfo${n}Target`] ?? "pitch");
-  }
-
-  if (id === "lfoWave") {
-    const n = track.lfoSelected === 2 ? 2 : 1;
-    return String(track.base[`lfo${n}Wave`] ?? "sine");
-  }
-
-  if (id === "lfoDepth" || id === "lfoRate") {
-    const n = track.lfoSelected === 2 ? 2 : 1;
-    const actualId = `lfo${n}${id === "lfoRate" ? "Rate" : "Depth"}`;
-    return displayBaseValue(parameterById(actualId));
-  }
-
-  const parameter = parameterById(id) ?? child;
-  return displayBaseValue(parameter);
-}
-
-function lfoTargetVisualHtml(value) {
-  const iconMap = {
-    pitch: "note",
-    fmDepth: "fm",
-    filterCutoff: "tone",
-    pan: "pan",
-    attack: "attack"
-  };
-
-  return `
-    <span class="lfo-child-visual lfo-target-visual">
-      ${getParameterIcon(iconMap[value] ?? "note")}
-    </span>
-  `;
-}
-
-function lfoWaveVisualHtml(value) {
-  const paths = {
-    sine: `<path d="M1 8c3-7 5-7 8 0s5 7 8 0 5-7 8 0"></path>`,
-    triangle: `<path d="M1 12L7 4l6 8 6-8 6 8"></path>`,
-    sawUp: `<path d="M1 12L8 4v8l8-8v8l8-8"></path>`,
-    sawDown: `<path d="M1 4l7 8V4l8 8V4l8 8"></path>`,
-    square: `<path d="M1 12V4h8v8h8V4h8"></path>`,
-    random: `<path d="M1 9h4V4h4v9h4V7h4v5h4V3h4"></path>`,
-    rise: `<path d="M1 12L25 4"></path>`,
-    fall: `<path d="M1 4l24 8"></path>`
-  };
-
-  return `
-    <span class="lfo-child-visual lfo-wave-visual">
-      <svg
-        viewBox="0 0 26 16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.6"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        ${paths[value] ?? paths.sine}
-      </svg>
-    </span>
-  `;
-}
-
-function parameterMenuChildDisplayHtml(child) {
-  const value = parameterMenuChildValue(child);
-
-  if (
-    state.selectedParameterId === "lfo" &&
-    child.id === "target"
-  ) {
-    return lfoTargetVisualHtml(value);
-  }
-
-  if (
-    state.selectedParameterId === "lfo" &&
-    child.id === "wave"
-  ) {
-    return lfoWaveVisualHtml(value);
-  }
-
-  return String(value);
-}
-
-function parameterMenuChildSweepDefinition(child) {
-  const track = editorTrack();
-  const id = child.id;
-
-  if (state.selectedParameterId === "lfo") {
-    const n = track.lfoSelected === 2 ? 2 : 1;
-
-    if (id === "target") {
-      return {
-        actualId: `lfo${n}Target`,
-        values: [
-          "pitch",
-          "fmDepth",
-          "filterCutoff",
-          "pan",
-          "attack"
-        ]
-      };
-    }
-
-    if (id === "wave") {
-      return {
-        actualId: `lfo${n}Wave`,
-        values: [
-          "sine",
-          "triangle",
-          "sawUp",
-          "sawDown",
-          "square",
-          "random",
-          "rise",
-          "fall"
-        ]
-      };
-    }
-
-    if (id === "depth") {
-      const parameter =
-        parameterById(`lfo${n}Depth`);
-
-      return {
-        actualId: `lfo${n}Depth`,
-        min: parameter?.min ?? 0,
-        max: parameter?.max ?? 100,
-        step: parameter?.step ?? 1
-      };
-    }
-
-    if (id === "rate") {
-      const syncMode =
-        track.base[`lfo${n}SyncMode`] === "bpm"
-          ? "bpm"
-          : "free";
-
-      return {
-        actualId: `lfo${n}Rate`,
-        min: syncMode === "bpm"
-          ? 0
-          : 1,
-        max: syncMode === "bpm"
-          ? LFO_BPM_RATE_NAMES.length - 1
-          : 100,
-        step: 1
-      };
-    }
-  }
-
-  if (id === "lfoTarget") {
-    const n = track.lfoSelected === 2 ? 2 : 1;
-
-    return {
-      actualId: `lfo${n}Target`,
-      values: [
-        "pitch",
-        "fmDepth",
-        "filterCutoff",
-        "pan",
-        "attack"
-      ]
-    };
-  }
-
-  if (id === "lfoWave") {
-    const n = track.lfoSelected === 2 ? 2 : 1;
-
-    return {
-      actualId: `lfo${n}Wave`,
-      values: [
-        "sine",
-        "triangle",
-        "sawUp",
-        "sawDown",
-        "square",
-        "random",
-        "rise",
-        "fall"
-      ]
-    };
-  }
-
-  if (
-    id === "lfoDepth" ||
-    id === "lfoRate"
-  ) {
-    const n = track.lfoSelected === 2 ? 2 : 1;
-    const actualId =
-      `lfo${n}${
-        id === "lfoRate"
-          ? "Rate"
-          : "Depth"
-      }`;
-
-    const parameter =
-      parameterById(actualId);
-
-    if (!parameter) {
-      return null;
-    }
-
-    return {
-      actualId,
-      min: parameter.min,
-      max: parameter.max,
-      step: parameter.step ?? 1
-    };
-  }
-
-  const parameter =
-    parameterById(id) ?? child;
-
-  if (
-    !Number.isFinite(
-      Number(parameter.min)
-    ) ||
-    !Number.isFinite(
-      Number(parameter.max)
-    )
+    patternRangeAnchorIndex ===
+      null ||
+    patternRangeEndIndex ===
+      null
   ) {
     return null;
   }
 
-  return {
-    actualId: id,
-    min: Number(parameter.min),
-    max: Number(parameter.max),
-    step: Number(parameter.step) || 1
-  };
-}
+  const order =
+    normalizePatternOrder();
 
-
-function enableLfoRateSlotInteraction({
-  element,
-  focusKey,
-  child
-}) {
-  let pointerId = null;
-  let startY = 0;
-  let startRate = 0;
-  let startMode = "free";
-  let sweeping = false;
-  let historySaved = false;
-  let suppressClick = false;
-  let offsetSelectionAppliedDelta = 0;
-
-  element.style.touchAction = "none";
-
-  element.addEventListener(
-    "pointerdown",
-    event => {
-      if (
-        event.pointerType === "mouse" &&
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      const track = editorTrack();
-      const n =
-        track.lfoSelected === 2
-          ? 2
-          : 1;
-      const prefix = `lfo${n}`;
-
-      pointerId = event.pointerId;
-      startY = event.clientY;
-      startMode =
-        track.base[`${prefix}SyncMode`] === "bpm"
-          ? "bpm"
-          : "free";
-      startRate =
-        (
-          editSelection.mode ===
-            "offset" &&
-          Array.isArray(
-            track.offsets[
-              `${prefix}Rate`
-            ]
-          )
-        )
-          ? 0
-          : Number(
-              track.base[
-                `${prefix}Rate`
-              ]
-            );
-
-      sweeping = false;
-      historySaved = false;
-      suppressClick = false;
-      offsetSelectionAppliedDelta = 0;
-
-      element.setPointerCapture?.(
-        event.pointerId
-      );
-    }
-  );
-
-  element.addEventListener(
-    "pointermove",
-    event => {
-      if (pointerId !== event.pointerId) {
-        return;
-      }
-
-      const distance =
-        event.clientY - startY;
-
-      if (
-        !sweeping &&
-        Math.abs(distance) <
-          SWEEP_START_DISTANCE
-      ) {
-        return;
-      }
-
-      if (!sweeping) {
-        sweeping = true;
-        suppressClick = true;
-        element.classList.add(
-          "is-sweeping"
-        );
-      }
-
-      event.preventDefault();
-
-      const track = editorTrack();
-      const n =
-        track.lfoSelected === 2
-          ? 2
-          : 1;
-      const prefix = `lfo${n}`;
-
-      /*
-       * Rateのスワイプはmodeを変更しない。
-       * 上=値を増やす、下=値を減らす。
-       * free/bpm切替はタップへ完全分離する。
-       */
-      const stepCount =
-        Math.round(
-          -distance /
-          SWEEP_PIXELS_PER_STEP
-        );
-
-      const minimum =
-        startMode === "bpm"
-          ? 0
-          : 1;
-
-      const maximum =
-        startMode === "bpm"
-          ? LFO_BPM_RATE_NAMES.length - 1
-          : 100;
-
-      const rateId =
-        `${prefix}Rate`;
-
-      const offsetSelectionActive =
-        editSelection.mode ===
-          "offset" &&
-        Array.isArray(
-          track.offsets[
-            rateId
-          ]
-        );
-
-      const nextRate =
-        offsetSelectionActive
-          ? stepCount
-          : clamp(
-              Math.round(startRate) +
-                stepCount,
-              minimum,
-              maximum
-            );
-
-      if (
-        offsetSelectionActive
-      ) {
-        const totalDelta =
-          nextRate;
-
-        const incrementalDelta =
-          totalDelta -
-          offsetSelectionAppliedDelta;
-
-        const sourceParameter =
-          parameterById(
-            rateId
-          );
-
-        applyOffsetDeltaToSelection(
-          {
-            ...sourceParameter,
-            id: rateId,
-            min: minimum,
-            max: maximum,
-            step: 1
-          },
-          incrementalDelta
-        );
-
-        offsetSelectionAppliedDelta =
-          totalDelta;
-
-        state.selectedChildId =
-          "rate";
-
-        return;
-      }
-
-      const currentRate = Number(
-        track.base[`${prefix}Rate`]
-      );
-
-      if (currentRate === nextRate) {
-        return;
-      }
-
-      if (!historySaved) {
-        saveTrackHistory();
-        historySaved = true;
-      }
-
-      track.base[`${prefix}SyncMode`] =
-        startMode;
-
-      track.base[`${prefix}Rate`] =
-        nextRate;
-
-      const visibleRateParameter =
-        parameterById(
-          rateId
-        );
-
-      if (
-        visibleRateParameter &&
-        Array.isArray(
-          track.offsets[
-            rateId
-          ]
-        )
-      ) {
-        refreshVisibleOffsetValues(
-          {
-            ...visibleRateParameter,
-            id: rateId,
-            min: minimum,
-            max: maximum,
-            step: 1
-          }
-        );
-      }
-
-      state.selectedChildId = "rate";
-
-      const valueElement =
-        element.querySelector(
-          ".parameter-child-value"
-        );
-
-      if (valueElement) {
-        valueElement.innerHTML =
-          parameterMenuChildDisplayHtml(
-            child
-          );
-      }
-    }
-  );
-
-  function finish(event) {
-    if (pointerId !== event.pointerId) {
-      return;
-    }
-
-    if (
-      element.hasPointerCapture?.(
-        event.pointerId
-      )
-    ) {
-      element.releasePointerCapture(
-        event.pointerId
-      );
-    }
-
-    pointerId = null;
-    offsetSelectionAppliedDelta = 0;
-    element.classList.remove(
-      "is-sweeping"
+  const startPosition =
+    order.indexOf(
+      patternRangeAnchorIndex
     );
 
-    if (sweeping) {
-  sweeping = false;
-
-  renderEditor();
-  restoreFocusKey(
-    focusKey
-  );
-}
-  }
-
-  element.addEventListener(
-    "pointerup",
-    finish
-  );
-
-  element.addEventListener(
-    "pointercancel",
-    event => {
-      if (pointerId !== event.pointerId) {
-        return;
-      }
-
-      if (
-        element.hasPointerCapture?.(
-          event.pointerId
-        )
-      ) {
-        element.releasePointerCapture(
-          event.pointerId
-        );
-      }
-
-      pointerId = null;
-      sweeping = false;
-      element.classList.remove(
-        "is-sweeping"
-      );
-    }
-  );
-
-  element.addEventListener(
-    "click",
-    event => {
-      if (suppressClick) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        suppressClick = false;
-        return;
-      }
-
-      /*
-       * 他の子パラと同じく、最初のタップは選択だけ。
-       * すでにrate選択中なら、そのタップでfree/bpmを切替。
-       */
-      if (state.selectedChildId !== "rate") {
-        state.selectedChildId = "rate";
-        renderEditorAndRestore(
-          focusKey
-        );
-        return;
-      }
-
-      const track = editorTrack();
-      const n =
-        track.lfoSelected === 2
-          ? 2
-          : 1;
-      const prefix = `lfo${n}`;
-      const currentMode =
-        track.base[`${prefix}SyncMode`] === "bpm"
-          ? "bpm"
-          : "free";
-
-      saveTrackHistory();
-
-      if (currentMode === "bpm") {
-        track.base[`${prefix}Rate`] =
-          bpmIndexToFreeRate(
-            track.base[`${prefix}Rate`]
-          );
-        track.base[`${prefix}SyncMode`] =
-          "free";
-      } else {
-        track.base[`${prefix}Rate`] =
-          freeRateToBpmIndex(
-            track.base[`${prefix}Rate`]
-          );
-        track.base[`${prefix}SyncMode`] =
-          "bpm";
-      }
-
-      renderEditorAndRestore(
-        focusKey
-      );
-    }
-  );
-}
-
-function createParameterMenuGrid() {
-  const grid =
-    document.createElement("div");
-
-  grid.className =
-    "parameter-menu";
-
-  parameterMenuItems.forEach(menuItem => {
-    grid.appendChild(
-      parameterButton(menuItem)
+  const endPosition =
+    order.indexOf(
+      patternRangeEndIndex
     );
-  });
-
-  /* 2段目左4枠=親パラ、右4枠=選択中パラの子パラ。 */
-  const children =
-    parameterMenuChildItems().slice(0, 4);
-
-  for (
-    let index = 0;
-    index < 4;
-    index++
-  ) {
-    const child = children[index];
-
-    const button =
-      document.createElement("button");
-
-    button.type = "button";
-    button.className =
-      "parameter-child-slot";
-
-    if (!child) {
-      button.disabled = true;
-      button.classList.add("empty");
-      grid.appendChild(button);
-      continue;
-    }
-
-    const active =
-      state.selectedChildId === child.id ||
-      (
-        state.selectedParameterId ===
-          "filterCutoff" &&
-        (
-          state.selectedChildId ??
-          "filterCutoff"
-        ) === child.id
-      );
-
-    button.classList.toggle(
-      "active",
-      active
-    );
-
-    const focusKey =
-      `child-menu-${child.id}`;
-
-    button.dataset.focusKey =
-      focusKey;
-
-    button.innerHTML = `
-      <span class="parameter-child-label">${child.label ?? child.id}</span>
-      <span class="parameter-child-value">${parameterMenuChildDisplayHtml(child)}</span>
-    `;
-
-    /*
-     * 子パラ枠そのものを上下スイープして
-     * Base値を変更する。
-     *
-     * 数値パラだけでなく、LFO target / waveも
-     * 候補を順番にスイープできるようにする。
-     */
-    const isLfoRateChild =
-      state.selectedParameterId === "lfo" &&
-      child.id === "rate";
-
-    const sweepDefinition =
-      parameterMenuChildSweepDefinition(
-        child
-      );
-
-    if (
-      sweepDefinition &&
-      !isLfoRateChild
-    ) {
-      let childSweepHistorySaved =
-        false;
-
-      let childOffsetSelectionAppliedDelta =
-        0;
-
-      button.addEventListener(
-        "pointerdown",
-        () => {
-          childOffsetSelectionAppliedDelta =
-            0;
-        }
-      );
-
-      const isChoiceParameter =
-        Array.isArray(
-          sweepDefinition.values
-        );
-
-      enableVerticalSweep({
-        element: button,
-
-        getValue: () => {
-          const track = editorTrack();
-
-          if (
-            !isChoiceParameter &&
-            editSelection.mode ===
-              "offset" &&
-            Array.isArray(
-              track.offsets[
-                sweepDefinition.actualId
-              ]
-            )
-          ) {
-            return 0;
-          }
-
-          if (isChoiceParameter) {
-            const currentValue =
-              track.base[
-                sweepDefinition.actualId
-              ];
-
-            const currentIndex =
-              sweepDefinition.values.indexOf(
-                currentValue
-              );
-
-            return currentIndex >= 0
-              ? currentIndex
-              : 0;
-          }
-
-          return Number(
-            track.base[
-              sweepDefinition.actualId
-            ]
-          );
-        },
-
-        setValue: nextValue => {
-          if (!childSweepHistorySaved) {
-            saveTrackHistory();
-            childSweepHistorySaved = true;
-          }
-
-          const track = editorTrack();
-
-          if (
-            !isChoiceParameter &&
-            editSelection.mode ===
-              "offset" &&
-            Array.isArray(
-              track.offsets[
-                sweepDefinition.actualId
-              ]
-            )
-          ) {
-            const totalDelta =
-              roundToStep(
-                Number(nextValue) || 0,
-                sweepDefinition.step
-              );
-
-            const incrementalDelta =
-              totalDelta -
-              childOffsetSelectionAppliedDelta;
-
-            applyOffsetDeltaToSelection(
-              {
-                id:
-                  sweepDefinition.actualId,
-                min:
-                  sweepDefinition.min,
-                max:
-                  sweepDefinition.max,
-                step:
-                  sweepDefinition.step
-              },
-              incrementalDelta
-            );
-
-            childOffsetSelectionAppliedDelta =
-              totalDelta;
-
-            return;
-          }
-
-          if (isChoiceParameter) {
-            const choiceIndex =
-              clamp(
-                Math.round(
-                  Number(nextValue) || 0
-                ),
-                0,
-                sweepDefinition.values.length - 1
-              );
-
-            track.base[
-              sweepDefinition.actualId
-            ] =
-              sweepDefinition.values[
-                choiceIndex
-              ];
-          } else {
-            const correctedValue =
-              roundToStep(
-                clamp(
-                  Number(nextValue),
-                  sweepDefinition.min,
-                  sweepDefinition.max
-                ),
-                sweepDefinition.step
-              );
-
-            track.base[
-              sweepDefinition.actualId
-            ] = correctedValue;
-
-            if (
-              Array.isArray(
-                track.offsets[
-                  sweepDefinition.actualId
-                ]
-              )
-            ) {
-              refreshVisibleOffsetValues(
-                {
-                  id:
-                    sweepDefinition.actualId,
-                  min:
-                    sweepDefinition.min,
-                  max:
-                    sweepDefinition.max,
-                  step:
-                    sweepDefinition.step
-                }
-              );
-            }
-          }
-
-          const valueElement =
-            button.querySelector(
-              ".parameter-child-value"
-            );
-
-          if (valueElement) {
-            valueElement.innerHTML =
-              parameterMenuChildDisplayHtml(
-                child
-              );
-          }
-        },
-
-        min: () => {
-          const track =
-            editorTrack();
-
-          if (isChoiceParameter) {
-            return 0;
-          }
-
-          return (
-            editSelection.mode ===
-              "offset" &&
-            Array.isArray(
-              track.offsets[
-                sweepDefinition.actualId
-              ]
-            )
-          )
-            ? -10000
-            : sweepDefinition.min;
-        },
-
-        max: () => {
-          const track =
-            editorTrack();
-
-          if (isChoiceParameter) {
-            return (
-              sweepDefinition.values.length -
-              1
-            );
-          }
-
-          return (
-            editSelection.mode ===
-              "offset" &&
-            Array.isArray(
-              track.offsets[
-                sweepDefinition.actualId
-              ]
-            )
-          )
-            ? 10000
-            : sweepDefinition.max;
-        },
-
-        step: isChoiceParameter
-          ? 1
-          : sweepDefinition.step,
-
-        acceleration: true,
-
-        accelerationStart:
-          sweepDefinition.actualId ===
-            "note"
-            ? 6
-            : SWEEP_ACCELERATION_START,
-
-        accelerationRate:
-          sweepDefinition.actualId ===
-            "note"
-            ? 0.08
-            : SWEEP_ACCELERATION_RATE,
-
-        onCommit: (
-          startValue,
-          currentValue,
-          changed
-        ) => {
-          childSweepHistorySaved =
-            false;
-
-          childOffsetSelectionAppliedDelta =
-            0;
-
-          if (!changed) {
-            return;
-          }
-
-          renderEditor();
-restoreFocusKey(
-  focusKey
-);
-        }
-      });
-    }
-
-    if (isLfoRateChild) {
-      enableLfoRateSlotInteraction({
-        element: button,
-        focusKey,
-        child
-      });
-    } else {
-      button.addEventListener(
-        "click",
-        () => {
-          state.selectedChildId =
-            child.id;
-
-          if (
-            state.selectedParameterId ===
-              "articulation"
-          ) {
-            editorTrack()
-              .articulationSelectedId =
-              child.id;
-          }
-
-          renderEditorAndRestore(
-            focusKey
-          );
-        }
-      );
-    }
-
-    grid.appendChild(button);
-  }
-
-  return grid;
-}
-
-function renderMenu() {
-  const header =
-    document.createElement("div");
-
-  header.className =
-    "editor-header editor-header-two-row";
-
-  const topRow =
-    document.createElement("div");
-
-  topRow.className =
-    "editor-header-row editor-header-primary";
-
-  topRow.innerHTML = `
-    <button
-      class="track-cycle"
-      type="button"
-      data-focus-key="menu-track"
-    >
-      <span class="track-icon">
-        ${getParameterIcon("track")}
-      </span>
-
-      <span class="track-number">
-        ${editorTrack().id}
-      </span>
-    </button>
-
-    <div class="editor-header-spacer"></div>
-
-    <button
-      class="mini-button mute ${editorTrack().muted ? "active" : ""}"
-      type="button"
-      data-focus-key="menu-mute"
-    >
-      M
-    </button>
-
-    <button
-      class="mini-button solo ${editorTrack().solo ? "active" : ""}"
-      type="button"
-      data-focus-key="menu-solo"
-    >
-      S
-    </button>
-  `;
-
-  topRow.appendChild(
-    createTrackVolumeControl()
-  );
-
-  const songEditorToggle =
-  document.createElement("button");
-
-songEditorToggle.type =
-  "button";
-
-songEditorToggle.className =
-  "view-toggle-button editor-view-toggle";
-
-songEditorToggle.dataset.focusKey =
-  "editor-view-toggle";
-
-songEditorToggle.setAttribute(
-  "aria-label",
-  "Song編集へ切り替え"
-);
-
-songEditorToggle.innerHTML = `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M5 3h11l3 3v15H5z"></path>
-    <path d="M16 3v4h4"></path>
-
-    <path d="M14 8v8"></path>
-<circle cx="11.5" cy="16" r="1.5"></circle>
-  </svg>
-`;
-
-songEditorToggle.addEventListener(
-  "click",
-  () => {
-    songEditorView = true;
-    renderSongMode();
-  }
-);
-
-topRow.appendChild(
-  songEditorToggle
-);
-
-  const bottomRow =
-    document.createElement("div");
-
-  bottomRow.className =
-    "editor-header-row editor-header-secondary";
-
-  const soundName =
-    document.createElement("button");
-
-  soundName.type = "button";
-  soundName.dataset.focusKey =
-    "menu-sound-name";
-
-  soundName.className =
-    "track-sound-name";
-
-  soundName.textContent =
-    editorTrack().soundName ||
-    `sound ${String(editorTrack().id).padStart(2, "0")}`;
-
-  soundName.setAttribute(
-    "aria-label",
-    `サウンド名 ${soundName.textContent}。プリセットを開く`
-  );
-
-  soundName.addEventListener(
-    "click",
-    openSoundPresetModal
-  );
-
-  const swingControl =
-    createCompactValue({
-      label: "sw",
-      control:
-        createSwingControl(
-          "menu-track-swing"
-        ),
-      className:
-        "track-swing-control"
-    });
-
-  const trackLengthControl =
-    createCompactValue({
-      label: "step",
-      control:
-        createTrackLengthInput(
-          "menu-track-length"
-        ),
-      className:
-        "track-step-control"
-    });
-
-  bottomRow.append(
-    soundName,
-    swingControl,
-    trackLengthControl
-  );
-
-  header.append(
-    topRow,
-    bottomRow
-  );
-
-  topRow
-  .querySelector(
-    ".track-cycle"
-  )
-  .addEventListener(
-    "click",
-    () => {
-      state.selectedTrackIndex =
-        (
-          state.selectedTrackIndex +
-          1
-        ) %
-        tracks.length;
-
-      if (
-        editSelection.mode === "step" &&
-        editSelection.scope === "track"
-      ) {
-        clearEditSelection();
-      }
-
-      renderEditorAndRestore(
-        "menu-track"
-      );
-
-      updateSelectionClasses();
-    }
-  );
-
-  topRow
-    .querySelector(
-      ".mute"
-    )
-    .addEventListener(
-      "click",
-      () => {
-        editorTrack().muted =
-          !editorTrack().muted;
-
-        /* M/Sは音色Offset編集ではなくPattern操作。 */
-        clearOffsetSelectionMode();
-        state.selectedParameterId = null;
-        state.selectedChildId = null;
-
-        renderEditorAndRestore(
-          "menu-mute"
-        );
-      }
-    );
-
-  topRow
-    .querySelector(
-      ".solo"
-    )
-    .addEventListener(
-      "click",
-      () => {
-        editorTrack().solo =
-          !editorTrack().solo;
-
-        /* M/Sは音色Offset編集ではなくPattern操作。 */
-        clearOffsetSelectionMode();
-        state.selectedParameterId = null;
-        state.selectedChildId = null;
-
-        renderEditorAndRestore(
-          "menu-solo"
-        );
-      }
-    );
-
-  const grid =
-    createParameterMenuGrid();
-
-  editor.append(
-    header,
-    grid
-  );
-}
-
-function makeAdjustButton(text, action) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = text;
-  button.addEventListener("click", action);
-  return button;
-}
-
-function editValueControl(parameter, id) {
-  const track = editorTrack();
-
-  const childDefinition =
-  parameter.children?.find(
-    child => child.id === id
-  );
-
-const actualParameter =
-  parameterById(id);
-
-const definition = {
-  min:
-    childDefinition?.min ??
-    actualParameter?.min ??
-    parameter.min ??
-    0,
-
-  max:
-    childDefinition?.max ??
-    actualParameter?.max ??
-    parameter.max ??
-    100,
-
-  step:
-    childDefinition?.step ??
-    actualParameter?.step ??
-    parameter.step ??
-    1
-};
-
-  const wrap =
-    document.createElement("div");
-
-  wrap.className =
-    "value-control";
-
-  const valueKey =
-    `base-value-${id}`;
-
-  const value =
-    document.createElement("button");
-
-  value.type = "button";
-  value.className = "base-value";
 
   if (
-    parameter.id === "note" &&
-    Number(track.base.chord) === 0 &&
-    ["voices", "inversion",].includes(id)
+    startPosition < 0 ||
+    endPosition < 0
   ) {
-    value.classList.add("chord-inactive");
+    return null;
   }
 
-  value.dataset.focusKey =
-    valueKey;
-
-  value.dataset.valueControl =
-    "true";
-
-  function displayValue() {
-    if (id === "holdDecay") {
-  const amount =
-    clamp(
-      Math.round(Number(track.base[id]) || 0),
-      -50,
-      50
-    );
-
-  if (amount === 0) {
-    return "0";
-  }
-
-  return amount < 0
-    ? `h${Math.abs(amount)}`
-    : `d${amount}`;
-}
-
-    if (id === "chord") {
-      return CHORD_NAMES[clamp(Math.round(Number(track.base[id]) || 0), 0, CHORD_NAMES.length - 1)] ?? "off";
-    }
-
-    if (id === "inversion") {
-      const inversion = clamp(Math.round(Number(track.base[id]) || 0), 0, 3);
-      return String(inversion);
-    }
-
-    if (id === "subPattern") {
-      return subPatternLabel(track.base[id]);
-    }
-
-    if (id === "subCrescendo") {
-      const amount = Math.round(Number(track.base[id]) || 0);
-      return amount > 0 ? `+${amount}` : String(amount);
-    }
-
-    if (id === "subProbability") {
-      return `${Math.round(Number(track.base[id]) || 0)}`;
-    }
-
-    if (id === "filterCutoff") {
-      const cutoffValue =
-        Number(track.base[id]) || 0;
-
-      if (cutoffValue === 0) {
-        return "0";
-      }
-
-      return cutoffValue < 0
-        ? `l${Math.abs(cutoffValue)}`
-        : `h${cutoffValue}`;
-    }
-
-    if (id === "pan") {
-  const panValue =
-    Number(track.base[id]) || 0;
-
-  if (panValue === 0) {
-    return "c";
-  }
-
-  return panValue < 0
-    ? `l${Math.abs(panValue)}`
-    : `r${panValue}`;
-}
-
-    return String(
-      track.base[id]
-    );
-  }
-
-  if (id === "subPattern") {
-    value.innerHTML =
-      subPatternFigureHtml(track.base[id]);
-
-    value.setAttribute(
-      "aria-label",
-      `base ${subPatternLabel(track.base[id])}`
-    );
-  } else {
-    value.textContent =
-      displayValue();
-  }
-
-  /*
-   * 最後に使用した入力機器を記録。
-   *
-   * touch / pen：
-   * 上下スイープ専用。
-   *
-   * mouse / keyboard：
-   * クリックまたはEnterで
-   * 直接編集できる。
-   */
-  let lastPointerType = null;
-
-  value.addEventListener(
-    "pointerdown",
-    event => {
-      lastPointerType =
-        event.pointerType;
-    }
-  );
-
-  /*
-   * スマホ・タブレット用の
-   * ベース値上下スイープ。
-   */
-  let sweepHistorySaved = false;
-  let offsetSelectionAppliedDelta = 0;
-
-  value.addEventListener(
-    "pointerdown",
-    () => {
-      offsetSelectionAppliedDelta = 0;
-    }
-  );
-
-  enableVerticalSweep({
-  element: value,
-
-  getValue: () => {
-    if (
-      editSelection.mode ===
-        "offset" &&
-      Array.isArray(
-        track.offsets[id]
-      )
-    ) {
-      return 0;
-    }
-
-    return Number(
-      track.base[id]
-    );
-  },
-
-    setValue: nextValue => {
-      if (!sweepHistorySaved) {
-        saveTrackHistory();
-
-        sweepHistorySaved =
-          true;
-      }
-
-      if (
-        editSelection.mode ===
-          "offset" &&
-        Array.isArray(
-          track.offsets[id]
-        )
-      ) {
-        const totalDelta =
-          roundToStep(
-            Number(nextValue) || 0,
-            definition.step
-          );
-
-        const incrementalDelta =
-          totalDelta -
-          offsetSelectionAppliedDelta;
-
-        applyOffsetDeltaToSelection(
-          {
-            ...definition,
-            id
-          },
-          incrementalDelta
-        );
-
-        offsetSelectionAppliedDelta =
-          totalDelta;
-      } else {
-        const correctedValue =
-          roundToStep(
-            clamp(
-              Number(nextValue),
-              definition.min,
-              definition.max
-            ),
-            definition.step
-          );
-
-        track.base[id] =
-          correctedValue;
-      }
-
-      if (id === "subPattern") {
-        value.innerHTML =
-          subPatternFigureHtml(track.base[id]);
-
-        value.setAttribute(
-          "aria-label",
-          `base ${subPatternLabel(track.base[id])}`
-        );
-      } else {
-        value.textContent =
-          displayValue();
-      }
-
-/*
- * ベース値変更中も、
- * 各ステップの実効値をリアルタイム更新する。
- */
-                const displayParameter =
-      parameterById(id) ??
-      {
-        ...definition,
-        id,
-        offsetMode:
-          childDefinition?.offsetMode ??
-          parameter.offsetMode ??
-          "offset"
-      };
-
-    refreshVisibleOffsetValues(
-      displayParameter
-    );
-    },
-
-    min: () =>
-      (
-        editSelection.mode ===
-          "offset" &&
-        Array.isArray(
-          track.offsets[id]
-        )
-      )
-        ? -10000
-        : definition.min,
-
-    max: () =>
-      (
-        editSelection.mode ===
-          "offset" &&
-        Array.isArray(
-          track.offsets[id]
-        )
-      )
-        ? 10000
-        : definition.max,
-
-step:
-  definition.step,
-
-acceleration: true,
-
-    accelerationStart:
-      id === "note"
-        ? 6
-        : SWEEP_ACCELERATION_START,
-
-    accelerationRate:
-      id === "note"
-        ? 0.08
-        : SWEEP_ACCELERATION_RATE,
-
-    onCommit: (
-      startValue,
-      currentValue,
-      changed
-    ) => {
-      sweepHistorySaved =
-        false;
-
-      offsetSelectionAppliedDelta = 0;
-
-      if (changed) {
-        renderEditorAndRestore(
-          valueKey
-        );
-      }
-    }
-  });
-
-  /*
-   * PCでの直接編集。
-   *
-   * スマホのタップでは
-   * 入力欄も選択欄も開かない。
-   */
-  value.addEventListener(
-    "click",
-    event => {
-      const isTouchInput =
-        isTouchDevice() ||
-        isTouchOrPen(
-          lastPointerType
-        );
-
-      if (isTouchInput) {
-        event.preventDefault();
-        event.stopPropagation();
-
-        return;
-      }
-
-      const input =
-        document.createElement(
-          "input"
-        );
-
-      input.type = "number";
-
-      input.value =
-        track.base[id];
-
-      input.min =
-        String(definition.min);
-
-      input.max =
-        String(definition.max);
-
-      input.step =
-        String(definition.step);
-
-      input.className =
-        "base-input";
-
-      input.dataset.focusKey =
-        valueKey;
-
-      input.dataset.keyboardEditing =
-        "true";
-
-      value.replaceWith(
-        input
-      );
-
-      input.focus();
-      input.select();
-
-      let finished = false;
-
-      const finish =
-        shouldCommit => {
-          if (finished) {
-            return;
-          }
-
-          finished = true;
-
-          if (shouldCommit) {
-            const previousValue =
-              track.base[id];
-
-            let nextValue =
-              clamp(
-                Number(
-                  input.value
-                ) || 0,
-                definition.min,
-                definition.max
-              );
-
-            nextValue =
-              roundToStep(
-                nextValue,
-                definition.step
-              );
-
-            if (
-              nextValue !==
-              previousValue
-            ) {
-              saveTrackHistory();
-
-              if (
-                hasActiveOffsetSelection() &&
-                Array.isArray(track.offsets[id])
-              ) {
-                applyOffsetDeltaToSelection(
-                  { ...definition, id },
-                  nextValue - previousValue
-                );
-              } else {
-                track.base[id] = nextValue;
-              }
-            }
-          }
-
-          renderEditorAndRestore(
-            valueKey
-          );
-        };
-
-      input.addEventListener(
-        "keydown",
-        event => {
-          if (
-            event.key === "Enter"
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            finish(true);
-
-            return;
-          }
-
-          if (
-            event.key === "Escape"
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            finish(false);
-          }
-        }
-      );
-
-      input.addEventListener(
-        "blur",
-        () => finish(true),
-        { once: true }
-      );
-    }
-  );
-
-  const label =
-  document.createElement("span");
-
-label.className =
-  "compact-value-label";
-
-label.textContent =
-  "base";
-
-const compact =
-  document.createElement("div");
-
-compact.className =
-  "compact-value";
-
-compact.append(
-  label,
-  value
-);
-
-wrap.appendChild(compact);
-
-return wrap;
-}
-
-function displayStepValue(
-  parameter,
-  stepIndex
-) {
-  const track =
-    editorTrack();
-
-  const offset =
-    track.offsets[
-      parameter.id
-    ]?.[stepIndex] ?? 0;
-
-  const result =
-  roundToStep(
-    clamp(
-      Number(
-        track.base[
-          parameter.id
-        ]
-      ) +
-        Number(offset),
-      parameter.min,
-      parameter.max
-    ),
-    parameter.step ?? 1
-  );
-
-  if (parameter.id === "holdDecay") {
-  const amount =
-    Math.round(
-      Number(result) || 0
-    );
-
-  if (amount === 0) {
-    return "0";
-  }
-
-  return amount < 0
-    ? `h${Math.abs(amount)}`
-    : `d${amount}`;
-}
-
-  /*
-   * NOTEだけは従来どおり
-   * 実際の音名で表示する。
-   */
-  if (
-    parameter.id === "note"
-  ) {
-    const names = [
-      "C", "C#", "D", "D#",
-      "E", "F", "F#", "G",
-      "G#", "A", "A#", "B"
-    ];
-
-    const midi =
-      60 + result;
-
-    return `${
-      names[
-        (midi % 12 + 12) % 12
-      ]
-    }${
-      Math.floor(
-        midi / 12
-      ) - 1
-    }`;
-  }
-
-  if (parameter.id === "chord") {
-    return CHORD_NAMES[clamp(Math.round(result), 0, CHORD_NAMES.length - 1)] ?? "off";
-  }
-
-  if (parameter.id === "inversion") {
-    const inversion = clamp(Math.round(result), 0, 3);
-    return String(inversion);
-  }
-
-  /*
-   * Filter Cutoffも
-   * ベース値表示と同じ形式。
-   */
-  if (
-    parameter.id ===
-      "filterCutoff"
-  ) {
-    if (result === 0) {
-      return "0";
-    }
-
-    return result < 0
-      ? `l${Math.abs(result)}`
-      : `h${result}`;
-  }
-
-  /*
-   * Panも実際の位置を表示。
-   */
-  if (
-  parameter.id === "pan"
-) {
-  if (result === 0) {
-    return "c";
-  }
-
-  return result < 0
-    ? `l${Math.abs(result)}`
-    : `r${result}`;
-}
-
-  if (parameter.id === "glide") {
-    const amount = Math.round(Number(result) || 0);
-    return amount === 0 ? "off" : String(amount);
-  }
-
-  if (parameter.id === "nudge" || parameter.id === "strum") {
-    const amount = Math.round(Number(result) || 0);
-    return amount > 0 ? `+${amount}` : String(amount);
-  }
-
-  /*
-   * Probabilityは実効値を表示。
-   */
-  if (parameter.id === "subPattern") {
-    return subPatternLabel(result);
-  }
-
-  if (parameter.id === "subCrescendo") {
-    const amount = Math.round(Number(result) || 0);
-    return amount > 0 ? `+${amount}` : String(amount);
-  }
-
-  if (
-    parameter.id === "probability" ||
-    parameter.id === "subProbability"
-  ) {
-    return `${result}`;
-  }
-
-/*
- * LFO RateはBase表示と同じ形式にする。
- *
- * BPM：
- * 内部値の音価indexを表示名へ変換。
- *
- * FREE：
- * 内部値1〜100を0.1〜10.0Hzへ変換。
- */
-if (
-  parameter.id === "lfo1Rate" ||
-  parameter.id === "lfo2Rate"
-) {
-  const prefix =
-    parameter.id === "lfo2Rate"
-      ? "lfo2"
-      : "lfo1";
-
-  const syncMode =
-    track.base[
-      `${prefix}SyncMode`
-    ] === "bpm"
-      ? "bpm"
-      : "free";
-
-  if (syncMode === "bpm") {
-    const index =
-      clamp(
-        Math.round(
-          Number(result) || 0
-        ),
-        0,
-        LFO_BPM_RATE_NAMES.length - 1
-      );
-
-    return (
-      LFO_BPM_RATE_NAMES[index] ??
-      "1/4"
-    );
-  }
-
-  const hz =
-    clamp(
-      Number(result) || 1,
-      1,
-      100
-    ) / 10;
-
-  return `${Number(
-    hz.toFixed(1)
-  )}hz`;
-}
-
-  /*
-   * その他はすべて
-   * base + offset の実効値を表示。
-   */
-  return String(result);
-}
-
-function renderOffsetGrid(parameter) {
-  const grid =
-    document.createElement("div");
-
-  grid.className = "offset-grid";
-
-  const firstStepIndex =
-    state.sequencePage *
-    PAGE_STEP_COUNT;
-
-  const lastStepIndex = Math.min(
-    firstStepIndex +
-      PAGE_STEP_COUNT,
-    editorTrack().stepLength
-  );
-
-  for (
-    let stepIndex = firstStepIndex;
-    stepIndex < lastStepIndex;
-    stepIndex++
-  ) {
-    const track = editorTrack();
-
-    const focusKey =
-      `offset-${parameter.id}-${stepIndex}`;
-
-    const button =
-      document.createElement("button");
-
-    button.type = "button";
-    button.className = "offset-step";
-    button.dataset.stepIndex =
-      stepIndex;
-    button.dataset.focusKey =
-      focusKey;
-
-    const mainPinSlot =
-      track.pins?.[stepIndex] ?? null;
-
-    if (mainPinSlot) {
-      button.textContent = mainPinSlot;
-      button.classList.add("note-on", "pin-main-step");
-
-      if (
-        state.playbackTickIndex !== null &&
-        stepIndex === state.playbackTickIndex % track.stepLength
-      ) {
-        button.classList.add("playing");
-      }
-
-      grid.appendChild(button);
-      continue;
-    }
-
-    const stepIsOn = Boolean(track.steps[stepIndex]);
-
-    if (!stepIsOn && [
-      "note", "chord",
-      "subPattern", "subCrescendo", "subProbability",
-      "glide", "nudge", "strum"
-    ].includes(parameter.id)) {
-      button.classList.add("inactive-step-value");
-      button.textContent = "";
-    } else if (parameter.id === "note" || parameter.id === "chord") {
-      const noteText = displayStepValue(parameterById("note"), stepIndex);
-      const chordText = displayStepValue(parameterById("chord"), stepIndex);
-      button.classList.add(
-        "note-chord-step",
-        parameter.id === "note"
-          ? "note-selected"
-          : "chord-selected"
-      );
-
-      button.innerHTML = `
-        <span class="note-chord-note">${noteText}</span>
-        <span class="note-chord-chord">${chordText === "off" ? "" : chordText}</span>
-      `;
-    } else if (parameter.id === "subPattern") {
-      const result = clamp(
-        Math.round(
-          Number(track.base.subPattern) +
-          Number(track.offsets.subPattern?.[stepIndex] ?? 0)
-        ),
-        -1,
-        6
-      );
-
-      button.innerHTML =
-        subPatternFigureHtml(result);
-
-      button.setAttribute(
-        "aria-label",
-        subPatternLabel(result)
-      );
-    } else {
-      button.textContent =
-        displayStepValue(
-          parameter,
-          stepIndex
-        );
-    }
-
-      button.classList.toggle(
-  "base-value-step",
-  (
-    Number(
-      track.offsets[
-        parameter.id
-      ]?.[stepIndex]
-    ) || 0
-  ) === 0
-);
-
-    if (track.steps[stepIndex]) {
-      button.classList.add(
-        "note-on"
-      );
-    }
-
-    if (
-  state.playbackTickIndex !== null &&
-  stepIndex ===
-    state.playbackTickIndex %
-      track.stepLength
-) {
-  button.classList.add(
-    "playing"
-  );
-}
-
-    /*
-     * 最後に使用した入力機器を記録。
-     *
-     * touch / pen：
-     * タップでは数値入力を開かない。
-     *
-     * mouse / keyboard：
-     * 従来どおり直接入力できる。
-     */
-    let lastPointerType = null;
-
-    button.addEventListener(
-      "pointerdown",
-      event => {
-        lastPointerType =
-          event.pointerType;
-      }
-    );
-
-    enableSelectionPointer({
-      element: button,
-      mode: "offset",
-      source: "offset",
-      getStepIndex: element =>
-        Number(element.dataset.stepIndex)
-    });
-
-    if (editSelection.mode === "offset" && editSelection.selected.has(selectionKey(state.selectedTrackIndex, stepIndex))) {
-      button.classList.add("range-selected");
-    }
-
-
-    /*
-     * 上下スイープによる
-     * Offset値の変更。
-     */
-    let sweepHistorySaved = false;
-
-    enableVerticalSweep({
-      element: button,
-
-      getValue: () => {
-        return (
-          track.offsets[
-            parameter.id
-          ]?.[stepIndex] ?? 0
-        );
-      },
-
-      setValue: nextOffset => {
-        if (editSelection.mode === "offset") {
-          return;
-        }
-
-        /*
-         * Undo履歴は
-         * 1回のスイープにつき1回だけ保存。
-         */
-        if (!sweepHistorySaved) {
-          saveTrackHistory();
-          sweepHistorySaved = true;
-
-          /*
-           * OFF stepでOffsetの縦スイープを始めた場合は、
-           * 「値を編集する = 発音させたい」とみなし、
-           * 同じ操作の中でstepもONにする。
-           *
-           * UndoはOffset変更とまとめて1回分。
-           */
-          if (!track.steps[stepIndex]) {
-            track.steps[stepIndex] = true;
-            button.classList.add("note-on");
-            button.classList.remove("inactive-step-value");
-          }
-        }
-
-        track.offsets[
-          parameter.id
-        ][stepIndex] =
-          nextOffset;
-
-        if (parameter.id === "subPattern") {
-          const result = clamp(
-            Math.round(
-              Number(track.base.subPattern) +
-              Number(track.offsets.subPattern?.[stepIndex] ?? 0)
-            ),
-            -1,
-            6
-          );
-
-          button.innerHTML =
-            subPatternFigureHtml(result);
-
-          button.setAttribute(
-            "aria-label",
-            subPatternLabel(result)
-          );
-        } else {
-          button.textContent =
-            displayStepValue(
-              parameter,
-              stepIndex
-            );
-        }
-      },
-
-      min:
-  parameter.min -
-  Number(
-    track.base[
-      parameter.id
-    ]
-  ),
-
-max:
-  parameter.max -
-  Number(
-    track.base[
-      parameter.id
-    ]
-  ),
-
-step:
-  parameter.step ?? 1,
-
-acceleration: true,
-
-      accelerationStart:
-        parameter.id === "note"
-          ? 6
-          : SWEEP_ACCELERATION_START,
-
-      accelerationRate:
-        parameter.id === "note"
-          ? 0.08
-          : SWEEP_ACCELERATION_RATE,
-
-      onCommit: (
-        startValue,
-        currentValue,
-        changed
-      ) => {
-        sweepHistorySaved = false;
-
-        if (changed) {
-          renderEditorAndRestore(
-            focusKey
-          );
-        }
-      }
-    });
-
-    /*
-     * PCのマウスクリック、
-     * またはキーボード操作時は
-     * 数値入力へ切り替える。
-     *
-     * スマホのタップでは開かない。
-     */
-    button.addEventListener(
-      "click",
-      event => {
-        const isTouchInput = true;
-
-        if (isTouchInput) {
-          event.preventDefault();
-
-          /*
-           * Offset画面のタップは、
-           * 対象トラックの同一stepをON/OFFする。
-           * Offset値そのものは保持する。
-           * 選択編集モード中は選択操作を優先する。
-           */
-          if (stepIndex >= track.stepLength) {
-            return;
-          }
-
-          handleStepTap({
-            track,
-            trackIndex:
-              state.selectedTrackIndex,
-            stepIndex,
-            focusKey,
-            renderAfter: key => {
-              renderEditorAndRestore(
-                key
-              );
-            }
-          });
-          return;
-        }
-
-        const currentOffset =
-          track.offsets[
-            parameter.id
-          ]?.[stepIndex] ?? 0;
-
-        const minimumOffset =
-  parameter.min -
-  Number(
-    track.base[
-      parameter.id
-    ]
-  );
-
-const maximumOffset =
-  parameter.max -
-  Number(
-    track.base[
-      parameter.id
-    ]
-  );
-
-        const offsetStep =
-          parameter.step ?? 1;
-
-        const input =
-          document.createElement(
-            "input"
-          );
-
-         input.type = "number";
-         input.className =
-          "offset-step offset-input";
-
-         input.value =
-          currentOffset;
-
-         input.step =
-          String(offsetStep);
-
-         input.min =
-          String(minimumOffset);
-
-         input.max =
-          String(maximumOffset);
-
-         input.dataset.stepIndex =
-          stepIndex;
-
-         input.dataset.focusKey =
-          focusKey;
-
-         input.dataset.keyboardEditing =
-          "true";
-
-        button.replaceWith(input);
-
-        input.focus();
-        input.select();
-
-        let finished = false;
-
-        const finish =
-          shouldCommit => {
-            if (finished) {
-              return;
-            }
-
-            finished = true;
-
-            if (shouldCommit) {
-              const previousOffset =
-                track.offsets[
-                  parameter.id
-                ]?.[stepIndex] ?? 0;
-
-              let nextOffset =
-                clamp(
-                  Number(
-                    input.value
-                  ) || 0,
-                  minimumOffset,
-                  maximumOffset
-                );
-
-              nextOffset =
-                roundToStep(
-                  nextOffset,
-                  offsetStep
-                );
-
-              if (
-                nextOffset !==
-                previousOffset
-              ) {
-                saveTrackHistory();
-
-                track.offsets[
-                  parameter.id
-                ][stepIndex] =
-                  nextOffset;
-              }
-            }
-
-            renderEditorAndRestore(
-              focusKey
-            );
-          };
-
-        input.addEventListener(
-          "keydown",
-          event => {
-            if (
-              event.key === "Enter"
-            ) {
-              event.preventDefault();
-              event.stopPropagation();
-
-              finish(true);
-            }
-
-            if (
-              event.key === "Escape"
-            ) {
-              event.preventDefault();
-              event.stopPropagation();
-
-              finish(false);
-            }
-          }
-        );
-
-        input.addEventListener(
-          "blur",
-          () => finish(true),
-          { once: true }
-        );
-      }
-    );
-
-    grid.appendChild(button);
-  }
-
-  return grid;
-}
-
-
-function renderOscEdit() {
-  const track = editorTrack();
-  const activeId = "sineVolume";
-  const activeParameter = parameterById(activeId);
-
-  state.selectedChildId = activeId;
-
-  const header = document.createElement("div");
-  header.className = "edit-toolbar osc-edit-toolbar";
-
-  const trackButton = document.createElement("button");
-  trackButton.type = "button";
-  trackButton.className = "track-cycle";
-  trackButton.dataset.focusKey = "edit-track";
-  trackButton.innerHTML = `
-    <span class="track-icon">${getParameterIcon("track")}</span>
-    <span class="track-number">${track.id}</span>
-  `;
-  trackButton.setAttribute("aria-label", `track ${track.id}`);
-  trackButton.addEventListener("click", () => {
-  state.selectedTrackIndex =
-    (state.selectedTrackIndex + 1) % tracks.length;
-
-  renderEditorAndRestore("edit-track");
-});
-
-  const parentButton = document.createElement("button");
-  parentButton.type = "button";
-  parentButton.className = "edit-icon osc-parent-icon";
-  parentButton.dataset.focusKey = "edit-parameter-osc";
-  parentButton.innerHTML = getParameterIcon("sine");
-  parentButton.setAttribute("aria-label", "OSC編集を閉じる");
-  parentButton.addEventListener("click", () => {
-    state.selectedChildId = activeId;
-    clearOffsetSelectionMode();
-    state.selectedParameterId = null;
-    renderEditorAndRestore("parameter-osc");
-  });
-
-  const gainLabel = document.createElement("span");
-  gainLabel.className = "osc-gain-label";
-  gainLabel.textContent = "gain";
-
-  header.append(
-    trackButton,
-    gainLabel,
-    editValueControl(oscParameter, activeId)
-  );
-
-  editor.appendChild(header);
-  editor.appendChild(renderOffsetGrid(activeParameter));
-}
-
-function renderEnvelopeEdit() {
-  const track =
-    editorTrack();
-
-  const activeId =
-    "attack";
-
-  track.envelopeSelectedId =
-    "attack";
-
-  state.selectedChildId =
-    "attack";
-
-  const activeDefinition =
-    envelopeParameter.children.find(
-      child =>
-        child.id ===
-        "attack"
-    );
-
-  const activeParameter =
-    parameterById(
-      "attack"
-    );
-
-  const header =
-    document.createElement("div");
-
-  header.className =
-    "edit-toolbar envelope-edit-toolbar";
-
-  const trackButton =
-    document.createElement("button");
-
-  trackButton.type = "button";
-  trackButton.className =
-    "track-cycle";
-
-  trackButton.dataset.focusKey =
-    "edit-track";
-
-  trackButton.innerHTML = `
-    <span class="track-icon">
-      ${getParameterIcon("track")}
-    </span>
-
-    <span class="track-number">
-      ${track.id}
-    </span>
-  `;
-
-  trackButton.addEventListener(
-    "click",
-    () => {
-      state.selectedTrackIndex =
-        (
-          state.selectedTrackIndex +
-          1
-        ) %
-        tracks.length;
-
-      renderEditorAndRestore(
-        "edit-track"
-      );
-    }
-  );
-
-  const parentButton =
-    document.createElement("button");
-
-  parentButton.type = "button";
-  parentButton.className =
-    "edit-icon envelope-parent-icon";
-
-  parentButton.dataset.focusKey =
-    "edit-parameter-envelope";
-
-  parentButton.innerHTML =
-  getParameterIcon("attack");
-
-  parentButton.setAttribute(
-    "aria-label",
-    "エンベロープ編集を閉じる"
-  );
-
-  parentButton.addEventListener(
-    "click",
-    () => {
-      clearOffsetSelectionMode();
-
-      state.selectedParameterId =
-        null;
-
-      renderEditorAndRestore(
-        "parameter-envelope"
-      );
-    }
-  );
-
-  const parameterLabel =
-  document.createElement("span");
-
-parameterLabel.className =
-  "edit-parameter-label";
-
-parameterLabel.textContent =
-  "attack";
-
-header.append(
-  trackButton,
-  parameterLabel
-);
-
-  header.appendChild(
-    editValueControl(
-      activeParameter,
-      activeId
-    )
-  );
-
-  editor.appendChild(
-    header
-  );
-
-  editor.appendChild(
-    renderOffsetGrid(
-      activeParameter
-    )
-  );
-}
-
-function renderFilterEdit() {
-  const track = editorTrack();
-
-  const filterChildren = [
-    {
-      id: "filterCutoff",
-      label: "cutoff"
-    },
-    {
-      id: "filterResonance",
-      label: "reso"
-    }
-  ];
-
-  const activeId =
-    filterChildren.some(
-      child =>
-        child.id ===
-        state.selectedChildId
-    )
-      ? state.selectedChildId
-      : "filterCutoff";
-
-  state.selectedChildId = activeId;
-
-  const activeParameter =
-    parameterById(activeId);
-
-  const header =
-    document.createElement("div");
-
-  header.className =
-    "edit-toolbar filter-edit-toolbar";
-
-  const trackButton =
-    document.createElement("button");
-
-  trackButton.type = "button";
-  trackButton.className =
-    "track-cycle";
-  trackButton.dataset.focusKey =
-    "edit-track";
-
-  trackButton.innerHTML = `
-    <span class="track-icon">
-      ${getParameterIcon("track")}
-    </span>
-    <span class="track-number">
-      ${track.id}
-    </span>
-  `;
-
-  trackButton.addEventListener(
-    "click",
-    () => {
-      state.selectedTrackIndex =
-        (
-          state.selectedTrackIndex +
-          1
-        ) % tracks.length;
-
-      renderEditorAndRestore(
-        "edit-track"
-      );
-    }
-  );
-
-  const parentButton =
-    document.createElement("button");
-
-  parentButton.type = "button";
-  parentButton.className =
-    "edit-icon filter-parent-icon";
-  parentButton.dataset.focusKey =
-    "edit-parameter-filterCutoff";
-  parentButton.innerHTML =
-    getParameterIcon("tone");
-  parentButton.setAttribute(
-    "aria-label",
-    "フィルター編集を閉じる"
-  );
-
-  parentButton.addEventListener(
-    "click",
-    () => {
-      clearOffsetSelectionMode();
-
-      state.selectedParameterId = null;
-
-      renderEditorAndRestore(
-        "parameter-filterCutoff"
-      );
-    }
-  );
-
-  const controls =
-    document.createElement("div");
-
-  controls.className =
-    "filter-child-controls";
-
-  filterChildren.forEach(
-    definition => {
-      const button =
-        document.createElement(
-          "button"
-        );
-
-      button.type = "button";
-      button.className =
-        "filter-child-button";
-      button.dataset.focusKey =
-        `child-${definition.id}`;
-      button.textContent =
-        definition.label;
-
-      if (
-        definition.id === activeId
-      ) {
-        button.classList.add(
-          "active"
-        );
-      }
-
-      button.addEventListener(
-        "click",
-        () => {
-          state.selectedChildId =
-            definition.id;
-
-          renderEditorAndRestore(
-            `base-value-${definition.id}`
-          );
-        }
-      );
-
-      controls.appendChild(button);
-    }
-  );
-
-  header.append(
-    trackButton,
-    controls
-  );
-
-  header.appendChild(
-    editValueControl(
-      activeParameter,
-      activeId
-    )
-  );
-
-  editor.appendChild(header);
-  editor.appendChild(
-    renderOffsetGrid(
-      activeParameter
-    )
-  );
-}
-
-function renderLfoEdit() {
-  const track = editorTrack();
-  const activeLfo = track.lfoSelected === 2 ? 2 : 1;
-  const activeView =
-    state.selectedChildId === "depth" ||
-    state.selectedChildId === "rate"
-      ? state.selectedChildId
-      : "settings";
-
-  state.selectedChildId = activeView;
-
-  const prefix = `lfo${activeLfo}`;
-  const parameterKeys = {
-    target: `${prefix}Target`,
-    wave: `${prefix}Wave`,
-    depth: `${prefix}Depth`,
-    rate: `${prefix}Rate`,
-    syncMode: `${prefix}SyncMode`
-  };
-
-  const header = document.createElement("div");
-  header.className = "edit-toolbar lfo-edit-toolbar";
-
-  const trackButton = document.createElement("button");
-  trackButton.type = "button";
-  trackButton.className = "track-cycle";
-  trackButton.dataset.focusKey = "edit-track";
-  trackButton.innerHTML = `
-    <span class="track-icon">${getParameterIcon("track")}</span>
-    <span class="track-number">${track.id}</span>
-  `;
-  trackButton.addEventListener("click", () => {
-    state.selectedTrackIndex =
-      (state.selectedTrackIndex + 1) % tracks.length;
-    renderEditorAndRestore("edit-track");
-  });
-
-  const parentButton = document.createElement("button");
-  parentButton.type = "button";
-  parentButton.className = "edit-icon lfo-parent-icon";
-  parentButton.dataset.focusKey = "edit-parameter-lfo";
-  parentButton.innerHTML = getParameterIcon("lfo");
-  parentButton.setAttribute("aria-label", "LFO編集を閉じる");
-  parentButton.addEventListener("click", () => {
-    clearOffsetSelectionMode();
-
-    state.selectedParameterId = null;
-
-    renderEditorAndRestore("parameter-lfo");
-  });
-
-  header.append(trackButton);
-
-  [1, 2].forEach(lfoNumber => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "lfo-switch-button";
-    button.dataset.focusKey = `lfo-switch-${lfoNumber}`;
-    button.textContent = String(lfoNumber);
-    button.setAttribute("aria-label", `lfo ${lfoNumber}を選択`);
-    if (activeLfo === lfoNumber) button.classList.add("active");
-    button.addEventListener("click", () => {
-      track.lfoSelected = lfoNumber;
-      state.selectedChildId = "settings";
-      renderEditorAndRestore(`lfo-switch-${lfoNumber}`);
-    });
-    header.appendChild(button);
-  });
-
-  ["depth", "rate"].forEach(id => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "lfo-parameter-button";
-    button.dataset.focusKey = `lfo-parameter-${id}`;
-    button.textContent = id;
-    button.setAttribute("aria-label", `lfo ${activeLfo} ${id}`);
-    if (activeView === id) button.classList.add("active");
-    button.addEventListener("click", () => {
-      state.selectedChildId = id;
-      renderEditorAndRestore(`lfo-parameter-${id}`);
-    });
-    header.appendChild(button);
-  });
-
-  const syncMode =
-    track.base[parameterKeys.syncMode] === "bpm"
-      ? "bpm"
-      : "free";
-
-  /*
-   * bpm / freeはRateの単位と動作だけに関係するため、
-   * Rate編集時だけ表示する。
-   */
-  if (activeView === "rate") {
-    const syncButton =
-      document.createElement("button");
-
-    syncButton.type = "button";
-    syncButton.className =
-      "lfo-sync-button";
-
-    syncButton.dataset.focusKey =
-      "lfo-sync-mode";
-
-    syncButton.textContent =
-      syncMode;
-
-    syncButton.setAttribute(
-      "aria-label",
-      `lfo ${activeLfo} rate ${syncMode}`
-    );
-
-    syncButton.addEventListener(
-  "click",
-  () => {
-    saveTrackHistory();
-
-    const rateId =
-      parameterKeys.rate;
-
-    if (syncMode === "bpm") {
-      /*
-       * BPM → FREE
-       * 現在の音価に近いHzへ変換する。
-       */
-      track.base[rateId] =
-        bpmIndexToFreeRate(
-          track.base[rateId]
-        );
-
-      track.base[
-        parameterKeys.syncMode
-      ] = "free";
-    } else {
-      /*
-       * FREE → BPM
-       * 現在のHzに最も近い音価へ変換する。
-       */
-      track.base[rateId] =
-        freeRateToBpmIndex(
-          track.base[rateId]
-        );
-
-      track.base[
-        parameterKeys.syncMode
-      ] = "bpm";
-    }
-
-    renderEditorAndRestore(
-      "lfo-sync-mode"
-    );
-  }
-);
-
-    header.appendChild(
-      syncButton
-    );
-  }
-
-  if (activeView === "depth" || activeView === "rate") {
-    const activeBaseId = parameterKeys[activeView];
-    const sourceParameter =
-  parameterById(
-    activeBaseId
-  );
-
-const activeParameter =
-  activeView === "rate" &&
-  syncMode === "bpm"
-    ? {
-        ...sourceParameter,
-        min: 0,
-        max:
-          LFO_BPM_RATE_NAMES.length -
-          1,
-        step: 1
-      }
-    : sourceParameter;
-
-    const baseValue = document.createElement("button");
-    baseValue.type = "button";
-    baseValue.className = "base-value lfo-base-value";
-    baseValue.dataset.focusKey = "lfo-base-value";
-
-    const rateName = value => {
-  const index =
-    clamp(
-      Math.round(
-        Number(value) || 0
-      ),
-      0,
-      LFO_BPM_RATE_NAMES.length - 1
-    );
-
-  return (
-    LFO_BPM_RATE_NAMES[index] ??
-    "1/4"
-  );
-};
-    const updateBaseValue = () => {
-      const value = track.base[activeBaseId];
-      baseValue.textContent =
-        activeView === "rate" && syncMode === "bpm"
-          ? rateName(value)
-          : activeView === "rate"
-            ? `${(Number(value) / 10).toFixed(1)}`
-            : String(value);
-    };
-    updateBaseValue();
-    /*
- * LFO Depth / Rate
- * キーボード編集。
- *
- * Enter：編集開始／確定
- * 矢印：値変更
- * Escape：キャンセル
- */
-let keyboardEditing = false;
-let keyboardStartValue =
-  Number(
-    track.base[activeBaseId]
-  );
-
-let keyboardValue =
-  keyboardStartValue;
-
-function displayKeyboardValue() {
-  baseValue.textContent =
-    activeView === "rate" &&
-    syncMode === "bpm"
-      ? rateName(
-          keyboardValue
-        )
-      : activeView === "rate"
-        ? `${(
-            Number(
-              keyboardValue
-            ) / 10
-          ).toFixed(1)}hz`
-        : String(
-            keyboardValue
-          );
-}
-
-function finishKeyboardEdit(
-  shouldCommit
-) {
-  if (!keyboardEditing) {
-    return;
-  }
-
-  keyboardEditing = false;
-
-  delete baseValue.dataset
-    .keyboardEditing;
-
-  if (
-    shouldCommit &&
-    keyboardValue !==
-      keyboardStartValue
-  ) {
-    saveTrackHistory();
-
-    if (hasActiveOffsetSelection()) {
-      applyOffsetDeltaToSelection(
-        { ...activeParameter, id: activeBaseId },
-        keyboardValue - keyboardStartValue
-      );
-    } else {
-      track.base[activeBaseId] = keyboardValue;
-    }
-  } else {
-    keyboardValue =
-      keyboardStartValue;
-  }
-
-  renderEditorAndRestore(
-    "lfo-base-value"
-  );
-}
-
-baseValue.addEventListener(
-  "keydown",
-  event => {
-    if (
-      event.key === "Enter"
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (!keyboardEditing) {
-        keyboardEditing = true;
-
-        keyboardStartValue =
-          Number(
-            track.base[
-              activeBaseId
-            ]
-          );
-
-        keyboardValue =
-          keyboardStartValue;
-
-        baseValue.dataset
-          .keyboardEditing =
-            "true";
-
-        return;
-      }
-
-      finishKeyboardEdit(
-        true
-      );
-
-      return;
-    }
-
-    if (
-      keyboardEditing &&
-      (
-        event.key ===
-          "ArrowUp" ||
-        event.key ===
-          "ArrowRight" ||
-        event.key ===
-          "ArrowDown" ||
-        event.key ===
-          "ArrowLeft"
-      )
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const amount =
-        (
-          event.key ===
-            "ArrowUp" ||
-          event.key ===
-            "ArrowRight"
-        )
-          ? activeParameter.step ??
-            1
-          : -(
-              activeParameter.step ??
-              1
-            );
-
-      keyboardValue =
-        roundToStep(
-          clamp(
-            keyboardValue +
-              amount,
-            activeParameter.min,
-            activeParameter.max
-          ),
-          activeParameter.step ??
-            1
-        );
-
-      displayKeyboardValue();
-
-      return;
-    }
-
-    if (
-      keyboardEditing &&
-      event.key === "Escape"
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      finishKeyboardEdit(
-        false
-      );
-    }
-  }
-);
-
-    let sweepHistorySaved = false;
-    let offsetSelectionAppliedDelta = 0;
-
-    baseValue.addEventListener(
-      "pointerdown",
-      () => {
-        offsetSelectionAppliedDelta = 0;
-      }
-    );
-
-    enableVerticalSweep({
-      element: baseValue,
-      getValue: () => {
-        if (
-          editSelection.mode ===
-            "offset" &&
-          Array.isArray(
-            track.offsets[
-              activeBaseId
-            ]
-          )
-        ) {
-          return 0;
-        }
-
-        return Number(
-          track.base[
-            activeBaseId
-          ]
-        );
-      },
-      setValue: nextValue => {
-        if (!sweepHistorySaved) {
-          saveTrackHistory();
-          sweepHistorySaved = true;
-        }
-        if (
-          editSelection.mode ===
-            "offset" &&
-          Array.isArray(
-            track.offsets[
-              activeBaseId
-            ]
-          )
-        ) {
-          const totalDelta =
-            roundToStep(
-              Number(nextValue) || 0,
-              activeParameter.step ??
-                1
-            );
-
-          const incrementalDelta =
-            totalDelta -
-            offsetSelectionAppliedDelta;
-
-          applyOffsetDeltaToSelection(
-            {
-              ...activeParameter,
-              id: activeBaseId
-            },
-            incrementalDelta
-          );
-
-          offsetSelectionAppliedDelta =
-            totalDelta;
-        } else {
-          const correctedValue =
-            roundToStep(
-              clamp(
-                Number(nextValue),
-                activeParameter.min,
-                activeParameter.max
-              ),
-              activeParameter.step ??
-                1
-            );
-
-          track.base[
-            activeBaseId
-          ] =
-            correctedValue;
-        }
-        updateBaseValue();
-
-/*
- * LFOのベース値変更中も、
- * 各ステップの実効値をリアルタイム更新。
- */
-refreshVisibleOffsetValues(
-  activeParameter
-);
-      },
-      min: () =>
-        (
-          editSelection.mode ===
-            "offset" &&
-          Array.isArray(
-            track.offsets[
-              activeBaseId
-            ]
-          )
-        )
-          ? -10000
-          : activeParameter.min,
-
-      max: () =>
-        (
-          editSelection.mode ===
-            "offset" &&
-          Array.isArray(
-            track.offsets[
-              activeBaseId
-            ]
-          )
-        )
-          ? 10000
-          : activeParameter.max,
-
-step:
-  activeParameter.step ?? 1,
-      onCommit: (startValue, currentValue, changed) => {
-        sweepHistorySaved = false;
-        offsetSelectionAppliedDelta =
-          0;
-
-        if (changed) {
-          renderEditorAndRestore(
-            "lfo-base-value"
-          );
-        }
-      }
-    });
-
-    const baseValueWrapper =
-  createCompactValue({
-    label: "base",
-    control: baseValue,
-    className:
-      "lfo-base-value-control"
-  });
-
-header.appendChild(
-  baseValueWrapper
-);
-
-editor.append(
-  header,
-  renderOffsetGrid(
-    activeParameter
-  )
-);
-    return;
-  }
-
-  editor.appendChild(header);
-
-  const settings = document.createElement("div");
-  settings.className = "lfo-settings";
-  const createSectionLabel = text => {
-    const label = document.createElement("div");
-    label.className = "lfo-settings-label";
-    label.textContent = text;
-    return label;
-  };
-  const setLfoOption = (baseId, value, focusKey) => {
-    if (track.base[baseId] === value) return;
-    saveTrackHistory();
-    track.base[baseId] = value;
-    renderEditorAndRestore(focusKey);
-  };
-
-  const targetGrid = document.createElement("div");
-  targetGrid.className = "lfo-target-grid";
-  [
-    ["pitch", "Pitch", "note"],
-    ["fmDepth", "FM", "fm"],
-    ["filterCutoff", "Filter", "tone"],
-    ["pan", "Pan", "pan"],
-    ["attack", "Attack", "attack"]
-  ].forEach(([value, label, icon]) => {
-    const button = document.createElement("button");
-    const focusKey = `lfo-target-${value}`;
-    button.type = "button";
-    button.className = "lfo-target-button";
-    button.dataset.focusKey = focusKey;
-    button.innerHTML = `<span class="lfo-target-icon">${getParameterIcon(icon)}</span>`;
-    button.setAttribute("aria-label", label);
-    const currentTarget = track.base[parameterKeys.target];
-    if (
-      currentTarget === value ||
-      (value === "attack" && ["gate", "decay"].includes(currentTarget))
-    ) button.classList.add("active");
-    button.addEventListener("click", () => setLfoOption(parameterKeys.target, value, focusKey));
-    targetGrid.appendChild(button);
-  });
-
-  function getWaveSvg(waveId) {
-    const paths = {
-      sine: `<path d="M2 14 C8 3 14 3 20 14 S32 25 38 14 S50 3 56 14 S68 25 74 14" />`,
-      triangle: `<path d="M2 14 L11 5 L20 23 L29 5 L38 23 L47 5 L56 23 L65 5 L74 14" />`,
-      sawUp: `<path d="M2 23 L20 5 L20 23 L38 5 L38 23 L56 5 L56 23 L74 5" />`,
-      sawDown: `<path d="M2 5 L2 23 L20 5 L20 23 L38 5 L38 23 L56 5 L56 23 L74 5" />`,
-      square: `<path d="M2 22 V6 H14 V22 H26 V6 H38 V22 H50 V6 H62 V22 H74" />`,
-      random: `<path d="M2 18 H12 V8 H24 V21 H36 V11 H48 V5 H60 V19 H74" />`,
-      rise: `<path d="M2 23 C10 23 14 18 20 12 S34 4 50 4 S66 4 74 4"/>`,
-      fall: `<path d="M2 4 C10 4 14 9 20 15 S34 23 50 23 S66 23 74 23"/>`,
-    };
-    return `<svg viewBox="0 0 76 28" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[waveId] ?? paths.sine}</svg>`;
-  }
-
-  const waveGrid = document.createElement("div");
-  waveGrid.className = "lfo-wave-grid";
-  [
-  ["sine", "Sine"],
-  ["triangle", "Triangle"],
-  ["sawUp", "Saw Up"],
-  ["sawDown", "Saw Down"],
-  ["square", "Square"],
-  ["random", "Random"],
-  ["rise", "Rise"],
-  ["fall", "Fall"]
-].forEach(([value, label]) => {
-    const button = document.createElement("button");
-    const focusKey = `lfo-wave-${value}`;
-    button.type = "button";
-    button.className = "lfo-wave-button";
-    button.dataset.focusKey = focusKey;
-    button.innerHTML = getWaveSvg(value);
-    button.setAttribute("aria-label", label);
-    if (track.base[parameterKeys.wave] === value) button.classList.add("active");
-    button.addEventListener("click", () => setLfoOption(parameterKeys.wave, value, focusKey));
-    waveGrid.appendChild(button);
-  });
-
-  settings.append(
-    createSectionLabel("target"), targetGrid,
-    createSectionLabel("wave"), waveGrid
-  );
-  editor.appendChild(settings);
-}
-
-function renderEdit(parameter) {
-  const header = document.createElement("div");
-  header.className = "edit-toolbar";
-  if (parameter.id === "note") {
-    header.classList.add("note-edit-toolbar");
-  }
-
-  if (parameter.id === "articulation") {
-    header.classList.add("articulation-edit-toolbar");
-
-    const selectedId =
-      articulationParameter.children.some(
-        child => child.id === editorTrack().articulationSelectedId
-      )
-        ? editorTrack().articulationSelectedId
-        : "glide";
-
-    editorTrack().articulationSelectedId = selectedId;
-    state.selectedChildId = selectedId;
-  }
-
-  const back = document.createElement("button");
-  back.type = "button";
-  back.className = "track-cycle";
-  back.dataset.focusKey = "edit-track";
-
-  back.innerHTML = `
-    <span class="track-icon">
-      ${getParameterIcon("track")}
-    </span>
-
-    <span class="track-number">
-      ${editorTrack().id}
-    </span>
-  `;
-
-  back.addEventListener("click", () => {
-    state.selectedTrackIndex =
-        (state.selectedTrackIndex + 1) %
-        tracks.length;
-
-    renderEditorAndRestore(
-        "edit-track"
-    );
-});
-
-  const icon = document.createElement("button");
-  icon.type = "button";
-  icon.className = "edit-icon";
-  icon.dataset.focusKey = `edit-parameter-${parameter.id}`;
-
-  const editIconId =
-  parameter.id === "articulation"
-    ? (
-        articulationParameter.children.find(
-          child =>
-            child.id ===
-            editorTrack().articulationSelectedId
-        )?.icon ?? "glide"
-      )
-    : parameter.icon;
-
-icon.innerHTML =
-  getParameterIcon(editIconId);
-
-  icon.addEventListener("click", () => {
-    clearOffsetSelectionMode();
-
-    state.selectedParameterId = null;
-
-    renderEditorAndRestore(
-      `parameter-${parameter.id}`
-    );
-  });
-
-  header.append(back);
-
-  if (!parameter.children) {
-  const parameterLabel =
-    document.createElement("span");
-
-  parameterLabel.className =
-    "edit-parameter-label";
-
-  parameterLabel.textContent =
-    parameter.id === "holdDecay"
-    ? "hold/decay"
-    : parameter.label;
-
-  header.appendChild(
-    parameterLabel
-  );
-}
-
-  let activeId = parameter.id;
-
-  if (parameter.children) {
-    const tabs = document.createElement("div");
-    tabs.className = "child-tabs";
-
-    parameter.children.forEach(child => {
-      const tab = document.createElement("button");
-
-      tab.dataset.focusKey =
-        `child-${child.id}`;
-
-      tab.type = "button";
-      tab.textContent =
-  child.label;
-
-      if (state.selectedChildId === child.id) {
-        tab.classList.add("active");
-      }
-
-      if (
-        parameter.id === "note" &&
-        Number(editorTrack().base.chord) === 0 &&
-        ["voices", "inversion",].includes(child.id)
-      ) {
-        tab.classList.add("chord-inactive");
-      }
-
-      tab.addEventListener("click", () => {
-        state.selectedChildId = child.id;
-
-        if (parameter.id === "articulation") {
-          editorTrack().articulationSelectedId = child.id;
-        }
-
-        renderEditorAndRestore(
-          `base-value-${child.id}`
-        );
-      });
-
-      tabs.appendChild(tab);
-    });
-
-    /* 子パラ選択はParameter Menu右下4枠へ集約。 */
-
-    activeId =
-      parameter.children.some(
-        child =>
-          child.id ===
-          state.selectedChildId
-      )
-        ? state.selectedChildId
-        : parameter.children[0].id;
-
-    state.selectedChildId =
-      activeId;
-  }
-
-  const activeChild =
-    parameter.children?.find(
-      item => item.id === activeId
-    );
-
-  const activeOffsetId =
-  activeChild?.id ??
-  parameter.id;
-
-const hasOffsets =
-  !parameter.baseOnly &&
-  !activeChild?.baseOnly &&
-  Boolean(
-    editorTrack().offsets[
-      activeOffsetId
-    ]
-  );
-
-  if (!activeChild?.stepOnly) {
-    header.appendChild(
-      editValueControl(parameter, activeId)
-    );
-  }
-
-  editor.appendChild(header);
-
-  const child =
-    parameter.children?.find(
-      item => item.id === activeId
-    );
-
-  const baseOnly =
-    parameter.baseOnly ||
-    child?.baseOnly;
-
-  if (
-  !baseOnly &&
-  editorTrack().offsets[
-    activeOffsetId
-  ]
-) {
-  const offsetParameter =
-    activeChild
-      ? {
-          ...parameter,
-          ...activeChild,
-          id: activeOffsetId,
-          offsetMode: activeChild.offsetMode ?? parameter.offsetMode ?? "offset"
-        }
-      : parameter;
-
-  editor.appendChild(
-    renderOffsetGrid(
-      offsetParameter
-    )
-  );
-}
-}
-
-
-function restorePatternFocus(focusKey) {
-  restoreFocusKey(focusKey);
-}
-
-const SOURCE_DOUBLE_TAP_INTERVAL = 320;
-let lastSourceTap = null;
-
-function sourceTapKey(
-  type,
-  sourceIndex
-) {
-  return `${type}:${sourceIndex}`;
-}
-
-function renderSourceClipIndicator() {
-  const header =
-    patternGrid
-      ?.closest(".pattern-section")
-      ?.querySelector(
-        ".pattern-section-header"
-      );
-
-  if (!header) {
-    return;
-  }
-
-  let button =
-    header.querySelector(
-      ".source-clip-indicator-button"
-    );
-
-  if (!hasSourceClipboard()) {
-    button?.remove();
-    return;
-  }
-
-  if (!button) {
-    button =
-      document.createElement(
-        "button"
-      );
-
-    button.type = "button";
-    button.className =
-      "source-clip-indicator-button";
-
-    button.setAttribute(
-      "aria-label",
-      "Pattern / Fillクリップを解除"
-    );
-
-    button.title = "clip clear";
-
-    button.innerHTML = `
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="
-  M7.6 13.4
-  L15.2 5.8
-  Q17.5 3.5 19.5 5.5
-  Q21.5 7.5 19.2 9.8
-  L10.5 18.5
-  Q7.2 21.8 4.5 19.1
-  Q1.8 16.4 5.1 13.1
-  L13.8 4.4
-  Q15.3 2.9 16.8 4.4
-  Q18.3 5.9 16.8 7.4
-  L7.8 16.4
-  Q6.9 17.3 6.0 16.4
-  Q5.1 15.5 6.0 14.6
-  L13.8 6.8
-"></path>
-      </svg>
-    `;
-
-    /*
-     * Pattern / Fill / Sectionエリア右上。
-     * Page切替ボタンの直前へ配置する。
-     */
-    if (
-      patternPageButton &&
-      patternPageButton.parentElement ===
-        header
-    ) {
-      header.insertBefore(
-        button,
-        patternPageButton
-      );
-    } else {
-      header.appendChild(
-        button
-      );
-    }
-
-    button.addEventListener(
-      "click",
-      event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        clearSourceClipboard();
-        lastSourceTap = null;
-
-        renderPatternManager();
-      }
-    );
-  }
-}
-
-function enableSourceDoubleTapClip(
-  button,
-  sourceType,
-  sourceIndex
-) {
-  button.addEventListener(
-    "pointerdown",
-    event => {
-      if (
-        event.pointerType === "mouse" &&
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      /*
-       * 再生中はPattern / Fill予約操作を優先する。
-       * クリップ保持中は貼り付け操作を優先する。
-       */
-      if (
-        state.isPlaying ||
-        hasSourceClipboard()
-      ) {
-        return;
-      }
-
-      const key =
-        sourceTapKey(
-          sourceType,
-          sourceIndex
-        );
-
-      const now =
-        performance.now();
-
-      if (
-        !lastSourceTap ||
-        lastSourceTap.key !== key ||
-        now - lastSourceTap.time >
-          SOURCE_DOUBLE_TAP_INTERVAL
-      ) {
-        return;
-      }
-
-      if (
-        !copySource(
-          sourceType,
-          sourceIndex
-        )
-      ) {
-        return;
-      }
-
-      lastSourceTap = null;
-
-      /*
-       * 2回目pointerdownで即クリップ成立。
-       * 同じpointerdownをDragへ渡さない。
-       */
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      renderPatternManager();
-      renderSourceClipIndicator();
-    }
-  );
-}
-
-/* =========================
- * Song editor - stage 1
- * ========================= */
-const SONG_PARTS_PER_PAGE = 32;
-const SONG_PAGE_COUNT = 2;
-const SONG_DRAG_START_DISTANCE = 6;
-const SONG_DELETE_DISTANCE = 24;
-
-function songPartLabel(source) {
-  if (!source) return "";
-
-  if (source.type === "fill") {
-    return `f${source.index + 1}`;
-  }
-
-  if (source.type === "section") {
-    return String.fromCharCode(65 + source.index);
-  }
-
-  return String(source.index + 1).padStart(2, "0");
-}
-
-function songInsertIndexFromPoint(clientX, clientY) {
-  if (!songGrid) return song.sequence.length;
-
-  const cell = document
-    .elementFromPoint(clientX, clientY)
-    ?.closest?.(".song-part-cell");
-
-  if (!cell || !songGrid.contains(cell)) {
-    return song.sequence.length;
-  }
-
-  const localIndex = Number(cell.dataset.songLocalIndex) || 0;
-  const rect = cell.getBoundingClientRect();
-  const afterCenter = clientX > rect.left + rect.width / 2;
-  const pageStart = state.songPage * SONG_PARTS_PER_PAGE;
-
-  return Math.max(
-    0,
+  const from =
     Math.min(
-      pageStart + localIndex + (afterCenter ? 1 : 0),
-      song.sequence.length
-    )
-  );
-}
-
-function pointerInsideSongGrid(event) {
-  if (!songGrid || !songEditorView) return false;
-  const rect = songGrid.getBoundingClientRect();
-  return (
-    event.clientX >= rect.left &&
-    event.clientX <= rect.right &&
-    event.clientY >= rect.top &&
-    event.clientY <= rect.bottom
-  );
-}
-
-function createSongDragGhost(button, event) {
-  document
-    .querySelectorAll(".song-drag-ghost")
-    .forEach(ghost => ghost.remove());
-
-  const rect = button.getBoundingClientRect();
-  const ghost = button.cloneNode(true);
-  ghost.classList.add("song-drag-ghost");
-  ghost.removeAttribute("data-focus-key");
-  ghost.tabIndex = -1;
-  ghost.style.width = `${rect.width}px`;
-  ghost.style.height = `${rect.height}px`;
-  document.body.appendChild(ghost);
-
-  return {
-    ghost,
-    offsetX: event.clientX - rect.left,
-    offsetY: event.clientY - rect.top
-  };
-}
-
-function enableExternalSourceDragToSong(
-  button,
-  sourceType,
-  sourceIndex
-) {
-  let pointerId = null;
-  let startX = 0;
-  let startY = 0;
-  let dragging = false;
-  let suppressClick = false;
-  let ghostState = null;
-
-  function moveGhost(event) {
-    if (!ghostState) return;
-    ghostState.ghost.style.left = `${event.clientX - ghostState.offsetX}px`;
-    ghostState.ghost.style.top = `${event.clientY - ghostState.offsetY}px`;
-  }
-
-  function cleanup() {
-    ghostState?.ghost.remove();
-    ghostState = null;
-    button.classList.remove("song-drag-origin");
-    songGrid?.classList.remove("dragging");
-  }
-
-  function onMove(event) {
-    if (event.pointerId !== pointerId) return;
-
-    const distance = Math.hypot(
-      event.clientX - startX,
-      event.clientY - startY
+      startPosition,
+      endPosition
     );
 
-    if (!dragging && distance < SONG_DRAG_START_DISTANCE) return;
-
-    if (!dragging) {
-      dragging = true;
-      suppressClick = true;
-      button.classList.add("song-drag-origin");
-      ghostState = createSongDragGhost(button, event);
-    }
-
-    event.preventDefault();
-    moveGhost(event);
-    songGrid?.classList.toggle("dragging", pointerInsideSongGrid(event));
-  }
-
-  function finish(event, cancelled = false) {
-    if (event.pointerId !== pointerId) return;
-
-    window.removeEventListener("pointermove", onMove, true);
-    window.removeEventListener("pointerup", onUp, true);
-    window.removeEventListener("pointercancel", onCancel, true);
-
-    if (button.hasPointerCapture(event.pointerId)) {
-      button.releasePointerCapture(event.pointerId);
-    }
-
-    pointerId = null;
-
-    const dropped =
-      dragging &&
-      !cancelled &&
-      pointerInsideSongGrid(event);
-
-    cleanup();
-
-    if (!dropped || song.sequence.length >= 64) {
-      dragging = false;
-      return;
-    }
-
-    const insertIndex = songInsertIndexFromPoint(
-      event.clientX,
-      event.clientY
+  const to =
+    Math.max(
+      startPosition,
+      endPosition
     );
 
-    saveHistory();
-
-    if (addSourceToSong(sourceType, sourceIndex, insertIndex)) {
-      state.songPage = Math.floor(
-        Math.min(insertIndex, 63) / SONG_PARTS_PER_PAGE
-      );
-      renderSongMode();
-    }
-
-    dragging = false;
-  }
-
-  function onUp(event) {
-    finish(event, false);
-  }
-
-  function onCancel(event) {
-    finish(event, true);
-  }
-
-  button.addEventListener("pointerdown", event => {
-    if (!songEditorView) return;
-    if (hasSourceClipboard()) return;
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-
-    pointerId = event.pointerId;
-    startX = event.clientX;
-    startY = event.clientY;
-    dragging = false;
-    suppressClick = false;
-
-    button.setPointerCapture(event.pointerId);
-
-    window.addEventListener("pointermove", onMove, true);
-    window.addEventListener("pointerup", onUp, true);
-    window.addEventListener("pointercancel", onCancel, true);
-  });
-
-  button.addEventListener(
-    "click",
-    event => {
-      if (!suppressClick) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      suppressClick = false;
-    },
-    true
+  return order.slice(
+    from,
+    to + 1
   );
 }
 
-function enableSongItemDrag(button, initialIndex) {
-  let pointerId = null;
-  let startX = 0;
-  let startY = 0;
-  let dragging = false;
-  let suppressClick = false;
-  let historySaved = false;
-  let currentIndex = initialIndex;
-  let ghostState = null;
+function clearPatternRangeSelection() {
+  patternRangeAnchorIndex =
+    null;
 
-  function moveGhost(event) {
-    if (!ghostState) return;
-    ghostState.ghost.style.left = `${event.clientX - ghostState.offsetX}px`;
-    ghostState.ghost.style.top = `${event.clientY - ghostState.offsetY}px`;
-  }
+  patternRangeEndIndex =
+    null;
 
-  function songGridOutside(event) {
-    const rect = songGrid.getBoundingClientRect();
-    return (
-      event.clientX < rect.left - SONG_DELETE_DISTANCE ||
-      event.clientX > rect.right + SONG_DELETE_DISTANCE ||
-      event.clientY < rect.top - SONG_DELETE_DISTANCE ||
-      event.clientY > rect.bottom + SONG_DELETE_DISTANCE
-    );
-  }
-
-  function onMove(event) {
-    if (event.pointerId !== pointerId) return;
-
-    const distance = Math.hypot(
-      event.clientX - startX,
-      event.clientY - startY
-    );
-
-    if (!dragging && distance < SONG_DRAG_START_DISTANCE) return;
-
-    if (!dragging) {
-      dragging = true;
-      suppressClick = true;
-      button.classList.add("song-drag-origin");
-      ghostState = createSongDragGhost(button, event);
-    }
-
-    event.preventDefault();
-    moveGhost(event);
-
-    const deleteReady = songGridOutside(event);
-    ghostState?.ghost.classList.toggle("delete-ready", deleteReady);
-    songGrid.classList.toggle("delete-ready", deleteReady);
-
-    if (deleteReady || !pointerInsideSongGrid(event)) return;
-
-    let targetIndex = songInsertIndexFromPoint(event.clientX, event.clientY);
-    if (targetIndex > currentIndex) targetIndex -= 1;
-    targetIndex = Math.max(0, Math.min(targetIndex, song.sequence.length - 1));
-
-    if (targetIndex === currentIndex) return;
-
-    if (!historySaved) {
-      saveHistory();
-      historySaved = true;
-    }
-
-    if (moveSongSource(currentIndex, targetIndex)) {
-      currentIndex = targetIndex;
-      renderSongGrid();
-    }
-  }
-
-  function finish(event, cancelled = false) {
-    if (event.pointerId !== pointerId) return;
-
-    window.removeEventListener("pointermove", onMove, true);
-    window.removeEventListener("pointerup", onUp, true);
-    window.removeEventListener("pointercancel", onCancel, true);
-
-    if (button.hasPointerCapture?.(event.pointerId)) {
-      button.releasePointerCapture(event.pointerId);
-    }
-
-    pointerId = null;
-
-    if (dragging && !cancelled && songGridOutside(event)) {
-      if (!historySaved) saveHistory();
-      removeSongSource(currentIndex);
-    }
-
-    ghostState?.ghost.remove();
-    ghostState = null;
-    songGrid.classList.remove("delete-ready", "dragging");
-
-    /*
-     * 単純タップ時はここで再描画しない。
-     *
-     * pointerup直後に発生するclickを
-     * 同じSongセルへ通すため。
-     * 並べ替え／削除を行った時だけ再描画する。
-     */
-    if (dragging) {
-      renderSongGrid();
-    }
-
-    dragging = false;
-  }
-
-  function onUp(event) { finish(event, false); }
-  function onCancel(event) { finish(event, true); }
-
-  button.addEventListener("pointerdown", event => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    if (
-      hasEditClipboard() &&
-      editClipboardType() === "part"
-    ) return;
-
-    pointerId = event.pointerId;
-    startX = event.clientX;
-    startY = event.clientY;
-    dragging = false;
-    suppressClick = false;
-    historySaved = false;
-    currentIndex = initialIndex;
-
-    button.setPointerCapture(event.pointerId);
-    window.addEventListener("pointermove", onMove, true);
-    window.addEventListener("pointerup", onUp, true);
-    window.addEventListener("pointercancel", onCancel, true);
-  });
-
-  button.addEventListener(
-    "click",
-    event => {
-      if (!suppressClick) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      suppressClick = false;
-    },
-    true
-  );
+  clearPatternLoopRange();
 }
 
-const MASTER_EQ_LABELS = [
-  "60", "120", "250", "500",
-  "1k", "2k", "4k", "8k"
-];
+function applyPatternRangeToLoop() {
+  const range =
+    selectedPatternRange();
 
-function ensureSongMasterMix() {
-  if (!song.masterMix || typeof song.masterMix !== "object") {
-    song.masterMix = {};
-  }
-
-  if (!Array.isArray(song.masterMix.eq)) {
-    song.masterMix.eq = Array(8).fill(0);
-  }
-
-  song.masterMix.eq = Array.from(
-    { length: 8 },
-    (_, index) => clamp(
-      Number(song.masterMix.eq[index]) || 0,
-      -12,
-      12
-    )
-  );
-
-  song.masterMix.volume = clamp(
-    Number.isFinite(Number(song.masterMix.volume))
-      ? Number(song.masterMix.volume)
-      : 100,
-    0,
-    100
-  );
-
-  song.masterMix.limiter = clamp(
-    Number.isFinite(Number(song.masterMix.limiter))
-      ? Number(song.masterMix.limiter)
-      : -1,
-    -24,
-    0
-  );
-
-  song.masterMix.reverb = clamp(
-    Number(song.masterMix.reverb) || 0,
-    0,
-    100
-  );
-
-  return song.masterMix;
-}
-
-function syncSongMasterMixAudio() {
-  const mix = ensureSongMasterMix();
-
-  mix.eq.forEach((value, index) => {
-    setMasterMixEqBand(index, value);
-  });
-
-  setMasterMixVolume(mix.volume);
-  setMasterLimiterThreshold(mix.limiter);
-  setMasterReverb(mix.reverb);
-}
-
-/* =========================
- * Master Mix meter
- * lightweight realtime update
- * ========================= */
-
-let masterMixMeterFrame = null;
-
-const MASTER_MIX_METER_INTERVAL_MS = 50;
-// 約20fps。
-// ミキサーメーターとしては十分滑らかで、
-// 60fps更新よりiPhone負荷を大幅に下げる。
-
-let masterMixMeterLastTime = 0;
-
-let masterMixMeterElements = {
-  eq: [],
-  volume: null,
-  limiter: null
-};
-
-const masterMixMeterDisplay = {
-  eq: Array(8).fill(0),
-  volume: 0,
-  limiter: 0
-};
-
-const masterMixMeterWritten = {
-  eq: Array(8).fill(-1),
-  volume: -1,
-  limiter: -1
-};
-
-/*
- * renderSongMasterMix() 後に1回だけ呼ぶ。
- * 毎フレームquerySelectorしない。
- */
-function cacheMasterMixMeterElements() {
-  if (!songMasterMix) {
-    masterMixMeterElements = {
-      eq: [],
-      volume: null,
-      limiter: null
-    };
-
+  if (
+    !range ||
+    range.length < 2
+  ) {
+    clearPatternLoopRange();
     return;
   }
 
-  /*
-   * EQメーターはCanvasで描画。
-   * サイズ・色・contextはここで1回だけ取得する。
-   */
-  masterMixMeterElements.eq =
+  setPatternLoopRange(
+    range[0],
+    range[
+      range.length - 1
+    ]
+  );
+}
+
+
+/* =========================================================
+ * Pattern 01-32
+ *
+ * Pattern ID is fixed.
+ * song.order controls playback/display order only.
+ * tap        = select
+ * vertical   = repeat
+ * long press = reorder
+ * ========================================================= */
+
+let patternDragState =
+  null;
+
+function normalizePatternOrder() {
+  const valid =
     Array.from(
-      songMasterMix.querySelectorAll(
-        ".master-eq-meter-canvas[data-band-index]"
-      )
-    ).map(canvas => {
-      const width =
-        Math.max(
-          1,
-          canvas.clientWidth
-        );
-
-      const height =
-        Math.max(
-          1,
-          canvas.clientHeight
-        );
-
-      const pixelRatio =
-        Math.min(
-          window.devicePixelRatio || 1,
-          2
-        );
-
-      canvas.width =
-        Math.round(
-          width * pixelRatio
-        );
-
-      canvas.height =
-        Math.round(
-          height * pixelRatio
-        );
-
-      const context =
-        canvas.getContext(
-          "2d",
-          {
-            alpha: true
-          }
-        );
-
-      context?.setTransform(
-        pixelRatio,
-        0,
-        0,
-        pixelRatio,
-        0,
-        0
-      );
-
-      const style =
-        getComputedStyle(
-          canvas
-        );
-
-      return {
-        canvas,
-        context,
-        width,
-        height,
-        pixelRatio,
-        color:
-  style.getPropertyValue(
-    "--selected-bg"
-  ).trim() ||
-  style.color
-      };
-    });
-
-  masterMixMeterElements.volume =
-    songMasterMix.querySelector(
-      '.master-mix-fader[data-control-key="volume"]'
+      { length: patterns.length },
+      (_, index) => index
     );
 
-  masterMixMeterElements.limiter =
-    songMasterMix.querySelector(
-      '.master-mix-fader[data-control-key="limiter"]'
-    );
-}
-
-export function refreshMasterMixMeterColor() {
-  const selectedColor =
-    getComputedStyle(
-      document.body
-    )
-      .getPropertyValue(
-        "--selected-bg"
-      )
-      .trim();
-
-  if (!selectedColor) {
-    return;
-  }
-
-  masterMixMeterElements.eq
-    .forEach(
-      (entry, index) => {
-        if (!entry) {
-          return;
-        }
-
-        entry.color =
-          selectedColor;
-
-        /*
-         * 色変更をその場で反映。
-         * メーター値が変わるまで
-         * 待たなくていいように再描画する。
-         */
-        drawEqMeterCanvas(
-          entry,
-          masterMixMeterDisplay.eq[
-            index
-          ]
-        );
-      }
-    );
-}
-
-function drawEqMeterCanvas(
-  meterEntry,
-  value
-) {
-  if (!meterEntry) return;
-
-  const {
-    context,
-    width,
-    height,
-    color
-  } = meterEntry;
-
-  if (!context) return;
-
-  context.clearRect(
-    0,
-    0,
-    width,
-    height
-  );
-
-  const level =
-    clamp(
-      Number(value) || 0,
-      0,
-      1
-    );
-
-  if (level <= 0) {
-    return;
-  }
-
-  /*
-   * 旧DOM版EQメーターと同じ寸法。
-   *
-   * CSS:
-   * left/right 4px
-   * bottom 4px
-   * 最大高 141px
-   */
-  const meterLeft = 4;
-  const meterRight = 4;
-  const meterBottom = 4;
-
-  const meterWidth =
-    Math.max(
-      0,
-      width -
-      meterLeft -
-      meterRight
-    );
-
-  const maxMeterHeight =
-    Math.max(
-      0,
-      height - 12
-    );
-
-  const meterHeight =
-    maxMeterHeight * level;
-
-  const meterTop =
-    height -
-    meterBottom -
-    meterHeight;
-
-  /*
-   * 旧CSSの
-   * color-mix(
-   *   in srgb,
-   *   var(--selected-bg) 42%,
-   *   transparent
-   * )
-   * と同等の透明度。
-   */
-  context.globalAlpha = 0.42;
-  context.fillStyle =
-    color ||
-    "#ffffff";
-
-  context.fillRect(
-    meterLeft,
-    meterTop,
-    meterWidth,
-    meterHeight
-  );
-
-  context.globalAlpha = 1;
-}
-
-function smoothMeterValue(
-  currentValue,
-  targetValue,
-  releaseRate
-) {
-  const current =
-    clamp(
-      Number(currentValue) || 0,
-      0,
-      1
-    );
-
-  const target =
-    clamp(
-      Number(targetValue) || 0,
-      0,
-      1
-    );
-
-  if (target >= current) {
-    return target;
-  }
-
-  const next =
-    current +
-    (target - current) *
-      releaseRate;
-
-  /*
-   * 無音時に極小値を残さない。
-   */
-  if (
-    target === 0 &&
-    next < 0.008
-  ) {
-    return 0;
-  }
-
-  return next;
-}
-
-
-/*
- * CSS / Canvas更新差分が小さい場合は
- * 描画更新を省略する。
- *
- * ただし0への到達だけは必ず描画して、
- * メーター残りを防ぐ。
- */
-function meterValueChanged(
-  previousValue,
-  nextValue
-) {
-  if (
-    nextValue === 0 &&
-    previousValue !== 0
-  ) {
-    return true;
-  }
-
-  return (
-    Math.abs(
-      nextValue -
-      previousValue
-    ) >= 0.008
-  );
-}
-
-
-function stopMasterMixMeterAnimation() {
-  if (
-    masterMixMeterFrame !==
-    null
-  ) {
-    cancelAnimationFrame(
-      masterMixMeterFrame
-    );
-
-    masterMixMeterFrame =
-      null;
-  }
-
-  masterMixMeterLastTime =
-    0;
-}
-
-
-function startMasterMixMeterAnimation() {
-  stopMasterMixMeterAnimation();
-
-  cacheMasterMixMeterElements();
-
-  /*
-   * 表示状態を初期化。
-   */
-  masterMixMeterDisplay.eq.fill(0);
-  masterMixMeterDisplay.volume = 0;
-  masterMixMeterDisplay.limiter = 0;
-
-  masterMixMeterWritten.eq.fill(-1);
-  masterMixMeterWritten.volume = -1;
-  masterMixMeterWritten.limiter = -1;
-
-  const animate = timestamp => {
-    /*
-     * Song画面を抜けたら
-     * 次フレームを予約せず完全終了。
-     */
-    if (
-  !mixerView ||
-  !songMasterMix?.isConnected
-) {
-      masterMixMeterFrame =
-        null;
-
-      return;
-    }
-
-    /*
-     * requestAnimationFrame自体は
-     * ブラウザに任せつつ、
-     * 実処理は約20fpsに制限する。
-     */
-    if (
-      masterMixMeterLastTime !== 0 &&
-      timestamp -
-        masterMixMeterLastTime <
-        MASTER_MIX_METER_INTERVAL_MS
-    ) {
-      masterMixMeterFrame =
-        requestAnimationFrame(
-          animate
-        );
-
-      return;
-    }
-
-    masterMixMeterLastTime =
-      timestamp;
-
-    const meter =
-  getMasterMixMeterData();
-
-    /*
-     * EQは感度を少し下げる。
-     *
-     * 以前は低域が簡単に100%へ
-     * 張り付いていたので、
-     * 表示用だけ約72%へ圧縮。
-     *
-     * 音には一切影響しない。
-     */
-    for (
-      let bandIndex = 0;
-      bandIndex < 8;
-      bandIndex++
-    ) {
-      const rawValue =
-        clamp(
-          Number(
-            meter.bands[
-              bandIndex
-            ]
-          ) || 0,
-          0,
-          1
-        );
-
-      const targetValue =
-  clamp(
-    rawValue,
-    0,
-    1
-  );
-
-      /*
-       * EQは下降をほどほどに残す。
-       */
-      const displayedValue =
-        smoothMeterValue(
-          masterMixMeterDisplay
-            .eq[
-              bandIndex
-            ],
-          targetValue,
-          0.99
-        );
-
-      masterMixMeterDisplay.eq[
-        bandIndex
-      ] =
-        displayedValue;
-
-      if (
-        meterValueChanged(
-          masterMixMeterWritten
-            .eq[
-              bandIndex
-            ],
-          displayedValue
+  const existing =
+    Array.isArray(song.order)
+      ? song.order.filter(
+          index =>
+            Number.isInteger(index) &&
+            index >= 0 &&
+            index < patterns.length
         )
-      ) {
-        drawEqMeterCanvas(
-  masterMixMeterElements.eq[
-    bandIndex
-  ],
-  displayedValue
-);
+      : [];
 
-        masterMixMeterWritten.eq[
-          bandIndex
-        ] =
-          displayedValue;
+  const seen =
+    new Set();
+
+  const order =
+    existing.filter(index => {
+      if (seen.has(index)) {
+        return false;
       }
-    }
 
-
-    /*
-     * VOLはEQよりゆっくり下降。
-     * ピークを目で追いやすくする。
-     */
-    const volumeTarget =
-      clamp(
-        Number(meter.level) || 0,
-        0,
-        1
-      );
-
-    // VOL
-const volumeDisplayed =
-  smoothMeterValue(
-    masterMixMeterDisplay.volume,
-    volumeTarget,
-    0.25
-  );
-
-    masterMixMeterDisplay.volume =
-      volumeDisplayed;
-
-    if (
-      meterValueChanged(
-        masterMixMeterWritten.volume,
-        volumeDisplayed
-      )
-    ) {
-      masterMixMeterElements
-        .volume
-        ?.style
-        .setProperty(
-          "--mix-meter",
-          volumeDisplayed.toFixed(
-            3
-          )
-        );
-
-      masterMixMeterWritten.volume =
-        volumeDisplayed;
-    }
-
-
-    /*
-     * LimiterはReduction量。
-     * 0〜24dBを0〜1へ正規化。
-     */
-    const limiterTarget =
-  volumeTarget <= 0.001
-    ? 0
-    : (
-        clamp(
-          Number(
-            meter.limiterReduction
-          ) || 0,
-          0,
-          24
-        ) /
-        24
-      );
-
-    // Limiter
-const limiterDisplayed =
-  smoothMeterValue(
-    masterMixMeterDisplay.limiter,
-    limiterTarget,
-    0.45
-  );
-
-    masterMixMeterDisplay.limiter =
-      limiterDisplayed;
-
-    if (
-      meterValueChanged(
-        masterMixMeterWritten.limiter,
-        limiterDisplayed
-      )
-    ) {
-      masterMixMeterElements
-        .limiter
-        ?.style
-        .setProperty(
-          "--mix-meter",
-          limiterDisplayed.toFixed(
-            3
-          )
-        );
-
-      masterMixMeterWritten.limiter =
-        limiterDisplayed;
-    }
-
-    masterMixMeterFrame =
-      requestAnimationFrame(
-        animate
-      );
-  };
-
-  masterMixMeterFrame =
-    requestAnimationFrame(
-      animate
-    );
-}
-
-function renderSongMasterMix() {
-  if (!songMasterMix) return;
-
-  const mix = ensureSongMasterMix();
-  syncSongMasterMixAudio();
-
-  songMasterMix.innerHTML = "";
-
-  const title =
-  document.createElement("div");
-
-title.className =
-  "song-master-mix-title";
-
-const titleLabel =
-  document.createElement("span");
-
-titleLabel.className =
-  "area-title-icon";
-
-titleLabel.setAttribute(
-  "aria-label",
-  "mixer"
-);
-
-titleLabel.title =
-  "mixer";
-
-titleLabel.innerHTML = `
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M5 4v16"></path>
-    <path d="M12 4v16"></path>
-    <path d="M19 4v16"></path>
-
-    <rect
-      x="3"
-      y="7"
-      width="4"
-      height="4"
-    ></rect>
-
-    <rect
-      x="10"
-      y="13"
-      width="4"
-      height="4"
-    ></rect>
-
-    <rect
-      x="17"
-      y="6"
-      width="4"
-      height="4"
-    ></rect>
-  </svg>
-`;
-
-  const mixerBackButton =
-  document.createElement("button");
-
-mixerBackButton.type =
-  "button";
-
-mixerBackButton.className =
-  "view-toggle-button";
-
-mixerBackButton.setAttribute(
-  "aria-label",
-  "シーケンサーへ切り替え"
-);
-
-mixerBackButton.innerHTML = `
-  <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.7"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <rect
-  x="5"
-  y="5"
-  width="14"
-  height="14"
-  rx="1"
-></rect>
-      </svg>
-    </span>
-`;
-
-mixerBackButton.addEventListener(
-  "click",
-  () => {
-    mixerView = false;
-    renderSongMode();
-  }
-);
-
-const reverbHeader =
-  document.createElement("div");
-
-reverbHeader.className =
-  "master-reverb-control compact-value";
-
-const reverbLabel =
-  document.createElement("span");
-
-reverbLabel.className =
-  "compact-value-label";
-
-reverbLabel.textContent =
-  "rev";
-
-const reverbValue =
-  document.createElement("button");
-
-reverbValue.type =
-  "button";
-
-reverbValue.className =
-  "master-reverb-value";
-
-reverbValue.dataset.focusKey =
-  "master-mix-reverb";
-
-reverbValue.textContent =
-  String(mix.reverb);
-
-let reverbHistorySaved = false;
-
-enableVerticalSweep({
-  element: reverbValue,
-
-  getValue: () =>
-    mix.reverb,
-
-  setValue: nextValue => {
-    if (!reverbHistorySaved) {
-      saveMasterMixHistory();
-
-      reverbHistorySaved = true;
-    }
-
-    const corrected =
-      clamp(
-        Math.round(
-          Number(nextValue) || 0
-        ),
-        0,
-        100
-      );
-
-    mix.reverb = corrected;
-
-    setMasterReverb(
-      corrected
-    );
-
-    reverbValue.textContent =
-      String(corrected);
-  },
-
-  min: 0,
-  max: 100,
-  step: 1,
-
-  pixelsPerStep: 8,
-  acceleration: false,
-
-  onCommit: () => {
-    reverbHistorySaved = false;
-  }
-});
-
-reverbHeader.append(
-  reverbLabel,
-  reverbValue
-);
-
-title.append(
-  titleLabel,
-  reverbHeader,
-  mixerBackButton
-);
-
-  const content = document.createElement("div");
-  content.className = "master-mix-content";
-
-  const eq = document.createElement("div");
-  eq.className = "master-eq";
-
-  mix.eq.forEach((gainValue, bandIndex) => {
-  const band = document.createElement("div");
-  band.className = "master-eq-band";
-
-  const gain = document.createElement("button");
-  gain.type = "button";
-  gain.className = "master-eq-gain";
-  gain.dataset.focusKey = `master-eq-${bandIndex}`;
-  gain.dataset.bandIndex = String(bandIndex);
-
-  gain.style.setProperty(
-    "--eq-position",
-    String((gainValue + 12) / 24)
-  );
-
-  const meter = document.createElement("canvas");
-  meter.className = "master-eq-meter-canvas";
-  meter.dataset.bandIndex = String(bandIndex);
-
-  const marker = document.createElement("span");
-  marker.className = "master-eq-marker";
-
-  gain.append(meter, marker);
-
-    const footer = document.createElement("div");
-    footer.className = "master-mix-control-footer master-eq-footer";
-
-    const label = document.createElement("span");
-    label.className = "master-eq-label";
-    label.textContent = MASTER_EQ_LABELS[bandIndex];
-
-    const value = document.createElement("span");
-    value.className = "master-eq-value";
-    value.textContent =
-      gainValue > 0
-        ? `+${gainValue}`
-        : String(gainValue);
-
-    footer.append(label, value);
-
-    let historySaved = false;
-
-    enableVerticalSweep({
-      element: gain,
-      getValue: () => mix.eq[bandIndex],
-      setValue: nextValue => {
-        if (!historySaved) {
-          saveMasterMixHistory();
-          historySaved = true;
-        }
-
-        const corrected = clamp(
-          Math.round(Number(nextValue) || 0),
-          -12,
-          12
-        );
-
-        mix.eq[bandIndex] = corrected;
-        setMasterMixEqBand(bandIndex, corrected);
-
-        gain.style.setProperty(
-          "--eq-position",
-          String((corrected + 12) / 24)
-        );
-
-        value.textContent =
-          corrected > 0
-            ? `+${corrected}`
-            : String(corrected);
-      },
-      min: -12,
-      max: 12,
-      step: 1,
-      pixelsPerStep: 6,
-      acceleration: false,
-      onCommit: () => {
-        historySaved = false;
-      }
+      seen.add(index);
+      return true;
     });
 
-    gain.addEventListener("dblclick", event => {
-      event.preventDefault();
-      if (mix.eq[bandIndex] === 0) return;
-      saveMasterMixHistory();
-      mix.eq[bandIndex] = 0;
-      setMasterMixEqBand(bandIndex, 0);
-      renderSongMasterMix();
-    });
-
-    band.append(gain, footer);
-    eq.appendChild(band);
+  valid.forEach(index => {
+    if (!seen.has(index)) {
+      order.push(index);
+    }
   });
 
-  const side = document.createElement("div");
-  side.className = "master-mix-side";
+  song.order =
+    order;
 
-  function createFaderControl({
-    labelText,
-    key,
-    min,
-    max,
-    format,
-    apply,
-    className = ""
-  }) {
-    const control = document.createElement("div");
-    control.className = `master-mix-fader-control ${className}`.trim();
-
-    const fader = document.createElement("button");
-    fader.type = "button";
-    fader.className = "master-mix-fader";
-    fader.dataset.controlKey = key;
-    fader.dataset.focusKey = `master-mix-${key}`;
-
-    const normalized =
-      (mix[key] - min) / Math.max(1, max - min);
-
-    fader.style.setProperty(
-      "--mix-position",
-      String(clamp(normalized, 0, 1))
-    );
-    fader.style.setProperty("--mix-meter", "0");
-
-    const meter = document.createElement("span");
-    meter.className = "master-mix-fader-meter";
-
-    const marker = document.createElement("span");
-    marker.className = "master-mix-fader-marker";
-
-    fader.append(meter, marker);
-
-    const footer = document.createElement("div");
-    footer.className = "master-mix-control-footer master-mix-fader-footer";
-
-    const label = document.createElement("span");
-    label.className = "master-mix-fader-label";
-    label.textContent = labelText;
-
-    const value = document.createElement("span");
-    value.className = "master-mix-fader-value";
-    value.textContent = format(mix[key]);
-
-    footer.append(label, value);
-
-    let historySaved = false;
-
-    enableVerticalSweep({
-      element: fader,
-      getValue: () => mix[key],
-      setValue: nextValue => {
-        if (!historySaved) {
-          saveMasterMixHistory();
-          historySaved = true;
-        }
-
-        const corrected = clamp(
-          Math.round(Number(nextValue) || 0),
-          min,
-          max
-        );
-
-        mix[key] = corrected;
-        apply(corrected);
-
-        fader.style.setProperty(
-          "--mix-position",
-          String(
-            (corrected - min) /
-            Math.max(1, max - min)
-          )
-        );
-
-        value.textContent = format(corrected);
-      },
-      min,
-      max,
-      step: 1,
-      pixelsPerStep: 7,
-      acceleration: false,
-      onCommit: () => {
-        historySaved = false;
-      }
-    });
-
-    control.append(fader, footer);
-    return control;
-  }
-
-  side.appendChild(
-    createFaderControl({
-      labelText: "vol",
-      key: "volume",
-      min: 0,
-      max: 100,
-      format: value => String(value),
-      apply: setMasterMixVolume,
-      className: "master-volume-fader-control"
-    })
-  );
-
-  const limiterControl = createFaderControl({
-    labelText: "limit",
-    key: "limiter",
-    min: -24,
-    max: 0,
-    format: value => String(value),
-    apply: setMasterLimiterThreshold,
-    className: "master-limit-fader-control"
-  });
-
-  side.appendChild(limiterControl);
-
-  content.append(eq, side);
-  songMasterMix.append(title, content);
-
-  startMasterMixMeterAnimation();
+  return order;
 }
 
-function handleSongPartTap(
-  globalIndex,
-  hasSource
+function movePatternOrder(
+  fromPatternIndex,
+  toPatternIndex
 ) {
-  if (!hasSource) {
-    return;
-  }
+  const order =
+    normalizePatternOrder();
 
-  if (state.isPlaying) {
-    queueSongPart(
-      globalIndex
+  const from =
+    order.indexOf(
+      fromPatternIndex
     );
 
-    renderPatternManager();
-    renderSongGrid();
-    return;
-  }
-
-  selectSongPart(
-    globalIndex
-  );
-
-  renderPatternManager();
-  renderSongGrid();
-}
-
-function renderSongGrid() {
-  if (!songGrid) return;
-
-  songGrid.innerHTML = "";
-  const pageStart = state.songPage * SONG_PARTS_PER_PAGE;
-
-  for (let localIndex = 0; localIndex < SONG_PARTS_PER_PAGE; localIndex++) {
-    const globalIndex = pageStart + localIndex;
-    const source = song.sequence[globalIndex] ?? null;
-    const cell = document.createElement("button");
-
-    cell.type = "button";
-    cell.className = "song-part-cell";
-    cell.dataset.songLocalIndex = String(localIndex);
-    cell.dataset.songIndex = String(globalIndex);
-    cell.dataset.focusKey = `song-part-${globalIndex}`;
-
-    if (source) {
-      cell.classList.add("filled");
-
-      cell.classList.toggle(
-        "selected",
-        !state.isPlaying &&
-        state.selectedPlaybackType ===
-          "song" &&
-        globalIndex ===
-          state.selectedSongPartIndex
-      );
-
-      cell.classList.toggle(
-        "playing",
-        state.isPlaying &&
-        state.selectedPlaybackType ===
-          "song" &&
-        globalIndex ===
-          state.playingSongPartIndex
-      );
-
-      cell.classList.toggle(
-        "queued",
-        state.queuedSongPartIndex ===
-          globalIndex
-      );
-      cell.textContent = songPartLabel(source);
-      cell.setAttribute(
-        "aria-label",
-        `song part ${globalIndex + 1}: ${source.type} ${songPartLabel(source)}`
-      );
-      enableSongItemDrag(cell, globalIndex);
-
-      cell.addEventListener(
-        "click",
-        () => {
-          handleSongPartTap(
-            globalIndex,
-            true
-          );
-        }
-      );
-    } else {
-      cell.textContent = "・";
-      cell.classList.add("empty");
-      cell.setAttribute("aria-label", `song part ${globalIndex + 1} empty`);
-      cell.addEventListener(
-        "click",
-        () => {
-          handleSongPartTap(
-            globalIndex,
-            false
-          );
-        }
-      );
-    }
-
-    songGrid.appendChild(cell);
-  }
-}
-
-export function renderSongMode() {
-  /*
-   * 上段
-   * Sequencer / Mixer
-   */
-  sequenceGrid.hidden =
-    mixerView;
-
-  document
-    .querySelector(
-      ".sequence-toolbar"
-    )
-    ?.toggleAttribute(
-      "hidden",
-      mixerView
+  const to =
+    order.indexOf(
+      toPatternIndex
     );
-
-  if (songMasterMix) {
-    songMasterMix.hidden =
-      !mixerView;
-  }
-
-  /*
-   * 下段
-   * Editor / Song Editor
-   */
-  editor.hidden =
-    songEditorView;
-
-  if (songParts) {
-    songParts.hidden =
-      !songEditorView;
-  }
-
-  /*
-   * Songページ表示。
-   */
-  if (songPageButton) {
-    songPageButton.textContent =
-      state.songPage === 0
-        ? "◧"
-        : "◨";
-
-    songPageButton.setAttribute(
-      "aria-label",
-      state.songPage === 0
-        ? "Song 1～32を表示中。33～64へ切り替え"
-        : "Song 33～64を表示中。1～32へ切り替え"
-    );
-  }
-
-  /*
-   * Mixer表示中だけ
-   * メーターを動かす。
-   */
-  if (mixerView) {
-    renderSongMasterMix();
-  } else {
-    stopMasterMixMeterAnimation();
-    syncSongMasterMixAudio();
-  }
-
-  /*
-   * Song Editor表示中だけ
-   * Song Partsを描画。
-   */
-  if (songEditorView) {
-    renderSongGrid();
-  }
-}
-
-sequenceViewToggle?.addEventListener(
-  "click",
-  () => {
-    mixerView = true;
-    renderSongMode();
-  }
-);
-
-songEditorViewToggle?.addEventListener(
-  "click",
-  () => {
-    songEditorView = false;
-    renderSongMode();
-    renderEditor();
-  }
-);
-
-songPageButton?.addEventListener("click", () => {
-  state.songPage = (state.songPage + 1) % SONG_PAGE_COUNT;
-  renderSongMode();
-});
-
-
-export function renderPatternManager() {
-  if (!patternGrid || !sectionList) {
-    return;
-  }
-
-  renderSourceClipIndicator();
-
-  patternGrid.innerHTML = "";
-    function enablePatternSourceDrag(
-  button,
-  sourceType,
-  sourceIndex
-) {
-  const DRAG_START_DISTANCE = 6;
-
-  let pointerId = null;
-  let startX = 0;
-  let startY = 0;
-
-  let grabOffsetX = 0;
-  let grabOffsetY = 0;
-
-  let dragging = false;
-  let suppressClick = false;
-  let dragGhost = null;
-
-  button.style.touchAction = "none";
-
-  function updateDragGhost(event) {
-    if (!dragGhost) {
-      return;
-    }
-
-    dragGhost.style.left =
-      `${
-        event.clientX -
-        grabOffsetX
-      }px`;
-
-    dragGhost.style.top =
-      `${
-        event.clientY -
-        grabOffsetY
-      }px`;
-  }
-
-  function createDragGhost(event) {
-    document
-      .querySelectorAll(
-        ".pattern-source-drag-ghost"
-      )
-      .forEach(
-        ghost => ghost.remove()
-      );
-
-    const rect =
-      button.getBoundingClientRect();
-
-    dragGhost =
-      button.cloneNode(true);
-
-    dragGhost.classList.add(
-      "section-drag-ghost",
-      "pattern-source-drag-ghost"
-    );
-
-    dragGhost.removeAttribute(
-      "data-focus-key"
-    );
-
-    dragGhost.tabIndex = -1;
-
-    dragGhost.style.width =
-      `${rect.width}px`;
-
-    dragGhost.style.height =
-      `${rect.height}px`;
-
-    grabOffsetX =
-      event.clientX - rect.left;
-
-    grabOffsetY =
-      event.clientY - rect.top;
-
-    document.body.appendChild(
-      dragGhost
-    );
-
-    updateDragGhost(event);
-  }
-
-  function removeDragGhost() {
-    dragGhost?.remove();
-    dragGhost = null;
-  }
-
-  function isPointerInsideSection(
-    event
-  ) {
-    const rect =
-      sectionContents
-        .getBoundingClientRect();
-
-    return (
-      event.clientX >= rect.left &&
-      event.clientX <= rect.right &&
-      event.clientY >= rect.top &&
-      event.clientY <= rect.bottom
-    );
-  }
-
-  function getSectionInsertIndex(
-    pointerX
-  ) {
-    const sectionItems =
-      Array.from(
-        sectionContents
-          .querySelectorAll(
-            ".section-pattern-cell"
-          )
-      );
-
-    let insertIndex = 0;
-
-    sectionItems.forEach(
-      item => {
-        const rect =
-          item.getBoundingClientRect();
-
-        const centerX =
-          rect.left +
-          rect.width / 2;
-
-        if (
-          pointerX >
-          centerX
-        ) {
-          insertIndex += 1;
-        }
-      }
-    );
-
-    return insertIndex;
-  }
-
-  function handlePointerMove(event) {
-    if (
-      pointerId !==
-      event.pointerId
-    ) {
-      return;
-    }
-
-    const distanceX =
-      event.clientX - startX;
-
-    const distanceY =
-      event.clientY - startY;
-
-    if (
-      !dragging &&
-      Math.hypot(
-        distanceX,
-        distanceY
-      ) <
-        DRAG_START_DISTANCE
-    ) {
-      return;
-    }
-
-    if (!dragging) {
-      dragging = true;
-      suppressClick = true;
-
-      button.classList.add(
-        "section-drag-origin"
-      );
-
-      createDragGhost(event);
-    }
-
-    event.preventDefault();
-
-    updateDragGhost(event);
-
-    const overSection =
-      isPointerInsideSection(
-        event
-      );
-
-    sectionContents.classList.toggle(
-      "dragging",
-      overSection
-    );
-  }
-
-  function removeWindowListeners() {
-    window.removeEventListener(
-      "pointermove",
-      handlePointerMove,
-      true
-    );
-
-    window.removeEventListener(
-      "pointerup",
-      handlePointerUp,
-      true
-    );
-
-    window.removeEventListener(
-      "pointercancel",
-      handlePointerCancel,
-      true
-    );
-  }
-
-  function finishDrag(
-    event,
-    cancelled
-  ) {
-    if (
-      pointerId !==
-      event.pointerId
-    ) {
-      return;
-    }
-
-    removeWindowListeners();
-
-    if (
-      button.hasPointerCapture(
-        event.pointerId
-      )
-    ) {
-      button.releasePointerCapture(
-        event.pointerId
-      );
-    }
-
-    pointerId = null;
-
-    const droppedOnSection =
-      dragging &&
-      !cancelled &&
-      isPointerInsideSection(
-        event
-      );
-
-    button.classList.remove(
-      "section-drag-origin"
-    );
-
-    sectionContents.classList.remove(
-      "dragging"
-    );
-
-    removeDragGhost();
-
-    if (!droppedOnSection) {
-      dragging = false;
-      return;
-    }
-
-    const editingSection =
-      currentEditingSection();
-
-    if (
-      !editingSection ||
-      editingSection.sequence.length >=
-        7
-    ) {
-      dragging = false;
-      return;
-    }
-
-    const insertIndex =
-      getSectionInsertIndex(
-        event.clientX
-      );
-
-    saveHistory();
-
-    const added =
-      addSourceToSection(
-        sourceType,
-        sourceIndex,
-        state.editingSectionIndex,
-        insertIndex
-      );
-
-    dragging = false;
-
-    if (!added) {
-      return;
-    }
-
-    renderPatternManager();
-
-    restorePatternFocus(
-      `section-source-${insertIndex}`
-    );
-  }
-
-  function handlePointerUp(event) {
-    finishDrag(
-      event,
-      false
-    );
-  }
-
-  function handlePointerCancel(event) {
-    finishDrag(
-      event,
-      true
-    );
-  }
-
-  button.addEventListener(
-    "pointerdown",
-    event => {
-      if (state.songMode) {
-        return;
-      }
-
-      if (hasSourceClipboard()) {
-        return;
-      }
-
-      if (
-        event.pointerType ===
-          "mouse" &&
-        event.button !== 0
-      ) {
-        return;
-      }
-
-      pointerId =
-        event.pointerId;
-
-      startX =
-        event.clientX;
-
-      startY =
-        event.clientY;
-
-      dragging = false;
-      suppressClick = false;
-
-      button.setPointerCapture(
-        event.pointerId
-      );
-
-      removeWindowListeners();
-
-      window.addEventListener(
-        "pointermove",
-        handlePointerMove,
-        true
-      );
-
-      window.addEventListener(
-        "pointerup",
-        handlePointerUp,
-        true
-      );
-
-      window.addEventListener(
-        "pointercancel",
-        handlePointerCancel,
-        true
-      );
-    }
-  );
-
-  button.addEventListener(
-    "click",
-    event => {
-      if (!suppressClick) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      suppressClick = false;
-    },
-    true
-  );
-}
-
-  /*
-   * Pattern 24個 + Fill 6個
-   *
-   * 01 02 03 04 05 06 07 08 F1 F2
-   * 09 10 11 12 13 14 15 16 F3 F4
-   * 17 18 19 20 21 22 23 24 F5 F6
-   */
-  const firstPatternIndex =
-  patternManagerPage *
-  PATTERNS_PER_PAGE;
-
-const firstFillIndex =
-  patternManagerPage *
-  FILLS_PER_PAGE;
-
-/*
- * 1ページ目
- *
- * 01 02 03 04 05 06 F1 F2
- * 07 08 09 10 11 12 F3 F4
- *
- * 2ページ目
- *
- * 13 14 15 16 17 18 F5 F6
- * 19 20 21 22 23 24 F7 F8
- */
-for (
-  let row = 0;
-  row < 2;
-  row++
-) {
-  for (
-    let column = 0;
-    column < 8;
-    column++
-  ) {
-    const isFill =
-      column >= 6;
-
-    const slotIndex =
-      isFill
-        ? firstFillIndex +
-          row * 2 +
-          (column - 6)
-        : firstPatternIndex +
-          row * 6 +
-          column;
-
-    const button =
-      document.createElement(
-        "button"
-      );
-
-    button.type = "button";
-
-    button.className =
-      isFill
-        ? "pattern-cell fill-cell"
-        : "pattern-cell";
-        const sourceType =
-  isFill
-    ? "fill"
-    : "pattern";
-
-    if (
-  !sourceHasData(
-    sourceType,
-    slotIndex
-  )
-) {
-  button.classList.add(
-    "source-empty"
-  );
-}
-
-
-    if (isFill) {
-  button.textContent =
-    `f${slotIndex + 1}`;
-
-  button.dataset.focusKey =
-    `fill-${slotIndex}`;
-
-  button.setAttribute(
-    "aria-label",
-    `fill ${slotIndex + 1}`
-  );
-
-  /*
-   * 現在選択中のFill。
-   */
-  if (
-  state.selectedPlaybackType ===
-    "source" &&
-  state.selectedSourceType ===
-    "fill" &&
-  state.selectedFillIndex ===
-    slotIndex
-) {
-  button.classList.add(
-    "active"
-  );
-}
-
-  /*
-   * 次回再生予約中のFill。
-   */
-  if (
-    state.queuedSourceType ===
-      "fill" &&
-    state.queuedFillIndex ===
-      slotIndex
-  ) {
-    button.classList.add(
-      "queued"
-    );
-  }
-
-    } else {
-      button.textContent =
-        String(slotIndex + 1)
-          .padStart(2, "0");
-
-      button.dataset.focusKey =
-        `pattern-${slotIndex}`;
-
-      button.setAttribute(
-        "aria-label",
-        `pattern ${slotIndex + 1}`
-      );
-
-      if (
-  state.selectedPlaybackType ===
-    "source" &&
-  state.selectedSourceType ===
-    "pattern" &&
-  state.selectedPatternIndex ===
-    slotIndex
-) {
-  button.classList.add(
-    "active"
-  );
-}
-
-if (
-  state.queuedSourceType ===
-    "pattern" &&
-  state.queuedPatternIndex ===
-    slotIndex
-) {
-  button.classList.add(
-    "queued"
-  );
-}
-    }
-
-    /*
-     * Pattern / Fillのみダブルタップでクリップ。
-     * Sectionは対象外。
-     */
-    enableSourceDoubleTapClip(
-      button,
-      sourceType,
-      slotIndex
-    );
-
-    button.addEventListener(
-      "click",
-      () => {
-        const focusKey =
-          isFill
-            ? `fill-${slotIndex}`
-            : `pattern-${slotIndex}`;
-
-        /*
-         * 再生中は従来どおり予約操作を優先。
-         */
-        if (state.isPlaying) {
-          if (isFill) {
-            queueFill(
-              slotIndex
-            );
-          } else {
-            queuePattern(
-              slotIndex
-            );
-          }
-
-          renderPatternManager();
-          renderSongGrid();
-
-          restorePatternFocus(
-            focusKey
-          );
-
-          return;
-        }
-
-        /*
-         * Sourceクリップ保持中はタップ先へ貼り付け。
-         * クリップは保持し、連続スタンプ可能。
-         */
-        if (hasSourceClipboard()) {
-          if (
-            pasteSource(
-              sourceType,
-              slotIndex
-            )
-          ) {
-            lastSourceTap = null;
-
-            render();
-            renderSourceClipIndicator();
-
-            restorePatternFocus(
-              focusKey
-            );
-          }
-
-          return;
-        }
-
-        lastSourceTap = {
-          key:
-            sourceTapKey(
-              sourceType,
-              slotIndex
-            ),
-          time:
-            performance.now()
-        };
-
-        if (isFill) {
-          selectFill(
-            slotIndex
-          );
-        } else {
-          selectPattern(
-            slotIndex
-          );
-        }
-
-        render();
-
-        restorePatternFocus(
-          focusKey
-        );
-      }
-    );
-
-enablePatternSourceDrag(
-  button,
-  isFill
-    ? "fill"
-    : "pattern",
-  slotIndex
-);
-
-enableExternalSourceDragToSong(
-  button,
-  isFill
-    ? "fill"
-    : "pattern",
-  slotIndex
-);
-
-    patternGrid.appendChild(
-      button
-    );
-  }
-}
-
-  /*
-   * Section選択ブロック
-   * A～Jを1列10マスで表示
-   */
-  const sectionSelector =
-    document.createElement("div");
-
-  sectionSelector.className =
-    "section-selector";
-
-  const firstSectionIndex =
-  patternManagerPage *
-  SECTIONS_PER_PAGE;
-
-const visibleSections =
-  sections.slice(
-    firstSectionIndex,
-    firstSectionIndex +
-      SECTIONS_PER_PAGE
-  );
-
-visibleSections.forEach(
-  (
-    section,
-    visibleIndex
-  ) => {
-    const sectionIndex =
-      firstSectionIndex +
-      visibleIndex;
-
-    const sectionLabel =
-      String.fromCharCode(
-        65 + sectionIndex
-      );
-
-    const button =
-      document.createElement(
-        "button"
-      );
-
-    button.type = "button";
-    button.className =
-      "section-selector-cell";
-
-      if (
-  !sectionHasData(
-    sectionIndex
-  )
-) {
-  button.classList.add(
-    "section-empty"
-  );
-}
-
-    button.textContent =
-      sectionLabel;
-
-    button.dataset.focusKey =
-      `section-${sectionIndex}`;
-
-    button.setAttribute(
-      "aria-label",
-      `section ${sectionLabel}`
-    );
-
-    /*
- * 停止中に、
- * 次回再生対象として選択されているSection。
- */
-if (
-  !state.isPlaying &&
-  state.selectedPlaybackType ===
-    "section" &&
-  state.selectedSectionIndex ===
-    sectionIndex
-) {
-  button.classList.add(
-    "selected"
-  );
-}
-
-/*
- * 現在再生中のSection。
- */
-if (
-  state.selectedPlaybackType ===
-    "section" &&
-  state.playingSectionIndex ===
-    sectionIndex
-) {
-  button.classList.add(
-    "active"
-  );
-}
-
-/*
- * 次回予約中のSection。
- */
-if (
-  state.queuedSectionIndex ===
-    sectionIndex
-) {
-  button.classList.add(
-    "queued"
-  );
-}
-
-    button.addEventListener(
-  "click",
-  () => {
-    /*
-     * 再生中に空Sectionを押した場合は、
-     * 予約もバー表示切替も行わない。
-     */
-    if (
-      state.isPlaying &&
-      section.sequence.length === 0
-    ) {
-      restorePatternFocus(
-        `section-${sectionIndex}`
-      );
-
-      return;
-    }
-
-    /*
-     * 有効なSectionを押した時点で、
-     * Sectionバー表示もそのSectionへ切り替える。
-     */
-    selectEditingSection(
-      sectionIndex
-    );
-
-    /*
-     * 再生中は、
-     * 次回Section予約にする。
-     */
-    if (state.isPlaying) {
-      queueSection(
-        sectionIndex
-      );
-
-      renderPatternManager();
-      renderSongGrid();
-
-      restorePatternFocus(
-        `section-${sectionIndex}`
-      );
-
-      return;
-    }
-
-    /*
-     * 停止中は、
-     * 空Sectionを含めて表示・編集対象にできる。
-     * 再生対象としての選択も行う。
-     */
-    selectSection(
-      sectionIndex
-    );
-
-    renderPatternManager();
-
-    restorePatternFocus(
-      `section-${sectionIndex}`
-    );
-  }
-);
-
-    enableExternalSourceDragToSong(
-      button,
-      "section",
-      sectionIndex
-    );
-
-    sectionSelector.appendChild(
-      button
-    );
-  }
-);
-
-  /*
-   * 選択中Sectionの中身
-   */
-  sectionList.innerHTML = "";
-
-  const selectedSection =
-   currentEditingSection();
-
-   const sectionEditorButton =
-  document.createElement("button");
-
-sectionEditorButton.type =
-  "button";
-
-sectionEditorButton.className =
-  "section-editor-button";
-
-sectionEditorButton.dataset.focusKey =
-  "section-editor";
-
-/*
- * Sectionバー左端は、
- * 現在表示しているSection名を示すだけ。
- *
- * Section切替は上のA〜P記号から行う。
- */
-function updateSectionEditorButton() {
-  const sectionLabel =
-    currentEditingSectionLabel();
-
-  sectionEditorButton.textContent =
-    sectionLabel;
-
-  sectionEditorButton.setAttribute(
-    "aria-label",
-    `表示中のセクション ${sectionLabel}`
-  );
-}
-
-updateSectionEditorButton();
-
-enableVerticalSweep({
-  element:
-    sectionEditorButton,
-
-  getValue: () =>
-    state.editingSectionIndex,
-
-  setValue: nextIndex => {
-    selectEditingSection(
-      nextIndex
-    );
-
-    updateSectionEditorButton();
-  },
-
-  min: 0,
-  max:
-    SECTION_SLOT_COUNT - 1,
-
-  step: 1,
-
-  acceleration: false,
-
-  onCommit: (
-    startValue,
-    currentValue,
-    changed
-  ) => {
-    if (!changed) {
-      return;
-    }
-
-    renderPatternManager();
-
-    restorePatternFocus(
-      "section-editor"
-    );
-  }
-});
-
-let sectionKeyboardEditing =
-  false;
-
-let sectionKeyboardStartIndex =
-  state.editingSectionIndex;
-
-sectionEditorButton.addEventListener(
-  "keydown",
-  event => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      event.stopPropagation();
-
-      /*
-       * 1回目のEnter
-       * → 編集開始
-       */
-      if (!sectionKeyboardEditing) {
-        sectionKeyboardEditing =
-          true;
-
-        sectionKeyboardStartIndex =
-          state.editingSectionIndex;
-
-        sectionEditorButton.dataset
-          .keyboardEditing = "true";
-
-        return;
-      }
-
-      /*
-       * 2回目のEnter
-       * → 現在のSectionで確定
-       */
-      sectionKeyboardEditing =
-        false;
-
-      delete sectionEditorButton.dataset
-        .keyboardEditing;
-
-      renderPatternManager();
-
-      restorePatternFocus(
-        "section-editor"
-      );
-
-      return;
-    }
-
-    /*
-     * 編集中の上下キー
-     */
-    if (
-      sectionKeyboardEditing &&
-      (
-        event.key === "ArrowUp" ||
-        event.key === "ArrowDown"
-      )
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const amount =
-        event.key === "ArrowUp"
-          ? 1
-          : -1;
-
-      changeEditingSection(
-        amount
-      );
-
-      updateSectionEditorButton();
-
-      return;
-    }
-
-    /*
-     * Escape
-     * → 編集開始前のSectionへ戻す
-     */
-    if (
-      sectionKeyboardEditing &&
-      event.key === "Escape"
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      selectEditingSection(
-        sectionKeyboardStartIndex
-      );
-
-      sectionKeyboardEditing =
-        false;
-
-      delete sectionEditorButton.dataset
-        .keyboardEditing;
-
-      updateSectionEditorButton();
-
-      renderPatternManager();
-
-      restorePatternFocus(
-        "section-editor"
-      );
-    }
-  }
-);
-
-updateSectionEditorButton();
-  const sectionContents =
-  document.createElement("div");
-
-sectionContents.className =
-  "section-contents";
-
-sectionContents.tabIndex = 0;
-
-sectionContents.dataset.focusKey =
-  "section-contents";
-
-sectionContents.dataset.sectionIndex =
-  String(
-    state.editingSectionIndex
-  );
-
-sectionContents.setAttribute(
-  "role",
-  "button"
-);
-
-sectionContents.setAttribute(
-  "aria-label",
-  "選択中のパターンまたはフィルをセクションへ追加"
-);
-
-function addSelectedSourceToSection() {
-  /*
-   * 7個埋まっている場合は
-   * 履歴も保存しない。
-   */
-  const editingSection =
-    currentEditingSection();
 
   if (
-    !editingSection ||
-    editingSection.sequence.length >= 7
+    from < 0 ||
+    to < 0 ||
+    from === to
   ) {
-    return;
+    return false;
   }
 
   saveHistory();
 
-  const added =
-    addCurrentSourceToSection();
+  const [
+    moved
+  ] =
+    order.splice(
+      from,
+      1
+    );
 
-  if (!added) {
-    return;
-  }
-
-  renderPatternManager();
-
-  restorePatternFocus(
-    "section-contents"
+  order.splice(
+    to,
+    0,
+    moved
   );
+
+  song.order =
+    order;
+
+  return true;
 }
 
-sectionContents.addEventListener(
-  "click",
-  event => {
-    if (
-      event.target.closest(
-        ".section-pattern-cell"
-      )
-    ) {
-      return;
-    }
-
-    addSelectedSourceToSection();
-  }
-);
-
-sectionContents.addEventListener(
-  "keydown",
-  event => {
-    if (
-      event.key !== "Enter" &&
-      event.key !== " "
-    ) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    addSelectedSourceToSection();
-  }
-);
-const SECTION_DELETE_DISTANCE = 24;
-const SECTION_DRAG_START_DISTANCE = 6;
-
-function refreshSectionItemIndexes() {
-  sectionContents
-    .querySelectorAll(
-      ".section-pattern-cell"
+function clearPatternDragVisuals() {
+  patternGrid
+    ?.querySelectorAll(
+      ".dragging, .drop-target"
     )
     .forEach(
-      (
-        sectionItem,
-        itemIndex
-      ) => {
-        sectionItem.dataset.itemIndex =
-          String(itemIndex);
-
-        sectionItem.dataset.focusKey =
-          `section-source-${itemIndex}`;
+      element => {
+        element.classList.remove(
+          "dragging",
+          "drop-target"
+        );
       }
     );
 }
 
-function enableSectionItemDrag(
-  item,
-  initialItemIndex
+function patternButtonAtPoint(
+  x,
+  y
 ) {
-  let pointerId = null;
-
-  let startX = 0;
-  let startY = 0;
-
-  let grabOffsetX = 0;
-  let grabOffsetY = 0;
-
-  let currentItemIndex =
-    initialItemIndex;
-
-  let dragging = false;
-  let historySaved = false;
-  let suppressClick = false;
-
-  let dragGhost = null;
-    function handleWindowPointerUp(
-    event
-  ) {
-    finishDrag(
-      event,
-      false
-    );
-  }
-
-  function handleWindowPointerCancel(
-    event
-  ) {
-    finishDrag(
-      event,
-      true
-    );
-  }
-
-  function removeWindowDragListeners() {
-  window.removeEventListener(
-    "pointermove",
-    handlePointerMove,
-    true
-  );
-
-  window.removeEventListener(
-    "pointerup",
-    handleWindowPointerUp,
-    true
-  );
-
-  window.removeEventListener(
-    "pointercancel",
-    handleWindowPointerCancel,
-    true
-  );
+  return document
+    .elementFromPoint(
+      x,
+      y
+    )
+    ?.closest(
+      ".mokton-pattern-button"
+    ) ??
+    null;
 }
 
-  item.style.touchAction = "none";
+function createPatternButton(
+  patternIndex
+) {
+  const pattern =
+    patterns[
+      patternIndex
+    ];
 
-  item.dataset.itemIndex =
-    String(initialItemIndex);
+  const button =
+    document.createElement(
+      "button"
+    );
 
-  function createDragGhost(event) {
-        /*
-     * 万一前回のゴーストが
-     * 残っていても先に除去する。
-     */
-    document
-      .querySelectorAll(
-        ".section-drag-ghost"
+  button.type =
+    "button";
+
+  button.className =
+    "mokton-pattern-button";
+
+  button.dataset.patternIndex =
+    String(
+      patternIndex
+    );
+
+  const id =
+    document.createElement(
+      "span"
+    );
+
+  id.className =
+    "mokton-pattern-id";
+
+  id.textContent =
+    patternLabel(
+      patternIndex
+    );
+
+  const repeat =
+    document.createElement(
+      "span"
+    );
+
+  repeat.className =
+    "mokton-pattern-repeat";
+
+  const updateRepeat = () => {
+    repeat.textContent =
+      Number(pattern.repeat) > 1
+        ? `×${pattern.repeat}`
+        : "";
+  };
+
+  updateRepeat();
+
+  button.append(
+    id,
+    repeat
+  );
+
+  button.classList.toggle(
+    "has-data",
+    sourceHasData(
+      pattern
+    )
+  );
+
+  button.classList.toggle(
+    "selected",
+    state.selectedPatternIndex ===
+      patternIndex
+  );
+
+  const range =
+    selectedPatternRange();
+
+  button.classList.toggle(
+    "range-selected",
+    Boolean(
+      range?.includes(
+        patternIndex
       )
-      .forEach(
-        ghost => ghost.remove()
-      );
-    const rect =
-      item.getBoundingClientRect();
+    )
+  );
 
-    dragGhost =
-      item.cloneNode(true);
+  const activeLoopRange =
+    patternLoopRange();
 
-    dragGhost.classList.add(
-      "section-drag-ghost"
-    );
+  button.classList.toggle(
+    "loop-range-active",
+    Boolean(
+      state.patternLoopEnabled &&
+      activeLoopRange?.includes(
+        patternIndex
+      )
+    )
+  );
 
-    dragGhost.removeAttribute(
-      "data-focus-key"
-    );
+  let startX =
+    0;
 
-    dragGhost.tabIndex = -1;
+  let startY =
+    0;
 
-    dragGhost.style.width =
-      `${rect.width}px`;
+  let startRepeat =
+    pattern.repeat;
 
-    dragGhost.style.height =
-      `${rect.height}px`;
+  let moved =
+    false;
 
-    grabOffsetX =
-      event.clientX - rect.left;
+  let repeatEdited =
+    false;
 
-    grabOffsetY =
-      event.clientY - rect.top;
+  let longPressTimer =
+    null;
 
-    document.body.appendChild(
-      dragGhost
-    );
-
-    updateDragGhost(event);
-  }
-
-  function updateDragGhost(event) {
-    if (!dragGhost) {
+  const stopLongPress = () => {
+    if (!longPressTimer) {
       return;
     }
 
-    dragGhost.style.left =
-      `${
-        event.clientX -
-        grabOffsetX
-      }px`;
-
-    dragGhost.style.top =
-      `${
-        event.clientY -
-        grabOffsetY
-      }px`;
-  }
-
-  function removeDragGhost() {
-    dragGhost?.remove();
-    dragGhost = null;
-  }
-
-  function moveItemToPointer(
-    pointerX
-  ) {
-    /*
-     * ドラッグ中のセルを除いた
-     * 残りのセル。
-     */
-    const otherItems =
-      Array.from(
-        sectionContents.querySelectorAll(
-          ".section-pattern-cell"
-        )
-      ).filter(
-        sectionItem =>
-          sectionItem !== item
-      );
-
-    /*
-     * ポインターが何個のセル中心を
-     * 通過しているかで挿入位置を決める。
-     *
-     * これにより1回のpointermoveで
-     * 複数セル先まで移動できる。
-     */
-    let targetIndex = 0;
-
-    otherItems.forEach(
-      otherItem => {
-        const rect =
-          otherItem
-            .getBoundingClientRect();
-
-        const centerX =
-          rect.left +
-          rect.width / 2;
-
-        if (
-          pointerX >
-          centerX
-        ) {
-          targetIndex += 1;
-        }
-      }
+    clearTimeout(
+      longPressTimer
     );
 
-    targetIndex =
-      Math.max(
-        0,
-        Math.min(
-          targetIndex,
-          otherItems.length
-        )
-      );
+    longPressTimer =
+      null;
+  };
 
-    if (
-      targetIndex ===
-      currentItemIndex
-    ) {
-      return;
-    }
-
-    if (!historySaved) {
-      saveHistory();
-      historySaved = true;
-    }
-
-    const moved =
-      moveSectionSource(
-        currentItemIndex,
-        targetIndex
-      );
-
-    if (!moved) {
-      return;
-    }
-
-    /*
-     * 配列と同じ位置へ
-     * DOM上のセルも移動する。
-     */
-    const referenceItem =
-      otherItems[targetIndex];
-
-    if (referenceItem) {
-      sectionContents.insertBefore(
-        item,
-        referenceItem
-      );
-    } else {
-      sectionContents.appendChild(
-        item
-      );
-    }
-
-    currentItemIndex =
-      targetIndex;
-
-    refreshSectionItemIndexes();
-  }
-
-  item.addEventListener(
+  button.addEventListener(
     "pointerdown",
     event => {
       if (
-        event.pointerType ===
-          "mouse" &&
+        event.button !==
+        undefined &&
         event.button !== 0
       ) {
         return;
       }
-
-      pointerId =
-        event.pointerId;
 
       startX =
         event.clientX;
@@ -11188,2208 +3372,408 @@ function enableSectionItemDrag(
       startY =
         event.clientY;
 
-      currentItemIndex =
-        Number(
-          item.dataset.itemIndex
-        );
+      startRepeat =
+        pattern.repeat;
 
-      dragging = false;
-      historySaved = false;
-      suppressClick = false;
+      moved =
+        false;
 
-      item.setPointerCapture(
+      repeatEdited =
+        false;
+
+      patternDragState =
+        null;
+
+      button.setPointerCapture?.(
         event.pointerId
       );
-            /*
-       * DOM並び替えでPointer Captureが
-       * 外れても終了処理できるようにする。
-       */
-      removeWindowDragListeners();
 
-      window.addEventListener(
-        "pointermove",
-        handlePointerMove,
-        true
-      );
+      longPressTimer =
+        setTimeout(
+          () => {
+            longPressTimer =
+              null;
 
-      window.addEventListener(
-        "pointerup",
-        handleWindowPointerUp,
-        true
-      );
+            patternDragState = {
+              pointerId:
+                event.pointerId,
 
-      window.addEventListener(
-        "pointercancel",
-        handleWindowPointerCancel,
-        true
-      );
-    }
-  );
+              patternIndex
+            };
 
-   function handlePointerMove(
-    event
-  ) {
-    if (
-      pointerId !==
-      event.pointerId
-    ) {
-      return;
-    }
-
-    const distanceX =
-      event.clientX - startX;
-
-    const distanceY =
-      event.clientY - startY;
-
-    if (
-      !dragging &&
-      Math.hypot(
-        distanceX,
-        distanceY
-      ) <
-        SECTION_DRAG_START_DISTANCE
-    ) {
-      return;
-    }
-
-    if (!dragging) {
-      dragging = true;
-      suppressClick = true;
-
-      item.classList.add(
-        "section-drag-origin"
-      );
-
-      sectionContents.classList.add(
-        "dragging"
-      );
-
-      createDragGhost(event);
-    }
-
-    event.preventDefault();
-
-    updateDragGhost(event);
-
-    moveItemToPointer(
-      event.clientX
-    );
-
-    const sectionRect =
-      sectionContents
-        .getBoundingClientRect();
-
-    const outsideVertically =
-      event.clientY <
-        sectionRect.top -
-          SECTION_DELETE_DISTANCE ||
-      event.clientY >
-        sectionRect.bottom +
-          SECTION_DELETE_DISTANCE;
-
-    sectionContents.classList.toggle(
-      "delete-ready",
-      outsideVertically
-    );
-
-    dragGhost?.classList.toggle(
-      "delete-ready",
-      outsideVertically
-    );
-  }
-
-    function finishDrag(
-    event,
-    cancelled = false
-  ) {
-    if (
-      pointerId !==
-      event.pointerId
-    ) {
-      return;
-    }
-
-    removeWindowDragListeners();
-
-    if (
-      item.hasPointerCapture(
-        event.pointerId
-      )
-    ) {
-      item.releasePointerCapture(
-        event.pointerId
-      );
-    }
-
-       pointerId = null;
-
-    if (!dragging) {
-      removeDragGhost();
-      return;
-    }
-
-    const sectionRect =
-      sectionContents
-        .getBoundingClientRect();
-
-    const outsideVertically =
-      !cancelled &&
-      (
-        event.clientY <
-          sectionRect.top -
-            SECTION_DELETE_DISTANCE ||
-        event.clientY >
-          sectionRect.bottom +
-            SECTION_DELETE_DISTANCE
-      );
-
-    if (outsideVertically) {
-      if (!historySaved) {
-        saveHistory();
-        historySaved = true;
-      }
-
-      removeSectionSource(
-        currentItemIndex
-      );
-    }
-
-    item.classList.remove(
-      "section-drag-origin"
-    );
-
-    sectionContents.classList.remove(
-      "dragging",
-      "delete-ready"
-    );
-
-    removeDragGhost();
-
-    renderPatternManager();
-
-    restorePatternFocus(
-      outsideVertically
-        ? "section-contents"
-        : `section-source-${currentItemIndex}`
-    );
-  }
-
-  item.addEventListener(
-    "pointerup",
-    event => {
-      finishDrag(
-        event,
-        false
-      );
-    }
-  );
-
-  item.addEventListener(
-    "pointercancel",
-    event => {
-      finishDrag(
-        event,
-        true
-      );
-    }
-  );
-
-  item.addEventListener(
-    "click",
-    event => {
-      if (!suppressClick) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      suppressClick = false;
-    },
-    true
-  );
-}
-
-if (
-  selectedSection.sequence.length ===
-  0
-) {
-  const empty =
-    document.createElement("span");
-
-  empty.className =
-    "section-contents-empty";
-
-  empty.textContent = "-";
-
-  sectionContents.appendChild(
-    empty
-  );
-} else {
-  selectedSection.sequence.forEach(
-    (source, itemIndex) => {
-      const item =
-        document.createElement(
-          "button"
-        );
-
-      item.type = "button";
-
-item.className =
-  "section-pattern-cell";
-
-/*
- * 現在表示しているSectionが
- * 実際に再生中のSectionと同じで、
- * さらに現在再生中の位置なら強調する。
- */
-if (
-  state.playingSectionIndex ===
-    state.editingSectionIndex &&
-  state.playingSectionItemIndex ===
-    itemIndex
-) {
-  item.classList.add(
-    "playing"
-  );
-}
-
-const sourceLabel =
-  source.type === "fill"
-          ? `f${source.index + 1}`
-          : String(
-              source.index + 1
-            ).padStart(
-              2,
-              "0"
+            button.classList.add(
+              "dragging"
             );
-
-      item.textContent =
-        sourceLabel;
-
-      item.dataset.focusKey =
-        `section-source-${itemIndex}`;
-
-      item.setAttribute(
-        "aria-label",
-        source.type === "fill"
-          ? `section fill ${source.index + 1}`
-          : `section pattern ${source.index + 1}`
-      );
-
-      enableSectionItemDrag(
-        item,
-        itemIndex
-      );
-
-      sectionContents.appendChild(
-        item
-      );
-    }
-  );
-}
-
-const sectionManager =
-  sectionList.closest(
-    ".section-manager"
-  );
-
-const oldSelector =
-  sectionManager?.querySelector(
-    ".section-selector"
-  );
-
-oldSelector?.remove();
-
-sectionManager?.insertBefore(
-  sectionSelector,
-  sectionList
-);
-
-sectionList.append(
-  sectionEditorButton,
-  sectionContents
-);
-}
-
-patternPageButton?.addEventListener(
-  "click",
-  () => {
-    patternManagerPage =
-      patternManagerPage === 0
-        ? 1
-        : 0;
-
-    patternPageButton.textContent =
-      patternManagerPage === 0
-        ? "◧"
-        : "◨";
-
-    patternPageButton.setAttribute(
-      "aria-label",
-      patternManagerPage === 0
-        ? "1ページ目を表示中。2ページ目へ切り替え"
-        : "2ページ目を表示中。1ページ目へ切り替え"
-    );
-
-    renderPatternManager();
-
-    restorePatternFocus(
-      "pattern-page"
-    );
-  }
-);
-
-
-
-let projectModal = null;
-
-export async function refreshProjectName() {
-  const meta =
-    await getCurrentProjectMeta();
-
-  if (!currentProjectName) {
-    return;
-  }
-
-  const name = meta?.name || "project";
-  currentProjectName.textContent = name;
-  currentProjectName.title = name;
-}
-
-function closeProjectModal() {
-  projectModal?.remove();
-  projectModal = null;
-}
-
-function createProjectTextDialog({
-  title,
-  value = "",
-  submitLabel = "ok",
-  onSubmit
-}) {
-  if (!projectModal) return;
-
-  const shade = document.createElement("div");
-  shade.className = "project-dialog-shade";
-
-  const form = document.createElement("form");
-  form.className = "project-dialog";
-
-  const label = document.createElement("div");
-  label.className = "project-dialog-title";
-  label.textContent = title;
-
-  const input = document.createElement("input");
-  input.className = "project-name-input";
-  input.type = "text";
-  input.value = value;
-  input.maxLength = 80;
-  input.autocomplete = "off";
-  input.spellcheck = false;
-
-  const buttons = document.createElement("div");
-  buttons.className = "project-dialog-buttons";
-
-  const cancel = createModalButton("cancel");
-  const submit = createModalButton(submitLabel);
-  submit.type = "submit";
-
-  cancel.addEventListener("click", () => {
-    shade.remove();
-  });
-
-  form.addEventListener("submit", async event => {
-    event.preventDefault();
-    const name = input.value.trim();
-    if (!name) return;
-    submit.disabled = true;
-    await onSubmit(name);
-    shade.remove();
-  });
-
-  buttons.append(cancel, submit);
-  form.append(label, input, buttons);
-  shade.append(form);
-  projectModal.append(shade);
-
-  requestAnimationFrame(() => {
-    input.focus();
-    input.select();
-  });
-}
-
-function createProjectConfirmDialog({
-  message,
-  confirmLabel = "delete",
-  onConfirm
-}) {
-  if (!projectModal) return;
-
-  const shade = document.createElement("div");
-  shade.className = "project-dialog-shade";
-
-  const box = document.createElement("div");
-  box.className = "project-dialog";
-
-  const messageNode = document.createElement("div");
-  messageNode.className = "project-dialog-title";
-  messageNode.textContent = message;
-
-  const buttons = document.createElement("div");
-  buttons.className = "project-dialog-buttons";
-
-  const cancel = createModalButton("cancel");
-  const confirm = createModalButton(confirmLabel);
-  confirm.classList.add("danger");
-
-  cancel.addEventListener("click", () => shade.remove());
-  confirm.addEventListener("click", async () => {
-    confirm.disabled = true;
-    await onConfirm();
-    shade.remove();
-  });
-
-  buttons.append(cancel, confirm);
-  box.append(messageNode, buttons);
-  shade.append(box);
-  projectModal.append(shade);
-
-  requestAnimationFrame(() => cancel.focus());
-}
-
-async function openProjectModal() {
-  if (projectModal) return;
-
-  const overlay = document.createElement("div");
-  overlay.className = "project-overlay";
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-label", "project manager");
-
-  const modal = document.createElement("div");
-  modal.className = "project-modal";
-  const header = document.createElement("div");
-  header.className = "project-modal-header";
-  const title = document.createElement("div");
-  title.className = "project-modal-title";
-  title.textContent = "project";
-  const close = createModalButton("×", "project-modal-close");
-  close.setAttribute("aria-label", "close");
-  header.append(title, close);
-
-  const actions = document.createElement("div");
-  actions.className = "project-actions";
-  const newButton = createModalButton("new");
-  const openButton = createModalButton("open");
-  const saveButton = createModalButton("save");
-  const saveAsButton = createModalButton("save as");
-  const renameButton = createModalButton("rename");
-  const deleteButton = createModalButton("delete");
-  actions.append(newButton, openButton, saveButton, saveAsButton, renameButton, deleteButton);
-
-  const list = document.createElement("div");
-  list.className = "project-list";
-  modal.append(header, actions, list);
-  overlay.append(modal);
-  document.body.append(overlay);
-  projectModal = overlay;
-
-  let selectedProjectId = null;
-  let selectedProjectName = "";
-
-  function updateActionState() {
-    const selected = Boolean(selectedProjectId);
-    openButton.disabled = !selected;
-    renameButton.disabled = !selected;
-    deleteButton.disabled = !selected;
-  }
-
-  async function renderProjectList() {
-    const [projects, current] = await Promise.all([getProjectList(), getCurrentProjectMeta()]);
-    title.textContent = current?.name || "project";
-    list.innerHTML = "";
-    if (selectedProjectId && !projects.some(project => project.id === selectedProjectId)) {
-      selectedProjectId = null;
-      selectedProjectName = "";
-    }
-    projects.forEach(project => {
-      const item = createModalButton(project.name, "project-list-item");
-      item.dataset.projectId = project.id;
-      item.classList.toggle("active", project.id === selectedProjectId);
-      item.title = project.name;
-      item.addEventListener("click", () => {
-        selectedProjectId = project.id;
-        selectedProjectName = project.name;
-        list.querySelectorAll(".project-list-item").forEach(node => {
-          node.classList.toggle("active", node.dataset.projectId === selectedProjectId);
-        });
-        updateActionState();
-      });
-      list.append(item);
-    });
-    updateActionState();
-  }
-
-  function confirmDiscard(onConfirm) {
-    if (!hasUnsavedChanges()) { void onConfirm(); return; }
-    createProjectConfirmDialog({
-      message: "unsaved changes will be discarded. continue?",
-      onConfirm
-    });
-  }
-
-  close.addEventListener("click", closeProjectModal);
-  overlay.addEventListener("pointerdown", event => { if (event.target === overlay) closeProjectModal(); });
-  overlay.addEventListener("keydown", event => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      const shade = overlay.querySelector(".project-dialog-shade");
-      if (shade) shade.remove(); else closeProjectModal();
-    }
-  }, true);
-
-  newButton.addEventListener("click", () => confirmDiscard(async () => {
-    newButton.disabled = true;
-    const id = await createNewProject();
-    if (id) closeProjectModal(); else newButton.disabled = false;
-  }));
-
-  openButton.addEventListener("click", () => {
-    if (!selectedProjectId) return;
-    confirmDiscard(async () => {
-      openButton.disabled = true;
-      const opened = await openProject(selectedProjectId);
-      if (opened) closeProjectModal(); else openButton.disabled = false;
-    });
-  });
-
-  saveButton.addEventListener("click", async () => {
-    saveButton.disabled = true;
-    const saved = await saveCurrentProject();
-    if (saved) closeProjectModal(); else saveButton.disabled = false;
-  });
-
-  saveAsButton.addEventListener("click", () => {
-    createProjectTextDialog({ title: "save as", value: "", submitLabel: "save", onSubmit: async name => {
-      const id = await saveAsProject(name); if (id) closeProjectModal();
-    }});
-  });
-
-  renameButton.addEventListener("click", () => {
-    if (!selectedProjectId) return;
-    createProjectTextDialog({ title: "rename", value: selectedProjectName, submitLabel: "rename", onSubmit: async name => {
-      await renameProject(selectedProjectId, name);
-      selectedProjectName = name;
-      await refreshProjectName();
-      await renderProjectList();
-    }});
-  });
-
-  deleteButton.addEventListener("click", () => {
-    if (!selectedProjectId) return;
-    createProjectConfirmDialog({ message: `delete ${selectedProjectName}?`, onConfirm: async () => {
-      const deleted = await deleteProject(selectedProjectId);
-      if (deleted) {
-        selectedProjectId = null; selectedProjectName = "";
-        await refreshProjectName(); await renderProjectList();
-      }
-    }});
-  });
-
-  await renderProjectList();
-  close.focus();
-}
-
-projectButton?.addEventListener(
-  "click",
-  () => void openProjectModal()
-);
-
-window.addEventListener(
-  "projectchange",
-  () => {
-
-    /*
-     * Project切替中にSound Preset画面が残っていた場合、
-     * 旧ProjectのTrack参照を保持させない。
-     */
-    if (soundPresetModal) {
-      soundPresetModal.remove();
-      soundPresetModal = null;
-    }
-
-    void refreshProjectName();
-    render();
-  }
-);
-
-let exportModal = null;
-
-function closeExportModal() {
-  exportModal?.remove();
-  exportModal = null;
-}
-
-function safeExportFileName(name) {
-  const cleaned = String(name || "project")
-    .replace(/[\\/:*?"<>|]+/g, "_")
-    .trim();
-
-  return cleaned || "project";
-}
-
-function downloadExportBlob(blob, fileName) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.style.display = "none";
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-
-  window.setTimeout(
-    () => URL.revokeObjectURL(url),
-    1000
-  );
-}
-
-async function shareOrDownloadExport(blob, fileName) {
-  const isIOS =
-    /iPhone|iPad|iPod/i.test(
-      navigator.userAgent
-    ) ||
-    (
-      navigator.platform ===
-        "MacIntel" &&
-      navigator.maxTouchPoints > 1
-    );
-
-  const isAndroid =
-    /Android/i.test(
-      navigator.userAgent
-    );
-
-  const isMobile =
-    isIOS || isAndroid;
-
-  /*
-   * iPhone / iPad / Android
-   * → WAVファイルだけをOS共有シートへ渡す。
-   * title / textは付けない。
-   */
-  if (isMobile) {
-    const file = new File(
-      [blob],
-      fileName,
-      {
-        type: "audio/wav"
-      }
-    );
-
-    if (
-      navigator.share &&
-      navigator.canShare?.({
-        files: [file]
-      })
-    ) {
-      try {
-        await navigator.share({
-          files: [file]
-        });
-
-        return;
-      } catch (error) {
-        /*
-         * ユーザーが共有画面を閉じた場合は
-         * ダウンロードへフォールバックしない。
-         */
-        if (
-          error?.name ===
-          "AbortError"
-        ) {
-          return;
-        }
-      }
-    }
-  }
-
-  /*
-   * PC、または共有非対応端末
-   * → 通常ダウンロード
-   */
-  downloadExportBlob(
-    blob,
-    fileName
-  );
-}
-
-function makeExportChoice(label, value) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "export-choice";
-  button.textContent = label;
-  button.dataset.value = value;
-  return button;
-}
-
-function makeExportNumberRow({
-  label,
-  min,
-  max,
-  step,
-  value
-}) {
-  const row = document.createElement("div");
-  row.className = "export-row";
-
-  const labelNode = document.createElement("div");
-  labelNode.className = "export-label";
-  labelNode.textContent = label;
-
-  const control = document.createElement("div");
-  control.className = "export-value-control";
-
-  const minus = document.createElement("button");
-  minus.type = "button";
-  minus.className = "export-step-button";
-  minus.textContent = "−";
-
-  const output = document.createElement("output");
-  output.className = "export-value";
-  output.dataset.value = String(value);
-
-  const plus = document.createElement("button");
-  plus.type = "button";
-  plus.className = "export-step-button";
-  plus.textContent = "+";
-
-  function formatted(number) {
-    return step === 0.5
-      ? `${Number(number).toFixed(1)}s`
-      : `${Math.round(number)}s`;
-  }
-
-  function setValue(nextValue) {
-    const next = clamp(
-      Math.round(Number(nextValue) / step) * step,
-      min,
-      max
-    );
-
-    output.dataset.value = String(next);
-    output.textContent = formatted(next);
-  }
-
-  minus.addEventListener("click", () => {
-    setValue(Number(output.dataset.value) - step);
-  });
-
-  plus.addEventListener("click", () => {
-    setValue(Number(output.dataset.value) + step);
-  });
-
-  setValue(value);
-  control.append(minus, output, plus);
-  row.append(labelNode, control);
-
-  return {
-    row,
-    output,
-    minus,
-    plus,
-    getValue: () => Number(output.dataset.value) || 0,
-    setValue,
-    setDisabled(disabled) {
-      row.classList.toggle("disabled", disabled);
-      minus.disabled = disabled;
-      plus.disabled = disabled;
-    }
-  };
-}
-
-async function openExportModal() {
-  if (exportModal) return;
-
-  const overlay = document.createElement("div");
-  overlay.className = "export-overlay";
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-label", "export");
-
-  const modal = document.createElement("div");
-  modal.className = "export-modal";
-
-  const header = document.createElement("div");
-  header.className = "export-modal-header";
-
-  const title = document.createElement("div");
-  title.className = "export-modal-title";
-  title.textContent = "export";
-
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "export-close";
-  close.textContent = "×";
-  close.setAttribute("aria-label", "close");
-
-  header.append(title, close);
-
-  const targetRow = document.createElement("div");
-  targetRow.className = "export-row";
-  const targetLabel = document.createElement("div");
-  targetLabel.className = "export-label";
-  targetLabel.textContent = "target";
-  const targetGroup = document.createElement("div");
-  targetGroup.className = "export-choice-group";
-  const targetSong = makeExportChoice("song", "song");
-  const targetPart = makeExportChoice("part", "part");
-  targetGroup.append(targetSong, targetPart);
-  targetRow.append(targetLabel, targetGroup);
-
-  const endRow = document.createElement("div");
-  endRow.className = "export-row";
-  const endLabel = document.createElement("div");
-  endLabel.className = "export-label";
-  endLabel.textContent = "end";
-  const endGroup = document.createElement("div");
-  endGroup.className = "export-choice-group";
-  const endTail = makeExportChoice("tail", "tail");
-  const endLoop = makeExportChoice("loop", "loop");
-  endGroup.append(endTail, endLoop);
-  endRow.append(endLabel, endGroup);
-
-  const headControl = makeExportNumberRow({
-    label: "head",
-    min: 0,
-    max: 5,
-    step: 0.5,
-    value: 0
-  });
-
-  const fadeInControl = makeExportNumberRow({
-    label: "fade in",
-    min: 0,
-    max: 30,
-    step: 1,
-    value: 0
-  });
-
-  const fadeOutControl = makeExportNumberRow({
-    label: "fade out",
-    min: 0,
-    max: 30,
-    step: 1,
-    value: 0
-  });
-
-  const formatRow = document.createElement("div");
-  formatRow.className = "export-row";
-  const formatLabel = document.createElement("div");
-  formatLabel.className = "export-label";
-  formatLabel.textContent = "format";
-  const formatValue = document.createElement("div");
-  formatValue.textContent = "wav / 48khz / 24bit / stereo";
-  formatValue.style.fontSize = "var(--font-label)";
-  formatRow.append(formatLabel, formatValue);
-
-  const progressWrap = document.createElement("div");
-  progressWrap.className = "export-progress-wrap";
-  progressWrap.hidden = true;
-
-  const progressRow = document.createElement("div");
-  progressRow.className = "export-progress-row";
-  const progressText = document.createElement("span");
-  progressText.textContent = "exporting 0%";
-  const progressStage = document.createElement("span");
-  progressStage.textContent = "";
-  progressRow.append(progressText, progressStage);
-
-  const progressTrack = document.createElement("div");
-  progressTrack.className = "export-progress-track";
-  const progressBar = document.createElement("div");
-  progressBar.className = "export-progress-bar";
-  progressTrack.append(progressBar);
-
-  const status = document.createElement("div");
-  status.className = "export-status";
-
-  progressWrap.append(progressRow, progressTrack, status);
-
-  const actions = document.createElement("div");
-  actions.className = "export-actions";
-  const exportAction = document.createElement("button");
-  exportAction.type = "button";
-  exportAction.className = "export-action primary";
-  exportAction.textContent = "export";
-  actions.append(exportAction);
-
-  modal.append(
-    header,
-    targetRow,
-    endRow,
-    headControl.row,
-    fadeInControl.row,
-    fadeOutControl.row,
-    formatRow,
-    progressWrap,
-    actions
-  );
-
-  overlay.append(modal);
-  document.body.append(overlay);
-  exportModal = overlay;
-
-  let target = "song";
-  let endMode = "tail";
-  let working = false;
-  let progressTimer = null;
-  let displayedProgress = 0;
-
-  function updateProgress(value, stage = "") {
-    displayedProgress = Math.max(
-      displayedProgress,
-      clamp(Math.round(value), 0, 100)
-    );
-
-    progressText.textContent =
-      `exporting ${displayedProgress}%`;
-
-    progressStage.textContent = stage;
-    progressBar.style.width =
-      `${displayedProgress}%`;
-  }
-
-  function clearProgressTimer() {
-    if (progressTimer) {
-      clearInterval(progressTimer);
-      progressTimer = null;
-    }
-  }
-
-  function beginRenderProgressAnimation() {
-    clearProgressTimer();
-
-    progressTimer = setInterval(() => {
-      if (displayedProgress < 90) {
-        updateProgress(
-          displayedProgress + 1,
-          "rendering"
+          },
+          420
         );
-      }
-    }, 140);
-  }
-
-  function setWorking(nextWorking) {
-    working = nextWorking;
-
-    close.disabled = nextWorking;
-    targetSong.disabled = nextWorking;
-    targetPart.disabled = nextWorking;
-    endTail.disabled = nextWorking;
-    endLoop.disabled = nextWorking;
-    exportAction.disabled = nextWorking;
-
-    progressWrap.hidden =
-      !nextWorking &&
-      displayedProgress === 0;
-
-    applyModeState();
-  }
-
-  function applyModeState() {
-    const part = target === "part";
-
-    /*
-     * PARTはループ素材専用。
-     * ENDはLOOP固定とし、TAIL自体をUIから消す。
-     */
-    if (part) {
-      endMode = "loop";
     }
-
-    targetSong.classList.toggle(
-      "active",
-      target === "song"
-    );
-
-    targetPart.classList.toggle(
-      "active",
-      part
-    );
-
-    endTail.hidden = part;
-    endGroup.classList.toggle(
-      "single-choice",
-      part
-    );
-
-    endTail.classList.toggle(
-      "active",
-      !part && endMode === "tail"
-    );
-
-    endLoop.classList.toggle(
-      "active",
-      endMode === "loop"
-    );
-
-    const loop =
-      endMode === "loop";
-
-    if (loop) {
-      headControl.setValue(0);
-      fadeInControl.setValue(0);
-      fadeOutControl.setValue(0);
-    }
-
-    const controlsDisabled =
-      working || loop;
-
-    headControl.setDisabled(
-      controlsDisabled
-    );
-
-    fadeInControl.setDisabled(
-      controlsDisabled
-    );
-
-    fadeOutControl.setDisabled(
-      controlsDisabled
-    );
-  }
-
-  function currentOptions() {
-    return {
-      target,
-      endMode,
-      headSeconds:
-        headControl.getValue(),
-      fadeInSeconds:
-        fadeInControl.getValue(),
-      fadeOutSeconds:
-        fadeOutControl.getValue(),
-      bpm:
-        Number(
-          document.getElementById(
-            "bpm-input"
-          )?.value
-        ) || 120,
-      masterVolume:
-        Number(
-          document.getElementById(
-            "master-volume"
-          )?.value
-        ) || 70
-    };
-  }
-
-  async function renderForExport() {
-    displayedProgress = 0;
-    updateProgress(0, "preparing");
-    progressWrap.hidden = false;
-    status.textContent = "";
-
-    return renderExportWav({
-      ...currentOptions(),
-
-      onProgress(value, stage) {
-        updateProgress(
-          value,
-          stage
-        );
-
-        if (stage === "rendering") {
-          beginRenderProgressAnimation();
-        } else if (value >= 93) {
-          clearProgressTimer();
-        }
-      }
-    });
-  }
-
-  targetSong.addEventListener(
-    "click",
-    () => {
-      if (working) return;
-
-      target = "song";
-      endMode = "tail";
-      applyModeState();
-    }
-  );
-
-  targetPart.addEventListener(
-    "click",
-    () => {
-      if (working) return;
-
-      target = "part";
-      endMode = "loop";
-      applyModeState();
-    }
-  );
-
-  endTail.addEventListener(
-    "click",
-    () => {
-      if (
-        working ||
-        target === "part"
-      ) {
-        return;
-      }
-
-      endMode = "tail";
-      applyModeState();
-    }
-  );
-
-  endLoop.addEventListener(
-    "click",
-    () => {
-      if (working) return;
-
-      endMode = "loop";
-      applyModeState();
-    }
-  );
-
-  close.addEventListener(
-    "click",
-    () => {
-      if (!working) {
-        closeExportModal();
-      }
-    }
-  );
-
-  overlay.addEventListener(
-    "pointerdown",
-    event => {
-      if (
-        event.target === overlay &&
-        !working
-      ) {
-        closeExportModal();
-      }
-    }
-  );
-
-  overlay.addEventListener(
-    "keydown",
-    event => {
-      if (
-        event.key === "Escape" &&
-        !working
-      ) {
-        event.preventDefault();
-        closeExportModal();
-      }
-    }
-  );
-
-  exportAction.addEventListener(
-    "click",
-    async () => {
-      if (working) return;
-
-      if (state.isPlaying) {
-        document
-          .getElementById(
-            "play-button"
-          )
-          ?.click();
-      }
-
-      setWorking(true);
-
-      try {
-        const result =
-          await renderForExport();
-
-        clearProgressTimer();
-
-        const meta =
-          await getCurrentProjectMeta();
-
-        const projectName =
-          safeExportFileName(
-            meta?.name || "project"
-          );
-
-        const fileName =
-          target === "part"
-            ? `loop_${projectName}.wav`
-            : `${projectName}.wav`;
-
-        status.textContent =
-          "complete";
-
-        await shareOrDownloadExport(
-          result.blob,
-          fileName
-        );
-      } catch (error) {
-        clearProgressTimer();
-
-        console.error(
-          "sprooto export failed:",
-          error
-        );
-
-        status.textContent =
-          error?.message ||
-          "export failed";
-      } finally {
-        setWorking(false);
-      }
-    }
-  );
-
-  applyModeState();
-  close.focus();
-}
-
-exportButton?.addEventListener(
-  "click",
-  () => void openExportModal()
-);
-
-let soundPresetModal = null;
-
-function createModalButton(label, className = "") {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = className;
-  button.textContent = label;
-  return button;
-}
-
-function openSoundPresetModal() {
-  if (soundPresetModal) return;
-
-  const track = editorTrack();
-  const openingSnapshot = createSnapshot();
-  const nowSound = captureTrackSound(track);
-  const nowName = track.soundName || `sound ${String(track.id).padStart(2, "0")}`;
-
-  let library = "factory";
-  let selected = {type: "now", id: "now", name: "now"};
-
-  const overlay = document.createElement("div");
-  overlay.className = "sound-preset-overlay";
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-label", "サウンドプリセット");
-
-  const modal = document.createElement("div");
-  modal.className = "sound-preset-modal";
-
-  const header = document.createElement("div");
-  header.className = "sound-preset-header";
-
-  const factoryTab = createModalButton("factory", "sound-preset-tab active");
-  const userTab = createModalButton("user", "sound-preset-tab");
-  const actions = document.createElement("div");
-  actions.className = "sound-preset-actions";
-
-  const saveButton =
-  createModalButton(
-    "",
-    "sound-preset-icon-button"
-  );
-
-saveButton.innerHTML =
-  getParameterIcon("save");
-
-saveButton.setAttribute(
-  "aria-label",
-  "save user preset"
-);
-
-const deleteButton =
-  createModalButton(
-    "",
-    "sound-preset-icon-button"
-  );
-
-deleteButton.innerHTML =
-  getParameterIcon("trash");
-
-deleteButton.setAttribute(
-  "aria-label",
-  "delete user preset"
-);
-  const closeButton = createModalButton("×", "sound-preset-close");
-  closeButton.setAttribute("aria-label", "閉じる");
-
-  actions.append(saveButton, deleteButton);
-  header.append(factoryTab, userTab, actions, closeButton);
-
-  const body = document.createElement("div");
-  body.className = "sound-preset-body";
-  const listWrap =
-  document.createElement("div");
-
-listWrap.className =
-  "sound-preset-list-wrap";
-
-const list =
-  document.createElement("div");
-
-list.className =
-  "sound-preset-list";
-
-const scrollbar =
-  document.createElement("div");
-
-scrollbar.className =
-  "sound-preset-scrollbar";
-
-const scrollTrack =
-  document.createElement("div");
-
-scrollTrack.className =
-  "sound-preset-scroll-track";
-
-const scrollThumb =
-  document.createElement("div");
-
-scrollThumb.className =
-  "sound-preset-scroll-thumb";
-
-scrollbar.append(
-  scrollTrack,
-  scrollThumb
-);
-
-listWrap.append(
-  list,
-  scrollbar
-);
-
-body.append(
-  listWrap
-);
-
-  modal.append(header, body);
-  overlay.append(modal);
-  document.body.append(overlay);
-  soundPresetModal = overlay;
-
-  function currentPresets() {
-    return library === "factory" ? getFactoryPresets() : getUserPresets();
-  }
-
-  function applySelection(item, type) {
-    /*
-     * Preset画面を開いた時点のTrack参照ではなく、
-     * 適用する瞬間の編集対象を取得する。
-     *
-     * Project切替やPin編集状態の変化後でも、
-     * 現在のMain / Pin Soundへ確実に適用する。
-     */
-    const targetTrack =
-      editorTrack();
-
-    if (!targetTrack) {
-      return;
-    }
-
-    if (type === "now") {
-  applyTrackSound(
-    targetTrack,
-    nowSound,
-    nowName
-  );
-
-  selected = {
-    type: "now",
-    id: "now",
-    name: "now"
-  };
-} else {
-  applyTrackSound(
-    targetTrack,
-    item.sound,
-    item.name
-  );
-
-  selected = {
-    type,
-    id: item.id,
-    name: item.name
-  };
-}
-
-    renderSequence();
-    renderEditor();
-    renderList();
-  }
-
-  function updatePresetScrollbar() {
-    const visibleHeight = list.clientHeight;
-    const contentHeight = list.scrollHeight;
-
-    if (contentHeight <= visibleHeight) {
-      scrollbar.hidden = true;
-      return;
-    }
-
-    scrollbar.hidden = false;
-
-    const trackHeight = Math.max(
-      1,
-      scrollbar.clientHeight - 8
-    );
-
-    const thumbSize = Math.max(
-      8,
-      trackHeight * (visibleHeight / contentHeight)
-    );
-
-    const maximumScroll = contentHeight - visibleHeight;
-    const maximumThumbTop = Math.max(0, trackHeight - thumbSize);
-
-    const thumbTop = maximumScroll > 0
-      ? (list.scrollTop / maximumScroll) * maximumThumbTop
-      : 0;
-
-    scrollThumb.style.height = "8px";
-    scrollThumb.style.transform = `translateY(${thumbTop}px)`;
-  }
-
-  let scrollPointerId = null;
-  let scrollStartY = 0;
-  let scrollStartTop = 0;
-
-  scrollThumb.addEventListener("pointerdown", event => {
-    if (event.pointerType === "mouse" && event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    scrollPointerId = event.pointerId;
-    scrollStartY = event.clientY;
-    scrollStartTop = list.scrollTop;
-    scrollThumb.setPointerCapture(event.pointerId);
-  });
-
-  scrollThumb.addEventListener("pointermove", event => {
-    if (scrollPointerId !== event.pointerId) {
-      return;
-    }
-
-    event.preventDefault();
-
-    const visibleHeight = list.clientHeight;
-    const contentHeight = list.scrollHeight;
-    const maximumScroll = contentHeight - visibleHeight;
-
-    if (maximumScroll <= 0) {
-      return;
-    }
-
-    const trackHeight = Math.max(
-      1,
-      scrollbar.clientHeight - 8
-    );
-
-    const movableHeight = trackHeight - scrollThumb.offsetHeight;
-
-    if (movableHeight <= 0) {
-      return;
-    }
-
-    const movementY = event.clientY - scrollStartY;
-
-    list.scrollTop = scrollStartTop +
-      (movementY / movableHeight) * maximumScroll;
-  });
-
-  function finishPresetScroll(event) {
-    if (scrollPointerId !== event.pointerId) {
-      return;
-    }
-
-    if (scrollThumb.hasPointerCapture(event.pointerId)) {
-      scrollThumb.releasePointerCapture(event.pointerId);
-    }
-
-    scrollPointerId = null;
-  }
-
-  scrollThumb.addEventListener("pointerup", finishPresetScroll);
-  scrollThumb.addEventListener("pointercancel", finishPresetScroll);
-
-  function renderList() {
-  const presets =
-    currentPresets();
-
-  list.innerHTML = "";
-
-  const nowButton =
-    createModalButton(
-      "now",
-      "sound-preset-item sound-preset-now"
-    );
-
-  nowButton.classList.toggle(
-    "active",
-    selected.type === "now"
-  );
-
-  nowButton.addEventListener(
-    "click",
-    () =>
-      applySelection(
-        null,
-        "now"
-      )
-  );
-
-  list.append(
-    nowButton
-  );
-
-  presets.forEach(
-    preset => {
-      const button =
-        createModalButton(
-          preset.name,
-          "sound-preset-item"
-        );
-
-      button.classList.toggle(
-        "active",
-        selected.type === library &&
-        selected.id === preset.id
-      );
-
-      button.addEventListener(
-        "click",
-        () =>
-          applySelection(
-            preset,
-            library
-          )
-      );
-
-      list.append(
-        button
-      );
-    }
-  );
-
-  actions.hidden =
-    library !== "user";
-
-  deleteButton.disabled =
-    !(
-      selected.type === "user" &&
-      selected.id !== "now"
-    );
-
-  requestAnimationFrame(
-    updatePresetScrollbar
-  );
-}
-
-  function switchLibrary(nextLibrary) {
-    library = nextLibrary;
-    factoryTab.classList.toggle("active", library === "factory");
-    userTab.classList.toggle("active", library === "user");
-    renderList();
-  }
-
-  function openSaveDialog() {
-    const shade = document.createElement("div");
-    shade.className = "sound-preset-dialog-shade";
-    const dialog = document.createElement("form");
-    dialog.className = "sound-preset-save-dialog";
-
-    const selectedText = document.createElement("div");
-    selectedText.className = "sound-preset-current";
-    selectedText.textContent = `current preset　${selected.name}${selected.type === "factory" ? "（factory）" : selected.type === "user" ? "（user）" : ""}`;
-
-    const modeWrap =
-  document.createElement("div");
-
-modeWrap.className =
-  "sound-preset-save-modes";
-
-const canOverwrite =
-  selected.type === "user";
-
-let saveMode =
-  canOverwrite
-    ? "overwrite"
-    : "new";
-
-function createSaveModeButton(
-  label,
-  mode
-) {
-  const button =
-    document.createElement("button");
-
-  button.type = "button";
-
-  button.className =
-    "sound-preset-save-mode";
-
-  button.textContent =
-    label;
-
-  button.dataset.mode =
-    mode;
-
-  button.classList.toggle(
-    "selected",
-    saveMode === mode
   );
 
   button.addEventListener(
-    "click",
-    () => {
-      saveMode = mode;
+    "pointermove",
+    event => {
+      const dx =
+        event.clientX -
+        startX;
 
-      modeWrap
-        .querySelectorAll(
-          ".sound-preset-save-mode"
-        )
-        .forEach(
-          modeButton => {
-            modeButton.classList.toggle(
-              "selected",
-              modeButton.dataset.mode ===
-                saveMode
-            );
-          }
+      const dy =
+        event.clientY -
+        startY;
+
+      const distance =
+        Math.hypot(
+          dx,
+          dy
         );
 
-      updateMode();
+      if (
+        patternDragState?.patternIndex ===
+        patternIndex
+      ) {
+        const target =
+          patternButtonAtPoint(
+            event.clientX,
+            event.clientY
+          );
+
+        patternGrid
+          ?.querySelectorAll(
+            ".drop-target"
+          )
+          .forEach(
+            element => {
+              element.classList.remove(
+                "drop-target"
+              );
+            }
+          );
+
+        if (
+          target &&
+          target !== button
+        ) {
+          target.classList.add(
+            "drop-target"
+          );
+        }
+
+        return;
+      }
+
+      if (
+        distance > 8
+      ) {
+        moved =
+          true;
+      }
+
+      /*
+       * Horizontal swipe selects a contiguous Pattern range
+       * in current song.order.
+       */
+      if (
+        Math.abs(dx) >
+          12 &&
+        Math.abs(dx) >
+          Math.abs(dy)
+      ) {
+        stopLongPress();
+
+        if (
+          patternRangeAnchorIndex ===
+          null
+        ) {
+          patternRangeAnchorIndex =
+            patternIndex;
+        }
+
+        const target =
+          patternButtonAtPoint(
+            event.clientX,
+            event.clientY
+          );
+
+        const targetIndex =
+          Number(
+            target?.dataset
+              ?.patternIndex
+          );
+
+        if (
+          Number.isInteger(
+            targetIndex
+          )
+        ) {
+          patternRangeEndIndex =
+            targetIndex;
+
+          if (
+            state.patternLoopEnabled
+          ) {
+            applyPatternRangeToLoop();
+          }
+
+          renderPatternManager();
+        }
+
+        return;
+      }
+
+      /*
+       * Vertical swipe before long-press fires
+       * changes Pattern repeat.
+       */
+      if (
+        Math.abs(dy) >
+          12 &&
+        Math.abs(dy) >
+          Math.abs(dx)
+      ) {
+        stopLongPress();
+
+        const delta =
+          Math.trunc(
+            -dy / 22
+          );
+
+        const next =
+          Math.max(
+            1,
+            Math.min(
+              99,
+              startRepeat +
+                delta
+            )
+          );
+
+        if (
+          next !==
+          pattern.repeat
+        ) {
+          if (!repeatEdited) {
+            saveHistory();
+          }
+
+          repeatEdited =
+            true;
+
+          setPatternRepeat(
+            patternIndex,
+            next
+          );
+
+          updateRepeat();
+        }
+      }
+    }
+  );
+
+  const finishPointer =
+    event => {
+      stopLongPress();
+
+      if (
+        patternDragState?.patternIndex ===
+        patternIndex
+      ) {
+        const target =
+          patternButtonAtPoint(
+            event.clientX,
+            event.clientY
+          );
+
+        const targetIndex =
+          Number(
+            target?.dataset
+              ?.patternIndex
+          );
+
+        if (
+          Number.isInteger(
+            targetIndex
+          ) &&
+          targetIndex !==
+            patternIndex
+        ) {
+          movePatternOrder(
+            patternIndex,
+            targetIndex
+          );
+        }
+
+        patternDragState =
+          null;
+
+        clearPatternDragVisuals();
+        renderPatternManager();
+
+        return;
+      }
+
+      if (
+        repeatEdited ||
+        moved
+      ) {
+        return;
+      }
+
+      clearPatternRangeSelection();
+
+      if (
+        !selectPattern(
+          patternIndex
+        )
+      ) {
+        return;
+      }
+
+      selectedStepIndex =
+        null;
+
+      setAppView(
+        "sequence"
+      );
+
+      renderCurrentSourceDisplay();
+      renderSequence();
+      renderPatternManager();
+      renderEditor();
+    };
+
+  button.addEventListener(
+    "pointerup",
+    finishPointer
+  );
+
+  button.addEventListener(
+    "pointercancel",
+    event => {
+      stopLongPress();
+
+      if (
+        patternDragState?.patternIndex ===
+        patternIndex
+      ) {
+        patternDragState =
+          null;
+
+        clearPatternDragVisuals();
+      }
+
+      button.releasePointerCapture?.(
+        event.pointerId
+      );
     }
   );
 
   return button;
 }
 
-if (canOverwrite) {
-  modeWrap.appendChild(
-    createSaveModeButton(
-      "overwrite",
-      "overwrite"
-    )
-  );
-}
+export function renderPatternManager() {
+  renderPatternLoopButton();
 
-modeWrap.appendChild(
-  createSaveModeButton(
-    "save as",
-    "new"
-  )
-);
-
-    const nameInput =
-      document.createElement("div");
-
-    nameInput.className =
-      "sound-preset-name-input";
-
-    nameInput.contentEditable =
-      "true";
-
-    nameInput.setAttribute(
-      "role",
-      "textbox"
-    );
-
-    nameInput.setAttribute(
-      "aria-label",
-      "preset name"
-    );
-
-    nameInput.dataset.placeholder =
-      "preset name";
-
-    nameInput.textContent =
-      selected.type === "user"
-        ? selected.name
-        : "";
-
-    nameInput.addEventListener(
-      "beforeinput",
-      event => {
-        if (
-          event.isComposing ||
-          event.inputType.startsWith(
-            "delete"
-          )
-        ) {
-          return;
-        }
-
-        const currentText =
-          nameInput.textContent ?? "";
-
-        const selection =
-          window.getSelection();
-
-        const selectedLength =
-          selection?.toString()
-            .length ?? 0;
-
-        const incomingLength =
-          String(event.data ?? "")
-            .length;
-
-        if (
-          currentText.length -
-            selectedLength +
-            incomingLength >
-          40
-        ) {
-          event.preventDefault();
-        }
-      }
-    );
-
-    const fields = document.createElement("div");
-    fields.className = "sound-preset-save-fields";
-    fields.append(
-  nameInput
-);
-
-    const buttons = document.createElement("div");
-    buttons.className = "sound-preset-dialog-buttons";
-    const cancel = createModalButton("cancel");
-    const commit = createModalButton("save");
-    commit.type = "submit";
-    buttons.append(cancel, commit);
-
-    dialog.append(selectedText, modeWrap, fields, buttons);
-    shade.append(dialog);
-    modal.append(shade);
-
-    function updateMode() {
-  fields.hidden = false;
-
-  if (
-    saveMode === "overwrite"
-  ) {
-    nameInput.textContent =
-      selected.type === "user"
-        ? selected.name
-        : "";
-  }
-}
-
-    updateMode();
-
-    cancel.addEventListener("click", () => shade.remove());
-    dialog.addEventListener(
-  "submit",
-  event => {
-    event.preventDefault();
-
-    const mode =
-      saveMode;
-
-    const saved =
-      saveUserPreset({
-        id:
-          mode === "overwrite"
-            ? selected.id
-            : null,
-
-        name:
-          nameInput.textContent ??
-          "",
-
-        sound:
-          captureTrackSound(track)
-      });
-
-    if (!saved) {
-      nameInput.focus();
-      return;
-    }
-
-    selected = {
-      type: "user",
-      id: saved.id,
-      name: saved.name
-    };
-
-    track.soundName =
-      saved.name;
-
-    library = "user";
-
-    factoryTab.classList.remove(
-      "active"
-    );
-
-    userTab.classList.add(
-      "active"
-    );
-
-    shade.remove();
-
-    renderEditor();
-    renderList();
-  }
-);
-    nameInput.focus();
-  }
-
-  function closeModal() {
-    const changed =
-      !soundsEqual(nowSound, captureTrackSound(track)) ||
-      nowName !== track.soundName;
-
-    if (changed) {
-      saveHistorySnapshot(openingSnapshot);
-    }
-
-    overlay.remove();
-    soundPresetModal = null;
-    renderEditor();
-    requestAnimationFrame(() => {
-      document.querySelector('[data-focus-key="menu-sound-name"]')?.focus();
-    });
-  }
-
-  factoryTab.addEventListener("click", () => switchLibrary("factory"));
-  userTab.addEventListener("click", () => switchLibrary("user"));
-  saveButton.addEventListener("click", openSaveDialog);
-  deleteButton.addEventListener(
-    "click",
-    () => {
-      if (
-        selected.type !== "user" ||
-        !selected.id
-      ) {
-        return;
-      }
-
-      /*
-       * Userプリセット削除前の確認。
-       */
-      const shade =
-        document.createElement("div");
-
-      shade.className =
-        "sound-preset-dialog-shade";
-
-      const dialog =
-        document.createElement("div");
-
-      dialog.className =
-        "sound-preset-save-dialog";
-
-      dialog.setAttribute(
-        "role",
-        "alertdialog"
-      );
-
-      dialog.setAttribute(
-        "aria-modal",
-        "true"
-      );
-
-      const message =
-        document.createElement("div");
-
-      message.className =
-        "sound-preset-current";
-
-      message.textContent =
-        "delete this preset?";
-
-      const buttons =
-        document.createElement("div");
-
-      buttons.className =
-        "sound-preset-dialog-buttons";
-
-      const noButton =
-        createModalButton("no");
-
-      const yesButton =
-        createModalButton("yes");
-
-      noButton.type = "button";
-      yesButton.type = "button";
-
-      buttons.append(
-        noButton,
-        yesButton
-      );
-
-      dialog.append(
-        message,
-        buttons
-      );
-
-      shade.appendChild(
-        dialog
-      );
-
-      modal.appendChild(
-        shade
-      );
-
-      noButton.addEventListener(
-        "click",
-        () => {
-          shade.remove();
-          deleteButton.focus();
-        }
-      );
-
-      yesButton.addEventListener(
-        "click",
-        () => {
-          const deleted =
-            deleteUserPreset(
-              selected.id
-            );
-
-          if (!deleted) {
-            return;
-          }
-
-          selected = {
-  type: "detached",
-  id: null,
-  name:
-    track.soundName ||
-    "current sound"
-};
-
-          shade.remove();
-          renderList();
-        }
-      );
-
-      requestAnimationFrame(
-        () => noButton.focus()
-      );
-    }
-  );
-  closeButton.addEventListener("click", closeModal);
-  overlay.addEventListener("click", event => {
-  if (event.target === overlay) {
-    closeModal();
-  }
-});
-  list.addEventListener(
-  "scroll",
-  () => {
-    updatePresetScrollbar();
-  }
-);
-
-  overlay.addEventListener("keydown", event => {
-    if (event.key !== "Escape") {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const saveDialog =
-      event.target.closest(
-        ".sound-preset-dialog-shade"
-      );
-
-    if (saveDialog) {
-      saveDialog.remove();
-      return;
-    }
-
-    closeModal();
-  }, true);
-
-  renderList();
-  closeButton.focus();
-}
-
-function renderEditorUnsafe() {
-  editor.innerHTML = "";
-
-  /*
-   * LFOも通常のParameter Selector内で編集する。
-   * lfo1 / lfo2を親アイコンとして常時表示し、
-   * target / wave / depth / rateは右4枠へ展開する。
-   */
-  renderMenu();
-}
-
-
-export function renderEditor() {
-  try {
-    renderEditorUnsafe();
-
-    /*
-     * Offset Gridは上段Sequencerへ表示するため、
-     * Editor側の重複表示を消す。
-     * Toolbar / base値 / 子パラ操作は従来どおり残す。
-     */
-    if (currentSequenceOffsetParameter()) {
-      editor
-        .querySelector(
-          ":scope > .offset-grid"
-        )
-        ?.remove();
-
-      /*
-       * Offsetは上段Sequencerへ移しても、
-       * Parameter Selector自体はEditor下段へ残す。
-       * これで別パラへ1タップで移動できる。
-       */
-      if (
-        !editor.querySelector(
-          ":scope > .parameter-menu"
-        )
-      ) {
-        editor.appendChild(
-          createParameterMenuGrid()
-        );
-      }
-    }
-  } catch (error) {
-    console.error("sprooto editor render failed:", error);
-
-    if (editor) {
-      editor.hidden = false;
-      editor.innerHTML = "";
-
-      const panel = document.createElement("div");
-      panel.style.cssText = [
-        "height:100%",
-        "overflow:auto",
-        "padding:6px",
-        "font:10px/1.3 monospace",
-        "white-space:pre-wrap",
-        "color:var(--text)",
-        "background:var(--cell)",
-        "border:1px solid var(--line)"
-      ].join(";");
-
-      const message = error?.message ?? String(error);
-      const stack = error?.stack ?? "(no stack)";
-      panel.textContent = `editor error\n${message}\n\n${stack}`;
-      editor.appendChild(panel);
-    }
-  }
-}
-
-let previousPlayingTrackLanes = [];
-let previousPlayingOffsetStep = null;
-
-export function updatePlayingStep() {
-  /*
-   * 前回点灯したDOMだけ消灯する。
-   * 毎tick .playing をDOM検索しない。
-   */
-  previousPlayingTrackLanes.forEach(
-    lane => {
-      lane.classList.remove(
-        "playing"
-      );
-    }
-  );
-
-  previousPlayingTrackLanes = [];
-
-  previousPlayingOffsetStep?.classList.remove(
-    "playing"
-  );
-
-  previousPlayingOffsetStep = null;
-
-  if (
-    state.playbackTickIndex === null
-  ) {
+  if (!patternGrid) {
     return;
   }
 
-  /*
-   * Trackごとの現在stepだけ取得して点灯。
-   * 次tickで消せるよう参照を保持する。
-   */
-  tracks.forEach(
-    (track, trackIndex) => {
-      if (!track?.stepLength) {
-        return;
-      }
+  patternGrid.innerHTML =
+    "";
 
-      const playingStep =
-        state.playbackTickIndex %
-        track.stepLength;
-
-      const lane =
-        document.querySelector(
-          `.track-lane[data-track-index="${trackIndex}"][data-step-index="${playingStep}"]`
+  normalizePatternOrder()
+    .forEach(
+      patternIndex => {
+        patternGrid.appendChild(
+          createPatternButton(
+            patternIndex
+          )
         );
-
-      if (!lane) {
-        return;
       }
+    );
+}
 
-      lane.classList.add(
-        "playing"
-      );
 
-      previousPlayingTrackLanes.push(
-        lane
-      );
-    }
-  );
+/* =========================================================
+ * Playback highlight
+ * ========================================================= */
 
-  /*
-   * Offset画面も現在stepだけ取得して保持。
-   */
-  const track =
-    editorTrack();
+let previousPlayingStep =
+  null;
 
-  if (!track?.stepLength) {
+export function updatePlayingStep() {
+  previousPlayingStep
+    ?.classList.remove(
+      "playing"
+    );
+
+  previousPlayingStep =
+    null;
+
+  if (
+    state.playbackTickIndex ===
+    null
+  ) {
     return;
   }
 
   const playingStep =
     state.playbackTickIndex %
-    track.stepLength;
+    STEP_COUNT;
 
-  const offsetStep =
-    document.querySelector(
-      `.offset-step[data-step-index="${playingStep}"]`
+  const element =
+    sequenceGrid?.querySelector(
+      `.mokton-step[data-step-index="${playingStep}"]`
     );
 
-  if (!offsetStep) {
+  if (!element) {
     return;
   }
 
-  offsetStep.classList.add(
+  element.classList.add(
     "playing"
   );
 
-  previousPlayingOffsetStep =
-    offsetStep;
+  previousPlayingStep =
+    element;
 }
 
+
+/* =========================================================
+ * Main.js compatibility exports
+ * ========================================================= */
+
+export function renderSongMode() {
+  /*
+   * Song UIは仕様未確定。
+   * Stage 1では表示しない。
+   */
+}
+
+export function refreshMasterMixMeterColor() {
+  /*
+   * Mixer UI再設計まで互換exportのみ維持。
+   */
+}
+
+
+/* =========================================================
+ * Full render
+ * ========================================================= */
+
 export function render() {
+  ensureMoktonStageStyles();
+
+  setAppView(
+    appView
+  );
+
   void refreshProjectName();
+
   renderCurrentSourceDisplay();
-  renderSequence();
+  renderSequenceTools();
   renderEditor();
+  renderSequence();
   renderPatternManager();
   renderSongMode();
-  updateSelectionClasses();
+  updatePlayingStep();
 }

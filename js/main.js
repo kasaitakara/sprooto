@@ -1,6 +1,7 @@
 import {
   STEP_COUNT,
-  tracks,
+  patterns,
+  soundBank,
   state,
   clamp,
   undo,
@@ -8,16 +9,16 @@ import {
   canUndo,
   canRedo,
   beginSelectedPlayback,
-advancePlaybackSource,
-clearQueuedSource
+  advancePlaybackSource,
+  clearQueuedSource,
+  soundIsAudible
 } from "./sequencer.js";
 
 import {
   initializeAudio,
-  playTrackStep,
+  playSequenceStep,
   setMasterVolume,
   resumeAudio,
-  resetTrackPitchHistory,
   beginPlaybackStartCapture,
   markPlaybackStartScheduler,
   markPlaybackExpectedAudio
@@ -273,214 +274,221 @@ function scheduleNextTick() {
   );
 }
 
-function audible(track) {
-  const hasSolo = tracks.some(item => item.solo);
-  return !track.muted && (!hasSolo || track.solo);
-}
-
 const SUB_PATTERNS = Object.freeze([
-  { divisions: 2, hits: [0, 1] },
-  { divisions: 2, hits: [1] },
-  { divisions: 3, hits: [0, 1, 2] },
-  { divisions: 4, hits: [0, 1, 2, 3] },
-  { divisions: 4, hits: [0, 2] },
-  { divisions: 4, hits: [0, 1] },
-  { divisions: 6, hits: [0, 1, 2, 3, 4, 5] }
+  {
+    divisions: 2,
+    hits: [0, 1]
+  },
+
+  {
+    divisions: 2,
+    hits: [1]
+  },
+
+  {
+    divisions: 3,
+    hits: [0, 1, 2]
+  },
+
+  {
+    divisions: 4,
+    hits: [0, 1, 2, 3]
+  },
+
+  {
+    divisions: 4,
+    hits: [0, 2]
+  },
+
+  {
+    divisions: 4,
+    hits: [0, 1]
+  },
+
+  {
+    divisions: 6,
+    hits: [0, 1, 2, 3, 4, 5]
+  }
 ]);
 
-function resolvedSoundValue(track, stepIndex, id, min, max) {
-  const offset = Number(track.offsets[id]?.[stepIndex]) || 0;
-  return clamp(Number(track.base[id]) + offset, min, max);
-}
+function currentPlaybackPattern() {
+  const patternIndex =
+    state.playingPatternIndex ??
+    state.selectedPatternIndex ??
+    0;
 
-function subVelocityScale(crescendo, hitIndex, hitCount) {
-  const amount = clamp(Math.round(Number(crescendo) || 0), -3, 3);
-
-  if (amount === 0 || hitCount <= 1) {
-    return 1;
-  }
-
-  const progress = hitIndex / (hitCount - 1);
-  const depth = Math.abs(amount) * 0.25;
-
-  return amount > 0
-    ? 1 - depth * (1 - progress)
-    : 1 - depth * progress;
-}
-
-function scheduleSubStep(
-  track,
-  stepIndex,
-  baseDelaySeconds
-) {
-  const patternIndex = Math.round(
-    resolvedSoundValue(
-      track,
-      stepIndex,
-      "subPattern",
-      -1,
-      6
-    )
+  return (
+    patterns[patternIndex] ??
+    patterns[0] ??
+    null
   );
+}
 
-  /*
-   * SUB OFFなら通常発音。
-   */
-  if (patternIndex < 0) {
-    playTrackStep(
-      track,
-      stepIndex,
-      baseDelaySeconds
-    );
+function layerStepOnly(
+  layer,
+  performanceData
+) {
+  return {
+    melodic:
+      layer === "melodic"
+        ? performanceData
+        : null,
 
+    rhythm:
+      layer === "rhythm"
+        ? performanceData
+        : null
+  };
+}
+
+function scheduleLayerHit({
+  layer,
+  performanceData,
+  delaySeconds,
+  bpm,
+  velocityScale = 1
+}) {
+  if (
+    !performanceData?.soundId ||
+    !soundIsAudible(
+      layer,
+      performanceData.soundId
+    )
+  ) {
     return;
   }
 
-  const pattern =
-    SUB_PATTERNS[patternIndex];
-
-  if (!pattern) {
-    playTrackStep(
-      track,
-      stepIndex,
-      baseDelaySeconds
-    );
-
-    return;
-  }
-
-  const subProbability =
-    resolvedSoundValue(
-      track,
-      stepIndex,
-      "subProbability",
-      0,
-      100
-    );
-
-  const crescendo =
-    resolvedSoundValue(
-      track,
-      stepIndex,
-      "subCrescendo",
-      -3,
-      3
-    );
-
-  /*
-   * SUB PROBは
-   * 「SUBパターン全体が発動する確率」。
-   *
-   * 判定はStepごとに1回だけ行う。
-   */
-  const subTriggered =
-    Math.random() * 100 <
-    subProbability;
-
-  /*
-   * SUBが外れた場合は、
-   * SUBなしの通常発音へ戻す。
-   */
-  if (!subTriggered) {
-    playTrackStep(
-      track,
-      stepIndex,
-      baseDelaySeconds
-    );
-
-    return;
-  }
-
-  /*
-   * SUBが当たった場合は、
-   * Pattern内の全Hitを必ず発音する。
-   */
-  const stepSeconds =
-    duration() / 1000;
-
-  pattern.hits.forEach(
-    (subIndex, hitIndex) => {
-      playTrackStep(
-        track,
-        stepIndex,
-        baseDelaySeconds +
-          stepSeconds *
-            (
-              subIndex /
-              pattern.divisions
-            ),
-        {
-          velocityScale:
-            subVelocityScale(
-              crescendo,
-              hitIndex,
-              pattern.hits.length
-            )
-        }
-      );
+  playSequenceStep(
+    layerStepOnly(
+      layer,
+      performanceData
+    ),
+    soundBank,
+    delaySeconds,
+    {
+      bpm,
+      velocityScale,
+      ignoreProbability: true
     }
   );
 }
 
-function swingDelaySeconds(track, stepIndex) {
+function scheduleLayer({
+  layer,
+  performanceData,
+  baseDelaySeconds,
+  bpm
+}) {
+  if (
+    !performanceData?.soundId ||
+    !soundIsAudible(
+      layer,
+      performanceData.soundId
+    )
+  ) {
+    return;
+  }
+
+  const probability =
+    clamp(
+      Number(
+        performanceData.probability
+      ) || 0,
+      0,
+      100
+    );
+
   /*
-   * 1表示単位 = 0.25 T64。
-   * 16分音符の裏側（2, 4, 6...番目）のみ前後へ動かす。
-   *
-   * マイナス値も安全に予約できるよう、
-   * 全トラックへ最大前倒し量ぶんの共通待ち時間を置く。
+   * STEP Probabilityは
+   * そのSTEPについて1回だけ判定する。
+   * SUBの各Hitごとには振り直さない。
    */
-  const bpm =
-    clamp(
-      Number(bpmInput.value) || 120,
-      40,
-      300
+  if (
+    probability < 100 &&
+    Math.random() * 100 >=
+      probability
+  ) {
+    return;
+  }
+
+  const patternIndex =
+    Math.round(
+      Number(
+        performanceData.subPattern
+      ) || -1
     );
 
-  const quarterSeconds =
-    60 / bpm;
+  const subPattern =
+    patternIndex >= 0
+      ? SUB_PATTERNS[
+          patternIndex
+        ]
+      : null;
 
-  const swingUnitSeconds =
-    quarterSeconds / 64;
+  if (!subPattern) {
+    scheduleLayerHit({
+      layer,
+      performanceData,
+      delaySeconds:
+        baseDelaySeconds,
+      bpm
+    });
+
+    return;
+  }
 
   /*
-   * Swingは最大-8、nudgeは最大-4。
-   * 両方が最速側へ加算されても未来予約できるよう、
-   * 12単位ぶんを全Track共通の予約余白として置く。
+   * RHYTHMだけSUB PROBを持つ。
+   * MELODICはSUBを選んだ時点で発動する。
    */
-  const maximumAdvanceSeconds =
-    swingUnitSeconds * 12;
+  if (
+    layer === "rhythm"
+  ) {
+    const subProbability =
+      clamp(
+        Number(
+          performanceData
+            .subProbability
+        ) || 0,
+        0,
+        100
+      );
 
-  const swingValue =
-    clamp(
-      Number(track.swing) || 0,
-      -8,
-      8
-    );
+    if (
+      subProbability < 100 &&
+      Math.random() * 100 >=
+        subProbability
+    ) {
+      scheduleLayerHit({
+        layer,
+        performanceData,
+        delaySeconds:
+          baseDelaySeconds,
+        bpm
+      });
 
-  const isOffbeat =
-    stepIndex % 2 === 1;
+      return;
+    }
+  }
 
-  const nudgeValue =
-    clamp(
-      Math.round(
-        (Number(track.base.nudge) || 0) +
-        (Number(track.offsets.nudge?.[stepIndex]) || 0)
-      ),
-      -4,
-      4
-    );
+  const stepSeconds =
+    duration() / 1000;
 
-  return (
-    maximumAdvanceSeconds +
-    (
-      isOffbeat
-        ? swingValue *
-          swingUnitSeconds
-        : 0
-    ) +
-    nudgeValue *
-      swingUnitSeconds
+  subPattern.hits.forEach(
+    subIndex => {
+      scheduleLayerHit({
+        layer,
+        performanceData,
+        delaySeconds:
+          baseDelaySeconds +
+          stepSeconds *
+            (
+              subIndex /
+              subPattern.divisions
+            ),
+        bpm
+      });
+    }
   );
 }
 
@@ -489,7 +497,29 @@ function playStepAtTick(
   plannedPerformanceTime =
     performance.now()
 ) {
-  const perfStartedAt = performance.now();
+  const perfStartedAt =
+    performance.now();
+
+  const pattern =
+    currentPlaybackPattern();
+
+  if (!pattern) {
+    return;
+  }
+
+  const stepIndex =
+    playbackTickIndex %
+    STEP_COUNT;
+
+  const step =
+    pattern.sequence?.[
+      stepIndex
+    ];
+
+  if (!step) {
+    return;
+  }
+
   /*
    * AudioContextへ渡す、
    * 現在から発音予定時刻までの待ち時間。
@@ -500,59 +530,74 @@ function playStepAtTick(
       (
         plannedPerformanceTime -
         performance.now()
-      ) / 1000
+      ) /
+        1000
     );
 
-  tracks.forEach(track => {
-    const trackStepIndex =
-      playbackTickIndex %
-      track.stepLength;
-
-    if (
-      !audible(track) ||
-      !track.steps[trackStepIndex]
-    ) {
-      return;
-    }
-
-    const probability =
-      resolvedSoundValue(
-        track,
-        trackStepIndex,
-        "probability",
-        0,
-        100
-      );
-
-    if (
-  Math.random() * 100 <
-  probability
-) {
-  const audioDelaySeconds =
-    scheduleDelaySeconds +
-    swingDelaySeconds(
-      track,
-      trackStepIndex
+  const bpm =
+    clamp(
+      Number(
+        bpmInput.value
+      ) || 120,
+      40,
+      300
     );
 
-  markPlaybackExpectedAudio(
-    playbackTickIndex,
-    audioDelaySeconds
-  );
+  let hasExpectedAudio =
+    false;
 
-  scheduleSubStep(
-    track,
-    trackStepIndex,
-    audioDelaySeconds
-  );
-}
-  });
+  if (
+    step.melodic?.soundId &&
+    soundIsAudible(
+      "melodic",
+      step.melodic.soundId
+    )
+  ) {
+    hasExpectedAudio = true;
+
+    scheduleLayer({
+      layer: "melodic",
+      performanceData:
+        step.melodic,
+      baseDelaySeconds:
+        scheduleDelaySeconds,
+      bpm
+    });
+  }
+
+  if (
+    step.rhythm?.soundId &&
+    soundIsAudible(
+      "rhythm",
+      step.rhythm.soundId
+    )
+  ) {
+    hasExpectedAudio = true;
+
+    scheduleLayer({
+      layer: "rhythm",
+      performanceData:
+        step.rhythm,
+      baseDelaySeconds:
+        scheduleDelaySeconds,
+      bpm
+    });
+  }
+
+  if (hasExpectedAudio) {
+    markPlaybackExpectedAudio(
+      playbackTickIndex,
+      scheduleDelaySeconds
+    );
+  }
 
   perfMainLog(
     "PLAY_STEP_AT_TICK",
     perfStartedAt,
     {
-      tick: playbackTickIndex,
+      tick:
+        playbackTickIndex,
+
       pattern:
         (
           state.playingPatternIndex ??
@@ -591,7 +636,7 @@ function scheduleAudioAhead(
   const remainingSteps =
     Math.max(
       0,
-      state.patternLength -
+      STEP_COUNT -
         1 -
         currentPlayingStepIndex
     );
@@ -642,7 +687,6 @@ function scheduleAudioAhead(
 function stopPlayback() {
   state.isPlaying = false;
 
-  resetTrackPitchHistory();
   releaseScreenWakeLock();
 
   state.playingStepIndex =
@@ -696,126 +740,94 @@ function tick() {
   const nextStepIndex =
     state.playingStepIndex + 1;
 
-  /*
-   * 現在Patternの終端へ到達。
-   */
   if (
     nextStepIndex >=
-    state.patternLength
+    STEP_COUNT
   ) {
-    /*
- * Pattern／Fill終端で、
- * 予約切替またはSection進行を行う。
- */
-const perfSwitchStartedAt = performance.now();
-const beforeSource = {
-  type: state.playingSourceType,
-  pattern: state.playingPatternIndex,
-  fill: state.playingFillIndex
-};
-const sourceChanged =
-  advancePlaybackSource();
-perfMainLog(
-  "SOURCE_SWITCH",
-  perfSwitchStartedAt,
-  {
-    changed: sourceChanged,
-    before: beforeSource,
-    after: {
-      type: state.playingSourceType,
-      pattern: state.playingPatternIndex,
-      fill: state.playingFillIndex
-    }
-  }
-);
+    const perfSwitchStartedAt =
+      performance.now();
 
-/*
- * Song末尾まで再生したら
- * その場で自動停止する。
- */
-if (
-  state.selectedPlaybackType ===
-    "song" &&
-  state.playingSongPartIndex ===
-    null
-) {
-  stopPlayback();
-  return;
-}
+    const beforePattern =
+      state.playingPatternIndex;
+
+    const sourceChanged =
+      advancePlaybackSource();
+
+    perfMainLog(
+      "PATTERN_BOUNDARY",
+      perfSwitchStartedAt,
+      {
+        changed:
+          sourceChanged,
+
+        before:
+          beforePattern,
+
+        after:
+          state.playingPatternIndex
+      }
+    );
 
     state.playingStepIndex =
-  0;
-
-/*
- * Sourceが切り替わった場合は、
- * 全Trackを新しいSourceの先頭から開始。
- *
- * 同じPatternがループするだけなら、
- * Track独自のステップ位置は継続する。
- */
-if (sourceChanged) {
-  state.playbackTickIndex =
-    0;
-} else {
-  state.playbackTickIndex +=
-    1;
-}
+      0;
 
     /*
- * Source切替後のStep 1も
- * UI描画より先に予約する。
- */
-if (sourceChanged) {
-  audioScheduledThroughTick = null;
-}
+     * 1 Timelineなので
+     * Pattern境界ではSTEP位置だけ0へ戻す。
+     * 予約Patternへ切り替わった場合だけ
+     * Audio先読み位置もリセットする。
+     */
+    if (sourceChanged) {
+      state.playbackTickIndex =
+        0;
 
-scheduleAudioAhead(
-  state.playbackTickIndex,
-  state.playingStepIndex,
-  nextTickTime
-);
-
-scheduleNextTick();
-
-if (sourceChanged) {
-  window.requestAnimationFrame(
-    () => {
-      if (!state.isPlaying) {
-        return;
-      }
-
-      preserveFocusDuringRender();
+      audioScheduledThroughTick =
+        null;
+    } else {
+      state.playbackTickIndex +=
+        1;
     }
-  );
-} else {
-  updatePlayingStep();
-}
+
+    scheduleAudioAhead(
+      state.playbackTickIndex,
+      state.playingStepIndex,
+      nextTickTime
+    );
+
+    scheduleNextTick();
+
+    if (sourceChanged) {
+      window.requestAnimationFrame(
+        () => {
+          if (!state.isPlaying) {
+            return;
+          }
+
+          preserveFocusDuringRender();
+        }
+      );
+    } else {
+      updatePlayingStep();
+    }
 
     return;
   }
 
   state.playingStepIndex =
-  nextStepIndex;
+    nextStepIndex;
 
-state.playbackTickIndex += 1;
+  state.playbackTickIndex +=
+    1;
 
-/*
- * UI描画より先に
- * 次StepをAudioContextへ予約する。
- */
-scheduleAudioAhead(
-  state.playbackTickIndex,
-  state.playingStepIndex,
-  nextTickTime
-);
+  scheduleAudioAhead(
+    state.playbackTickIndex,
+    state.playingStepIndex,
+    nextTickTime
+  );
 
-scheduleNextTick();
+  scheduleNextTick();
 
-/*
- * 発音予約後に
- * 再生位置表示を更新する。
- */
-updatePlayingStep();
+  updatePlayingStep();
 }
 
 async function togglePlayback() {
@@ -827,8 +839,6 @@ async function togglePlayback() {
 beginPlaybackStartCapture();
 
 await initializeAudio();
-
-resetTrackPitchHistory();
 
 setMasterVolumeValue(
   Number(

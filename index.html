@@ -2,472 +2,275 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+
   <meta
     name="viewport"
     content="width=device-width,
              initial-scale=1,
              maximum-scale=1,
              user-scalable=no,
-             viewport-fit=cover">
-  <title>sprooto</title>
-  <link rel="stylesheet" href="./css/style.css">
+             viewport-fit=cover"
+  >
+
+  <meta
+    name="theme-color"
+    content="#090909"
+  >
+
+  <title>mokton</title>
+
+  <link
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+  >
+
+  <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin
+  >
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+    rel="stylesheet"
+  >
+
+  <link
+    rel="stylesheet"
+    href="./css/style.css"
+  >
 </head>
-<body class="theme-sprooto">
+
+<body class="theme-mokton">
   <main class="app">
+
     <header class="app-header">
-      <div class="project-title-row">
+      <div class="brand-row">
         <div
           id="current-project-name"
           class="current-project-name"
           aria-label="current project"
-        >project</div>
+        >mokton</div>
+
+        <div class="header-actions">
+          <button
+            id="theme-button"
+            class="text-button"
+            type="button"
+            aria-label="theme"
+            title="theme"
+          >clr</button>
+
+          <select
+            id="theme-selector"
+            class="theme-selector-hidden"
+            aria-label="theme"
+            tabindex="-1"
+          >
+            <option
+              value="theme-mokton"
+            >mokton</option>
+          </select>
+
+          <button
+            id="project-button"
+            class="text-button"
+            type="button"
+            aria-label="project"
+            title="project"
+          >prj</button>
+
+          <button
+            id="export-button"
+            class="text-button"
+            type="button"
+            aria-label="export"
+            title="export"
+          >exp</button>
+        </div>
       </div>
 
-      <div class="header-controls">
-      <button
-  id="theme-button"
-  class="theme-button"
-  type="button"
-  aria-label="テーマを切り替え"
-  title="theme"
->
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M12 3
-             C7 3 3 6.8 3 11.5
-             C3 16 6.7 20 11.5 20
-             H13
-             C14.2 20 15 19.2 15 18
-             C15 17.2 14.5 16.6 14.5 16
-             C14.5 15.2 15.2 14.5 16 14.5
-             H17
-             C20.3 14.5 21 12.5 21 10.5
-             C21 6.3 17.2 3 12 3Z">
-    </path>
+      <div class="transport-row">
+        <div class="transport-left">
+          <button
+            id="undo-button"
+            class="text-button history-button"
+            type="button"
+            aria-label="undo"
+            title="undo"
+          >undo</button>
 
-    <circle cx="8" cy="10" r="1"></circle>
-    <circle cx="11" cy="7" r="1"></circle>
-    <circle cx="15" cy="8" r="1"></circle>
-    <circle cx="16" cy="12" r="1"></circle>
-  </svg>
-</button>
+          <button
+            id="redo-button"
+            class="text-button history-button"
+            type="button"
+            aria-label="redo"
+            title="redo"
+          >redo</button>
+        </div>
 
+        <div class="transport-center">
+          <button
+            id="play-button"
+            class="play-button"
+            type="button"
+            aria-label="play / stop"
+          >▶</button>
+        </div>
 
-<button
-  id="project-button"
-  class="icon-button project-button"
-  type="button"
-  aria-label="project"
-  title="project"
->
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M3.5 6.5h6l2 2h9v10h-17z"></path>
-    <path d="M3.5 6.5v-2h6l2 2"></path>
-  </svg>
-</button>
+        <div class="transport-right">
+          <label
+            class="master-control"
+            aria-label="master volume"
+          >
+            <span class="control-label">vol</span>
 
-<button
-  id="export-button"
-  class="icon-button export-button"
-  type="button"
-  aria-label="export"
-  title="export"
->
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M12 3v11"></path>
-    <path d="M8 10l4 4 4-4"></path>
-    <path d="M5 17v3h14v-3"></path>
-  </svg>
-</button>
+            <input
+              id="master-volume"
+              type="range"
+              min="0"
+              max="100"
+              value="70"
+            >
 
-<select
-  id="theme-selector"
-  class="theme-selector-hidden"
-  aria-label="theme"
-  tabindex="-1"
->
-  <option value="theme-sprooto">sprooto</option>
-  <option value="theme-kasai">kasai</option>
-  <option value="theme-ryuichi">ryuichi</option>
-  <option value="theme-aya">aya</option>
-  <option value="theme-tobokegao">TGKgao</option>
-</select>
+            <output
+              id="master-volume-value"
+            >70</output>
+          </label>
 
-<button
-  id="undo-button"
-  class="icon-button history-button"
-  type="button"
-  aria-label="元に戻す"
-  title="Undo"
->
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M9 8H4V3"></path>
-<path d="M4 8c2-3 5-5 9-5 5 0 8 3 8 8s-3 8-8 8h-2"></path>
-  </svg>
-</button>
+          <label
+            class="bpm-control"
+            aria-label="bpm"
+          >
+            <span class="control-label">bpm</span>
 
-<button
-  id="redo-button"
-  class="icon-button history-button"
-  type="button"
-  aria-label="やり直す"
-  title="Redo"
->
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M15 8h5V3"></path>
-<path d="M20 8c-2-3-5-5-9-5-5 0-8 3-8 8s3 8 8 8h2"></path>
-  </svg>
-</button>
-
-      <button
-    id="play-button"
-    class="icon-button play-button"
-    aria-label="再生・停止"
->
-    <svg
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        aria-hidden="true"
-    >
-        <path d="M8 5L19 12L8 19Z"/>
-    </svg>
-</button>
-      <div class="master-control" aria-label="master volume">
-  <span class="master-volume-icon" aria-hidden="true">
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M11 5 6 9H2v6h4l5 4V5Z"></path>
-      <path d="M15 9a5 5 0 0 1 0 6"></path>
-      <path d="M18 6a9 9 0 0 1 0 12"></path>
-    </svg>
-  </span>
-
-  <input
-    id="master-volume"
-    type="range"
-    min="0"
-    max="100"
-    value="70"
-  >
-
-  <output id="master-volume-value">70</output>
-  </div>
-</label>
-      <label
-  class="compact-value bpm-control"
-  aria-label="BPM"
->
-  <span class="compact-value-label">
-    bpm
-  </span>
-
-  <input
-    id="bpm-input"
-    class="bpm-input compact-value-number"
-    type="number"
-    min="40"
-    max="300"
-    value="120"
-    aria-label="bpm"
-  >
-</label>
+            <input
+              id="bpm-input"
+              type="number"
+              min="40"
+              max="300"
+              value="120"
+            >
+          </label>
+        </div>
       </div>
     </header>
 
-    <section class="sequence-section" aria-label="sequence">
-      <div class="sequence-toolbar">
-  <div
-    id="current-source-display"
-    class="current-source-display"
-    aria-label="Pattern 01"
-  ></div>
 
-  <div class="sequence-toolbar-controls">
-    
-    <button
-      id="sequence-page-button"
-      class="sequence-page-button"
-      type="button"
-      aria-label="ステップ1～32を表示中。33～64へ切り替え"
-    >◧</button>
-
-    <label
-      class="compact-value sequence-step-value"
-      aria-label="パターンのステップ数"
+    <section
+      class="sequence-section mokton-view mokton-sequence-view"
+      aria-label="sequence"
     >
-      <span class="compact-value-label">step</span>
+      <div class="section-toolbar">
+        <div
+          id="current-source-display"
+          class="current-source-display"
+          aria-label="pattern"
+        ></div>
+
+        <button
+          id="sequence-back-button"
+          class="section-label mokton-view-button"
+          type="button"
+          aria-label="back to pattern"
+          title="pattern"
+        >seq</button>
+      </div>
+
+      <div
+        id="sequence-grid"
+        class="sequence-grid"
+      ></div>
+    </section>
+
+
+    <section
+      class="pattern-section mokton-view mokton-pattern-view"
+      aria-label="pattern manager"
+    >
+      <div class="section-toolbar">
+        <span class="section-label">
+          pattern
+        </span>
+
+        <button
+          id="pattern-loop-button"
+          class="pattern-loop-button"
+          type="button"
+          aria-pressed="false"
+        >
+          loop
+        </button>
+      </div>
+
+      <div
+        id="pattern-grid"
+        class="pattern-grid"
+      ></div>
+    </section>
+
+
+
+    <section
+      class="editor-section mokton-view mokton-shared-view"
+      aria-label="sound editor"
+    >
+      <div id="editor"></div>
+    </section>
+
+
+    <!--
+      Stage compatibility.
+      ui.jsが次の整理段階まで参照する旧IDだけ残す。
+      画面には出さない。
+    -->
+    <div
+      class="legacy-stage-hooks"
+      hidden
+      aria-hidden="true"
+    >
+      <button
+        id="sequence-page-button"
+        type="button"
+      ></button>
 
       <input
         id="pattern-length-input"
-        class="pattern-length-input compact-value-number"
         type="number"
-        min="1"
-        max="64"
-        step="1"
         value="32"
-        aria-label="パターンのステップ数"
       >
-    </label>
-    <button
-  id="sequence-view-toggle"
-  class="view-toggle-button"
-  type="button"
-  aria-label="ミキサーへ切り替え"
-  title="mixer"
->
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M5 4v16"></path>
-    <path d="M12 4v16"></path>
-    <path d="M19 4v16"></path>
 
-    <rect x="3" y="7" width="4" height="4"></rect>
-    <rect x="10" y="13" width="4" height="4"></rect>
-    <rect x="17" y="6" width="4" height="4"></rect>
-  </svg>
-</button>
-  </div>
-</div>
-      <div id="sequence-grid" class="sequence-grid"></div>
+      <button
+        id="pattern-page-button"
+        type="button"
+      ></button>
 
-      <div id="song-master-mix" class="song-master-mix" hidden>
-  <div class="song-master-mix-title">
-    <span>master mix</span>
-  </div>
-        <div class="song-master-mix-placeholder" aria-label="Song Master Mix reserved area"></div>
-      </div>
-    </section>
+      <div id="section-list"></div>
+      <div id="song-parts"></div>
+      <div id="song-grid"></div>
+      <div id="song-master-mix"></div>
 
-    <section class="editor-section" aria-label="editor">
-      <div id="editor"></div>
-
-      <div id="song-parts" class="song-parts" hidden>
-  <div class="song-parts-toolbar">
-    <span
-  class="area-title-icon"
-  aria-label="song"
-  title="song"
->
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.8"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M5 3h11l3 3v15H5z"></path>
-    <path d="M16 3v4h4"></path>
-
-    <path d="M14 8v8"></path>
-<circle cx="11.5" cy="16" r="1.5"></circle>
-  </svg>
-</span>
-
-    <div class="song-parts-toolbar-controls">
       <button
         id="song-page-button"
-        class="song-page-button"
         type="button"
-        aria-label="Song 1～32を表示中。33～64へ切り替え"
-      >
-        ◧
-      </button>
+      ></button>
+
+      <button
+        id="sequence-view-toggle"
+        type="button"
+      ></button>
 
       <button
         id="song-editor-view-toggle"
-        class="view-toggle-button"
         type="button"
-        aria-label="エディターへ切り替え"
-        title="editor"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <rect
-            x="3"
-            y="5"
-            width="18"
-            height="14"
-            rx="1.5"
-          ></rect>
-
-          <circle
-            cx="8"
-            cy="12"
-            r="2"
-          ></circle>
-
-          <circle
-            cx="16"
-            cy="12"
-            r="2"
-          ></circle>
-
-          <path d="M10 12h4"></path>
-          <path d="M6 16h12"></path>
-        </svg>
-      </button>
-    </div>
-  </div>
-
-  <div
-    id="song-grid"
-    class="song-grid"
-    aria-label="song parts"
-  ></div>
-</div>
-    </section>
-
-    <section class="pattern-section" aria-label="pattern manager">
-    <div class="pattern-section-header">
-
-  <span
-    class="area-title-icon parts-area-icon"
-    aria-label="parts"
-    title="parts"
-  >
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="4" y="4" width="6" height="6"></rect>
-      <rect x="14" y="4" width="6" height="6"></rect>
-      <rect x="4" y="14" width="6" height="6"></rect>
-      <rect x="14" y="14" width="6" height="6"></rect>
-    </svg>
-  </span>
-
-  <button
-    id="pattern-page-button"
-    class="pattern-page-button"
-    type="button"
-    aria-label="パターン1～12、フィル1～4、セクションA～Hを表示中"
-  >
-    ◧
-  </button>
-
-</div>
-  </div>
-
-  <div
-    id="pattern-grid"
-    class="pattern-grid"
-  ></div>
-
-  <div class="section-manager">
-    <div class="section-manager-header">
-      <span>section</span>
-
-      <button
-        id="add-section-button"
-        class="section-add-button"
-        type="button"
-        aria-label="セクションを追加"
-      >
-        ＋
-      </button>
+      ></button>
     </div>
 
-    <div
-      id="section-list"
-      class="section-list"
-    ></div>
-  </div>
-</section>
   </main>
-    <script
+
+  <script
     type="module"
     src="./js/main.js"
   ></script>
-
-  <script>
-    if (
-      "serviceWorker" in navigator
-    ) {
-      window.addEventListener(
-        "load",
-        () => {
-          navigator.serviceWorker
-            .register(
-              "./service-worker.js",
-              {
-                updateViaCache: "none"
-              }
-            )
-            .catch(error => {
-              console.warn(
-                "service worker registration failed:",
-                error
-              );
-            });
-        }
-      );
-    }
-  </script>
 </body>
 </html>

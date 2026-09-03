@@ -938,21 +938,6 @@ const masterMixSettings = {
 const activeTrackVoices =
   new Map();
 
-/*
- * Glide用の「最後に鳴ったピッチ」は、
- * 発音中Voiceの寿命とは分離して保持する。
- *
- * H/Dで短音になって前Voiceが終了しても、
- * 次の同一Trackノートは最後の実音からGlideできる。
- */
-const lastTrackPitchTrajectories =
-  new Map();
-
-export function resetTrackPitchHistory() {
-  lastTrackPitchTrajectories.clear();
-}
-
-
 async function ensureAudioClockReady() {
   if (!context) {
     return;
@@ -1023,147 +1008,390 @@ async function initializeFmVoiceWorklet() {
 
   if (!fmVoiceWorkletReady) {
     const processorSource = `
-      class SprootoFmVoiceProcessor extends AudioWorkletProcessor {
+      class MoktonFmVoiceProcessor extends AudioWorkletProcessor {
         constructor(options) {
           super();
-          const p = options.processorOptions || {};
-          this.startTime = Number(p.startTime) || 0;
-          this.stopTime = Number(p.stopTime) || this.startTime;
-          this.startNote = Number(p.startNote) || 60;
-          this.targetNote = Number(p.targetNote) || this.startNote;
-          this.glideDuration = Math.max(0, Number(p.glideDuration) || 0);
-          this.fmDepth = Math.max(0, Number(p.fmDepth) || 0);
-          this.fmRatio = Math.max(0.25, Number(p.fmRatio) || 1);
-          this.fmFeedbackStrength = Math.max(0, Number(p.fmFeedbackStrength) || 0);
-          this.pitchLfos = Array.isArray(p.pitchLfos) ? p.pitchLfos : [];
-          this.fmDepthLfos = Array.isArray(p.fmDepthLfos) ? p.fmDepthLfos : [];
+
+          const p =
+            options.processorOptions || {};
+
+          this.startTime =
+            Number(p.startTime) || 0;
+
+          this.stopTime =
+            Number(p.stopTime) ||
+            this.startTime;
+
+          this.note =
+            Number(p.note) || 60;
+
+          this.fmDepth =
+            Math.max(
+              0,
+              Number(p.fmDepth) || 0
+            );
+
+          this.fmRatio =
+            Math.max(
+              0.25,
+              Number(p.fmRatio) || 1
+            );
+
+          this.pitchLfos =
+            Array.isArray(p.pitchLfos)
+              ? p.pitchLfos
+              : [];
+
           this.carrierPhase = 0;
           this.modulatorPhase = 0;
-          this.pitchRandomStates = this.pitchLfos.map(config => this.makeRandomState(config));
-          this.fmRandomStates = this.fmDepthLfos.map(config => this.makeRandomState(config));
+
+          this.randomStates =
+            this.pitchLfos.map(
+              config =>
+                this.makeRandomState(
+                  config
+                )
+            );
         }
 
         frequency(note) {
-          return 440 * Math.pow(2, (note - 69) / 12);
+          return (
+            440 *
+            Math.pow(
+              2,
+              (note - 69) / 12
+            )
+          );
         }
 
         clamp(value, min, max) {
-          return Math.min(max, Math.max(min, value));
+          return Math.min(
+            max,
+            Math.max(
+              min,
+              value
+            )
+          );
         }
 
         makeRandomState(config) {
-          if (config.wave !== "random") return null;
+          if (
+            config.wave !== "random"
+          ) {
+            return null;
+          }
+
           return {
-            interval: 1 / Math.max(0.001, Number(config.rateHz) || 1),
+            interval:
+              1 /
+              Math.max(
+                0.001,
+                Number(
+                  config.rateHz
+                ) || 1
+              ),
+
             nextTime: 0,
-            value: Math.random() * 2 - 1
+
+            value:
+              Math.random() * 2 - 1
           };
         }
 
-        lfoWaveValue(config, elapsedSeconds, randomState) {
-          const wave = config.wave;
-          const rateHz = Math.max(0.001, Number(config.rateHz) || 1);
+        lfoWaveValue(
+          config,
+          elapsedSeconds,
+          randomState
+        ) {
+          const wave =
+            config.wave;
+
+          const rateHz =
+            Math.max(
+              0.001,
+              Number(
+                config.rateHz
+              ) || 1
+            );
 
           if (wave === "random") {
-            while (elapsedSeconds >= randomState.nextTime) {
-              randomState.value = Math.random() * 2 - 1;
-              randomState.nextTime += randomState.interval;
+            while (
+              elapsedSeconds >=
+              randomState.nextTime
+            ) {
+              randomState.value =
+                Math.random() * 2 - 1;
+
+              randomState.nextTime +=
+                randomState.interval;
             }
+
             return randomState.value;
           }
 
-          if (wave === "rise" || wave === "fall") {
-            const progress = this.clamp(elapsedSeconds * rateHz, 0, 1);
-            const startValue = wave === "fall" ? 1 : -1;
-            return startValue * (1 - progress);
+          if (
+            wave === "rise" ||
+            wave === "fall"
+          ) {
+            const progress =
+              this.clamp(
+                elapsedSeconds *
+                  rateHz,
+                0,
+                1
+              );
+
+            return (
+              wave === "fall"
+                ? 1
+                : -1
+            ) *
+              (1 - progress);
           }
 
-          const phase = 2 * Math.PI * rateHz * elapsedSeconds;
+          const phase =
+            2 *
+            Math.PI *
+            rateHz *
+            elapsedSeconds;
+
           switch (wave) {
-            case "triangle": return (2 / Math.PI) * Math.asin(Math.sin(phase));
-            case "square": return Math.sin(phase) >= 0 ? 1 : -1;
-            case "sawUp": return ((elapsedSeconds * rateHz) % 1) * 2 - 1;
-            case "sawDown": return 1 - ((elapsedSeconds * rateHz) % 1) * 2;
-            default: return Math.sin(phase);
+            case "triangle":
+              return (
+                2 /
+                Math.PI
+              ) *
+                Math.asin(
+                  Math.sin(
+                    phase
+                  )
+                );
+
+            case "square":
+              return (
+                Math.sin(
+                  phase
+                ) >= 0
+                  ? 1
+                  : -1
+              );
+
+            case "sawUp":
+              return (
+                (
+                  elapsedSeconds *
+                  rateHz
+                ) % 1
+              ) *
+                2 -
+                1;
+
+            case "sawDown":
+              return (
+                1 -
+                (
+                  (
+                    elapsedSeconds *
+                    rateHz
+                  ) % 1
+                ) *
+                  2
+              );
+
+            default:
+              return Math.sin(
+                phase
+              );
           }
         }
 
         pitchDepthToCents(config) {
-          const depth = this.clamp(Number(config.depth) || 0, 0, 100);
-          return (config.wave === "rise" || config.wave === "fall")
+          const depth =
+            this.clamp(
+              Number(
+                config.depth
+              ) || 0,
+              0,
+              100
+            );
+
+          return (
+            config.wave === "rise" ||
+            config.wave === "fall"
+          )
             ? depth * 36
             : depth * 12;
         }
 
         process(inputs, outputs) {
-          const output = outputs[0];
-          const channel = output?.[0];
-          if (!channel) return true;
+          const channel =
+            outputs[0]?.[0];
 
-          const blockStart = currentTime;
-          if (blockStart >= this.stopTime) return false;
+          if (!channel) {
+            return true;
+          }
 
-          for (let i = 0; i < channel.length; i++) {
-            const sampleTime = blockStart + i / sampleRate;
-            if (sampleTime < this.startTime || sampleTime >= this.stopTime) {
+          const blockStart =
+            currentTime;
+
+          if (
+            blockStart >=
+            this.stopTime
+          ) {
+            return false;
+          }
+
+          const baseFrequency =
+            this.frequency(
+              this.note
+            );
+
+          for (
+            let i = 0;
+            i < channel.length;
+            i++
+          ) {
+            const sampleTime =
+              blockStart +
+              i / sampleRate;
+
+            if (
+              sampleTime <
+                this.startTime ||
+              sampleTime >=
+                this.stopTime
+            ) {
               channel[i] = 0;
               continue;
             }
 
-            const elapsed = sampleTime - this.startTime;
+            const elapsed =
+              sampleTime -
+              this.startTime;
+
             let pitchCents = 0;
-            for (let n = 0; n < this.pitchLfos.length; n++) {
-              const config = this.pitchLfos[n];
-              pitchCents += this.lfoWaveValue(config, elapsed, this.pitchRandomStates[n]) * this.pitchDepthToCents(config);
+
+            for (
+              let n = 0;
+              n <
+                this.pitchLfos.length;
+              n++
+            ) {
+              const config =
+                this.pitchLfos[n];
+
+              pitchCents +=
+                this.lfoWaveValue(
+                  config,
+                  elapsed,
+                  this.randomStates[n]
+                ) *
+                this.pitchDepthToCents(
+                  config
+                );
             }
 
-            const glideProgress = this.glideDuration > 0
-              ? this.clamp(elapsed / this.glideDuration, 0, 1)
-              : 1;
-            const currentNote = this.startNote + (this.targetNote - this.startNote) * glideProgress;
-            const baseFrequency = this.frequency(currentNote);
-            const carrierFrequency = baseFrequency * Math.pow(2, pitchCents / 1200);
-            const baseFmAmount = carrierFrequency * this.fmDepth * 0.1;
-            let fmAmount = baseFmAmount;
+            const carrierFrequency =
+              baseFrequency *
+              Math.pow(
+                2,
+                pitchCents / 1200
+              );
 
-            for (let n = 0; n < this.fmDepthLfos.length; n++) {
-              const config = this.fmDepthLfos[n];
-              fmAmount += this.lfoWaveValue(config, elapsed, this.fmRandomStates[n]) * baseFmAmount * ((Number(config.depth) || 0) / 100);
+            const fmAmount =
+              carrierFrequency *
+              this.fmDepth *
+              0.1;
+
+            const modulatorValue =
+              Math.sin(
+                this.modulatorPhase
+              );
+
+            const instantaneousFrequency =
+              carrierFrequency +
+              modulatorValue *
+                fmAmount;
+
+            channel[i] =
+              Math.sin(
+                this.carrierPhase
+              );
+
+            this.carrierPhase +=
+              2 *
+              Math.PI *
+              instantaneousFrequency /
+              sampleRate;
+
+            this.modulatorPhase +=
+              2 *
+              Math.PI *
+              (
+                baseFrequency *
+                this.fmRatio
+              ) /
+              sampleRate;
+
+            if (
+              this.carrierPhase >
+              Math.PI * 2
+            ) {
+              this.carrierPhase %=
+                Math.PI * 2;
             }
-            fmAmount = this.clamp(fmAmount, 0, baseFmAmount * 2);
 
-            let modulatorValue = Math.sin(this.modulatorPhase);
-            if (this.fmFeedbackStrength > 0) {
-              for (let harmonic = 2; harmonic <= 12; harmonic++) {
-                modulatorValue += (this.fmFeedbackStrength / harmonic) * Math.sin(this.modulatorPhase * harmonic);
-              }
+            if (
+              this.modulatorPhase >
+              Math.PI * 2
+            ) {
+              this.modulatorPhase %=
+                Math.PI * 2;
             }
-
-            const instantaneousFrequency = carrierFrequency + modulatorValue * fmAmount;
-            channel[i] = Math.sin(this.carrierPhase);
-            this.carrierPhase += 2 * Math.PI * instantaneousFrequency / sampleRate;
-            this.modulatorPhase += 2 * Math.PI * (baseFrequency * this.fmRatio) / sampleRate;
-
-            if (this.carrierPhase > Math.PI * 2) this.carrierPhase %= Math.PI * 2;
-            if (this.modulatorPhase > Math.PI * 2) this.modulatorPhase %= Math.PI * 2;
           }
+
           return true;
         }
       }
 
-      registerProcessor("sprooto-fm-voice", SprootoFmVoiceProcessor);
+      registerProcessor(
+        "mokton-fm-voice",
+        MoktonFmVoiceProcessor
+      );
     `;
 
-    const blob = new Blob([processorSource], { type: "application/javascript" });
-    const url = URL.createObjectURL(blob);
-    fmVoiceWorkletReady = context.audioWorklet
-      .addModule(url)
-      .then(() => true)
-      .catch(error => {
-        console.warn("FM AudioWorklet unavailable:", error);
-        return false;
-      })
-      .finally(() => URL.revokeObjectURL(url));
+    const blob =
+      new Blob(
+        [processorSource],
+        {
+          type:
+            "application/javascript"
+        }
+      );
+
+    const url =
+      URL.createObjectURL(
+        blob
+      );
+
+    fmVoiceWorkletReady =
+      context.audioWorklet
+        .addModule(url)
+        .then(() => true)
+        .catch(error => {
+          console.warn(
+            "FM AudioWorklet unavailable:",
+            error
+          );
+
+          return false;
+        })
+        .finally(
+          () =>
+            URL.revokeObjectURL(
+              url
+            )
+        );
   }
 
   return fmVoiceWorkletReady;
@@ -1946,1610 +2174,1800 @@ function createSampleAndHoldLfo({
 }
 
 
-export async function playTrackStep(
-  track,
-  stepIndex,
-  delaySeconds = 0,
-  options = {}
-) {
-  sprootoDebugPlayCallsTotal += 1;
-sprootoDebugPlayCallsWindow += 1;
+let sharedNoiseBuffer = null;
+let sharedNoiseBufferContext = null;
 
-if (
-  playbackStartCapture &&
-  playbackStartCapture
-    .firstTrackCallAt === null
-) {
-  playbackStartCapture.firstTrackCallAt =
-    performance.now();
+function ensureSharedNoiseBuffer() {
+  if (
+    !context ||
+    (
+      sharedNoiseBuffer &&
+      sharedNoiseBufferContext ===
+        context
+    )
+  ) {
+    return sharedNoiseBuffer;
+  }
+
+  const durationSeconds = 12;
+
+  const length =
+    Math.max(
+      1,
+      Math.ceil(
+        context.sampleRate *
+        durationSeconds
+      )
+    );
+
+  const buffer =
+    context.createBuffer(
+      1,
+      length,
+      context.sampleRate
+    );
+
+  const data =
+    buffer.getChannelData(0);
+
+  /*
+   * 毎発音Bufferを生成しない。
+   * 1 AudioContextにつき1本だけ作り、
+   * Rhythm Voiceから使い回す。
+   */
+  let seed = 0x6d6f6b74;
+
+  for (
+    let index = 0;
+    index < length;
+    index++
+  ) {
+    seed =
+      (
+        Math.imul(
+          seed,
+          1664525
+        ) +
+        1013904223
+      ) >>> 0;
+
+    data[index] =
+      (
+        seed /
+        0xffffffff
+      ) *
+        2 -
+      1;
+  }
+
+  sharedNoiseBuffer =
+    buffer;
+
+  sharedNoiseBufferContext =
+    context;
+
+  return buffer;
 }
 
-await initializeAudio();
-
-  const soundTrack = track;
-
-  /*
- * Oscillator、Envelope、FM変調を
- * 必ず同じ未来時刻から開始する。
- *
- * 現在時刻ぴったりへ予約すると、
- * ノード生成中に開始時刻を過ぎてしまい、
- * 強いFMでトリガー位相が不安定に
- * 聞こえる場合がある。
- */
-const requestedStartTime =
-  context.currentTime +
-  Math.max(
-    0,
-    Number(delaySeconds) || 0
-  );
-
-const minimumStartTime =
-  context.currentTime +
-  (offlineRenderMode ? 0 : 0.03);
-
-const now =
-  Math.max(
-    requestedStartTime,
-    minimumStartTime
-  );
-
-  const bpm =
-    Number(options.bpm) ||
-    Number(
-      document.getElementById("bpm-input")?.value
-    ) || 120;
-
-  const offset = id =>
-    track.offsets[id]?.[stepIndex] ?? 0;
-
-  const note =
-    60 +
-    soundTrack.base.note +
-    offset("note");
-
-  const chordIndex = clamp(
-    Math.round((soundTrack.base.chord ?? 0) + offset("chord")),
-    0,
-    CHORD_NAMES.length - 1
-  );
-
-  const chordVoices = clamp(
-    Math.round((soundTrack.base.voices ?? 4) + offset("voices")),
-    1,
-    4
-  );
-
-  const chordInversion = clamp(
-    Math.round((soundTrack.base.inversion ?? 0) + offset("inversion")),
-    0,
-    3
-  );
-
-  const chordNoteOffsets = resolveChordNoteOffsets(
-    chordIndex,
-    chordVoices,
-    chordInversion,
-  );
-
-  let chordNotes = chordNoteOffsets.map(interval => note + interval);
-
-  /* MIDI域を外れる場合は、構成音間隔を保ったままコード全体をoctave移動する。 */
-  while (Math.max(...chordNotes) > 127) {
-    chordNotes = chordNotes.map(value => value - 12);
-  }
-
-  while (Math.min(...chordNotes) < 0) {
-    chordNotes = chordNotes.map(value => value + 12);
-  }
-
-  /* =========================
-   * Articulation
-   * ========================= */
-  const glideValue = clamp(
-    Math.round(
-      (soundTrack.base.glide ?? 0) +
-      offset("glide")
-    ),
-    0,
-    8
-  );
-
-  const strumValue = clamp(
-  Math.round(
-    (soundTrack.base.strum ?? 0) +
-    offset("strum")
-  ),
-  -8,
-  8
-);
-
-  const stepSeconds =
-    (60 / Math.max(1, bpm)) / 4;
-
-  const glideStepRatios = [
-  0,
-  0.125,
-  0.25,
-  0.5,
-  1,
-  2,
-  4,
-  6,
-  8
-];
-
-  const glideDuration =
-    glideValue > 0
-      ? stepSeconds *
-        glideStepRatios[glideValue]
-      : 0;
-
-  const strumGapSeconds =
-    Math.abs(strumValue) *
-    ((60 / Math.max(1, bpm)) / 64);
-
-  const maximumStrumDelay =
-    chordNotes.length > 1
-      ? (chordNotes.length - 1) *
-        strumGapSeconds
-      : 0;
-
-  const voiceStreamKey = track.id;
-
-  const previousVoice =
-    activeTrackVoices.get(voiceStreamKey);
-
-  function previousPitchAt(trajectory, time) {
-    if (!trajectory) {
-      return null;
-    }
-
-    const startNote =
-      Number(trajectory.startNote);
-    const targetNote =
-      Number(trajectory.targetNote);
-
-    if (!Number.isFinite(startNote) || !Number.isFinite(targetNote)) {
-      return null;
-    }
-
-    const startTime =
-      Number(trajectory.startTime) || 0;
-    const endTime =
-      Number(trajectory.endTime) || startTime;
-
-    if (time <= startTime || endTime <= startTime) {
-      return startNote;
-    }
-
-    if (time >= endTime) {
-      return targetNote;
-    }
-
-    const progress =
-      clamp(
-        (time - startTime) /
-          (endTime - startTime),
-        0,
-        1
-      );
-
-    return startNote +
-      (targetNote - startNote) *
-      progress;
-  }
-
-  const storedPitchTrajectories =
-    lastTrackPitchTrajectories.get(
-      voiceStreamKey
-    );
-
-  const previousTrajectories =
-    Array.isArray(
-      storedPitchTrajectories
+function soundLfoList(
+  sound,
+  bpm
+) {
+  return [sound?.lfo1, sound?.lfo2]
+    .filter(
+      lfo =>
+        lfo &&
+        typeof lfo === "object" &&
+        clamp(
+          Number(lfo.depth) || 0,
+          0,
+          100
+        ) > 0
     )
-      ? storedPitchTrajectories
-      : [];
+    .map(lfo => ({
+      target:
+        String(
+          lfo.target ??
+          "pitch"
+        ),
 
-  const glideStartNotes =
-    chordNotes.map((targetNote, voiceIndex) => {
-      if (
-        glideValue <= 0 ||
-        previousTrajectories.length === 0
-      ) {
-        return targetNote;
-      }
+      wave:
+        String(
+          lfo.wave ??
+          "sine"
+        ),
 
-      /*
-       * 実音を低い順に並べ、高音側を優先して対応。
-       * voice数が変化した場合も上側の対応を維持する。
-       */
-      const previousIndex = clamp(
-        voiceIndex +
-          previousTrajectories.length -
-          chordNotes.length,
-        0,
-        previousTrajectories.length - 1
-      );
+      depth:
+        clamp(
+          Number(lfo.depth) || 0,
+          0,
+          100
+        ),
 
-      return previousPitchAt(
-        previousTrajectories[previousIndex],
-        now
-      ) ?? targetNote;
-    });
-
-  const velocityScale =
-  clamp(
-    Number(options.velocityScale) || 1,
-    0,
-    1
-  );
-
-  /*
-   * Attack / Decay LFO
-   *
-   * エンベロープ時間は発音開始時に確定するため、
-   * LFO波形をその瞬間に1回だけサンプルし、
-   * その音のAttack / Decay値として使う。
-   * Randomは発音ごとに新しい値、周期波形は
-   * AudioContext上の現在位相をサンプルする。
-   */
-  function sampleLfoWave(
-    wave,
-    rateHz
-  ) {
-    if (wave === "random") {
-      return Math.random() * 2 - 1;
-    }
-
-    const phase =
-      2 *
-      Math.PI *
-      rateHz *
-      now;
-
-    switch (wave) {
-      case "triangle":
-        return (2 / Math.PI) *
-          Math.asin(
-            Math.sin(phase)
-          );
-
-      case "square":
-        return Math.sin(phase) >= 0
-          ? 1
-          : -1;
-
-      case "sawUp": {
-        const cyclePosition =
-          ((phase / (2 * Math.PI)) % 1 + 1) % 1;
-
-        return cyclePosition * 2 - 1;
-      }
-
-      case "sawDown": {
-        const cyclePosition =
-          ((phase / (2 * Math.PI)) % 1 + 1) % 1;
-
-        return 1 - cyclePosition * 2;
-      }
-
-      case "rise":
-        return -1;
-
-      case "fall":
-        return 1;
-
-      case "sine":
-      default:
-        return Math.sin(phase);
-    }
-  }
-
-  function envelopeLfoValue(
-    targetId,
-    baseValue,
-    minimum,
-    maximum
-  ) {
-    let result =
-      Number(baseValue) || minimum;
-
-    [1, 2].forEach(
-      lfoNumber => {
-        const prefix =
-          `lfo${lfoNumber}`;
-
-        if (
-          soundTrack.base[
-            `${prefix}Target`
-          ] !== targetId
-        ) {
-          return;
-        }
-
-        const depth =
-          clamp(
-            (
-              soundTrack.base[
-                `${prefix}Depth`
-              ] ?? 0
-            ) +
-              offset(
-                `${prefix}Depth`
-              ),
-            0,
-            100
-          );
-
-        if (depth <= 0) {
-          return;
-        }
-
-        const syncMode =
-          soundTrack.base[
-            `${prefix}SyncMode`
-          ] === "bpm"
+      rateHz:
+        lfoRateToHz(
+          lfo.rate,
+          lfo.syncMode === "bpm"
             ? "bpm"
-            : "free";
+            : "free",
+          bpm
+        )
+    }));
+}
 
-        const rateValue =
-          clamp(
-            (
-              soundTrack.base[
-                `${prefix}Rate`
-              ] ??
-              (
-                syncMode === "bpm"
-                  ? 8
-                  : 25
-              )
-            ) +
-              offset(
-                `${prefix}Rate`
-              ),
-            syncMode === "bpm"
-              ? 0
-              : 1,
-            syncMode === "bpm"
-              ? 13
-              : 100
-          );
-
-        const rateHz =
-          lfoRateToHz(
-            rateValue,
-            syncMode,
-            bpm
-          );
-
-        const wave =
-          soundTrack.base[
-            `${prefix}Wave`
-          ] ?? "sine";
-
-        const amount =
-          (maximum - minimum) *
-          0.5 *
-          (depth / 100);
-
-        result +=
-          sampleLfoWave(
-            wave,
-            rateHz
-          ) * amount;
-      }
-    );
-
-    return clamp(
-      result,
-      minimum,
-      maximum
-    );
-  }
-
-  const attackValue =
-  envelopeLfoValue(
-    "attack",
-    (soundTrack.base.attack ?? 1) +
-      offset("attack"),
-    1,
-    100
-  );
-
-const attackNormalized =
-  (attackValue - 1) / 99;
-
-/*
- * Attackは現行仕様を維持：
- * 1〜100を約1ms〜1秒へ非線形変換。
- */
-const attack =
-  0.001 +
-  0.999 *
-    Math.pow(
-      attackNormalized,
-      2.4
-    );
-
-/*
- * H/D：
- * -50〜-1 = hold
- * 0       = 最短クリック
- * +1〜+50 = decay
- */
-const holdDecayValue =
-  clamp(
-    (soundTrack.base.holdDecay ?? 0) +
-      offset("holdDecay"),
-    -50,
-    50
-  );
-
-const holdDecayAmount =
-  Math.abs(holdDecayValue);
-
-const holdDecayNormalized =
-  holdDecayAmount / 50;
-
-const envelopeDuration =
-  holdDecayAmount === 0
-    ? 0.005
-    : 0.005 +
-      9.995 *
-        Math.pow(
-          holdDecayNormalized,
-          3
+function stepChordOffsets(chord) {
+  /*
+   * Chordの保存形式はまだ最終確定していない。
+   * audio側は以下だけ受け入れ、勝手に新形式を決めない。
+   *
+   * null      -> 単音
+   * number    -> 現行Chord index互換
+   * number[]  -> 構成音の半音offset
+   */
+  if (
+    Array.isArray(chord)
+  ) {
+    const offsets =
+      chord
+        .map(Number)
+        .filter(
+          Number.isFinite
         );
 
-  const sineVolume =
-  clamp(
-    (soundTrack.base.sineVolume ?? 100) +
-      offset("sineVolume"),
-    0,
-    100
-  ) / 100;
+    return offsets.length
+      ? offsets
+      : [0];
+  }
 
-  const commonEnvelopeDuration =
-    envelopeDuration;
+  if (
+    Number.isFinite(
+      Number(chord)
+    )
+  ) {
+    return resolveChordNoteOffsets(
+      Number(chord)
+    );
+  }
 
-  const maximumDecay =
-    commonEnvelopeDuration;
+  return [0];
+}
 
-  const depth =
+function envelopeSeconds(sound) {
+  const attackValue =
     clamp(
-      soundTrack.base.fmDepth +
-      offset("fmDepth"),
-      0,
-      20
+      Number(
+        sound?.attack
+      ) || 1,
+      1,
+      100
     );
 
-  const filterCutoff =
+  const attackNormalized =
+    (
+      attackValue -
+      1
+    ) / 99;
+
+  const attack =
+    0.001 +
+    0.999 *
+      Math.pow(
+        attackNormalized,
+        2.4
+      );
+
+  const holdDecayValue =
     clamp(
-      (soundTrack.base.filterCutoff ?? 0) +
-        offset("filterCutoff"),
+      Number(
+        sound?.holdDecay
+      ) || 0,
       -50,
       50
     );
 
-  const filterResonance =
+  const amount =
+    Math.abs(
+      holdDecayValue
+    );
+
+  const normalized =
+    amount / 50;
+
+  const duration =
+    amount === 0
+      ? 0.005
+      : 0.005 +
+        9.995 *
+          Math.pow(
+            normalized,
+            3
+          );
+
+  return {
+    attack,
+    holdDecayValue,
+    duration
+  };
+}
+
+function layerPanValue(
+  performanceData
+) {
+  return (
     clamp(
-      (soundTrack.base.filterResonance ?? 0) +
-        offset("filterResonance"),
+      Number(
+        performanceData?.pan
+      ) || 0,
+      -25,
+      25
+    ) / 25
+  );
+}
+
+function soundGainValue(
+  sound,
+  performanceData,
+  velocityScale
+) {
+  const soundGain =
+    clamp(
+      Number(
+        sound?.gain
+      ) || 0,
       0,
+      150
+    ) / 100;
+
+  const stepGain =
+    clamp(
+      Number(
+        performanceData?.gain
+      ) || 0,
+      0,
+      150
+    ) / 100;
+
+  return (
+    soundGain *
+    stepGain *
+    clamp(
+      Number(
+        velocityScale
+      ) || 1,
+      0,
+      1
+    )
+  );
+}
+
+function layerProbabilityPass(
+  performanceData,
+  options
+) {
+  if (
+    options.ignoreProbability
+  ) {
+    return true;
+  }
+
+  const probability =
+    clamp(
+      Number(
+        performanceData?.probability
+      ) || 0,
+      0,
+      100
+    );
+
+  return (
+    probability >= 100 ||
+    Math.random() * 100 <
+      probability
+  );
+}
+
+function filterFrequencyFromValue(
+  value
+) {
+  const normalized =
+    clamp(
+      Number(value) || 0,
+      -50,
       50
     );
 
-  const panValue =
-  clamp(
-    soundTrack.base.pan +
-      offset("pan"),
-    -25,
-    25
-  ) / 25;
+  if (normalized === 0) {
+    return null;
+  }
 
+  if (normalized > 0) {
+    /*
+     * 正値はLow-pass。
+     * +1付近はほぼ開放、+50で強く閉じる。
+     */
+    const t =
+      normalized / 50;
 
-  const panLfoActive = [1, 2].some(lfoNumber => {
-    const prefix = `lfo${lfoNumber}`;
-    if (soundTrack.base[`${prefix}Target`] !== "pan") {
-      return false;
-    }
-
-    return clamp(
-      (soundTrack.base[`${prefix}Depth`] ?? 0) +
-        offset(`${prefix}Depth`),
-      0,
-      100
-    ) > 0;
-  });
-
-  /*
-   * Pan fast path:
-   * center固定かつPan LFOなしならStereoPannerNodeを作らない。
-   */
-  const panner =
-    (panValue !== 0 || panLfoActive)
-      ? sprootoDebugNode(context.createStereoPanner())
-      : null;
-
-/*
- * Filter OFF fast path:
- * cutoff 0では、従来allpassとして毎発音2個生成していた
- * BiquadFilterNodeを完全に省略する。
- */
-const filterEnabled =
-  filterCutoff !== 0;
-
-const filter1 =
-  filterEnabled
-    ? sprootoDebugNode(context.createBiquadFilter())
-    : null;
-
-const filter2 =
-  filterEnabled
-    ? sprootoDebugNode(context.createBiquadFilter())
-    : null;
-
-const gateEnd =
-  now + envelopeDuration + maximumStrumDelay;
-
-  /*
- * クリック防止用のRelease。
- * Resonanceが高い時も自然に消す。
- */
-const releaseTime =
-  0.05;
-
-const releaseEnd =
-  gateEnd +
-  releaseTime;
-
-/*
- * トラック全体へ掛ける
- * Pan LFOの停止管理用。
- */
-const panLfoOscillators = [];
-const panLfoGainNodes = [];
-
-  if (panner) {
-    panner.pan.setValueAtTime(
-      panValue,
-      now
-    );
+    return {
+      type: "lowpass",
+      frequency:
+        18000 *
+        Math.pow(
+          90 / 18000,
+          t
+        )
+    };
   }
 
   /*
- * Pan LFO
- *
- * LFO1／LFO2のうち、
- * Targetがpanのものだけ
- * StereoPanner.panへ接続する。
- */
-function connectPanLfo(
-  lfoNumber
-) {
+   * 負値はHigh-pass。
+   * -1付近はほぼ開放、-50で強く削る。
+   */
+  const t =
+    Math.abs(
+      normalized
+    ) / 50;
+
+  return {
+    type: "highpass",
+    frequency:
+      20 *
+      Math.pow(
+        7000 / 20,
+        t
+      )
+  };
+}
+
+function connectPanLfoForVoice({
+  panner,
+  lfos,
+  startTime,
+  stopTime,
+  cleanupSources,
+  cleanupGains
+}) {
   if (!panner) {
     return;
   }
 
-  const prefix =
-    `lfo${lfoNumber}`;
-
-  const target =
-    soundTrack.base[
-      `${prefix}Target`
-    ];
-
-  if (target !== "pan") {
-    return;
-  }
-
-  const lfoDepth =
-    clamp(
-      (
-        soundTrack.base[
-          `${prefix}Depth`
-        ] ?? 0
-      ) +
-        offset(
-          `${prefix}Depth`
-        ),
-      0,
-      100
-    );
-
-  if (lfoDepth <= 0) {
-    return;
-  }
-
-  const syncMode =
-  soundTrack.base[
-    `${prefix}SyncMode`
-  ] === "bpm"
-    ? "bpm"
-    : "free";
-
-const lfoRate =
-  clamp(
-    (
-      soundTrack.base[
-        `${prefix}Rate`
-      ] ??
-      (
-        syncMode === "bpm"
-          ? 8
-          : 25
-      )
-    ) +
-      offset(
-        `${prefix}Rate`
-      ),
-    syncMode === "bpm"
-      ? 0
-      : 1,
-    syncMode === "bpm"
-      ? 13
-      : 100
-  );
-
-  const lfoWave =
-  soundTrack.base[
-    `${prefix}Wave`
-  ] ?? "sine";
-
-const rateHz =
-  lfoRateToHz(
-    lfoRate,
-    syncMode,
-    bpm
-  );
-
-/*
- * RandomはOscillatorではなく、
- * Sample & Hold信号を直接Panへ接続する。
- */
-if (lfoWave === "random") {
-  const randomSource =
-    createSampleAndHoldLfo({
-      audioParam:
-        panner.pan,
-
-      /*
-       * Depth 100で
-       * Panを最大±1変化させる。
-       */
-      depth:
-        lfoDepth / 100,
-
-      rateHz,
-
-      startTime:
-        now,
-
-      stopTime:
-        now + envelopeDuration + 0.05
-    });
-
-  panLfoOscillators.push(
-    randomSource
-  );
-
-  return;
-}
-
-if (lfoWave === "rise" || lfoWave === "fall") {
-
-    const start =
-        lfoWave === "fall"
-            ? lfoDepth / 100
-            : -(lfoDepth / 100);
-
-    panner.pan.setValueAtTime(
-        panValue + start,
-        now
-    );
-
-    panner.pan.linearRampToValueAtTime(
-        panValue,
-        now + (1 / rateHz)
-    );
-
-    return;
-}
-
-const lfoOscillator =
-  sprootoDebugNode(context.createOscillator(), "osc");
-
-const lfoGain =
-  sprootoDebugNode(context.createGain());
-
-let lfoGainDirection = 1;
-
-  switch (lfoWave) {
-    case "triangle":
-      lfoOscillator.type =
-        "triangle";
-      break;
-
-    case "square":
-      lfoOscillator.type =
-        "square";
-      break;
-
-    case "sawUp":
-      lfoOscillator.type =
-        "sawtooth";
-      break;
-
-    case "sawDown":
-      lfoOscillator.type =
-        "sawtooth";
-
-      lfoGainDirection = -1;
-      break;
-
-    case "sine":
-    default:
-      lfoOscillator.type =
-        "sine";
-      break;
-  }
-
-  lfoOscillator.frequency
-  .setValueAtTime(
-    rateHz,
-    now
-  );
-
-  /*
-   * Depth 100で
-   * panを最大±1揺らす。
-   */
-  lfoGain.gain
-    .setValueAtTime(
-      (
-        lfoDepth /
-        100
-      ) *
-        lfoGainDirection,
-      now
-    );
-
-  lfoOscillator
-    .connect(lfoGain)
-    .connect(panner.pan);
-
-  panLfoOscillators.push(
-    lfoOscillator
-  );
-
-  panLfoGainNodes.push(
-    lfoGain
-  );
-
-  lfoOscillator.start(
-    now
-  );
-}
-
-connectPanLfo(1);
-connectPanLfo(2);
-
-  /*
-   * Filter Cutoff
-   *
-   * -100〜-1：Low Pass
-   * 0       ：OFF
-   * +1〜100 ：High Pass
-   *
-   * 同じBiquadFilterを2段直列にして、
-   * LP／HPとも24dB/oct相当として扱う。
-   */
-  if (filterEnabled) {
-    const normalizedAmount =
-      Math.abs(filterCutoff) / 50;
-
-    const isLowPass =
-      filterCutoff < 0;
-
-    const filterType =
-      isLowPass
-        ? "lowpass"
-        : "highpass";
-
-    const cutoffFrequency =
-      isLowPass
-        ? 20000 *
-          Math.pow(
-            40 / 20000,
-            normalizedAmount
-          )
-        : 20 *
-          Math.pow(
-            12000 / 20,
-            normalizedAmount
-          );
-
-    filter1.type = filterType;
-    filter2.type = filterType;
-
-    filter1.frequency.setValueAtTime(
-      cutoffFrequency,
-      now
-    );
-
-    filter2.frequency.setValueAtTime(
-      cutoffFrequency,
-      now
-    );
-
-    /*
-     * Resonanceは1段目だけへ与える。
-     * 2段とも同じQを与えるとピークが
-     * 過剰になりやすいため。
-     */
-    const resonanceQ =
-      0.0001 +
-      Math.pow(
-        filterResonance / 50,
-        1.2
-      ) * 30;
-
-    filter1.Q.setValueAtTime(
-      resonanceQ,
-      now
-    );
-
-    /*
-     * 2段目にも弱めのQを与えて、
-     * 24dB構成でもResonanceの変化を
-     * 聴き取りやすくする。
-     */
-    filter2.Q.setValueAtTime(
-      Math.max(
-        0.0001,
-        resonanceQ * 0.35
-      ),
-      now
-    );
-  }
-
-  /*
-   * Filter Cutoff LFO
-   *
-   * filterCutoffがLP／HPの時だけ、
-   * 2段のFilter detuneを同じ信号で変調する。
-   * Depth 100で最大±3600cent（3oct）。
-   */
-  const filterLfoNodes = [];
-
-  function connectFilterLfo(
-    lfoNumber
-  ) {
-    if (!filterEnabled) {
-      return;
-    }
-
-    const prefix =
-      `lfo${lfoNumber}`;
-
-    if (
-      soundTrack.base[
-        `${prefix}Target`
-      ] !== "filterCutoff"
-    ) {
-      return;
-    }
-
-    const lfoDepth =
-      clamp(
+  lfos
+    .filter(
+      lfo =>
+        lfo.target === "pan"
+    )
+    .forEach(lfo => {
+      const depth =
         (
-          soundTrack.base[
-            `${prefix}Depth`
-          ] ?? 0
-        ) +
-          offset(
-            `${prefix}Depth`
-          ),
-        0,
-        100
-      );
-
-    if (lfoDepth <= 0) {
-      return;
-    }
-
-    const syncMode =
-      soundTrack.base[
-        `${prefix}SyncMode`
-      ] === "bpm"
-        ? "bpm"
-        : "free";
-
-    const lfoRate =
-      clamp(
-        (
-          soundTrack.base[
-            `${prefix}Rate`
-          ] ??
-          (
-            syncMode === "bpm"
-              ? 8
-              : 25
-          )
-        ) +
-          offset(
-            `${prefix}Rate`
-          ),
-        syncMode === "bpm"
-          ? 0
-          : 1,
-        syncMode === "bpm"
-          ? 13
-          : 100
-      );
-
-    const lfoWave =
-      soundTrack.base[
-        `${prefix}Wave`
-      ] ?? "sine";
-
-    const rateHz =
-      lfoRateToHz(
-        lfoRate,
-        syncMode,
-        bpm
-      );
-
-    const amountCents =
-      lfoDepth * 36;
-
-    const stopTime =
-  releaseEnd + 0.01;
-
-    if (lfoWave === "random") {
-      const source =
-        sprootoDebugNode(context.createConstantSource(), "lfo");
-
-      source.connect(filter1.detune);
-      source.connect(filter2.detune);
-
-      const interval =
-        1 / Math.max(0.001, rateHz);
-
-      let time = now;
-      let eventCount = 0;
-
-      while (
-        time <= stopTime &&
-        eventCount < 4096
-      ) {
-        source.offset.setValueAtTime(
-          (Math.random() * 2 - 1) *
-            amountCents,
-          time
+          lfo.depth /
+          100
         );
 
-        time += interval;
-        eventCount += 1;
+      if (
+        lfo.wave ===
+        "random"
+      ) {
+        const source =
+          createSampleAndHoldLfo({
+            audioParam:
+              panner.pan,
+            depth,
+            rateHz:
+              lfo.rateHz,
+            startTime,
+            stopTime
+          });
+
+        source.stop(
+          stopTime
+        );
+
+        cleanupSources.push(
+          source
+        );
+
+        return;
       }
 
-      source.start(now);
-      source.stop(stopTime);
-      filterLfoNodes.push(source);
-      return;
-    }
+      const oscillator =
+        sprootoDebugNode(
+          context.createOscillator(),
+          "lfo"
+        );
 
-    if (
-      lfoWave === "rise" ||
-      lfoWave === "fall"
-    ) {
-      const source =
-        sprootoDebugNode(context.createConstantSource(), "lfo");
+      const gain =
+        sprootoDebugNode(
+          context.createGain(),
+          "lfoGain"
+        );
 
-      source.connect(filter1.detune);
-      source.connect(filter2.detune);
+      const waveMap = {
+        sine: "sine",
+        triangle:
+          "triangle",
+        square:
+          "square",
+        sawUp:
+          "sawtooth",
+        sawDown:
+          "sawtooth"
+      };
 
-      source.offset.setValueAtTime(
-        lfoWave === "fall"
-          ? amountCents
-          : -amountCents,
-        now
+      oscillator.type =
+        waveMap[lfo.wave] ??
+        "sine";
+
+      oscillator.frequency
+        .setValueAtTime(
+          lfo.rateHz,
+          startTime
+        );
+
+      gain.gain
+        .setValueAtTime(
+          lfo.wave ===
+            "sawDown"
+            ? -depth
+            : depth,
+          startTime
+        );
+
+      oscillator
+        .connect(gain)
+        .connect(
+          panner.pan
+        );
+
+      oscillator.start(
+        startTime
       );
 
-      source.offset.linearRampToValueAtTime(
-        0,
-        now + 1 / rateHz
+      oscillator.stop(
+        stopTime
       );
 
-      source.start(now);
-      source.stop(
-        Math.min(
-          stopTime,
-          now + 1 / rateHz + 0.01
-        )
+      cleanupSources.push(
+        oscillator
       );
 
-      filterLfoNodes.push(source);
-      return;
-    }
+      cleanupGains.push(
+        gain
+      );
+    });
+}
 
-    /*
- * 周期Filter LFO
- *
- * OscillatorNodeをAudioParamへ接続せず、
- * 発音開始を位相0とする波形カーブを
- * detuneへ直接予約する。
- *
- * これにより同じRate／Depthなら、
- * 各発音で必ず同じ位置から始まる。
- */
-const modulationDuration =
-  Math.max(
-    0.001,
-    stopTime - now
-  );
-
-/*
- * 1周期あたり十分な分解能を確保しつつ、
- * 長いGateでも配列が巨大にならないよう制限。
- */
-const sampleCount =
-  Math.round(
-    clamp(
-      modulationDuration *
-        rateHz *
-        256,
-      128,
-      4096
+function connectGainLfoForVoice({
+  gainNode,
+  lfos,
+  peakLevel,
+  startTime,
+  stopTime,
+  cleanupSources,
+  cleanupGains
+}) {
+  lfos
+    .filter(
+      lfo =>
+        lfo.target === "gain"
     )
-  );
+    .forEach(lfo => {
+      const depth =
+        peakLevel *
+        (
+          lfo.depth /
+          100
+        );
 
-const curve =
-  getFilterLfoCurve({
-    wave: lfoWave,
-    rateHz,
-    modulationDuration,
-    amountCents,
-    sampleCount
-  });
+      if (
+        depth <= 0
+      ) {
+        return;
+      }
 
-/*
- * 2段のFilterへ完全に同じカーブを予約。
- */
-filter1.detune.setValueCurveAtTime(
-  curve,
-  now,
-  modulationDuration
-);
+      if (
+        lfo.wave ===
+        "random"
+      ) {
+        const source =
+          createSampleAndHoldLfo({
+            audioParam:
+              gainNode.gain,
+            depth,
+            rateHz:
+              lfo.rateHz,
+            startTime,
+            stopTime
+          });
 
-filter2.detune.setValueCurveAtTime(
-  curve,
-  now,
-  modulationDuration
-);
+        source.stop(
+          stopTime
+        );
+
+        cleanupSources.push(
+          source
+        );
+
+        return;
+      }
+
+      const oscillator =
+        sprootoDebugNode(
+          context.createOscillator(),
+          "lfo"
+        );
+
+      const gain =
+        sprootoDebugNode(
+          context.createGain(),
+          "lfoGain"
+        );
+
+      const waveMap = {
+        sine: "sine",
+        triangle:
+          "triangle",
+        square:
+          "square",
+        sawUp:
+          "sawtooth",
+        sawDown:
+          "sawtooth"
+      };
+
+      oscillator.type =
+        waveMap[lfo.wave] ??
+        "sine";
+
+      oscillator.frequency
+        .setValueAtTime(
+          lfo.rateHz,
+          startTime
+        );
+
+      gain.gain
+        .setValueAtTime(
+          lfo.wave ===
+            "sawDown"
+            ? -depth
+            : depth,
+          startTime
+        );
+
+      oscillator
+        .connect(gain)
+        .connect(
+          gainNode.gain
+        );
+
+      oscillator.start(
+        startTime
+      );
+
+      oscillator.stop(
+        stopTime
+      );
+
+      cleanupSources.push(
+        oscillator
+      );
+
+      cleanupGains.push(
+        gain
+      );
+    });
+}
+
+function connectFilterLfoForVoice({
+  filter,
+  lfos,
+  startTime,
+  stopTime,
+  cleanupSources,
+  cleanupGains
+}) {
+  if (!filter) {
+    return;
   }
 
-  connectFilterLfo(1);
-  connectFilterLfo(2);
+  lfos
+    .filter(
+      lfo =>
+        lfo.target ===
+        "filter"
+    )
+    .forEach(lfo => {
+      const depthCents =
+        lfo.depth *
+        24;
 
-const mixGain =
-  sprootoDebugNode(context.createGain(), "mix");
+      if (
+        lfo.wave ===
+        "random"
+      ) {
+        const source =
+          createSampleAndHoldLfo({
+            audioParam:
+              filter.detune,
+            depth:
+              depthCents,
+            rateHz:
+              lfo.rateHz,
+            startTime,
+            stopTime
+          });
 
- /*
- * 前のhold音が次トリガーまで残る場合、
- * 次音直前の4msだけ滑らかに閉じる。
- *
- * linear rampではなく滑らかなカーブを使い、
- * 急激な傾きによるクリックを抑える。
- */
-if (
-  previousVoice?.isHold &&
-  previousVoice?.gainNode &&
-  previousVoice.endTime > now
-) {
-  const previousGain =
-    previousVoice.gainNode.gain;
+        source.stop(
+          stopTime
+        );
 
-  const transitionTime =
-    0.004;
+        cleanupSources.push(
+          source
+        );
 
-  const transitionStart =
+        return;
+      }
+
+      const oscillator =
+        sprootoDebugNode(
+          context.createOscillator(),
+          "lfo"
+        );
+
+      const gain =
+        sprootoDebugNode(
+          context.createGain(),
+          "lfoGain"
+        );
+
+      const waveMap = {
+        sine: "sine",
+        triangle:
+          "triangle",
+        square:
+          "square",
+        sawUp:
+          "sawtooth",
+        sawDown:
+          "sawtooth"
+      };
+
+      oscillator.type =
+        waveMap[lfo.wave] ??
+        "sine";
+
+      oscillator.frequency
+        .setValueAtTime(
+          lfo.rateHz,
+          startTime
+        );
+
+      gain.gain
+        .setValueAtTime(
+          lfo.wave ===
+            "sawDown"
+            ? -depthCents
+            : depthCents,
+          startTime
+        );
+
+      oscillator
+        .connect(gain)
+        .connect(
+          filter.detune
+        );
+
+      oscillator.start(
+        startTime
+      );
+
+      oscillator.stop(
+        stopTime
+      );
+
+      cleanupSources.push(
+        oscillator
+      );
+
+      cleanupGains.push(
+        gain
+      );
+    });
+}
+
+async function playLayerVoice({
+  layer,
+  sound,
+  performanceData,
+  startTime,
+  bpm,
+  options
+}) {
+  if (
+    !sound ||
+    !performanceData ||
+    !performanceData.soundId
+  ) {
+    return false;
+  }
+
+  if (
+    !layerProbabilityPass(
+      performanceData,
+      options
+    )
+  ) {
+    return false;
+  }
+
+  const {
+    attack,
+    holdDecayValue,
+    duration
+  } =
+    envelopeSeconds(
+      sound
+    );
+
+  const strumValue =
+    layer === "melodic"
+      ? clamp(
+          Math.round(
+            Number(
+              performanceData.strum
+            ) || 0
+          ),
+          -8,
+          8
+        )
+      : 0;
+
+  const note =
+    clamp(
+      60 +
+        (
+          Number(
+            performanceData.note
+          ) || 0
+        ),
+      0,
+      127
+    );
+
+  const chordNotes =
+    layer === "melodic"
+      ? stepChordOffsets(
+          performanceData.chord
+        ).map(
+          offset =>
+            clamp(
+              note + offset,
+              0,
+              127
+            )
+        )
+      : [note];
+
+  const strumGapSeconds =
+    Math.abs(
+      strumValue
+    ) *
+    (
+      (
+        60 /
+        Math.max(
+          1,
+          bpm
+        )
+      ) /
+      64
+    );
+
+  const maximumStrumDelay =
+    chordNotes.length > 1
+      ? (
+          chordNotes.length -
+          1
+        ) *
+        strumGapSeconds
+      : 0;
+
+  const gateEnd =
+    startTime +
+    duration +
+    maximumStrumDelay;
+
+  const releaseTime =
+    0.05;
+
+  const releaseEnd =
+    gateEnd +
+    releaseTime;
+
+  const peakLevel =
     Math.max(
-      context.currentTime,
-      now - transitionTime
+      0.0001,
+      soundGainValue(
+        sound,
+        performanceData,
+        options.velocityScale
+      )
+    );
+
+  const voiceGain =
+    sprootoDebugNode(
+      context.createGain(),
+      "voiceGain"
+    );
+
+  const attackEnd =
+    startTime +
+    attack;
+
+  voiceGain.gain
+    .setValueAtTime(
+      0.0001,
+      startTime
+    );
+
+  voiceGain.gain
+    .exponentialRampToValueAtTime(
+      peakLevel,
+      attackEnd
     );
 
   if (
-    typeof previousGain.cancelAndHoldAtTime ===
-    "function"
+    holdDecayValue > 0
   ) {
-    previousGain.cancelAndHoldAtTime(
-      transitionStart
+    voiceGain.gain
+      .linearRampToValueAtTime(
+        0.0001,
+        Math.max(
+          attackEnd +
+            0.001,
+          gateEnd
+        )
+      );
+  } else {
+    voiceGain.gain
+      .setValueAtTime(
+        peakLevel,
+        gateEnd
+      );
+  }
+
+  voiceGain.gain
+    .exponentialRampToValueAtTime(
+      0.0001,
+      releaseEnd
+    );
+
+  const lfos =
+    soundLfoList(
+      sound,
+      bpm
+    );
+
+  const panValue =
+    layerPanValue(
+      performanceData
+    );
+
+  const panLfoActive =
+    lfos.some(
+      lfo =>
+        lfo.target === "pan"
+    );
+
+  const panner =
+    (
+      panValue !== 0 ||
+      panLfoActive
+    )
+      ? sprootoDebugNode(
+          context.createStereoPanner(),
+          "pan"
+        )
+      : null;
+
+  if (panner) {
+    panner.pan
+      .setValueAtTime(
+        panValue,
+        startTime
+      );
+  }
+
+  const filterDefinition =
+    filterFrequencyFromValue(
+      sound.filterCutoff
+    );
+
+  const filter =
+    filterDefinition
+      ? sprootoDebugNode(
+          context.createBiquadFilter(),
+          "filter"
+        )
+      : null;
+
+  if (filter) {
+    filter.type =
+      filterDefinition.type;
+
+    filter.frequency
+      .setValueAtTime(
+        filterDefinition.frequency,
+        startTime
+      );
+
+    filter.Q
+      .setValueAtTime(
+        clamp(
+          Number(
+            sound.filterResonance
+          ) || 0,
+          0,
+          50
+        ) /
+          2,
+        startTime
+      );
+  }
+
+  let outputNode =
+    voiceGain;
+
+  if (filter) {
+    voiceGain.connect(
+      filter
+    );
+
+    outputNode =
+      filter;
+  }
+
+  if (panner) {
+    outputNode.connect(
+      panner
+    );
+
+    outputNode =
+      panner;
+  }
+
+  let exportFadeGain = null;
+
+  const fadeEnvelope =
+    options.fadeEnvelope;
+
+  if (
+    offlineRenderMode ||
+    fadeEnvelope
+  ) {
+    exportFadeGain =
+      sprootoDebugNode(
+        context.createGain(),
+        "exportFade"
+      );
+
+    exportFadeGain.gain
+      .setValueAtTime(
+        1,
+        0
+      );
+
+    if (fadeEnvelope) {
+      const fadeInStart =
+        Number(
+          fadeEnvelope.fadeInStart
+        );
+
+      const fadeInEnd =
+        Number(
+          fadeEnvelope.fadeInEnd
+        );
+
+      const fadeOutStart =
+        Number(
+          fadeEnvelope.fadeOutStart
+        );
+
+      const fadeOutEnd =
+        Number(
+          fadeEnvelope.fadeOutEnd
+        );
+
+      if (
+        Number.isFinite(
+          fadeInStart
+        ) &&
+        Number.isFinite(
+          fadeInEnd
+        ) &&
+        fadeInEnd >
+          fadeInStart
+      ) {
+        exportFadeGain.gain
+          .setValueAtTime(
+            0,
+            fadeInStart
+          );
+
+        exportFadeGain.gain
+          .linearRampToValueAtTime(
+            1,
+            fadeInEnd
+          );
+      }
+
+      if (
+        Number.isFinite(
+          fadeOutStart
+        ) &&
+        Number.isFinite(
+          fadeOutEnd
+        ) &&
+        fadeOutEnd >
+          fadeOutStart
+      ) {
+        exportFadeGain.gain
+          .setValueAtTime(
+            1,
+            fadeOutStart
+          );
+
+        exportFadeGain.gain
+          .linearRampToValueAtTime(
+            0,
+            fadeOutEnd
+          );
+      }
+    }
+
+    outputNode.connect(
+      exportFadeGain
+    );
+
+    exportFadeGain.connect(
+      mixInput
     );
   } else {
-    previousGain.cancelScheduledValues(
-      transitionStart
+    outputNode.connect(
+      mixInput
     );
   }
 
-  const fadeCurve =
-    new Float32Array([
-      1,
-      0.9619,
-      0.8536,
-      0.6913,
-      0.5,
-      0.3087,
-      0.1464,
-      0.0381,
-      0.0001
-    ]);
+  const cleanupSources = [];
+  const cleanupGains = [];
 
-  previousGain.setValueCurveAtTime(
-    fadeCurve,
-    transitionStart,
-    Math.max(
-      0.001,
-      now - transitionStart
-    )
-  );
-}
-  
-const trackVolume =
-  clamp(
-    Number(soundTrack.base.velocity) || 0,
-    0,
-    150
-  ) / 100;
+  connectPanLfoForVoice({
+    panner,
+    lfos,
+    startTime,
+    stopTime:
+      releaseEnd,
+    cleanupSources,
+    cleanupGains
+  });
 
-const peakLevel =
-  Math.max(
-    0.0001,
-    trackVolume *
-      velocityScale
-  );
-
-const attackEnd =
-  now + attack;
-
-mixGain.gain.setValueAtTime(
-  0.0001,
-  now
-);
-
-mixGain.gain.exponentialRampToValueAtTime(
-  peakLevel,
-  attackEnd
-);
-
-/*
- * H/D envelope
- *
- * decay側：Attack終了後から指定時間で0へ直線減衰。
- * hold側 ：Attack終了後から指定時間Peakを保持。
- * 0      ：最短クリック。終了時は共通Releaseで閉じる。
- */
-if (holdDecayValue > 0) {
-  mixGain.gain.linearRampToValueAtTime(
-    0.0001,
-    Math.max(
-      attackEnd + 0.001,
-      gateEnd
-    )
-  );
-} else {
-  mixGain.gain.setValueAtTime(
+  connectGainLfoForVoice({
+    gainNode:
+      voiceGain,
+    lfos,
     peakLevel,
-    gateEnd
+    startTime,
+    stopTime:
+      releaseEnd,
+    cleanupSources,
+    cleanupGains
+  });
+
+  connectFilterLfoForVoice({
+    filter,
+    lfos,
+    startTime,
+    stopTime:
+      releaseEnd,
+    cleanupSources,
+    cleanupGains
+  });
+
+  const soundKey =
+    `${layer}:${
+      performanceData.soundId
+    }`;
+
+  const previousVoice =
+    activeTrackVoices.get(
+      soundKey
+    );
+
+  if (
+    previousVoice?.gainNode &&
+    previousVoice.endTime >
+      startTime
+  ) {
+    const closeStart =
+      Math.max(
+        context.currentTime,
+        startTime -
+          0.004
+      );
+
+    try {
+      previousVoice.gainNode.gain
+        .cancelScheduledValues(
+          closeStart
+        );
+
+      previousVoice.gainNode.gain
+        .setValueAtTime(
+          Math.max(
+            0.0001,
+            previousVoice.gainNode.gain.value
+          ),
+          closeStart
+        );
+
+      previousVoice.gainNode.gain
+        .exponentialRampToValueAtTime(
+          0.0001,
+          startTime
+        );
+    } catch {}
+  }
+
+  activeTrackVoices.set(
+    soundKey,
+    {
+      gainNode:
+        voiceGain,
+      startTime,
+      endTime:
+        releaseEnd
+    }
   );
-}
 
-/*
- * クリック防止用の短い終了フェード。
- */
-mixGain.gain.exponentialRampToValueAtTime(
-  0.0001,
-  releaseEnd
-);
-
-/*
- * 今回の発音をTrackの最新Voiceとして登録。
- *
- * 次の同一Track発音時に、
- * このGainが短く閉じられる。
- */
-const currentPitchTrajectories =
-  sineVolume > 0
-    ? chordNotes.map(
-        (targetNote, voiceIndex) => {
-          const strumVoiceIndex =
-            strumValue < 0
-              ? chordNotes.length - 1 - voiceIndex
-              : voiceIndex;
-
-          const voiceDelay =
-            chordNotes.length > 1
-              ? strumVoiceIndex * strumGapSeconds
-              : 0;
-
-          const trajectoryStart =
-            now + voiceDelay;
-
-          return {
-            startNote:
-              glideStartNotes[voiceIndex] ??
-              targetNote,
-            targetNote,
-            startTime: trajectoryStart,
-            endTime:
-              glideDuration > 0
-                ? trajectoryStart + glideDuration
-                : trajectoryStart
-          };
-        }
+  const voiceGainScale =
+    1 /
+    Math.sqrt(
+      Math.max(
+        1,
+        chordNotes.length
       )
-    : [];
+    );
 
-activeTrackVoices.set(
-  voiceStreamKey,
-  {
-    gainNode: mixGain,
-    startTime: now,
-    endTime: releaseEnd,
-    pitchTrajectories:
-      currentPitchTrajectories
-  }
-);
+  const pitchLfos =
+    lfos
+      .filter(
+        lfo =>
+          lfo.target ===
+          "pitch"
+      )
+      .map(lfo => ({
+        depth:
+          lfo.depth,
+        rateHz:
+          lfo.rateHz,
+        wave:
+          lfo.wave
+      }));
 
-if (currentPitchTrajectories.length > 0) {
-  lastTrackPitchTrajectories.set(
-    voiceStreamKey,
-    currentPitchTrajectories
-  );
-}
-
-let voiceOutputNode = mixGain;
-
-if (filterEnabled) {
-  mixGain
-    .connect(filter1)
-    .connect(filter2);
-
-  voiceOutputNode = filter2;
-}
-
-if (panner) {
-  voiceOutputNode.connect(panner);
-  voiceOutputNode = panner;
-}
-
-let exportFadeGain = null;
-const fadeEnvelope = options.fadeEnvelope;
-
-if (offlineRenderMode || fadeEnvelope) {
-  exportFadeGain = sprootoDebugNode(context.createGain());
-  exportFadeGain.gain.setValueAtTime(1, 0);
-
-  if (fadeEnvelope) {
-    const fadeInStart = Number(fadeEnvelope.fadeInStart);
-    const fadeInEnd = Number(fadeEnvelope.fadeInEnd);
-    const fadeOutStart = Number(fadeEnvelope.fadeOutStart);
-    const fadeOutEnd = Number(fadeEnvelope.fadeOutEnd);
-
-    if (Number.isFinite(fadeInStart) && Number.isFinite(fadeInEnd) && fadeInEnd > fadeInStart) {
-      exportFadeGain.gain.setValueAtTime(0, fadeInStart);
-      exportFadeGain.gain.linearRampToValueAtTime(1, fadeInEnd);
-    }
-
-    if (Number.isFinite(fadeOutStart) && Number.isFinite(fadeOutEnd) && fadeOutEnd > fadeOutStart) {
-      exportFadeGain.gain.setValueAtTime(1, fadeOutStart);
-      exportFadeGain.gain.linearRampToValueAtTime(0, fadeOutEnd);
-    }
-  }
-
-  voiceOutputNode.connect(exportFadeGain);
-  exportFadeGain.connect(mixInput);
-} else {
-  voiceOutputNode.connect(mixInput);
-}
-
-  const fmVoiceNodesForCleanup = [];
-  const fmVoiceGainsForCleanup = [];
-  let fmVoiceCleanupAt = releaseEnd;
-
-  if (sineVolume > 0 && fmVoiceWorkletReady) {
-    const voiceGainScale = 1 / Math.sqrt(Math.max(1, chordNotes.length));
-
-    function workletLfoConfig(lfoNumber, target) {
-      const prefix = `lfo${lfoNumber}`;
-      if (soundTrack.base[`${prefix}Target`] !== target) return null;
-
-      const lfoDepth = clamp(
-        (soundTrack.base[`${prefix}Depth`] ?? 0) + offset(`${prefix}Depth`),
-        0,
-        100
-      );
-      if (lfoDepth <= 0) return null;
-
-      const syncMode = soundTrack.base[`${prefix}SyncMode`] === "bpm" ? "bpm" : "free";
-      const rateValue = clamp(
-        (soundTrack.base[`${prefix}Rate`] ?? (syncMode === "bpm" ? 8 : 25)) + offset(`${prefix}Rate`),
-        syncMode === "bpm" ? 0 : 1,
-        syncMode === "bpm" ? 13 : 100
-      );
-
-      return {
-        depth: lfoDepth,
-        rateHz: lfoRateToHz(rateValue, syncMode, bpm),
-        wave: soundTrack.base[`${prefix}Wave`] ?? "sine"
-      };
-    }
-
-const fmDepth = clamp(
-  soundTrack.base.fmDepth +
-    offset("fmDepth"),
-  0,
-  20
-);
-
-    const pitchLfos = [1, 2]
-      .map(lfoNumber => workletLfoConfig(lfoNumber, "pitch"))
-      .filter(Boolean);
-
-    const fmFeedbackNormalized = clamp(
-  (Number(soundTrack.base.fmFeedback) || 0) +
-    offset("fmFeedback"),
-  0,
-  50
-) / 50;
-
-const fmRatio = clamp(
-  (Number(soundTrack.base.fmRatio) || 1) +
-    offset("fmRatio"),
-  0.25,
-  8
-);
-
-const fmDepthLfos =
-  fmDepth > 0
-    ? [1, 2]
-        .map(lfoNumber =>
-          workletLfoConfig(
-            lfoNumber,
-            "fmDepth"
-          )
+  const fmDepth =
+    layer === "melodic"
+      ? clamp(
+          Number(
+            sound.fmDepth
+          ) || 0,
+          0,
+          20
         )
-        .filter(Boolean)
-    : [];
+      : 0;
 
-const fmFeedbackStrength =
-  fmDepth > 0
-    ? Math.pow(
-        fmFeedbackNormalized,
-        1.2
-      ) * 1.8
-    : 0;
+  const fmRatio =
+    layer === "melodic"
+      ? clamp(
+          Number(
+            sound.fmRatio
+          ) || 1,
+          0.25,
+          8
+        )
+      : 1;
 
-    for (let voiceIndex = 0; voiceIndex < chordNotes.length; voiceIndex++) {
-      const voiceNote = chordNotes[voiceIndex];
-      const glideStartNote = glideStartNotes[voiceIndex] ?? voiceNote;
-      const strumVoiceIndex = strumValue < 0
-        ? chordNotes.length - 1 - voiceIndex
+  const sineMix =
+    layer === "rhythm"
+      ? (
+          1 -
+          clamp(
+            Number(
+              sound.noiseMix
+            ) || 0,
+            0,
+            100
+          ) /
+            100
+        )
+      : 1;
+
+  const noiseMix =
+    layer === "rhythm"
+      ? clamp(
+          Number(
+            sound.noiseMix
+          ) || 0,
+          0,
+          100
+        ) /
+          100
+      : 0;
+
+  for (
+    let voiceIndex = 0;
+    voiceIndex <
+      chordNotes.length;
+    voiceIndex++
+  ) {
+    const voiceNote =
+      chordNotes[
+        voiceIndex
+      ];
+
+    const strumVoiceIndex =
+      strumValue < 0
+        ? chordNotes.length -
+          1 -
+          voiceIndex
         : voiceIndex;
-      const voiceStartDelay = chordNotes.length > 1
-        ? strumVoiceIndex * strumGapSeconds
+
+    const voiceStartDelay =
+      chordNotes.length > 1
+        ? strumVoiceIndex *
+          strumGapSeconds
         : 0;
-      const voiceStartTime = now + voiceStartDelay;
-      const sineStopAt = releaseEnd + 0.01 + voiceStartDelay;
 
-      const sineGain = sprootoDebugNode(context.createGain(), "sineGain");
-      sineGain.gain.setValueAtTime(
-        Math.max(0.0001, sineVolume * voiceGainScale),
-        voiceStartTime
-      );
+    const voiceStartTime =
+      startTime +
+      voiceStartDelay;
 
-      /*
-       * Fast path:
-       * FM / pitch LFO / glideを一切使わない単純サイン波は、
-       * AudioWorkletNodeを毎発音生成せず
-       * ネイティブOscillatorNodeで鳴らす。
-       *
-       * 高密度パターンで最も重い
-       * AudioWorkletNode生成数を減らすための分岐。
-       */
-       const canUseNativeSine =
-        fmDepth <= 0 &&
-         (
-         glideDuration <= 0 ||
-         glideStartNote === voiceNote
-         ) &&
-         pitchLfos.length === 0;
+    const voiceStopAt =
+      releaseEnd +
+      0.01 +
+      voiceStartDelay;
 
-         if (canUseNativeSine) {
-         const oscillator =
-          sprootoDebugNode(context.createOscillator(), "osc");
+    if (
+      sineMix > 0
+    ) {
+      const sineGain =
+        sprootoDebugNode(
+          context.createGain(),
+          "sineGain"
+        );
 
-          oscillator.type = "sine";
-
-          oscillator.frequency.setValueAtTime(
-          frequency(voiceNote),
+      sineGain.gain
+        .setValueAtTime(
+          Math.max(
+            0.0001,
+            sineMix *
+              voiceGainScale
+          ),
           voiceStartTime
         );
 
+      const canUseNativeSine =
+        (
+          layer === "rhythm" ||
+          fmDepth <= 0
+        ) &&
+        pitchLfos.length === 0;
+
+      if (
+        canUseNativeSine
+      ) {
+        const oscillator =
+          sprootoDebugNode(
+            context.createOscillator(),
+            "osc"
+          );
+
+        oscillator.type =
+          "sine";
+
+        oscillator.frequency
+          .setValueAtTime(
+            frequency(
+              voiceNote
+            ),
+            voiceStartTime
+          );
+
         oscillator
-          .connect(sineGain)
-          .connect(mixGain);
+          .connect(
+            sineGain
+          )
+          .connect(
+            voiceGain
+          );
 
         oscillator.start(
           voiceStartTime
         );
 
         oscillator.stop(
-          sineStopAt
+          voiceStopAt
         );
 
-        /*
-         * Native sine cleanup
-         *
-         * iPhone長時間再生でOscillatorNodeのended通知も
-         * Noiseと同様に途中から止まり、oscillator / sineGainが
-         * 滞留することを確認。
-         *
-         * stop時刻は既知なので、ended依存をやめて
-         * sineStopAt直後にsprooto側timerで明示releaseする。
-         */
-        if (!offlineRenderMode) {
+        if (
+          !offlineRenderMode
+        ) {
           sprootoDebugTimeout(
             () => {
-              sprootoDebugOscEndedWindow += 1;
-              sprootoDebugReleaseNode(oscillator);
-              sprootoDebugReleaseNode(sineGain);
+              sprootoDebugOscEndedWindow +=
+                1;
+
+              sprootoDebugReleaseNode(
+                oscillator
+              );
+
+              sprootoDebugReleaseNode(
+                sineGain
+              );
             },
             Math.max(
               20,
               (
-                sineStopAt -
+                voiceStopAt -
                 context.currentTime +
                 0.05
-              ) * 1000
+              ) *
+                1000
             )
           );
         }
-      } else {
-        sprootoDebugFmWorkletCreatedTotal += 1;
+      } else if (
+        fmVoiceWorkletReady
+      ) {
+        sprootoDebugFmWorkletCreatedTotal +=
+          1;
 
         const fmVoice =
           sprootoDebugNode(
             new AudioWorkletNode(
               context,
-              "sprooto-fm-voice",
+              "mokton-fm-voice",
               {
-                numberOfInputs: 0,
-                numberOfOutputs: 1,
-                outputChannelCount: [1],
+                numberOfInputs:
+                  0,
+
+                numberOfOutputs:
+                  1,
+
+                outputChannelCount:
+                  [1],
+
                 processorOptions: {
-                  startTime: voiceStartTime,
-                  stopTime: sineStopAt,
-                  startNote: glideStartNote,
-                  targetNote: voiceNote,
-                  glideDuration,
+                  startTime:
+                    voiceStartTime,
+
+                  stopTime:
+                    voiceStopAt,
+
+                  note:
+                    voiceNote,
+
                   fmDepth,
+
                   fmRatio,
-                  fmFeedbackStrength,
-                  pitchLfos,
-                  fmDepthLfos
+
+                  pitchLfos
                 }
               }
-            )
+            ),
+            "fmVoice"
           );
 
         fmVoice
-          .connect(sineGain)
-          .connect(mixGain);
+          .connect(
+            sineGain
+          )
+          .connect(
+            voiceGain
+          );
 
-        if (!offlineRenderMode) {
-          fmVoiceNodesForCleanup.push(fmVoice);
-          fmVoiceGainsForCleanup.push(sineGain);
-          fmVoiceCleanupAt = Math.max(fmVoiceCleanupAt, sineStopAt);
+        if (
+          !offlineRenderMode
+        ) {
+          sprootoDebugTimeout(
+            () => {
+              sprootoDebugReleaseNode(
+                fmVoice
+              );
+
+              sprootoDebugReleaseNode(
+                sineGain
+              );
+            },
+            Math.max(
+              50,
+              (
+                voiceStopAt -
+                context.currentTime +
+                0.05
+              ) *
+                1000
+            )
+          );
         }
+      }
+    }
+
+    /*
+     * RhythmだけNoiseを持つ。
+     * noiseMix=0ならBufferSource自体を作らない。
+     */
+    if (
+      layer === "rhythm" &&
+      noiseMix > 0
+    ) {
+      const noiseSource =
+        sprootoDebugNode(
+          context.createBufferSource(),
+          "noise"
+        );
+
+      const noiseGain =
+        sprootoDebugNode(
+          context.createGain(),
+          "noiseGain"
+        );
+
+      noiseSource.buffer =
+        ensureSharedNoiseBuffer();
+
+      noiseSource.loop = true;
+
+      noiseGain.gain
+        .setValueAtTime(
+          Math.max(
+            0.0001,
+            noiseMix
+          ),
+          voiceStartTime
+        );
+
+      noiseSource
+        .connect(
+          noiseGain
+        )
+        .connect(
+          voiceGain
+        );
+
+      noiseSource.start(
+        voiceStartTime
+      );
+
+      noiseSource.stop(
+        voiceStopAt
+      );
+
+      if (
+        !offlineRenderMode
+      ) {
+        sprootoDebugTimeout(
+          () => {
+            sprootoDebugReleaseNode(
+              noiseSource
+            );
+
+            sprootoDebugReleaseNode(
+              noiseGain
+            );
+          },
+          Math.max(
+            20,
+            (
+              voiceStopAt -
+              context.currentTime +
+              0.05
+            ) *
+              1000
+          )
+        );
       }
     }
   }
 
-  if (!offlineRenderMode && fmVoiceNodesForCleanup.length > 0) {
+  if (
+    !offlineRenderMode
+  ) {
     sprootoDebugTimeout(
       () => {
-        fmVoiceNodesForCleanup.forEach(sprootoDebugReleaseNode);
-        fmVoiceGainsForCleanup.forEach(sprootoDebugReleaseNode);
+        if (
+          activeTrackVoices.get(
+            soundKey
+          )?.gainNode ===
+          voiceGain
+        ) {
+          activeTrackVoices.delete(
+            soundKey
+          );
+        }
       },
       Math.max(
-        50,
-        (fmVoiceCleanupAt - context.currentTime + 0.05) * 1000
+        20,
+        (
+          releaseEnd -
+          context.currentTime +
+          0.05
+        ) *
+          1000
+      )
+    );
+
+    sprootoDebugTimeout(
+      () => {
+        sprootoDebugCleanups +=
+          1;
+
+        cleanupSources.forEach(
+          sprootoDebugReleaseNode
+        );
+
+        cleanupGains.forEach(
+          sprootoDebugReleaseNode
+        );
+
+        [
+          voiceGain,
+          filter,
+          panner,
+          exportFadeGain
+        ].forEach(
+          sprootoDebugReleaseNode
+        );
+      },
+      Math.max(
+        100,
+        (
+          releaseEnd +
+          0.15 -
+          context.currentTime
+        ) *
+          1000
       )
     );
   }
 
-  /*
- * トラック終了時に
- * Pan LFOも停止する。
- */
-panLfoOscillators.forEach(
-  oscillator => {
-    oscillator.stop(
-  releaseEnd + 0.01
-);
-  }
-);
-
-/*
- * この発音がまだTrackの最新Voiceなら、
- * 終了後に参照を削除する。
- */
-const registeredVoice =
-  activeTrackVoices.get(
-    voiceStreamKey
-  );
-
-if (!offlineRenderMode) {
-  sprootoDebugTimeout(
-    () => {
-      if (activeTrackVoices.get(voiceStreamKey) === registeredVoice) {
-        activeTrackVoices.delete(voiceStreamKey);
-      }
-    },
-    Math.max(
-      10,
-      (releaseEnd - context.currentTime + 0.05) * 1000
-    )
-  );
-  const graphCleanupAt = releaseEnd + 0.15;
-
-  sprootoDebugTimeout(
-    () => {
-      sprootoDebugCleanups += 1;
-
-      /*
-       * LFO sourceは停止後も接続が残るため切断する。
-       */
-      panLfoOscillators.forEach(
-        sprootoDebugReleaseNode
-      );
-
-      panLfoGainNodes.forEach(
-        sprootoDebugReleaseNode
-      );
-
-      filterLfoNodes.forEach(
-        sprootoDebugReleaseNode
-      );
-
-
-      /*
- * 発音ごとに生成した共通ノードを切断する。
- */
-      [
-  mixGain,
-  filter1,
-  filter2,
-  panner,
-  exportFadeGain,
-].forEach(
-  sprootoDebugReleaseNode
-);
-    },
-    Math.max(
-      100,
-      (
-        graphCleanupAt -
-        context.currentTime
-      ) *
-        1000
-    )
-  );
+  return true;
 }
 
+/*
+ * New mokton playback entry.
+ *
+ * STEPにはMELODIC / RHYTHMの2層があるが、
+ * Schedulerから見れば1つの時刻を予約する。
+ */
+export async function playSequenceStep(
+  step,
+  soundBank,
+  delaySeconds = 0,
+  options = {}
+) {
+  sprootoDebugPlayCallsTotal +=
+    1;
+
+  sprootoDebugPlayCallsWindow +=
+    1;
+
+  if (
+    playbackStartCapture &&
+    playbackStartCapture
+      .firstTrackCallAt === null
+  ) {
+    playbackStartCapture
+      .firstTrackCallAt =
+      performance.now();
+  }
+
+  await initializeAudio();
+
+  if (
+    !step ||
+    !soundBank
+  ) {
+    return false;
+  }
+
+  const requestedStartTime =
+    context.currentTime +
+    Math.max(
+      0,
+      Number(
+        delaySeconds
+      ) || 0
+    );
+
+  const minimumStartTime =
+    context.currentTime +
+    (
+      offlineRenderMode
+        ? 0
+        : 0.03
+    );
+
+  const baseStartTime =
+    Math.max(
+      requestedStartTime,
+      minimumStartTime
+    );
+
+  const bpm =
+    Number(
+      options.bpm
+    ) ||
+    Number(
+      document.getElementById(
+        "bpm-input"
+      )?.value
+    ) ||
+    120;
+
+  const jobs = [];
+
+  const melodic =
+    step.melodic;
+
+  if (
+    melodic?.soundId
+  ) {
+    const sound =
+      soundBank.melodic?.[
+        melodic.soundId
+      ];
+
+    if (sound) {
+      const nudgeSeconds =
+        (
+          Number(
+            melodic.nudge
+          ) || 0
+        ) *
+        (
+          (
+            60 /
+            Math.max(
+              1,
+              bpm
+            )
+          ) /
+          64
+        );
+
+      jobs.push(
+        playLayerVoice({
+          layer:
+            "melodic",
+
+          sound,
+
+          performanceData:
+            melodic,
+
+          startTime:
+            Math.max(
+              context.currentTime,
+              baseStartTime +
+                nudgeSeconds
+            ),
+
+          bpm,
+
+          options
+        })
+      );
+    }
+  }
+
+  const rhythm =
+    step.rhythm;
+
+  if (
+    rhythm?.soundId
+  ) {
+    const sound =
+      soundBank.rhythm?.[
+        rhythm.soundId
+      ];
+
+    if (sound) {
+      const nudgeSeconds =
+        (
+          Number(
+            rhythm.nudge
+          ) || 0
+        ) *
+        (
+          (
+            60 /
+            Math.max(
+              1,
+              bpm
+            )
+          ) /
+          64
+        );
+
+      jobs.push(
+        playLayerVoice({
+          layer:
+            "rhythm",
+
+          sound,
+
+          performanceData:
+            rhythm,
+
+          startTime:
+            Math.max(
+              context.currentTime,
+              baseStartTime +
+                nudgeSeconds
+            ),
+
+          bpm,
+
+          options
+        })
+      );
+    }
+  }
+
+  if (
+    jobs.length === 0
+  ) {
+    return false;
+  }
+
+  await Promise.all(
+    jobs
+  );
+
+  return true;
+}
+
+/*
+ * Transitional compatibility only.
+ *
+ * main.js / export.js are migrated next.
+ * Old Track data is deliberately not synthesized anymore.
+ */
+export async function playTrackStep(
+  track,
+  stepIndex,
+  delaySeconds = 0,
+  options = {}
+) {
+  if (
+    track?.sequenceStep &&
+    track?.soundBank
+  ) {
+    return playSequenceStep(
+      track.sequenceStep,
+      track.soundBank,
+      delaySeconds,
+      options
+    );
+  }
+
+  return false;
+}
+
+export function resetTrackPitchHistory() {
+  /*
+   * Glideは廃止。
+   * 旧main.jsのimportを切り替えるまでexport名だけ残す。
+   */
 }
 
 export function resumeAudio() {
@@ -3588,12 +4006,12 @@ export async function beginOfflineAudioRender(
     audioClockReady,
     audioClockReadyPromise,
     offlineRenderMode,
-    activeTrackVoices: [...activeTrackVoices.entries()],
-    lastTrackPitchTrajectories:
-      [...lastTrackPitchTrajectories.entries()]
+    activeTrackVoices: [...activeTrackVoices.entries()]
   };
 
   context = offlineContext;
+  sharedNoiseBuffer = null;
+  sharedNoiseBufferContext = null;
 
   offlineRenderMode = true;
   audioClockReady = true;
@@ -3605,7 +4023,6 @@ export async function beginOfflineAudioRender(
   outputAnalyser = null;
 
   activeTrackVoices.clear();
-  lastTrackPitchTrajectories.clear();
 
   master = sprootoDebugNode(context.createGain());
   master.gain.value = clamp(Number(masterVolume) || 0, 0, 100) / 100;
@@ -3678,13 +4095,7 @@ export async function beginOfflineAudioRender(
     backup.activeTrackVoices.forEach(([key, value]) => {
       activeTrackVoices.set(key, value);
     });
-
-    lastTrackPitchTrajectories.clear();
-    backup.lastTrackPitchTrajectories.forEach(([key, value]) => {
-      lastTrackPitchTrajectories.set(key, value);
-    });
-
-    context = backup.context;
+context = backup.context;
 
     master = backup.master;
     mixInput = backup.mixInput;

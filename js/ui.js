@@ -3826,7 +3826,7 @@ function fitMoktonToViewport() {
     document.documentElement.clientHeight;
 
   const margin =
-    12;
+    20;
 
   const availableWidth =
     Math.max(

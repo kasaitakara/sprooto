@@ -3648,3 +3648,12 @@ body {
   margin-left: auto !important;
   margin-right: auto !important;
 }
+
+
+/* =========================================================
+   Stage 33: viewport breathing room
+   ========================================================= */
+
+:root {
+  --mokton-fit-margin: 20px;
+}

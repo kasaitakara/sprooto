@@ -3777,3 +3777,121 @@ export function render() {
   renderSongMode();
   updatePlayingStep();
 }
+
+
+/* =========================================================
+ * Stage 30: fit the complete app to the PWA viewport
+ * ========================================================= */
+
+function fitMoktonToViewport() {
+  const app =
+    document.querySelector(".app");
+
+  if (!app) {
+    return;
+  }
+
+  const root =
+    document.documentElement;
+
+  /*
+   * Measure at scale 1 so resize/orientation changes do not compound.
+   */
+  root.style.setProperty(
+    "--mokton-app-scale",
+    "1"
+  );
+
+  const appRect =
+    app.getBoundingClientRect();
+
+  const viewportWidth =
+    window.innerWidth;
+
+  const viewportHeight =
+    window.innerHeight;
+
+  const margin =
+    12;
+
+  const availableWidth =
+    Math.max(
+      1,
+      viewportWidth -
+        margin * 2
+    );
+
+  const availableHeight =
+    Math.max(
+      1,
+      viewportHeight -
+        margin * 2
+    );
+
+  const scale =
+    Math.min(
+      availableWidth /
+        appRect.width,
+      availableHeight /
+        appRect.height
+    );
+
+  root.style.setProperty(
+    "--mokton-app-scale",
+    String(
+      Number.isFinite(scale)
+        ? Math.max(
+            0.1,
+            scale
+          )
+        : 1
+    )
+  );
+}
+
+let moktonFitFrame =
+  null;
+
+function scheduleMoktonViewportFit() {
+  if (moktonFitFrame) {
+    cancelAnimationFrame(
+      moktonFitFrame
+    );
+  }
+
+  moktonFitFrame =
+    requestAnimationFrame(
+      () => {
+        moktonFitFrame =
+          null;
+
+        fitMoktonToViewport();
+      }
+    );
+}
+
+window.addEventListener(
+  "resize",
+  scheduleMoktonViewportFit,
+  {
+    passive: true
+  }
+);
+
+window.addEventListener(
+  "orientationchange",
+  scheduleMoktonViewportFit,
+  {
+    passive: true
+  }
+);
+
+window.addEventListener(
+  "load",
+  scheduleMoktonViewportFit,
+  {
+    once: true
+  }
+);
+
+scheduleMoktonViewportFit();

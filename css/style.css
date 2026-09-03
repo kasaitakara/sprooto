@@ -3536,3 +3536,54 @@ body {
   background: var(--accent) !important;
   opacity: 1 !important;
 }
+
+
+/* =========================================================
+   Stage 30: PWA viewport-fit scaling
+   ========================================================= */
+
+:root {
+  --mokton-app-scale: 1;
+  --mokton-fit-margin: 12px;
+}
+
+/*
+ * mokton keeps its fixed internal geometry.
+ * The completed UI is scaled as one object to the largest size
+ * that fits inside the current PWA viewport.
+ */
+body {
+  position: relative !important;
+  display: block !important;
+
+  min-height: 100dvh !important;
+
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.app {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+
+  width: var(--mokton-layout-width) !important;
+
+  margin: 0 !important;
+
+  transform:
+    translate(-50%, -50%)
+    scale(var(--mokton-app-scale)) !important;
+
+  transform-origin: center center !important;
+
+  will-change: transform;
+}
+
+/* Disable the Stage 25 short-height top-alignment fallback.
+   Stage 30 handles fitting by scale instead. */
+@media (max-height: 560px) {
+  body {
+    align-items: initial !important;
+  }
+}

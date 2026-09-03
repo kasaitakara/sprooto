@@ -3681,3 +3681,9 @@ body {
 .monitor-overlay {
   display: none !important;
 }
+
+
+/* Stage 35: actual audio diagnostics overlay */
+#sprooto-audio-debug-panel {
+  display: none !important;
+}

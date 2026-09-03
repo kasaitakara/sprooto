@@ -703,6 +703,13 @@ function sprootoDebugTimeout(callback, delay) {
 }
 
 function startSprootoDebugOverlay() {
+  /*
+   * Stage 35:
+   * Keep diagnostics code available in source,
+   * but disable the visible audio/load monitor.
+   */
+  return;
+
   if (
     sprootoDebugStarted ||
     typeof window === "undefined"

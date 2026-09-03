@@ -3609,3 +3609,42 @@ body {
   max-width: 100% !important;
   overflow-x: hidden !important;
 }
+
+
+/* =========================================================
+   Stage 32: true horizontal centering
+   ========================================================= */
+
+/*
+ * Stage 31 made .app border-box while Stage 25 still left 12px
+ * horizontal padding on it. That reduced the actual content field
+ * from 244px to 220px, while the Pattern / Sequence / Editor children
+ * stayed 244px wide, so they overflowed to the right.
+ *
+ * The app container is now exactly the same 244px field as its children.
+ * Outer breathing room is handled only by the viewport-fit calculation.
+ */
+.app {
+  width: var(--mokton-layout-width) !important;
+  max-width: var(--mokton-layout-width) !important;
+
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+
+  box-sizing: content-box !important;
+}
+
+/* Every major visible block shares the exact same centered axis. */
+.app-header,
+.pattern-section,
+.sequence-section,
+.editor-section,
+#pattern-grid,
+.pattern-grid,
+#sequence-grid,
+#sequence-grid .mokton-sequence,
+.editor-section #editor,
+.mokton-editor-compact {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}

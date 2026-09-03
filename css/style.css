@@ -3657,3 +3657,27 @@ body {
 :root {
   --mokton-fit-margin: 20px;
 }
+
+
+/* =========================================================
+   Stage 34: hide performance/load monitor
+   ========================================================= */
+
+/*
+ * Keep monitoring code untouched for later diagnostics,
+ * but remove its overlay from the product UI.
+ */
+#performance-monitor,
+#performanceMonitor,
+#load-monitor,
+#loadMonitor,
+.performance-monitor,
+.performanceMonitor,
+.load-monitor,
+.loadMonitor,
+.debug-monitor,
+.debug-overlay,
+.performance-overlay,
+.monitor-overlay {
+  display: none !important;
+}

@@ -3909,3 +3909,49 @@ window.addEventListener(
 );
 
 scheduleMoktonViewportFit();
+
+
+/* =========================================================
+ * Stage 34: hide diagnostics overlay
+ * ========================================================= */
+
+function hideMoktonDiagnosticsOverlay() {
+  const selectors = [
+    "#performance-monitor",
+    "#performanceMonitor",
+    "#load-monitor",
+    "#loadMonitor",
+    ".performance-monitor",
+    ".performanceMonitor",
+    ".load-monitor",
+    ".loadMonitor",
+    ".debug-monitor",
+    ".debug-overlay",
+    ".performance-overlay",
+    ".monitor-overlay"
+  ];
+
+  document
+    .querySelectorAll(
+      selectors.join(",")
+    )
+    .forEach(
+      (element) => {
+        element.style.setProperty(
+          "display",
+          "none",
+          "important"
+        );
+      }
+    );
+}
+
+hideMoktonDiagnosticsOverlay();
+
+window.addEventListener(
+  "load",
+  hideMoktonDiagnosticsOverlay,
+  {
+    once: true
+  }
+);

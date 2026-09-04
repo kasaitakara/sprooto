@@ -50,9 +50,9 @@ body.theme-sprooto {
 }
 
 body.theme-kasai {
-  --bg: #464646;
-  --text: #fffcf0;
-  --accent: #86eced;
+  --bg: #fffcf0;
+  --text: #464646;
+  --accent: #5fa155;
 }
 
 body.theme-mei {
@@ -3887,4 +3887,17 @@ body {
  */
 .app {
   --mokton-unified-text: var(--text);
+}
+
+
+/* =========================================================
+   Stage 48: melodic / rhythm marks touch exactly
+   ========================================================= */
+
+/*
+ * RHYTHM square is 10px high at bottom: 0.
+ * Put the MELODIC bar's bottom edge exactly at its top edge.
+ */
+#sequence-grid .mokton-step-melodic-mark {
+  bottom: var(--mokton-rhythm-mark-size) !important;
 }

@@ -3981,6 +3981,65 @@ export function resumeAudio() {
   resumeAudioContext();
 }
 
+/*
+ * iOS can return from a long background period with an AudioContext
+ * that reports a usable state while its real output path is still stale.
+ *
+ * When the app was backgrounded while playback was stopped, main.js
+ * uses this before the next PLAY so the first playback starts from a
+ * fresh AudioContext / output clock instead of inheriting that stale state.
+ */
+export async function resetAudioForForegroundPlayback() {
+  if (offlineRenderMode) {
+    return;
+  }
+
+  if (reverbDisconnectTimer !== null) {
+    clearTimeout(
+      reverbDisconnectTimer
+    );
+    reverbDisconnectTimer = null;
+  }
+
+  stopPlaybackStartProbe();
+
+  activeTrackVoices.clear();
+
+  const oldContext =
+    context;
+
+  context = null;
+  master = null;
+  mixInput = null;
+  mixGain = null;
+  limiter = null;
+  reverbConvolver = null;
+  reverbDryGain = null;
+  reverbWetGain = null;
+  reverbPathConnected = false;
+  spectrumAnalyser = null;
+  outputAnalyser = null;
+  eqNodes = [];
+  spectrumData = null;
+  outputTimeData = null;
+  fmVoiceWorkletReady = null;
+
+  audioClockReady = false;
+  audioClockReadyPromise = null;
+
+  sharedNoiseBuffer = null;
+  sharedNoiseBufferContext = null;
+
+  if (
+    oldContext &&
+    oldContext.state !== "closed"
+  ) {
+    try {
+      await oldContext.close();
+    } catch {}
+  }
+}
+
 /* =========================
  * Offline export support
  * ========================= */

@@ -21,7 +21,8 @@ import {
   resumeAudio,
   beginPlaybackStartCapture,
   markPlaybackStartScheduler,
-  markPlaybackExpectedAudio
+  markPlaybackExpectedAudio,
+  resetAudioForForegroundPlayback
 } from "./audio.js";
 
 import {
@@ -43,6 +44,13 @@ import "./keyboard-navigation.js";
 let timer = null;
 let nextTickTime = 0;
 let playbackWasHidden = false;
+
+/*
+ * If the app enters the background while STOPPED, rebuild the AudioContext
+ * before the next PLAY. This targets the stale-output condition seen after
+ * long iPhone background periods without touching normal foreground starts.
+ */
+let audioNeedsForegroundReset = false;
 /* =========================
  * Screen Wake Lock
  * 再生中だけ画面スリープを抑止
@@ -838,6 +846,15 @@ async function togglePlayback() {
 
 beginPlaybackStartCapture();
 
+if (
+  audioNeedsForegroundReset
+) {
+  audioNeedsForegroundReset =
+    false;
+
+  await resetAudioForForegroundPlayback();
+}
+
 await initializeAudio();
 
 setMasterVolumeValue(
@@ -848,12 +865,6 @@ setMasterVolumeValue(
 
 state.isPlaying = true;
 
-state.playingStepIndex =
-  0;
-
-state.playbackTickIndex =
-  0;
-
 const started =
   beginSelectedPlayback();
 
@@ -861,6 +872,17 @@ if (!started) {
   stopPlayback();
   return;
 }
+
+/*
+ * beginSelectedPlayback() establishes the playback source and clears
+ * the runtime step indices. Set the initial position only AFTER that,
+ * otherwise STEP 0 is lost and playback begins from STEP 1.
+ */
+state.playingStepIndex =
+  0;
+
+state.playbackTickIndex =
+  0;
 
 clearQueuedSource();
 
@@ -1381,11 +1403,19 @@ document.addEventListener(
     ) {
       if (state.isPlaying) {
         playbackWasHidden = true;
+      } else {
+        audioNeedsForegroundReset =
+          true;
       }
 
       return;
     }
 
+    /*
+     * Keep the lightweight resume path on foreground.
+     * If the app was hidden while stopped, the next user-initiated PLAY
+     * performs a full AudioContext reset from togglePlayback().
+     */
     resumeAudio();
 
     if (!state.isPlaying) {

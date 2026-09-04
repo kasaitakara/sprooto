@@ -1359,11 +1359,11 @@ const THEME_CLASSES = Object.freeze([
 ]);
 
 function applyTheme(themeClass) {
-  document.body.classList.remove(
+  document.documentElement.classList.remove(
     ...THEME_CLASSES
   );
 
-  document.body.classList.add(
+  document.documentElement.classList.add(
     themeClass
   );
 
@@ -1374,7 +1374,7 @@ function applyTheme(themeClass) {
    * definitions drifting apart and makes CSS edits immediately authoritative.
    */
   const computedStyle =
-    getComputedStyle(document.body);
+    getComputedStyle(document.documentElement);
 
   const backgroundColor =
     computedStyle

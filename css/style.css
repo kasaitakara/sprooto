@@ -4,10 +4,6 @@
    ========================================================= */
 
 :root {
-  --bg: #faf4e7;
-  --text: #4b6648;
-  --accent: #ffe100;
-
   --background: var(--bg);
   --selected-bg: var(--accent);
   --selected-text: var(--bg);
@@ -43,46 +39,51 @@
    Stage 43: six 3-color palettes
    ========================================================= */
 
-body.theme-sprooto {
+:root.theme-mono82 {
+  --bg: #0e0e0e;
+  --text: #fafafa;
+  --accent: #7deb5c;
+}
+   :root.theme-sprooto {
   --bg: #faf4e7;
   --text: #4b6648;
   --accent: #8ed2d7;
 }
 
-body.theme-kasai {
-  --bg: #fffcf0;
-  --text: #464646;
-  --accent: #5fa155;
+:root.theme-kasai {
+  --bg: #363636;
+  --text: #f2f2f2;
+  --accent: #7ff4de;
 }
 
-body.theme-mei {
+:root.theme-mei {
   --bg: #fefcf4;
   --text: #164d03;
   --accent: #4d88b6;
 }
 
-body.theme-ryuichi {
+:root.theme-ryuichi {
   --bg: #1c1c1c;
   --text: #ababab;
   --accent: #ffffff;
 }
 
-body.theme-aya {
+:root.theme-aya {
   --bg: #ededed;
   --text: #417d90;
   --accent: #ff73ce;
 }
 
-body.theme-tobokegao {
+:root.theme-tobokegao {
   --bg: #ffffff;
   --text: #116ea4;
   --accent: #ffcc00;
 }
 
-body.theme-game {
+:root.theme-game {
   --bg: #ffffff;
   --text: #711521;
-  --accent: #d5c260;
+  --accent: #f0d85f;
 }
 
 * {

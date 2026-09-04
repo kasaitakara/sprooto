@@ -143,7 +143,7 @@ let selectedStepIndex =
   null;
 
 let appView =
-  "pattern";
+  "sequence";
 
 function setAppView(
   view
@@ -1588,8 +1588,26 @@ function createCompactSoundButton(
       selectedLfoKey =
         null;
 
-      selectedStepParameterId =
-        null;
+      /*
+       * Keep the current STEP offset parameter selected.
+       * Changing Sound now switches the offset view to the same
+       * performance parameter for the newly selected Sound.
+       *
+       * If the target layer does not have that parameter
+       * (e.g. melodic "stm" -> rhythm), leave offset mode only
+       * for that incompatible parameter.
+       */
+      if (
+        selectedStepParameterId &&
+        !stepDefinitions().some(
+          definition =>
+            definition.id ===
+            selectedStepParameterId
+        )
+      ) {
+        selectedStepParameterId =
+          null;
+      }
 
       renderEditor();
       renderSequence();
@@ -2660,6 +2678,12 @@ function createStepButton(
       )
     );
 
+    melodicMark.classList.toggle(
+      "selected-sound",
+      melodicSoundId ===
+        state.selectedSoundId
+    );
+
     const rhythmMark =
       document.createElement(
         "span"
@@ -2673,6 +2697,12 @@ function createStepButton(
       Boolean(
         rhythmSoundId
       )
+    );
+
+    rhythmMark.classList.toggle(
+      "selected-sound",
+      rhythmSoundId ===
+        state.selectedSoundId
     );
 
     visual.append(
@@ -2968,6 +2998,14 @@ export function renderSequence() {
   sequenceGrid.appendChild(
     createStepParameterStrip()
   );
+
+  /*
+   * renderSequence() replaces the STEP DOM.
+   * Re-bind previousPlayingStep immediately so the next playback tick
+   * removes the highlight from the current live element, not from
+   * an already detached old element.
+   */
+  updatePlayingStep();
 }
 
 

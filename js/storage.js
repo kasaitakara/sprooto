@@ -38,6 +38,13 @@ const PROJECT_MIGRATION_KEY =
 const PROJECT_SCHEMA_VERSION = 1;
 const AUTOSAVE_DELAY = 500;
 
+/*
+ * Stage 36:
+ * Existing IndexedDB recovery/autosave is reused as the temporary save.
+ * No new project-management UI is added here.
+ */
+
+
 let autosaveTimer = null;
 let databasePromise = null;
 let dirty = false;
@@ -450,11 +457,23 @@ function restoreProjectSettings(
 function projectDataIsValid(
   data
 ) {
+  /*
+   * mokton temporary-save compatibility:
+   *
+   * The old sprooto validator required fills / sections.
+   * Those collections no longer exist in the mokton project model,
+   * so valid autosaves were being rejected on the next launch.
+   *
+   * Current minimum project shape:
+   * - project-fixed soundBank
+   * - patterns[]
+   * - song
+   */
   return Boolean(
     data &&
+    data.soundBank &&
+    typeof data.soundBank === "object" &&
     Array.isArray(data.patterns) &&
-    Array.isArray(data.fills) &&
-    Array.isArray(data.sections) &&
     data.song &&
     typeof data.song === "object"
   );

@@ -3687,3 +3687,32 @@ body {
 #sprooto-audio-debug-panel {
   display: none !important;
 }
+
+
+/* =========================================================
+   Stage 37: interaction fixes / mono82 UI
+   ========================================================= */
+
+/* M / S letters stay mathematically centered inside their active box. */
+.mokton-selected-sound-info .mokton-mini-button,
+.mokton-ms-controls .mokton-mini-button {
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+/*
+ * Selected Sound placement:
+ * only the mark belonging to the currently selected Sound
+ * gets the accent. Other placed Sounds remain foreground white.
+ */
+#sequence-grid .mokton-step-melodic-mark.active.selected-sound,
+#sequence-grid .mokton-step-rhythm-mark.active.selected-sound {
+  background: var(--accent) !important;
+}
+
+/* Pattern toolbar no longer needs a left-side label placeholder. */
+.pattern-section .section-toolbar {
+  justify-content: flex-end !important;
+}

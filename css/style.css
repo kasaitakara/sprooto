@@ -3716,3 +3716,28 @@ body {
 .pattern-section .section-toolbar {
   justify-content: flex-end !important;
 }
+
+
+/* =========================================================
+   Stage 39: 40 Pattern / 8 x 5
+   ========================================================= */
+
+#pattern-grid,
+.pattern-grid {
+  grid-template-rows:
+    repeat(
+      5,
+      var(--mokton-upper-row-height)
+    ) !important;
+}
+
+/*
+ * Empty Pattern is intentionally reduced to a single dot.
+ * Fixed Pattern IDs remain internal and appear once data exists.
+ */
+.mokton-pattern-id {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}

@@ -45,7 +45,7 @@ import {
  * - Project固定 Sound Bank 1-4 / a-d
  * - 32 STEP / 1 Timeline
  * - STEP内 MELODIC + RHYTHM overlay
- * - Pattern 01-32
+ * - Pattern 01-40
  *
  * - Sound Parameter editor
  * - STEP Performance editor
@@ -956,6 +956,14 @@ const STEP_PARAMETER_SCHEMA =
       },
 
       {
+        id: "nudge",
+        label: "ndg",
+        min: -4,
+        max: 4,
+        step: 1
+      },
+
+      {
         id: "probability",
         label: "prb",
         min: 0,
@@ -968,14 +976,6 @@ const STEP_PARAMETER_SCHEMA =
         label: "sub",
         min: -1,
         max: 6,
-        step: 1
-      },
-
-      {
-        id: "nudge",
-        label: "ndg",
-        min: -4,
-        max: 4,
         step: 1
       },
 
@@ -1014,6 +1014,14 @@ const STEP_PARAMETER_SCHEMA =
       },
 
       {
+        id: "nudge",
+        label: "ndg",
+        min: -4,
+        max: 4,
+        step: 1
+      },
+
+      {
         id: "probability",
         label: "prb",
         min: 0,
@@ -1034,14 +1042,6 @@ const STEP_PARAMETER_SCHEMA =
         label: "spr",
         min: 0,
         max: 100,
-        step: 1
-      },
-
-      {
-        id: "nudge",
-        label: "ndg",
-        min: -4,
-        max: 4,
         step: 1
       }
     ]
@@ -1589,24 +1589,27 @@ function createCompactSoundButton(
         null;
 
       /*
-       * Keep the current STEP offset parameter selected.
-       * Changing Sound now switches the offset view to the same
-       * performance parameter for the newly selected Sound.
-       *
-       * If the target layer does not have that parameter
-       * (e.g. melodic "stm" -> rhythm), leave offset mode only
-       * for that incompatible parameter.
+       * Preserve the selected STEP parameter by its visual slot.
+       * Slots 1-6 are shared between layers.
+       * Slot 7 maps melodic stm <-> rhythm spr.
        */
       if (
-        selectedStepParameterId &&
-        !stepDefinitions().some(
-          definition =>
-            definition.id ===
-            selectedStepParameterId
-        )
+        selectedStepParameterId
       ) {
-        selectedStepParameterId =
-          null;
+        const nextDefinitions =
+          stepDefinitions();
+
+        if (
+          !nextDefinitions.some(
+            definition =>
+              definition.id ===
+              selectedStepParameterId
+          )
+        ) {
+          selectedStepParameterId =
+            nextDefinitions[6]?.id ??
+            null;
+        }
       }
 
       renderEditor();
@@ -3134,7 +3137,7 @@ function applyPatternRangeToLoop() {
 
 
 /* =========================================================
- * Pattern 01-32
+ * Pattern 01-40
  *
  * Pattern ID is fixed.
  * song.order controls playback/display order only.
@@ -3298,9 +3301,13 @@ function createPatternButton(
     "mokton-pattern-id";
 
   id.textContent =
-    patternLabel(
-      patternIndex
-    );
+    sourceHasData(
+      pattern
+    )
+      ? patternLabel(
+          patternIndex
+        )
+      : "▪";
 
   const repeat =
     document.createElement(

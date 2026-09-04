@@ -10,7 +10,7 @@ import {
 
 export const STEP_COUNT = 32;
 export const PAGE_STEP_COUNT = 32;
-export const PATTERN_SLOT_COUNT = 32;
+export const PATTERN_SLOT_COUNT = 40;
 
 export const MELODIC_SOUND_IDS = Object.freeze(["1", "2", "3", "4"]);
 export const RHYTHM_SOUND_IDS = Object.freeze(["a", "b", "c", "d"]);

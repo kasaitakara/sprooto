@@ -50,9 +50,15 @@ body.theme-sprooto {
 }
 
 body.theme-kasai {
+  --bg: #464646;
+  --text: #fffcf0;
+  --accent: #86eced;
+}
+
+body.theme-mei {
   --bg: #fefcf4;
-  --text: #5a5a5a;
-  --accent: #689156;
+  --text: #164d03;
+  --accent: #4d88b6;
 }
 
 body.theme-ryuichi {

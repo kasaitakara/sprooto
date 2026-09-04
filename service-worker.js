@@ -1,4 +1,4 @@
-const CACHE_NAME = "sprooto-cache-v2";
+const CACHE_NAME = "sprooto-cache-v4";
 
 const APP_SHELL = [
   "./",

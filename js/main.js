@@ -1347,10 +1347,95 @@ volumeInput.addEventListener(
   }
 );
 
+const THEME_PALETTES = Object.freeze({
+  "theme-sprooto": {
+    bg: "#faf4e7",
+    text: "#4b6648",
+    accent: "#ffe100"
+  },
+  "theme-kasai": {
+    bg: "#fbf8ec",
+    text: "#858585",
+    accent: "#8bdc9a"
+  },
+  "theme-ryuichi": {
+    bg: "#1c1c1c",
+    text: "#ababab",
+    accent: "#ffffff"
+  },
+  "theme-aya": {
+    bg: "#ededed",
+    text: "#417d90",
+    accent: "#ff73ce"
+  },
+  "theme-tobokegao": {
+    bg: "#ffffff",
+    text: "#116ea4",
+    accent: "#ffcc00"
+  },
+  "theme-game": {
+    bg: "#ffffff",
+    text: "#711521",
+    accent: "#8b7300"
+  }
+});
+
+const THEME_CLASSES = Object.freeze([
+  "theme-mokton",
+  ...Object.keys(THEME_PALETTES)
+]);
+
+function applyTheme(themeClass) {
+  const palette =
+    THEME_PALETTES[themeClass] ??
+    THEME_PALETTES["theme-sprooto"];
+
+  document.body.classList.remove(
+    ...THEME_CLASSES
+  );
+
+  document.body.classList.add(
+    themeClass
+  );
+
+  /*
+   * Theme variables must live on :root, not only body.
+   * Some late-stage rules resolve from the root scope; keeping the
+   * old sprooto values there caused most text to remain deep green
+   * while only a few body-scoped elements followed the selected palette.
+   */
+  const rootStyle =
+    document.documentElement.style;
+
+  rootStyle.setProperty(
+    "--bg",
+    palette.bg
+  );
+  rootStyle.setProperty(
+    "--text",
+    palette.text
+  );
+  rootStyle.setProperty(
+    "--accent",
+    palette.accent
+  );
+
+  const themeColorMeta =
+    document.querySelector(
+      'meta[name="theme-color"]'
+    );
+
+  themeColorMeta?.setAttribute(
+    "content",
+    palette.bg
+  );
+
+  refreshMasterMixMeterColor();
+}
+
 themeButton.addEventListener(
   "click",
   () => {
-
     const nextIndex =
       (themeSelector.selectedIndex + 1) %
       themeSelector.options.length;
@@ -1361,29 +1446,15 @@ themeButton.addEventListener(
     themeSelector.dispatchEvent(
       new Event("change")
     );
-
   }
 );
+
 themeSelector.addEventListener(
   "change",
   () => {
-    const themeClasses = [
-      "theme-sprooto",
-      "theme-kasai",
-      "theme-ryuichi",
-      "theme-aya",
-      "theme-tobokegao"
-    ];
-
-    document.body.classList.remove(
-      ...themeClasses
-    );
-
-    document.body.classList.add(
+    applyTheme(
       themeSelector.value
     );
-
-    refreshMasterMixMeterColor();
   }
 );
 
@@ -1406,6 +1477,10 @@ redoButton.addEventListener("click", () => {
 });
 
 async function initializeApp() {
+  applyTheme(
+    themeSelector.value
+  );
+
   await restoreAutosave();
 
   render();

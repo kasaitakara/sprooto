@@ -4,9 +4,9 @@
    ========================================================= */
 
 :root {
-  --bg: #090909;
-  --text: #f2f2ec;
-  --accent: #9dff4f;
+  --bg: #faf4e7;
+  --text: #4b6648;
+  --accent: #ffe100;
 
   --background: var(--bg);
   --selected-bg: var(--accent);
@@ -37,6 +37,46 @@
   --app-width: 390px;
   --gap: 8px;
   --radius: 0px;
+}
+
+/* =========================================================
+   Stage 43: six 3-color palettes
+   ========================================================= */
+
+body.theme-sprooto {
+  --bg: #faf4e7;
+  --text: #4b6648;
+  --accent: #8ed2d7;
+}
+
+body.theme-kasai {
+  --bg: #fefcf4;
+  --text: #5a5a5a;
+  --accent: #689156;
+}
+
+body.theme-ryuichi {
+  --bg: #1c1c1c;
+  --text: #ababab;
+  --accent: #ffffff;
+}
+
+body.theme-aya {
+  --bg: #ededed;
+  --text: #417d90;
+  --accent: #ff73ce;
+}
+
+body.theme-tobokegao {
+  --bg: #ffffff;
+  --text: #116ea4;
+  --accent: #ffcc00;
+}
+
+body.theme-game {
+  --bg: #ffffff;
+  --text: #711521;
+  --accent: #d5c260;
 }
 
 * {
@@ -3827,4 +3867,18 @@ body {
   font-size: 7px;
   color: var(--accent) !important;
   pointer-events: none;
+}
+
+/* =========================================================
+   Stage 45: theme-local unified text color
+   ========================================================= */
+
+/*
+ * --mokton-unified-text was previously declared on :root.
+ * Because it contains var(--text), it could keep resolving against the
+ * root palette instead of the active body theme. Define it inside the
+ * actual application subtree so every theme uses its own --text value.
+ */
+.app {
+  --mokton-unified-text: var(--text);
 }

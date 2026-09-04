@@ -231,6 +231,33 @@ window.addEventListener(
 );
 
 window.addEventListener(
+  "sequencechange",
+  () => {
+    if (
+      !state.isPlaying ||
+      state.playbackTickIndex === null ||
+      state.playingStepIndex === null
+    ) {
+      return;
+    }
+
+    /*
+     * rand / shift can replace STEP data that was already prebuffered.
+     * Drop the logical prebuffer watermark and rebuild from the current
+     * playback position so future scheduler ticks are not skipped.
+     */
+    audioScheduledThroughTick =
+      state.playbackTickIndex - 1;
+
+    scheduleAudioAhead(
+      state.playbackTickIndex,
+      state.playingStepIndex,
+      performance.now()
+    );
+  }
+);
+
+window.addEventListener(
   "projectchange",
   event => {
     /*

@@ -3741,3 +3741,90 @@ body {
   justify-content: center;
   text-align: center;
 }
+
+
+/* =========================================================
+   Stage 41: pattern / STEP / Sound geometry
+   ========================================================= */
+
+/* Pattern data state is now explicit: empty = ▪, used = fixed ID. */
+.mokton-pattern-button.has-data
+.mokton-pattern-id::after {
+  content: none !important;
+  display: none !important;
+}
+
+/*
+ * STEP underline:
+ * 20px width remains unchanged.
+ * Grow upward from the same bottom edge so the playback accent is visible,
+ * while narrowing the gap to the 10px RHYTHM square.
+ */
+:root {
+  --mokton-step-underline-height: 3px;
+}
+
+#sequence-grid .mokton-step::after,
+#sequence-grid .mokton-step.playing::after {
+  height:
+    var(--mokton-step-underline-height) !important;
+}
+
+#sequence-grid .mokton-step-visual {
+  bottom: 4px !important;
+}
+
+/*
+ * 20px Sound columns already match the SEQUENCE grid.
+ * Make the selectable key itself 20 x 20 instead of the old tall rectangle.
+ */
+.mokton-sound-button-compact {
+  width: 20px !important;
+  min-width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  max-height: 20px !important;
+  padding: 0 !important;
+}
+
+
+/* =========================================================
+   Stage 42: restore thin STEP underline + centered playhead dot
+   ========================================================= */
+
+/* Restore the original thin underline and original visual spacing. */
+:root {
+  --mokton-step-underline-height: 1px;
+}
+
+#sequence-grid .mokton-step::after,
+#sequence-grid .mokton-step.playing::after {
+  height: 1px !important;
+}
+
+#sequence-grid .mokton-step-visual {
+  bottom: 5px !important;
+}
+
+/*
+ * Playback position gets a small centered "▪" marker above the underline.
+ * It is attached to the visual layer so it does not interfere with the
+ * existing STEP clipboard / selection pseudo-elements.
+ */
+#sequence-grid
+.mokton-step.playing
+.mokton-step-visual::after {
+  content: "▪";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  transform: translateX(-50%);
+  display: block;
+  width: 8px;
+  height: 8px;
+  line-height: 8px;
+  text-align: center;
+  font-size: 7px;
+  color: var(--accent) !important;
+  pointer-events: none;
+}

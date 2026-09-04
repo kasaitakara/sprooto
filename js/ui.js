@@ -1461,6 +1461,11 @@ function renderSequenceTools() {
     createMiniButton("◀", () => {
       saveHistory();
       shiftSequence(-1);
+      window.dispatchEvent(
+        new CustomEvent(
+          "sequencechange"
+        )
+      );
       renderSequence();
       renderEditor();
     }, { title: "shift sequence left" }),
@@ -1468,6 +1473,11 @@ function renderSequenceTools() {
     createMiniButton("▶", () => {
       saveHistory();
       shiftSequence(1);
+      window.dispatchEvent(
+        new CustomEvent(
+          "sequencechange"
+        )
+      );
       renderSequence();
       renderEditor();
     }, { title: "shift sequence right" }),
@@ -1475,6 +1485,11 @@ function renderSequenceTools() {
     createMiniButton("rdm", () => {
       saveHistory();
       randomizeSequence();
+      window.dispatchEvent(
+        new CustomEvent(
+          "sequencechange"
+        )
+      );
       renderSequence();
       renderEditor();
     }, { title: "shuffle existing steps" })

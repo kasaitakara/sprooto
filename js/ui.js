@@ -397,19 +397,31 @@ function createMono82Icon(
 
     case "undo":
       addPath(
-        "M9 5 4 10l5 5M5 10h9c4 0 6 2 6 6v3"
+        "M18 4v3c0 2-1 3-3 3H6M9 7l-3 3 3 3"
       );
       break;
 
     case "redo":
       addPath(
-        "m15 5 5 5-5 5M19 10h-9c-4 0-6 2-6 6v3"
+        "M6 4v3c0 2 1 3 3 3h9M15 7l3 3-3 3"
       );
       break;
 
     case "loop":
       addPath(
-        "M5 7h12l-3-3M17 7l-3 3M19 17H7l3 3M7 17l3-3"
+        "M4 11.5V10c0-2 1-3 3-3h10.5"
+      );
+
+      addPolygon(
+        "22,7 16.5,3 16.5,11"
+      );
+
+      addPath(
+        "M20 12.5V14c0 2-1 3-3 3H6.5"
+      );
+
+      addPolygon(
+        "2,17 7.5,13 7.5,21"
       );
       break;
 

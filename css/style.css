@@ -42,7 +42,7 @@
 :root.theme-mono82 {
   --bg: #0e0e0e;
   --text: #fafafa;
-  --accent: #e88dd3;
+  --accent: #4fe457;
 }
    :root.theme-sprooto {
   --bg: #e8e2d9;
@@ -3992,4 +3992,216 @@ body {
 .mono82-lfo-wave-icon {
   width: 19px;
   height: 11px;
+}
+
+
+/* =========================================================
+   mono82 SVG icon color fix
+   Header / sequencer icons follow text color.
+   Play uses accent only while playing.
+   ========================================================= */
+
+.history-button,
+.pattern-loop-button,
+.mokton-mini-button {
+  color: var(--text) !important;
+}
+
+.history-button .mono82-icon,
+.pattern-loop-button .mono82-icon,
+.mokton-mini-button .mono82-icon {
+  color: inherit;
+}
+
+.play-button {
+  color: var(--text) !important;
+}
+
+.play-button .mono82-icon {
+  color: inherit;
+}
+
+/* Existing playback state uses .playing on the play button. */
+.play-button.playing {
+  color: var(--accent) !important;
+}
+
+/* Keep loop active-state behavior independent from playback. */
+.pattern-loop-button.active {
+  color: var(--accent) !important;
+}
+
+
+/* =========================================================
+   mono82 SVG explicit paint fix
+   Do not rely on SVG default fill/stroke.
+   ========================================================= */
+
+/* Outline icons: undo / redo / loop */
+#undo-button .mono82-icon path,
+#redo-button .mono82-icon path,
+#pattern-loop-button .mono82-icon path {
+  fill: none !important;
+  stroke: var(--text) !important;
+  stroke-width: 2 !important;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+}
+
+/* Solid icons: play / sequencer shift */
+#play-button .mono82-icon polygon,
+.mokton-mini-button .mono82-shift-icon polygon {
+  fill: var(--text) !important;
+  stroke: none !important;
+}
+
+/* PLAY only: accent while actually playing */
+#play-button.playing .mono82-icon polygon,
+#play-button.active .mono82-icon polygon,
+#play-button[aria-pressed="true"] .mono82-icon polygon {
+  fill: var(--accent) !important;
+}
+
+/* Loop stays text color even when ON; selection background remains disabled. */
+#pattern-loop-button,
+#pattern-loop-button.active,
+#pattern-loop-button[aria-pressed="true"] {
+  color: var(--text) !important;
+  background: transparent !important;
+}
+
+#pattern-loop-button.active .mono82-icon path,
+#pattern-loop-button[aria-pressed="true"] .mono82-icon path {
+  stroke: var(--text) !important;
+}
+
+
+/* =========================================================
+   mono82 icon shape/size adjustment
+   ========================================================= */
+
+/* Header transport / history / loop: smaller */
+#undo-button .mono82-icon,
+#redo-button .mono82-icon,
+#pattern-loop-button .mono82-icon {
+  width: 13px !important;
+  height: 13px !important;
+}
+
+#play-button .mono82-icon {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* Sequencer shift arrows: smaller still */
+.mokton-mini-button .mono82-shift-icon {
+  width: 10px !important;
+  height: 10px !important;
+}
+
+/* Keep line weight readable after downsizing */
+#undo-button .mono82-icon path,
+#redo-button .mono82-icon path,
+#pattern-loop-button .mono82-icon path {
+  stroke-width: 2 !important;
+}
+
+
+/* icon shape revision 2 */
+#pattern-loop-button .mono82-icon path {
+  stroke-linecap: square !important;
+  stroke-linejoin: round !important;
+}
+
+
+/* icon shape revision 3 */
+#undo-button .mono82-icon path,
+#redo-button .mono82-icon path {
+  stroke-linecap: square !important;
+  stroke-linejoin: miter !important;
+}
+
+#pattern-loop-button .mono82-icon path {
+  stroke-linecap: square !important;
+  stroke-linejoin: round !important;
+}
+
+
+/* loop arrowheads: explicit filled triangles at the true endpoints */
+#pattern-loop-button .mono82-icon polygon {
+  fill: var(--text) !important;
+  stroke: none !important;
+}
+
+#pattern-loop-button.active .mono82-icon polygon,
+#pattern-loop-button[aria-pressed="true"] .mono82-icon polygon {
+  fill: var(--text) !important;
+}
+
+
+/* =========================================================
+   mono82 loop + undo/redo fixed slots
+   ========================================================= */
+
+/* Keep two permanent history slots.
+   Disabled history actions are invisible, not removed from layout. */
+.app-header .transport-left {
+  display: grid !important;
+  grid-template-columns: 18px 18px !important;
+  column-gap: 5px !important;
+  align-items: center !important;
+  justify-content: start !important;
+}
+
+#undo-button,
+#redo-button {
+  width: 18px !important;
+  min-width: 18px !important;
+  padding: 0 !important;
+}
+
+#undo-button:disabled,
+#redo-button:disabled {
+  display: grid !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+#undo-button:not(:disabled),
+#redo-button:not(:disabled) {
+  display: grid !important;
+  visibility: visible !important;
+}
+
+/* Loop: uniform shaft and more visible arrowheads. */
+#pattern-loop-button .mono82-icon path {
+  fill: none !important;
+  stroke: var(--text) !important;
+  stroke-width: 2.4 !important;
+  stroke-linecap: square !important;
+  stroke-linejoin: round !important;
+  vector-effect: non-scaling-stroke;
+}
+
+#pattern-loop-button .mono82-icon polygon {
+  fill: var(--text) !important;
+  stroke: none !important;
+}
+
+
+/* loop revision: thinner shaft, arrowheads remain prominent */
+#pattern-loop-button .mono82-icon path {
+  stroke-width: 1.35 !important;
+}
+
+#pattern-loop-button .mono82-icon polygon {
+  fill: var(--text) !important;
+  stroke: none !important;
+}
+
+
+/* play icon size adjustment */
+#play-button .mono82-icon {
+  width: 11px !important;
+  height: 11px !important;
 }

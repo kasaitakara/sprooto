@@ -4952,7 +4952,30 @@ export function renderPatternManager() {
 let previousPlayingStep =
   null;
 
-export function updatePlayingStep() {
+/*
+ * AudioはWeb Audioへ先行予約される一方、main.jsのtickは
+ * メインスレッド上で動く。
+ *
+ * pointermove等でUI処理が一時的に詰まると、予約済みAudioは
+ * 正しい時刻で先へ進めるが、tick由来の表示更新だけが遅れる。
+ *
+ * そのため再生ハイライトは「tickを何回処理したか」ではなく、
+ * Audio予約時に使ったplannedPerformanceTimeと同じ時刻表を持つ。
+ * タイマーが遅延した場合も、復帰時に期限切れ予約をまとめて消化し、
+ * 最新の実発声位置へ一度で追いつく。
+ */
+let visualPlayingStepIndex =
+  null;
+
+let scheduledPlayingSteps =
+  [];
+
+let playingStepTimer =
+  null;
+
+function paintPlayingStep(
+  stepIndex
+) {
   previousPlayingStep
     ?.classList.remove(
       "playing"
@@ -4961,20 +4984,25 @@ export function updatePlayingStep() {
   previousPlayingStep =
     null;
 
+  visualPlayingStepIndex =
+    Number.isFinite(stepIndex)
+      ? (
+          Math.round(stepIndex) %
+          STEP_COUNT +
+          STEP_COUNT
+        ) % STEP_COUNT
+      : null;
+
   if (
-    state.playbackTickIndex ===
+    visualPlayingStepIndex ===
     null
   ) {
     return;
   }
 
-  const playingStep =
-    state.playbackTickIndex %
-    STEP_COUNT;
-
   const element =
     sequenceGrid?.querySelector(
-      `.mokton-step[data-step-index="${playingStep}"]`
+      `.mokton-step[data-step-index="${visualPlayingStepIndex}"]`
     );
 
   if (!element) {
@@ -4987,6 +5015,166 @@ export function updatePlayingStep() {
 
   previousPlayingStep =
     element;
+}
+
+function armPlayingStepTimer() {
+  if (playingStepTimer !== null) {
+    clearTimeout(
+      playingStepTimer
+    );
+
+    playingStepTimer =
+      null;
+  }
+
+  if (
+    !state.isPlaying ||
+    scheduledPlayingSteps.length === 0
+  ) {
+    return;
+  }
+
+  const now =
+    window.performance.now();
+
+  const delay =
+    Math.max(
+      0,
+      scheduledPlayingSteps[0]
+        .plannedPerformanceTime -
+        now
+    );
+
+  playingStepTimer =
+    setTimeout(
+      flushScheduledPlayingSteps,
+      delay
+    );
+}
+
+function flushScheduledPlayingSteps() {
+  playingStepTimer =
+    null;
+
+  if (!state.isPlaying) {
+    scheduledPlayingSteps =
+      [];
+
+    return;
+  }
+
+  const now =
+    window.performance.now();
+
+  let latestStepIndex =
+    null;
+
+  while (
+    scheduledPlayingSteps.length > 0 &&
+    scheduledPlayingSteps[0]
+      .plannedPerformanceTime <=
+      now + 1
+  ) {
+    latestStepIndex =
+      scheduledPlayingSteps.shift()
+        .stepIndex;
+  }
+
+  if (
+    latestStepIndex !== null
+  ) {
+    paintPlayingStep(
+      latestStepIndex
+    );
+  }
+
+  armPlayingStepTimer();
+}
+
+export function schedulePlayingStepDisplay(
+  stepIndex,
+  plannedPerformanceTime
+) {
+  if (!state.isPlaying) {
+    return;
+  }
+
+  const normalizedStepIndex =
+    (
+      Math.round(
+        Number(stepIndex) || 0
+      ) % STEP_COUNT +
+      STEP_COUNT
+    ) % STEP_COUNT;
+
+  const normalizedTime =
+    Number.isFinite(
+      plannedPerformanceTime
+    )
+      ? plannedPerformanceTime
+      : window.performance.now();
+
+  const duplicate =
+    scheduledPlayingSteps.some(
+      item =>
+        item.stepIndex ===
+          normalizedStepIndex &&
+        Math.abs(
+          item.plannedPerformanceTime -
+          normalizedTime
+        ) < 0.5
+    );
+
+  if (!duplicate) {
+    scheduledPlayingSteps.push({
+      stepIndex:
+        normalizedStepIndex,
+      plannedPerformanceTime:
+        normalizedTime
+    });
+
+    scheduledPlayingSteps.sort(
+      (a, b) =>
+        a.plannedPerformanceTime -
+        b.plannedPerformanceTime
+    );
+  }
+
+  flushScheduledPlayingSteps();
+}
+
+export function resetPlayingStepDisplay(
+  stepIndex = null
+) {
+  if (playingStepTimer !== null) {
+    clearTimeout(
+      playingStepTimer
+    );
+
+    playingStepTimer =
+      null;
+  }
+
+  scheduledPlayingSteps =
+    [];
+
+  paintPlayingStep(
+    stepIndex
+  );
+}
+
+export function updatePlayingStep() {
+  const fallbackStep =
+    state.playbackTickIndex ===
+    null
+      ? null
+      : state.playbackTickIndex %
+        STEP_COUNT;
+
+  paintPlayingStep(
+    visualPlayingStepIndex ??
+      fallbackStep
+  );
 }
 
 

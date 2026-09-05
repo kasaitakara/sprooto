@@ -28,6 +28,8 @@ import {
 import {
   render,
   updatePlayingStep,
+  schedulePlayingStepDisplay,
+  resetPlayingStepDisplay,
   renderPatternManager,
   renderSongMode,
   refreshMasterMixMeterColor
@@ -168,6 +170,13 @@ function resyncPlaybackClockAfterBackground() {
    */
   audioScheduledThroughTick =
     state.playbackTickIndex;
+
+  resetPlayingStepDisplay(
+    state.playbackTickIndex === null
+      ? null
+      : state.playbackTickIndex %
+        STEP_COUNT
+  );
 
   scheduleNextTick();
 }
@@ -545,6 +554,11 @@ function playStepAtTick(
     playbackTickIndex %
     STEP_COUNT;
 
+  schedulePlayingStepDisplay(
+    stepIndex,
+    plannedPerformanceTime
+  );
+
   const step =
     pattern.sequence?.[
       stepIndex
@@ -759,6 +773,7 @@ function stopPlayback() {
     "playing"
   );
 
+  resetPlayingStepDisplay();
   updatePlayingStep();
   renderPatternManager();
   renderSongMode();
@@ -907,6 +922,8 @@ state.playingStepIndex =
 
 state.playbackTickIndex =
   0;
+
+resetPlayingStepDisplay(0);
 
 clearQueuedSource();
 

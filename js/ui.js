@@ -1310,7 +1310,7 @@ const STEP_PARAMETER_SCHEMA =
       {
         id: "note",
         label: "nte",
-        min: -60,
+        min: -48,
         max: 67,
         step: 1
       },
@@ -1368,7 +1368,7 @@ const STEP_PARAMETER_SCHEMA =
       {
         id: "note",
         label: "nte",
-        min: -60,
+        min: -48,
         max: 67,
         step: 1
       },
@@ -1456,6 +1456,24 @@ const STEP_NOTE_NAMES =
   ]);
 
 
+const STEP_CHORD_NAMES =
+  Object.freeze([
+    "maj",
+    "min",
+    "7",
+    "m7"
+  ]);
+
+const STEP_CHORD_DEFINITION =
+  Object.freeze({
+    id: "chord",
+    label: "chrd",
+    min: 0,
+    max: 3,
+    step: 1
+  });
+
+
 const STEP_SUB_PATTERNS =
   Object.freeze([
     {
@@ -1522,6 +1540,147 @@ function stepNoteName(
     }${octave}`
   );
 }
+
+
+function stepChordName(
+  value
+) {
+  const index =
+    Math.max(
+      0,
+      Math.min(
+        STEP_CHORD_NAMES.length - 1,
+        Math.round(
+          Number(value) || 0
+        )
+      )
+    );
+
+  return (
+    STEP_CHORD_NAMES[
+      index
+    ] ?? "maj"
+  );
+}
+
+
+function appendNoteName(
+  host,
+  value
+) {
+  const text =
+    stepNoteName(
+      value
+    );
+
+  const sharpIndex =
+    text.indexOf(
+      "♯"
+    );
+
+  if (sharpIndex < 0) {
+    host.textContent =
+      text;
+    return;
+  }
+
+  host.append(
+    document.createTextNode(
+      text.slice(
+        0,
+        sharpIndex
+      )
+    )
+  );
+
+  const sharp =
+    document.createElement(
+      "span"
+    );
+
+  sharp.className =
+    "mokton-note-sharp";
+
+  sharp.textContent =
+    "♯";
+
+  host.appendChild(
+    sharp
+  );
+
+  host.append(
+    document.createTextNode(
+      text.slice(
+        sharpIndex + 1
+      )
+    )
+  );
+}
+
+
+function createNoteChordDisplay(
+  noteValue,
+  chordValue,
+  activeTarget
+) {
+  const wrapper =
+    document.createElement(
+      "span"
+    );
+
+  wrapper.className =
+    "mokton-note-chord-display";
+
+  const noteLine =
+    document.createElement(
+      "span"
+    );
+
+  noteLine.className =
+    "mokton-note-chord-line mokton-note-line";
+
+  appendNoteName(
+    noteLine,
+    noteValue
+  );
+
+  const chordLine =
+    document.createElement(
+      "span"
+    );
+
+  chordLine.className =
+    "mokton-note-chord-line mokton-chord-line";
+
+  chordLine.textContent =
+    stepChordName(
+      chordValue
+    );
+
+  if (
+    activeTarget === "note"
+  ) {
+    noteLine.classList.add(
+      "is-edit-target"
+    );
+  }
+
+  if (
+    activeTarget === "chord"
+  ) {
+    chordLine.classList.add(
+      "is-edit-target"
+    );
+  }
+
+  wrapper.append(
+    noteLine,
+    chordLine
+  );
+
+  return wrapper;
+}
+
 
 
 function renderDirectionalOffset(
@@ -1814,7 +1973,8 @@ function createStrumDisplay(
 function renderStepOffsetValue(
   host,
   definition,
-  value
+  value,
+  performance = null
 ) {
   host.replaceChildren();
 
@@ -1822,11 +1982,17 @@ function renderStepOffsetValue(
     definition.id
   ) {
     case "note":
-      host.textContent =
-        stepNoteName(
-          value
-        );
+    case "chord": {
+      host.appendChild(
+        createNoteChordDisplay(
+          performance?.note ?? 0,
+          performance?.chord ?? 0,
+          definition.id
+        )
+      );
+
       return;
+    }
 
     case "pan":
       renderDirectionalOffset(
@@ -2447,6 +2613,12 @@ function createCompactSoundButton(
           stepDefinitions();
 
         if (
+          state.selectedLayer === "rhythm" &&
+          selectedStepParameterId === "chord"
+        ) {
+          selectedStepParameterId =
+            "note";
+        } else if (
           !nextDefinitions.some(
             definition =>
               definition.id ===
@@ -2592,6 +2764,13 @@ function soundDefinitions() {
 function activeStepOffsetDefinition() {
   if (!selectedStepParameterId) {
     return null;
+  }
+
+  if (
+    state.selectedLayer === "melodic" &&
+    selectedStepParameterId === "chord"
+  ) {
+    return STEP_CHORD_DEFINITION;
   }
 
   return (
@@ -3332,25 +3511,56 @@ function createStepParameterStrip() {
       button.className =
         "mokton-step-parameter-button";
 
+      const isMelodicNoteSlot =
+        state.selectedLayer === "melodic" &&
+        definition.id === "note";
+
+      const displayedDefinition =
+        isMelodicNoteSlot &&
+        selectedStepParameterId === "chord"
+          ? STEP_CHORD_DEFINITION
+          : definition;
+
       applyParameterLabel(
         button,
-        definition
+        displayedDefinition
       );
 
       button.classList.toggle(
         "active",
         selectedStepParameterId ===
-          definition.id
+          definition.id ||
+        (
+          isMelodicNoteSlot &&
+          selectedStepParameterId === "chord"
+        )
       );
 
       button.addEventListener(
         "click",
         () => {
-          selectedStepParameterId =
-            selectedStepParameterId ===
-              definition.id
-              ? null
-              : definition.id;
+          if (isMelodicNoteSlot) {
+            if (
+              selectedStepParameterId === "note"
+            ) {
+              selectedStepParameterId =
+                "chord";
+            } else if (
+              selectedStepParameterId === "chord"
+            ) {
+              selectedStepParameterId =
+                null;
+            } else {
+              selectedStepParameterId =
+                "note";
+            }
+          } else {
+            selectedStepParameterId =
+              selectedStepParameterId ===
+                definition.id
+                ? null
+                : definition.id;
+          }
 
           renderSequence();
         }
@@ -3582,7 +3792,8 @@ function createStepButton(
         offsetDefinition,
         offsetPerformance[
           offsetDefinition.id
-        ]
+        ],
+        offsetPerformance
       );
 
       button.classList.add(
@@ -3735,7 +3946,8 @@ function createStepButton(
         renderStepOffsetValue(
           offsetValue,
           offsetDefinition,
-          next
+          next,
+          offsetPerformance
         );
       }
     }

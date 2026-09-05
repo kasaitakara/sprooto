@@ -42,12 +42,12 @@
 :root.theme-mono82 {
   --bg: #0e0e0e;
   --text: #fafafa;
-  --accent: #e88dd3;
+  --accent: #41c65a;
 }
    :root.theme-sprooto {
   --bg: #e8e2d9;
-  --text: #41533f;
-  --accent: #8ed2d7;
+  --text: #5f7e5c;
+  --accent: #7db8bd;
 }
 
 :root.theme-kasai {
@@ -57,19 +57,19 @@
 }
 
 :root.theme-mei {
-  --bg: #eeece5;
+  --bg: #e7e5df;
   --text: #164d03;
   --accent: #4d88b6;
 }
 
 :root.theme-ryuichi {
-  --bg: #1c1c1c;
-  --text: #ababab;
+  --bg: #000000;
+  --text: #aaaaaa;
   --accent: #ffffff;
 }
 
 :root.theme-aya {
-  --bg: #ededed;
+  --bg: #d4d4d4;
   --text: #417d90;
   --accent: #ff73ce;
 }
@@ -83,7 +83,7 @@
 :root.theme-game {
   --bg: #ffffff;
   --text: #711521;
-  --accent: #bca532;
+  --accent: #ababab;
 }
 
 * {

@@ -276,6 +276,356 @@ function renderCurrentSourceDisplay() {
 }
 
 
+
+const SVG_NS =
+  "http://www.w3.org/2000/svg";
+
+function createMono82Icon(
+  name,
+  extraClass = ""
+) {
+  const svg =
+    document.createElementNS(
+      SVG_NS,
+      "svg"
+    );
+
+  svg.setAttribute(
+    "viewBox",
+    "0 0 24 24"
+  );
+
+  svg.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+  svg.classList.add(
+    "mono82-icon"
+  );
+
+  if (extraClass) {
+    svg.classList.add(
+      extraClass
+    );
+  }
+
+  const addPath = (
+    d,
+    {
+      fill = "none",
+      stroke = "currentColor",
+      strokeWidth = 2
+    } = {}
+  ) => {
+    const path =
+      document.createElementNS(
+        SVG_NS,
+        "path"
+      );
+
+    path.setAttribute(
+      "d",
+      d
+    );
+
+    path.setAttribute(
+      "fill",
+      fill
+    );
+
+    path.setAttribute(
+      "stroke",
+      stroke
+    );
+
+    path.setAttribute(
+      "stroke-width",
+      String(strokeWidth)
+    );
+
+    path.setAttribute(
+      "stroke-linecap",
+      "square"
+    );
+
+    path.setAttribute(
+      "stroke-linejoin",
+      "miter"
+    );
+
+    svg.appendChild(
+      path
+    );
+
+    return path;
+  };
+
+  const addPolygon = (
+    points,
+    fill = "currentColor"
+  ) => {
+    const polygon =
+      document.createElementNS(
+        SVG_NS,
+        "polygon"
+      );
+
+    polygon.setAttribute(
+      "points",
+      points
+    );
+
+    polygon.setAttribute(
+      "fill",
+      fill
+    );
+
+    svg.appendChild(
+      polygon
+    );
+
+    return polygon;
+  };
+
+  switch (name) {
+    case "play":
+      addPolygon(
+        "7,4 20,12 7,20"
+      );
+      break;
+
+    case "undo":
+      addPath(
+        "M9 5 4 10l5 5M5 10h9c4 0 6 2 6 6v3"
+      );
+      break;
+
+    case "redo":
+      addPath(
+        "m15 5 5 5-5 5M19 10h-9c-4 0-6 2-6 6v3"
+      );
+      break;
+
+    case "loop":
+      addPath(
+        "M5 7h12l-3-3M17 7l-3 3M19 17H7l3 3M7 17l3-3"
+      );
+      break;
+
+    case "shift-left":
+      addPolygon(
+        "16,4 6,12 16,20"
+      );
+      break;
+
+    case "shift-right":
+      addPolygon(
+        "8,4 18,12 8,20"
+      );
+      break;
+
+    case "level":
+      addPolygon(
+        "3,9 7,9 12,5 12,19 7,15 3,15"
+      );
+
+      addPath(
+        "M15 9c1 1 1 5 0 6M18 7c3 3 3 7 0 10",
+        {
+          strokeWidth: 1.8
+        }
+      );
+      break;
+
+    case "attack":
+      addPolygon(
+        "4,19 20,19 20,5"
+      );
+      break;
+
+    case "hold-decay": {
+      addPolygon(
+        "3,7 11,7 21,19 3,19"
+      );
+
+      const guide =
+        addPath(
+          "M11 2v18",
+          {
+            stroke:
+              "var(--bg)",
+            strokeWidth: 1.4
+          }
+        );
+
+      guide.setAttribute(
+        "stroke-dasharray",
+        "2 2"
+      );
+
+      const topGuide =
+        addPath(
+          "M11 2v4",
+          {
+            stroke:
+              "currentColor",
+            strokeWidth: 1.4
+          }
+        );
+
+      topGuide.setAttribute(
+        "stroke-dasharray",
+        "2 2"
+      );
+      break;
+    }
+
+    default:
+      return null;
+  }
+
+  return svg;
+}
+
+
+function createLfoWaveIcon(
+  wave
+) {
+  const svg =
+    document.createElementNS(
+      SVG_NS,
+      "svg"
+    );
+
+  svg.setAttribute(
+    "viewBox",
+    "0 0 32 18"
+  );
+
+  svg.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+  svg.classList.add(
+    "mono82-icon",
+    "mono82-lfo-wave-icon"
+  );
+
+  const path =
+    document.createElementNS(
+      SVG_NS,
+      "path"
+    );
+
+  const paths = {
+    sine:
+      "M2 9C5 2 9 2 12 9S19 16 22 9 27 2 30 9",
+    triangle:
+      "M2 14 9 4 16 14 23 4 30 14",
+    square:
+      "M2 14V4H10V14H18V4H26V14H30",
+    sawUp:
+      "M2 14 10 4V14L18 4V14L26 4V14H30",
+    sawDown:
+      "M2 4 10 14V4L18 14V4L26 14V4H30",
+    random:
+      "M2 10 5 5 8 13 11 7 14 11 17 4 20 14 23 8 26 12 30 6",
+    rise:
+      "M2 14 8 14 14 12 20 8 26 3 30 3",
+    fall:
+      "M2 3 8 3 14 5 20 9 26 14 30 14"
+  };
+
+  path.setAttribute(
+    "d",
+    paths[wave] ??
+      paths.sine
+  );
+
+  path.setAttribute(
+    "fill",
+    "none"
+  );
+
+  path.setAttribute(
+    "stroke",
+    "currentColor"
+  );
+
+  path.setAttribute(
+    "stroke-width",
+    "2"
+  );
+
+  path.setAttribute(
+    "stroke-linecap",
+    "square"
+  );
+
+  path.setAttribute(
+    "stroke-linejoin",
+    "miter"
+  );
+
+  svg.appendChild(
+    path
+  );
+
+  return svg;
+}
+
+
+function parameterIconName(
+  definition
+) {
+  const map = {
+    gain: "level",
+    attack: "attack",
+    holdDecay:
+      "hold-decay"
+  };
+
+  return (
+    map[
+      definition?.id
+    ] ??
+    null
+  );
+}
+
+
+function applyParameterLabel(
+  host,
+  definition
+) {
+  const iconName =
+    parameterIconName(
+      definition
+    );
+
+  if (!iconName) {
+    host.textContent =
+      definition.label;
+
+    return;
+  }
+
+  const icon =
+    createMono82Icon(
+      iconName,
+      "mono82-parameter-icon"
+    );
+
+  if (icon) {
+    host.replaceChildren(
+      icon
+    );
+  }
+}
+
+
 const SOUND_PARAMETER_SCHEMA = Object.freeze({
   melodic: [
     {
@@ -345,14 +695,6 @@ const SOUND_PARAMETER_SCHEMA = Object.freeze({
     },
 
     {
-      id: "noiseMix",
-      label: "nse",
-      min: 0,
-      max: 100,
-      step: 1
-    },
-
-    {
       id: "attack",
       label: "atk",
       min: 1,
@@ -381,6 +723,22 @@ const SOUND_PARAMETER_SCHEMA = Object.freeze({
       label: "res",
       min: 0,
       max: 50,
+      step: 1
+    },
+
+    {
+      id: "noiseMix",
+      label: "nse",
+      min: 0,
+      max: 100,
+      step: 1
+    },
+
+    {
+      id: "note",
+      label: "nte",
+      min: -60,
+      max: 67,
       step: 1
     }
   ]
@@ -930,18 +1288,18 @@ const STEP_PARAMETER_SCHEMA =
   Object.freeze({
     melodic: [
       {
-        id: "note",
-        label: "nte",
-        min: -60,
-        max: 67,
-        step: 1
-      },
-
-      {
         id: "gain",
         label: "lvl",
         min: 0,
         max: 150,
+        step: 1
+      },
+
+      {
+        id: "note",
+        label: "nte",
+        min: -60,
+        max: 67,
         step: 1
       },
 
@@ -988,18 +1346,18 @@ const STEP_PARAMETER_SCHEMA =
 
     rhythm: [
       {
-        id: "note",
-        label: "nte",
-        min: -60,
-        max: 67,
-        step: 1
-      },
-
-      {
         id: "gain",
         label: "lvl",
         min: 0,
         max: 150,
+        step: 1
+      },
+
+      {
+        id: "note",
+        label: "nte",
+        min: -60,
+        max: 67,
         step: 1
       },
 
@@ -1456,7 +1814,7 @@ function renderSequenceTools() {
   tools.className = "mokton-sequence-tools";
 
   tools.append(
-    createMiniButton("◀", () => {
+    createMiniButton("", () => {
       saveHistory();
       shiftSequence(-1);
       window.dispatchEvent(
@@ -1468,7 +1826,7 @@ function renderSequenceTools() {
       renderEditor();
     }, { title: "shift sequence left" }),
 
-    createMiniButton("▶", () => {
+    createMiniButton("", () => {
       saveHistory();
       shiftSequence(1);
       window.dispatchEvent(
@@ -1492,6 +1850,29 @@ function renderSequenceTools() {
       renderEditor();
     }, { title: "shuffle existing steps" })
   );
+
+  const sequenceToolButtons =
+    tools.querySelectorAll(
+      ".mokton-mini-button"
+    );
+
+  if (sequenceToolButtons[0]) {
+    sequenceToolButtons[0].replaceChildren(
+      createMono82Icon(
+        "shift-left",
+        "mono82-shift-icon"
+      )
+    );
+  }
+
+  if (sequenceToolButtons[1]) {
+    sequenceToolButtons[1].replaceChildren(
+      createMono82Icon(
+        "shift-right",
+        "mono82-shift-icon"
+      )
+    );
+  }
 
   if (
     hasEditClipboard() &&
@@ -1811,8 +2192,10 @@ function createDirectValuePad(
   label.className =
     "mokton-direct-value-label";
 
-  label.textContent =
-    definition.label;
+  applyParameterLabel(
+    label,
+    definition
+  );
 
   const value =
     document.createElement(
@@ -2154,10 +2537,11 @@ function createLfoRow(
   waveValue.className =
     "mokton-lfo-cell-value";
 
-  waveValue.textContent =
-    shortWaveLabel(
+  waveValue.replaceChildren(
+    createLfoWaveIcon(
       lfo.wave
-    );
+    )
+  );
 
   waveButton.append(
     waveLabel,
@@ -2416,8 +2800,10 @@ function createStepParameterStrip() {
       button.className =
         "mokton-step-parameter-button";
 
-      button.textContent =
-        definition.label;
+      applyParameterLabel(
+        button,
+        definition
+      );
 
       button.classList.toggle(
         "active",
@@ -3590,23 +3976,14 @@ function createPatternButton(
       ) {
         stopLongPress();
 
-        const startingRangeSelection =
-          !rangeSelecting;
-
         rangeSelecting =
           true;
 
-        /*
-         * A new swipe always starts a new range.
-         * Do not reuse the anchor from the previous selection.
-         */
         if (
-          startingRangeSelection
+          patternRangeAnchorIndex ===
+          null
         ) {
           patternRangeAnchorIndex =
-            patternIndex;
-
-          patternRangeEndIndex =
             patternIndex;
         }
 

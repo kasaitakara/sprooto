@@ -46,7 +46,7 @@
 }
    :root.theme-sprooto {
   --bg: #e8e2d9;
-  --text: #587056;
+  --text: #41533f;
   --accent: #8ed2d7;
 }
 
@@ -3907,4 +3907,89 @@ body {
  */
 #sequence-grid .mokton-step-melodic-mark {
   bottom: var(--mokton-rhythm-mark-size) !important;
+}
+
+
+/* =========================================================
+   mono82 SVG icon pass
+   ========================================================= */
+
+.mono82-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  overflow: visible;
+  color: currentColor;
+  shape-rendering: crispEdges;
+  vector-effect: non-scaling-stroke;
+}
+
+.history-button {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+}
+
+.history-button .mono82-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.play-button .mono82-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.pattern-loop-button {
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.pattern-loop-button .mono82-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.pattern-loop-button.active {
+  color: var(--accent) !important;
+  background: transparent !important;
+}
+
+.mokton-mini-button .mono82-icon {
+  margin: 0 auto;
+}
+
+.mono82-shift-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.mokton-direct-value-label,
+.mokton-step-parameter-button {
+  display: grid;
+  place-items: center;
+}
+
+.mono82-parameter-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.mokton-step-parameter-button .mono82-parameter-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.mokton-lfo-wave-cycle .mokton-lfo-cell-value {
+  display: grid;
+  place-items: center;
+}
+
+.mono82-lfo-wave-icon {
+  width: 19px;
+  height: 11px;
 }

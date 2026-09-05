@@ -2928,9 +2928,19 @@ async function playLayerVoice({
         )
       : 0;
 
+  const soundNote =
+    layer === "rhythm"
+      ? (
+          Number(
+            sound.note
+          ) || 0
+        )
+      : 0;
+
   const note =
     clamp(
       60 +
+        soundNote +
         (
           Number(
             performanceData.note

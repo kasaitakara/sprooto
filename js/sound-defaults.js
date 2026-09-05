@@ -35,6 +35,7 @@ export const MELODIC_SOUND_DEFAULTS = Object.freeze({
 export const RHYTHM_SOUND_DEFAULTS = Object.freeze({
   gain: 100,
   noiseMix: 0,
+  note: 0,
   attack: 1,
   holdDecay: 0,
   filterCutoff: 0,
@@ -154,6 +155,8 @@ export function createRhythmSound(
       RHYTHM_SOUND_DEFAULTS.gain,
     noiseMix:
       RHYTHM_SOUND_DEFAULTS.noiseMix,
+    note:
+      RHYTHM_SOUND_DEFAULTS.note,
     attack:
       RHYTHM_SOUND_DEFAULTS.attack,
     holdDecay:
@@ -291,6 +294,7 @@ export function normalizeRhythmSound(
     "name",
     "gain",
     "noiseMix",
+    "note",
     "attack",
     "holdDecay",
     "filterCutoff",

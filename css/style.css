@@ -42,11 +42,11 @@
 :root.theme-mono82 {
   --bg: #0e0e0e;
   --text: #fafafa;
-  --accent: #7deb5c;
+  --accent: #e88dd3;
 }
    :root.theme-sprooto {
-  --bg: #faf4e7;
-  --text: #4b6648;
+  --bg: #e8e2d9;
+  --text: #41533f;
   --accent: #8ed2d7;
 }
 
@@ -57,7 +57,7 @@
 }
 
 :root.theme-mei {
-  --bg: #fefcf4;
+  --bg: #eeece5;
   --text: #164d03;
   --accent: #4d88b6;
 }
@@ -83,7 +83,7 @@
 :root.theme-game {
   --bg: #ffffff;
   --text: #711521;
-  --accent: #f0d85f;
+  --accent: #bca532;
 }
 
 * {

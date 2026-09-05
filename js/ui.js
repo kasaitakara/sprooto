@@ -84,9 +84,7 @@ const patternLoopButton =
   );
 
 const sequenceBackButton =
-  document.getElementById(
-    "sequence-back-button"
-  );
+  currentSourceDisplay;
 
 const sequencePageButton =
   document.getElementById(
@@ -3283,6 +3281,47 @@ function patternButtonAtPoint(
     null;
 }
 
+function refreshPatternRangeVisuals() {
+  if (!patternGrid) {
+    return;
+  }
+
+  const range =
+    selectedPatternRange();
+
+  const activeLoopRange =
+    patternLoopRange();
+
+  patternGrid
+    .querySelectorAll(
+      ".mokton-pattern-button"
+    )
+    .forEach(button => {
+      const index =
+        Number(
+          button.dataset
+            .patternIndex
+        );
+
+      button.classList.toggle(
+        "range-selected",
+        Boolean(
+          range?.includes(index)
+        )
+      );
+
+      button.classList.toggle(
+        "loop-range-active",
+        Boolean(
+          state.patternLoopEnabled &&
+          activeLoopRange?.includes(
+            index
+          )
+        )
+      );
+    });
+}
+
 function createPatternButton(
   patternIndex
 ) {
@@ -3399,6 +3438,9 @@ function createPatternButton(
   let repeatEdited =
     false;
 
+  let rangeSelecting =
+    false;
+
   let longPressTimer =
     null;
 
@@ -3439,6 +3481,9 @@ function createPatternButton(
         false;
 
       repeatEdited =
+        false;
+
+      rangeSelecting =
         false;
 
       patternDragState =
@@ -3529,16 +3574,24 @@ function createPatternButton(
       }
 
       /*
-       * Horizontal swipe selects a contiguous Pattern range
-       * in current song.order.
+       * Start range selection with a horizontal gesture.
+       * Once started, keep following the finger across rows as well.
+       * Do not re-render the Pattern grid while the pointer is captured:
+       * replacing the active button mid-gesture breaks pointer tracking on iOS.
        */
       if (
-        Math.abs(dx) >
-          12 &&
-        Math.abs(dx) >
-          Math.abs(dy)
+        rangeSelecting ||
+        (
+          Math.abs(dx) >
+            12 &&
+          Math.abs(dx) >
+            Math.abs(dy)
+        )
       ) {
         stopLongPress();
+
+        rangeSelecting =
+          true;
 
         if (
           patternRangeAnchorIndex ===
@@ -3574,7 +3627,7 @@ function createPatternButton(
             applyPatternRangeToLoop();
           }
 
-          renderPatternManager();
+          refreshPatternRangeVisuals();
         }
 
         return;
@@ -3668,6 +3721,19 @@ function createPatternButton(
         clearPatternDragVisuals();
         renderPatternManager();
 
+        return;
+      }
+
+      if (
+        rangeSelecting
+      ) {
+        if (
+          state.patternLoopEnabled
+        ) {
+          applyPatternRangeToLoop();
+        }
+
+        refreshPatternRangeVisuals();
         return;
       }
 

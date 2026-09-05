@@ -46,7 +46,7 @@
 }
    :root.theme-sprooto {
   --bg: #e8e2d9;
-  --text: #41533f;
+  --text: #587056;
   --accent: #8ed2d7;
 }
 
@@ -428,10 +428,16 @@ input[type="range"]
 }
 
 .mokton-current-source::before {
-  content: "ptn";
-  color: var(--muted);
-  opacity: 1;
-  font-size: 7px;
+  content: none;
+  display: none;
+}
+
+.current-source-display,
+.mokton-current-source {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 

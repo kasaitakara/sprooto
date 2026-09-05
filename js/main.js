@@ -53,7 +53,7 @@ let playbackWasHidden = false;
 let audioNeedsForegroundReset = false;
 /* =========================
  * Screen Wake Lock
- * 再生中だけ画面スリープを抑止
+ * アプリ表示中は画面スリープを抑止
  * ========================= */
 
 let screenWakeLock = null;
@@ -61,8 +61,7 @@ let screenWakeLock = null;
 async function requestScreenWakeLock() {
   if (
     !("wakeLock" in navigator) ||
-    document.visibilityState !== "visible" ||
-    !state.isPlaying
+    document.visibilityState !== "visible"
   ) {
     return;
   }
@@ -722,8 +721,6 @@ function scheduleAudioAhead(
 function stopPlayback() {
   state.isPlaying = false;
 
-  releaseScreenWakeLock();
-
   state.playingStepIndex =
     null;
 
@@ -1348,7 +1345,7 @@ volumeInput.addEventListener(
 );
 
 const THEME_CLASSES = Object.freeze([
-  "theme-mokton",
+  "theme-mono82",
   "theme-sprooto",
   "theme-kasai",
   "theme-mei",
@@ -1449,6 +1446,8 @@ async function initializeApp() {
   render();
   updateHistoryButtons();
 
+  requestScreenWakeLock();
+
   initializeAutosave();
 
   window.addEventListener(
@@ -1482,6 +1481,7 @@ document.addEventListener(
      * performs a full AudioContext reset from togglePlayback().
      */
     resumeAudio();
+    requestScreenWakeLock();
 
     if (!state.isPlaying) {
       playbackWasHidden = false;
@@ -1493,8 +1493,6 @@ document.addEventListener(
 
       resyncPlaybackClockAfterBackground();
     }
-
-    requestScreenWakeLock();
   }
 );
 

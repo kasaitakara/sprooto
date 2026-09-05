@@ -749,7 +749,7 @@ const SOUND_PARAMETER_SCHEMA = Object.freeze({
     {
       id: "note",
       label: "nte",
-      min: -60,
+      min: -48,
       max: 67,
       step: 1
     }
@@ -1497,17 +1497,29 @@ function stepNoteName(
       Number(value) || 0
     );
 
+  const midiNote =
+    Math.max(
+      12,
+      Math.min(
+        127,
+        60 + note
+      )
+    );
+
   const pitchClass =
-    (
-      (60 + note) % 12 +
-      12
-    ) % 12;
+    midiNote % 12;
+
+  const octave =
+    Math.floor(
+      midiNote / 12
+    ) - 1;
 
   return (
-    STEP_NOTE_NAMES[
-      pitchClass
-    ] ??
-    "C"
+    `${
+      STEP_NOTE_NAMES[
+        pitchClass
+      ] ?? "C"
+    }${octave}`
   );
 }
 
@@ -2604,6 +2616,86 @@ function clampEditorValue(
   );
 }
 
+function dragValueWithCenterSnap(
+  startValue,
+  deltaPixels,
+  definition
+) {
+  const step =
+    Number(
+      definition.step
+    ) || 1;
+
+  const continuousValue =
+    Number(startValue) +
+    (
+      Number(deltaPixels) /
+      7
+    ) *
+      step;
+
+  const isBipolar =
+    Number(definition.min) < 0 &&
+    Number(definition.max) > 0;
+
+  if (!isBipolar) {
+    return clampEditorValue(
+      Number(startValue) +
+        Math.round(
+          Number(deltaPixels) /
+          7
+        ) *
+          step,
+      definition
+    );
+  }
+
+  /*
+   * 0だけ約2.6段階分の広い吸着帯にする。
+   * 吸着帯を抜けたら、すぐ±1から再開するため、
+   * NUDGEのような狭い範囲でも隣接値を失わない。
+   */
+  const snapRadius =
+    step * 1.3;
+
+  if (
+    Math.abs(
+      continuousValue
+    ) <= snapRadius
+  ) {
+    return 0;
+  }
+
+  const direction =
+    continuousValue < 0
+      ? -1
+      : 1;
+
+  const beyondSnap =
+    Math.max(
+      0,
+      Math.abs(
+        continuousValue
+      ) -
+        snapRadius
+    );
+
+  const steppedMagnitude =
+    step +
+    Math.round(
+      beyondSnap /
+      step
+    ) *
+      step;
+
+  return clampEditorValue(
+    direction *
+      steppedMagnitude,
+    definition
+  );
+}
+
+
 function createDirectValuePad(
   target,
   definition,
@@ -2717,10 +2809,9 @@ function createDirectValuePad(
       }
 
       const next =
-        clampEditorValue(
-          drag.startValue +
-          units *
-          definition.step,
+        dragValueWithCenterSnap(
+          drag.startValue,
+          delta,
           definition
         );
 
@@ -3629,10 +3720,9 @@ function createStepButton(
       }
 
       const next =
-        clampEditorValue(
-          offsetDrag.startValue +
-          units *
-          offsetDefinition.step,
+        dragValueWithCenterSnap(
+          offsetDrag.startValue,
+          delta,
           offsetDefinition
         );
 

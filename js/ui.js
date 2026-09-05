@@ -3590,14 +3590,23 @@ function createPatternButton(
       ) {
         stopLongPress();
 
+        const startingRangeSelection =
+          !rangeSelecting;
+
         rangeSelecting =
           true;
 
+        /*
+         * A new swipe always starts a new range.
+         * Do not reuse the anchor from the previous selection.
+         */
         if (
-          patternRangeAnchorIndex ===
-          null
+          startingRangeSelection
         ) {
           patternRangeAnchorIndex =
+            patternIndex;
+
+          patternRangeEndIndex =
             patternIndex;
         }
 

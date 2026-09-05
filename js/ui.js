@@ -1439,6 +1439,435 @@ function selectedStepPerformance() {
   );
 }
 
+const STEP_NOTE_NAMES =
+  Object.freeze([
+    "C",
+    "C♯",
+    "D",
+    "D♯",
+    "E",
+    "F",
+    "F♯",
+    "G",
+    "G♯",
+    "A",
+    "A♯",
+    "B"
+  ]);
+
+
+const STEP_SUB_PATTERNS =
+  Object.freeze([
+    {
+      divisions: 2,
+      hits: [0, 1]
+    },
+    {
+      divisions: 2,
+      hits: [1]
+    },
+    {
+      divisions: 3,
+      hits: [0, 1, 2]
+    },
+    {
+      divisions: 4,
+      hits: [0, 1, 2, 3]
+    },
+    {
+      divisions: 4,
+      hits: [0, 2]
+    },
+    {
+      divisions: 4,
+      hits: [0, 1]
+    },
+    {
+      divisions: 6,
+      hits: [0, 1, 2, 3, 4, 5]
+    }
+  ]);
+
+
+function stepNoteName(
+  value
+) {
+  const note =
+    Math.round(
+      Number(value) || 0
+    );
+
+  const pitchClass =
+    (
+      (60 + note) % 12 +
+      12
+    ) % 12;
+
+  return (
+    STEP_NOTE_NAMES[
+      pitchClass
+    ] ??
+    "C"
+  );
+}
+
+
+function renderDirectionalOffset(
+  host,
+  value,
+  zeroLabel = "c"
+) {
+  const amount =
+    Math.round(
+      Number(value) || 0
+    );
+
+  if (amount === 0) {
+    host.textContent =
+      zeroLabel;
+
+    return;
+  }
+
+  const direction =
+    document.createElement(
+      "span"
+    );
+
+  direction.className =
+    "mokton-step-offset-direction";
+
+  direction.textContent =
+    amount > 0
+      ? ">"
+      : "<";
+
+  const number =
+    document.createElement(
+      "span"
+    );
+
+  number.className =
+    "mokton-step-offset-number";
+
+  number.textContent =
+    String(
+      Math.abs(amount)
+    );
+
+  host.replaceChildren(
+    direction,
+    number
+  );
+}
+
+
+function createSubPatternDisplay(
+  value
+) {
+  const number =
+    Math.round(
+      Number(value)
+    );
+
+  if (
+    number < 0 ||
+    !STEP_SUB_PATTERNS[
+      number
+    ]
+  ) {
+    return null;
+  }
+
+  const pattern =
+    STEP_SUB_PATTERNS[
+      number
+    ];
+
+  const svg =
+    document.createElementNS(
+      SVG_NS,
+      "svg"
+    );
+
+  svg.setAttribute(
+    "viewBox",
+    "0 0 24 10"
+  );
+
+  svg.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+  svg.classList.add(
+    "mokton-step-subpattern-icon"
+  );
+
+  const usableWidth =
+    20;
+
+  const left =
+    2;
+
+  const slotWidth =
+    usableWidth /
+    pattern.divisions;
+
+  pattern.hits.forEach(
+    hit => {
+      const rect =
+        document.createElementNS(
+          SVG_NS,
+          "rect"
+        );
+
+      const gap =
+        Math.min(
+          0.7,
+          slotWidth * 0.12
+        );
+
+      rect.setAttribute(
+        "x",
+        String(
+          left +
+          hit * slotWidth +
+          gap / 2
+        )
+      );
+
+      rect.setAttribute(
+        "y",
+        "1.5"
+      );
+
+      rect.setAttribute(
+        "width",
+        String(
+          Math.max(
+            1,
+            slotWidth - gap
+          )
+        )
+      );
+
+      rect.setAttribute(
+        "height",
+        "7"
+      );
+
+      svg.appendChild(
+        rect
+      );
+    }
+  );
+
+  return svg;
+}
+
+function createStrumDisplay(
+  value
+) {
+  const amount =
+    Math.max(
+      -8,
+      Math.min(
+        8,
+        Math.round(
+          Number(value) || 0
+        )
+      )
+    );
+
+  const svg =
+    document.createElementNS(
+      SVG_NS,
+      "svg"
+    );
+
+  svg.setAttribute(
+    "viewBox",
+    "0 0 28 14"
+  );
+
+  svg.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+  svg.classList.add(
+    "mokton-step-strum-icon"
+  );
+
+  /*
+   * 横方向 = 発音タイミング。
+   * 最初に鳴る1音は常に中央(x=14)。
+   * 後続音だけ右方向へ遅らせる。
+   *
+   * 正値：低音側（下段）から上へ。
+   * 負値：高音側（上段）から下へ。
+   */
+  const maximumDelay =
+    (
+      Math.abs(amount) /
+      8
+    ) * 8;
+
+  const lineLength =
+    8;
+
+  const centerX =
+    14;
+
+  for (
+    let row = 0;
+    row < 4;
+    row++
+  ) {
+    const line =
+      document.createElementNS(
+        SVG_NS,
+        "line"
+      );
+
+    let delayOrder =
+      0;
+
+    if (amount > 0) {
+      /*
+       * row 3 = bottom = first sound
+       */
+      delayOrder =
+        3 - row;
+    } else if (amount < 0) {
+      /*
+       * row 0 = top = first sound
+       */
+      delayOrder =
+        row;
+    }
+
+    const shift =
+      amount === 0
+        ? 0
+        : (
+            delayOrder /
+            3
+          ) *
+          maximumDelay;
+
+    const y =
+      2 +
+      row * 3.2;
+
+    const x1 =
+      centerX -
+      lineLength / 2 +
+      shift;
+
+    const x2 =
+      centerX +
+      lineLength / 2 +
+      shift;
+
+    line.setAttribute(
+      "x1",
+      String(x1)
+    );
+
+    line.setAttribute(
+      "x2",
+      String(x2)
+    );
+
+    line.setAttribute(
+      "y1",
+      String(y)
+    );
+
+    line.setAttribute(
+      "y2",
+      String(y)
+    );
+
+    svg.appendChild(
+      line
+    );
+  }
+
+  return svg;
+}
+
+function renderStepOffsetValue(
+  host,
+  definition,
+  value
+) {
+  host.replaceChildren();
+
+  switch (
+    definition.id
+  ) {
+    case "note":
+      host.textContent =
+        stepNoteName(
+          value
+        );
+      return;
+
+    case "pan":
+      renderDirectionalOffset(
+        host,
+        value,
+        "c"
+      );
+      return;
+
+    case "nudge":
+      renderDirectionalOffset(
+        host,
+        value,
+        "0"
+      );
+      return;
+
+    case "subPattern": {
+      const icon =
+        createSubPatternDisplay(
+          value
+        );
+
+      if (icon) {
+        host.appendChild(
+          icon
+        );
+      } else {
+        host.textContent =
+          "off";
+      }
+
+      return;
+    }
+
+    case "strum":
+      host.appendChild(
+        createStrumDisplay(
+          value
+        )
+      );
+      return;
+
+    default:
+      host.textContent =
+        formatStepValue(
+          definition,
+          value
+        );
+  }
+}
+
+
 function formatStepValue(
   definition,
   value
@@ -3057,13 +3486,13 @@ function createStepButton(
       "mokton-step-offset-value";
 
     if (canEditOffset) {
-      offsetValue.textContent =
-        formatStepValue(
-          offsetDefinition,
-          offsetPerformance[
-            offsetDefinition.id
-          ]
-        );
+      renderStepOffsetValue(
+        offsetValue,
+        offsetDefinition,
+        offsetPerformance[
+          offsetDefinition.id
+        ]
+      );
 
       button.classList.add(
         "offset-active"
@@ -3213,11 +3642,11 @@ function createStepButton(
         next;
 
       if (offsetValue) {
-        offsetValue.textContent =
-          formatStepValue(
-            offsetDefinition,
-            next
-          );
+        renderStepOffsetValue(
+          offsetValue,
+          offsetDefinition,
+          next
+        );
       }
     }
   );

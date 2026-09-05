@@ -42,11 +42,11 @@
 :root.theme-mono82 {
   --bg: #0e0e0e;
   --text: #fafafa;
-  --accent: #5ddb63;
+  --accent: #e88dd3;
 }
    :root.theme-sprooto {
   --bg: #e8e2d9;
-  --text: #607a5d;
+  --text: #41533f;
   --accent: #8ed2d7;
 }
 
@@ -69,7 +69,7 @@
 }
 
 :root.theme-aya {
-  --bg: #d4d4d4;
+  --bg: #ededed;
   --text: #417d90;
   --accent: #ff73ce;
 }
@@ -4203,5 +4203,102 @@ body {
 /* play icon size adjustment */
 #play-button .mono82-icon {
   width: 11px !important;
+  height: 11px !important;
+}
+
+
+/* =========================================================
+   mono82 STEP offset visual language
+   ========================================================= */
+
+/* Offset content belongs to the center of each STEP cell. */
+#sequence-grid .mokton-step.offset-view
+.mokton-step-visual {
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+#sequence-grid .mokton-step-offset-value {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: 20px !important;
+  min-width: 20px !important;
+
+  text-align: center !important;
+}
+
+/* PAN / NUDGE directional mark is intentionally subordinate to the number. */
+.mokton-step-offset-direction {
+  display: inline-block;
+
+  margin-right: 1px;
+
+  font-size: 5px;
+  line-height: 1;
+}
+
+.mokton-step-offset-number {
+  display: inline-block;
+
+  font-size: 7px;
+  line-height: 1;
+}
+
+/* SUB = actual hit positions. */
+.mokton-step-subpattern-icon {
+  display: block;
+
+  width: 18px;
+  height: 9px;
+
+  overflow: visible;
+}
+
+.mokton-step-subpattern-icon line {
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: square;
+  vector-effect: non-scaling-stroke;
+}
+
+/* STRUM = four voices; zero is vertically aligned,
+   larger +/- values progressively separate them. */
+.mokton-step-strum-icon {
+  display: block;
+
+  width: 18px;
+  height: 12px;
+
+  overflow: visible;
+}
+
+.mokton-step-strum-icon line {
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linecap: square;
+  vector-effect: non-scaling-stroke;
+}
+
+
+/* =========================================================
+   mono82 STEP offset visual refinement
+   ========================================================= */
+
+/* SUB blocks show the actual subdivision duration. */
+.mokton-step-subpattern-icon {
+  width: 20px !important;
+  height: 9px !important;
+}
+
+.mokton-step-subpattern-icon rect {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* STRUM first hit remains centered; later voices move right. */
+.mokton-step-strum-icon {
+  width: 22px !important;
   height: 11px !important;
 }

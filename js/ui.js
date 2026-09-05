@@ -2,6 +2,7 @@ import {
   STEP_COUNT,
   MELODIC_SOUND_IDS,
   RHYTHM_SOUND_IDS,
+  CHORD_NAMES,
   soundBank,
   patterns,
   state,
@@ -1457,19 +1458,15 @@ const STEP_NOTE_NAMES =
 
 
 const STEP_CHORD_NAMES =
-  Object.freeze([
-    "maj",
-    "min",
-    "7",
-    "m7"
-  ]);
+  CHORD_NAMES;
 
 const STEP_CHORD_DEFINITION =
   Object.freeze({
     id: "chord",
     label: "chrd",
     min: 0,
-    max: 3,
+    max:
+      STEP_CHORD_NAMES.length - 1,
     step: 1
   });
 
@@ -1559,7 +1556,7 @@ function stepChordName(
   return (
     STEP_CHORD_NAMES[
       index
-    ] ?? "maj"
+    ] ?? "off"
   );
 }
 
